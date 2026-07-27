@@ -97,6 +97,19 @@
 	line-height: 1.55;
 }
 
+/* The brief is a paper-like writing surface, not a boxed control. Pointer focus
+ * must not draw a teal frame across the entire writing area. Keyboard users
+ * retain a quiet, neutral focus state on the containing editor. */
+.maxion-platform-prototype .prototype .brief-editor textarea:focus-visible {
+	outline: none !important;
+	outline-offset: 0;
+}
+
+.maxion-platform-prototype .prototype .brief-editor:has(textarea:focus-visible):not(.is-pointer-focused) {
+	border-color: #92a09d;
+	box-shadow: 0 0 0 2px rgba(45, 60, 56, .24), var(--mxp-elevation-card);
+}
+
 .maxion-platform-prototype .prototype .command-composer {
 	border-radius: var(--mxp-radius-card);
 	box-shadow: var(--mxp-elevation-composer);

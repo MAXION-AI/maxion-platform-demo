@@ -1,8 +1,8 @@
-# MAXION Platform Prototype
+# MAXION Platform Demo
 
 A self-contained functional frontend prototype for the unified MAXION platform experience.
 
-Hosted prototype: [https://maxion-ai.github.io/maxion-platform-prototype/](https://maxion-ai.github.io/maxion-platform-prototype/)
+Hosted demo: [https://maxion-ai.github.io/maxion-platform-demo/](https://maxion-ai.github.io/maxion-platform-demo/)
 
 The prototype mirrors the current MAXION portal shell and connects the product modules in one persistent workspace:
 

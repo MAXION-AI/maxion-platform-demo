@@ -1,5 +1,5 @@
 {
-  "name": "maxion-platform-prototype",
+	"name": "maxion-platform-demo",
   "private": true,
   "version": "0.1.0",
   "type": "module",

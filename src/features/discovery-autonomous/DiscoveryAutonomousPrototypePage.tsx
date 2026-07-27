@@ -544,6 +544,7 @@ function SetupScreen({
 	onToggleDark: () => void
 }) {
 	const hasMission = Boolean(missionBrief.trim())
+	const [briefFocusedByPointer, setBriefFocusedByPointer] = useState(false)
 	return (
 		<div className="setup-shell">
 			<aside className="setup-header" hidden={embedded}>
@@ -572,7 +573,7 @@ function SetupScreen({
 					</section>
 
 					<div className="setup-grid">
-						<section className="brief-editor" aria-labelledby="brief-heading">
+						<section className={`brief-editor${briefFocusedByPointer ? " is-pointer-focused" : ""}`} aria-labelledby="brief-heading">
 						<div className="section-heading-row">
 							<div>
 								<p className="eyebrow">Mission brief</p>
@@ -580,7 +581,7 @@ function SetupScreen({
 							</div>
 							<span className="draft-status">Draft saved</span>
 						</div>
-						<textarea value={missionBrief} onChange={(event) => onMissionBriefChange(event.target.value)} aria-label="Discovery brief" placeholder="Describe the decision, outcome, or problem. MAX will form the investigation, bind relevant evidence, and return with a decision package." autoFocus />
+						<textarea value={missionBrief} onChange={(event) => onMissionBriefChange(event.target.value)} onPointerDown={() => setBriefFocusedByPointer(true)} onBlur={() => setBriefFocusedByPointer(false)} aria-label="Discovery brief" placeholder="Describe the decision, outcome, or problem. MAX will form the investigation, bind relevant evidence, and return with a decision package." />
 						<div className="brief-context">
 							<div><span>Decision</span><strong>{hasMission ? "MAX will establish the decision boundary from your brief." : "MAX will identify the decision boundary."}</strong></div>
 							<div><span>Decision horizon</span><strong>MAX will confirm the right horizon from the evidence.</strong></div>
