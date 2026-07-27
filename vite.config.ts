@@ -3,7 +3,11 @@ import { fileURLToPath, URL } from "node:url"
 import react from "@vitejs/plugin-react"
 import { defineConfig } from "vitest/config"
 
+const githubRepositoryName = process.env.GITHUB_REPOSITORY?.split("/")[1] ?? "maxion-platform-prototype"
+const githubPagesBase = process.env.GITHUB_PAGES === "true" ? `/${githubRepositoryName}/` : "/"
+
 export default defineConfig({
+  base: githubPagesBase,
   plugins: [react()],
   resolve: {
     alias: {

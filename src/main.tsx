@@ -8,12 +8,13 @@ import { MaxionPlatformPrototypePage } from "@/features/platform-prototype/Maxio
 import "./styles.css"
 
 const root = document.getElementById("root")
+const routerBasename = import.meta.env.BASE_URL === "/" ? undefined : import.meta.env.BASE_URL.replace(/\/$/, "")
 
 if (!root) throw new Error("MAXION prototype root is missing")
 
 createRoot(root).render(
   <StrictMode>
-    <BrowserRouter>
+    <BrowserRouter basename={routerBasename}>
       <Routes>
         <Route path="/maxion-prototype" element={<MaxionPlatformPrototypePage />} />
         <Route path="/agentix-prototype" element={<MaxionPlatformPrototypePage />} />

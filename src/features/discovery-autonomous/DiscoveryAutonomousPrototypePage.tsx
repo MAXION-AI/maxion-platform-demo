@@ -35,6 +35,8 @@ import {
 	X,
 } from "@phosphor-icons/react"
 
+import { publicAsset } from "@/lib/publicAsset"
+
 import { DELIVERABLES, OPERATIONS, SCENARIOS, type OwnerInterviewQuestion, type Person, type ScenarioKey } from "./model"
 import "./styles.css"
 import "./frontier.css"
@@ -563,7 +565,7 @@ function SetupScreen({
 			<main className="setup-main">
 				<div className="setup-canvas">
 					<section className="setup-intro">
-						<img src="/maxion-logo-gradient.svg" alt="" />
+						<img src={publicAsset("maxion-logo-gradient.svg")} alt="" />
 						<p className="eyebrow">Start a Discovery</p>
 						<h1>What should MAX accomplish?</h1>
 						<p>Describe the decision and the outcome. MAX will work out the investigation.</p>
@@ -661,7 +663,7 @@ function PreparingScreen({ missionTitle }: { missionTitle: string }) {
 				<div className="mission-orbit" ref={orbitRef} aria-hidden="true">
 					<span /><span /><span />
 				</div>
-				<img src="/maxion-logo-gradient.svg" alt="" className="preparing-mark" />
+				<img src={publicAsset("maxion-logo-gradient.svg")} alt="" className="preparing-mark" />
 				<p className="eyebrow">Establishing the mission</p>
 				<h1>{missionTitle}</h1>
 				<div className="preparing-steps" ref={stepsRef}>
@@ -721,7 +723,7 @@ function WorkspaceShell({
 	return (
 		<div className="workspace-shell">
 			<aside className="product-rail" aria-label="Product navigation" hidden={embedded}>
-				<div className="rail-brand"><img src="/maxion-logo-gradient.svg" alt="" /><strong>MAXION</strong></div>
+				<div className="rail-brand"><img src={publicAsset("maxion-logo-gradient.svg")} alt="" /><strong>MAXION</strong></div>
 				<button className="rail-new" type="button" onClick={onRestart}><Plus size={16} /> New discovery</button>
 				<nav className="rail-primary">
 					<button type="button"><House size={17} /><span>Home</span></button>
@@ -1084,7 +1086,7 @@ function Thread({
 					<div className="date-divider"><span>Today</span></div>
 					{messages.map((message) => (
 						<div key={message.id} className={message.actor === "user" ? "message user-message" : "message max-message"}>
-							{message.actor === "max" ? <img src="/maxion-logo-gradient.svg" alt="" /> : null}
+							{message.actor === "max" ? <img src={publicAsset("maxion-logo-gradient.svg")} alt="" /> : null}
 							<div className="message-body">
 								{message.actor === "max" ? <span className="message-author">MAX</span> : null}
 								{message.question ? <span className="interview-question-label">{message.question.topic} · {message.question.current} of {message.question.total}</span> : null}
@@ -1347,7 +1349,7 @@ function VoiceInterview({
 
 				{state === "consent" ? (
 					<div className="voice-consent">
-						<div className="voice-mark"><img src="/maxion-logo-gradient.svg" alt="" /></div>
+						<div className="voice-mark"><img src={publicAsset("maxion-logo-gradient.svg")} alt="" /></div>
 						<p className="voice-state-label">Before we begin</p>
 						<h3>Continue this interview by voice</h3>
 						<p>Your speech is transcribed into the same owner thread. This prototype uses your browser’s voice services and does not retain the original audio.</p>
@@ -1360,7 +1362,7 @@ function VoiceInterview({
 				) : (
 					<>
 						<div className="voice-stage">
-							<div className={`voice-mark ${state === "listening" || state === "speaking" ? "active" : ""}`}><img src="/maxion-logo-gradient.svg" alt="" /></div>
+							<div className={`voice-mark ${state === "listening" || state === "speaking" ? "active" : ""}`}><img src={publicAsset("maxion-logo-gradient.svg")} alt="" /></div>
 							<div className={`voice-waveform ${state}`} aria-hidden="true">{Array.from({ length: 13 }, (_, index) => <span key={index} style={{ animationDelay: `${index * 38}ms` }} />)}</div>
 							<p className="voice-state-label" aria-live="polite">{voiceStatus}</p>
 							<p className="voice-question">{question}</p>
@@ -1504,7 +1506,7 @@ function DrawerPanel({ type, scenarioKey, people, onPeopleChange, onClose }: { t
 }
 
 function Brand() {
-	return <div className="brand"><img src="/maxion-logo-gradient.svg" alt="" /><strong>MAXION</strong><span>Discovery</span></div>
+	return <div className="brand"><img src={publicAsset("maxion-logo-gradient.svg")} alt="" /><strong>MAXION</strong><span>Discovery</span></div>
 }
 
 function IconButton({ label, active = false, onClick, children }: { label: string; active?: boolean; onClick?: () => void; children: React.ReactNode }) {

@@ -19,6 +19,8 @@ import {
 } from "@phosphor-icons/react"
 import { useId, useState, type ReactNode } from "react"
 
+import { publicAsset } from "@/lib/publicAsset"
+
 import type { MaxionModuleId } from "./model"
 
 const PETAL = "M 2 -26 Q -3.5 -18 -0.5 -10 Q 3 -14 2 -26 Z"
@@ -158,7 +160,7 @@ export function PortalSidebar({
 				aria-label="Main navigation">
 				<div className="mxp-portal-brand">
 					<button type="button" onClick={() => navigate("dashboard")} aria-label="Open MAXION dashboard">
-						<img src="/maxion-logo-lockup-white.svg" alt="MAXION" width="176" height="51" />
+						<img src={publicAsset("maxion-logo-lockup-white.svg")} alt="MAXION" width="176" height="51" />
 						<MaxionSpiralMark variant="current" className="mxp-portal-brand-mark" />
 					</button>
 					<button

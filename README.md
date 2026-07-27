@@ -2,6 +2,8 @@
 
 A self-contained functional frontend prototype for the unified MAXION platform experience.
 
+Hosted prototype: [https://maxion-ai.github.io/maxion-platform-prototype/](https://maxion-ai.github.io/maxion-platform-prototype/)
+
 The prototype mirrors the current MAXION portal shell and connects the product modules in one persistent workspace:
 
 - Dashboard — workspace activity, project status, quick actions, and connected-system context
@@ -27,6 +29,10 @@ Open [http://127.0.0.1:4317/maxion-prototype](http://127.0.0.1:4317/maxion-proto
 The legacy Agentix prototype URL remains available at [http://127.0.0.1:4317/agentix-prototype](http://127.0.0.1:4317/agentix-prototype) and opens the unified shell with Agentix selected.
 
 The complete autonomous Discovery experience is also available directly at [http://127.0.0.1:4317/discovery-prototype](http://127.0.0.1:4317/discovery-prototype). The same experience is embedded intact inside the Discovery module of the unified shell.
+
+## Deploy
+
+Pushes to `main` deploy the production build to GitHub Pages through `.github/workflows/deploy-pages.yml`. The Pages build sets the repository subpath automatically and publishes an SPA fallback so direct links such as `/maxion-prototype` continue to work when refreshed.
 
 ## Verify
 
