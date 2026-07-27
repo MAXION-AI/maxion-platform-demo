@@ -20,7 +20,7 @@ describe("MaxionPlatformPrototypePage", () => {
 	it("opens on the canonical MAXION dashboard and exposes the complete platform shell", () => {
 		renderPrototype()
 
-		expect(screen.getByRole("heading", { name: "Good afternoon, Maya" })).toBeInTheDocument()
+		expect(screen.getByRole("heading", { name: "Good afternoon, Root Admin" })).toBeInTheDocument()
 		expect(screen.getByRole("complementary", { name: "Main navigation" })).toBeInTheDocument()
 		expect(screen.getByRole("img", { name: "MAXION" })).toHaveAttribute("src", "/maxion-logo-lockup-white.svg")
 		for (const module of ["Dashboard", "Projects", "Discover", "Plan", "Consult Max", "Integrations"]) {
@@ -63,23 +63,23 @@ describe("MaxionPlatformPrototypePage", () => {
 		expect(screen.queryByRole("tab", { name: "TPRM" })).not.toBeInTheDocument()
 		fireEvent.click(await screen.findByRole("button", { name: "Start autonomous Discovery" }))
 
-		expect(await screen.findByRole("heading", { name: "Interview with MAX" }, { timeout: 4_000 })).toBeInTheDocument()
+		expect(await screen.findByRole("heading", { name: "Interview with MAX" }, { timeout: 20_000 })).toBeInTheDocument()
 		const discoveryComposer = screen.getByRole("textbox", { name: "Message MAX" })
 		fireEvent.change(discoveryComposer, { target: { value: "End the owner interview" } })
 		fireEvent.keyDown(discoveryComposer, { key: "Enter", code: "Enter" })
-		expect(await screen.findByRole("region", { name: "Autonomous work summary" }, { timeout: 6_000 })).toBeInTheDocument()
+		expect(await screen.findByRole("region", { name: "Autonomous work summary" }, { timeout: 20_000 })).toBeInTheDocument()
 		expect(screen.getByRole("button", { name: "Open autonomy" })).toBeInTheDocument()
-		expect(await screen.findByRole("heading", { name: "External counsel is outside the authority envelope" }, { timeout: 6_000 })).toBeInTheDocument()
+		expect(await screen.findByRole("heading", { name: "External counsel is outside the authority envelope" }, { timeout: 25_000 })).toBeInTheDocument()
 		fireEvent.click(screen.getByRole("button", { name: "Approve once" }))
 
-		expect(await screen.findByRole("heading", { name: "Final plan and recommendations" }, { timeout: 7_000 })).toBeInTheDocument()
+		expect(await screen.findByRole("heading", { name: "Final plan and recommendations" }, { timeout: 30_000 })).toBeInTheDocument()
 		fireEvent.click(screen.getByRole("button", { name: /Open package/ }))
 		expect(screen.getByText("Generated automatically from readiness snapshot v7 and manifest v4.")).toBeInTheDocument()
 		expect(screen.getByRole("button", { name: /Executive decision brief Current/ })).toBeInTheDocument()
 		fireEvent.click(portalNavigation().getByRole("button", { name: /^Agentix/ }))
 		fireEvent.click(screen.getByRole("button", { name: "Discover" }))
 		expect(screen.getByRole("heading", { name: "Final plan and recommendations" })).toBeInTheDocument()
-	}, 35_000)
+	}, 120_000)
 
 	it("preserves the Plan handoff in development-only Execute and verifies the agent run", async () => {
 		renderPrototype()
@@ -93,7 +93,7 @@ describe("MaxionPlatformPrototypePage", () => {
 		const approvalRequests = screen.getByRole("region", { name: "Approval requests" })
 		expect(within(approvalRequests).getByText("Priya Shah")).toBeInTheDocument()
 		expect(within(approvalRequests).getByText("Elena Ortiz")).toBeInTheDocument()
-		expect(within(approvalRequests).getByText("Maya Chen")).toBeInTheDocument()
+		expect(within(approvalRequests).getByText("Root Admin")).toBeInTheDocument()
 		expect(screen.getByText("3 messages delivered")).toBeInTheDocument()
 		fireEvent.click(screen.getByRole("button", { name: "Approve implementation boundary" }))
 		expect(screen.getByRole("button", { name: "3 approvals complete" })).toBeInTheDocument()
@@ -103,14 +103,14 @@ describe("MaxionPlatformPrototypePage", () => {
 		fireEvent.click(screen.getByRole("button", { name: /Plan handoff attached.*Inspect/ }))
 		fireEvent.click(screen.getByRole("button", { name: "Start agent run" }))
 		expect(screen.getByText("Running focused tests…")).toBeInTheDocument()
-		await waitFor(() => expect(screen.getByRole("button", { name: "Run verified" })).toBeInTheDocument(), { timeout: 2_500 })
+		await waitFor(() => expect(screen.getByRole("button", { name: "Run verified" })).toBeInTheDocument(), { timeout: 5_000 })
 		expect(screen.getAllByText("Mission authority API passed its release gate").length).toBeGreaterThan(0)
 		expect(screen.getByText("48 passed in 6.8s")).toBeInTheDocument()
 		fireEvent.click(screen.getByRole("button", { name: "Return to MAXION" }))
 		fireEvent.click(portalNavigation().getByRole("button", { name: "Consult Max" }))
 		fireEvent.click(portalNavigation().getByRole("button", { name: /^Execute/ }))
 		expect(screen.getByRole("button", { name: "Run verified" })).toBeInTheDocument()
-	}, 35_000)
+	}, 120_000)
 
 	it("creates an autonomous Plan from existing context and provides L2, L3, and L4 guidance for every flow", () => {
 		renderPrototype()

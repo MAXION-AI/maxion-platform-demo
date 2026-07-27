@@ -105,7 +105,7 @@ export const AGENT_SCENARIOS: AgentScenario[] = [
 		shortName: "AP",
 		mission:
 			"Keep the ERP modernization decision-ready, current, and moving without masking delivery risk.",
-		owner: "Maya Chen",
+		owner: "Root Admin",
 		status: "Active",
 		version: "Agent v1",
 		health: "Healthy",
@@ -193,10 +193,10 @@ export const AGENT_SCENARIOS: AgentScenario[] = [
 			},
 		],
 		connections: [
-			{ name: "Jira", principal: "Maya Chen", capability: "Read project · update issues", state: "Healthy" },
-			{ name: "Microsoft Teams", principal: "Maya Chen", capability: "Project channel only", state: "Restricted" },
-			{ name: "Microsoft 365", principal: "Maya Chen", capability: "Draft and send to project team", state: "Healthy" },
-			{ name: "SharePoint", principal: "Maya Chen", capability: "Approved program library", state: "Healthy" },
+			{ name: "Jira", principal: "Root Admin", capability: "Read project · update issues", state: "Healthy" },
+			{ name: "Microsoft Teams", principal: "Root Admin", capability: "Project channel only", state: "Restricted" },
+			{ name: "Microsoft 365", principal: "Root Admin", capability: "Draft and send to project team", state: "Healthy" },
+			{ name: "SharePoint", principal: "Root Admin", capability: "Approved program library", state: "Healthy" },
 		],
 		artifacts: [
 			{ id: "dependency-map", name: "Dependency and risk map", type: "Live register", freshness: "Updated 4 min ago", verification: "17 cited records" },

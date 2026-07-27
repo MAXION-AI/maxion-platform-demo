@@ -42,7 +42,7 @@ export const INITIAL_PROJECTS: PortalProject[] = [
 		plan: "ERP modernization delivery plan",
 		discovery: "Third-party onboarding control redesign",
 		members: [
-			{ initials: "MC", name: "Maya Chen" },
+			{ initials: "RA", name: "Root Admin" },
 			{ initials: "AR", name: "Andre Reyes" },
 			{ initials: "SL", name: "Sarah Liu" },
 		],
@@ -83,7 +83,7 @@ export const INITIAL_PROJECTS: PortalProject[] = [
 		updated: "Jun 18",
 		plan: "Pricing transformation roadmap",
 		discovery: "Pricing transformation",
-		members: [{ initials: "MC", name: "Maya Chen" }],
+		members: [{ initials: "RA", name: "Root Admin" }],
 	},
 ]
 

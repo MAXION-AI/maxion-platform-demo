@@ -187,7 +187,7 @@ export function PortalSidebar({
 				</nav>
 
 				<footer className="mxp-portal-sidebar-footer">
-					<div className="mxp-sidebar-user" title={collapsed ? "Maya Chen · Enterprise workspace" : undefined}><span>MC</span><div><strong>Maya Chen</strong><small>Enterprise workspace</small></div></div>
+					<div className="mxp-sidebar-user" title={collapsed ? "Root Admin · Enterprise workspace" : undefined}><span>RA</span><div><strong>Root Admin</strong><small>Enterprise workspace</small></div></div>
 					<div className="mxp-sidebar-actions">
 						<button type="button" aria-label="Logout" title={collapsed ? "Logout" : undefined} onClick={() => setNotice("Prototype session remains active.")}><SignOut size={14} /><span>Logout</span></button>
 						<button type="button" aria-label="Open command menu" onClick={onCommand}><Command size={14} /><kbd>⌘K</kbd></button>

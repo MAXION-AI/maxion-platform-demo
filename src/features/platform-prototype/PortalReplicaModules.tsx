@@ -136,7 +136,7 @@ export function DashboardModule({
 			<motion.div initial={prefersReducedMotion ? false : { opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: prefersReducedMotion ? 0 : 0.32 }}>
 				<section className="mxp-dashboard-welcome">
 					<p>{dateLabel}</p>
-					<h1>Good afternoon, Maya</h1>
+					<h1>Good afternoon, Root Admin</h1>
 					<span>You have {activeProjects.length} active projects and 2 discoveries in progress.</span>
 					<div>
 						<button type="button" onClick={() => onNavigate("projects")}><Stack size={16} />New Project</button>
@@ -246,7 +246,7 @@ export function ProjectsModule({
 			status: "active",
 			role: "Owner",
 			updated: "Just now",
-			members: [{ initials: "MC", name: "Maya Chen" }],
+			members: [{ initials: "RA", name: "Root Admin" }],
 		}
 		onProjectsChange([project, ...projects])
 		setNewName("")
@@ -630,7 +630,7 @@ export function IntegrationsModule() {
 			</div>
 			<div className="mxp-live-message" aria-live="polite">{message}</div>
 			{selected ? <><button type="button" className="mxp-panel-scrim" aria-label="Close integration scopes" onClick={() => setSelected(null)} /><aside className="mxp-integration-panel" aria-label={`${selected.name} available scopes`}><header><div><small>Connection scope</small><h2>{selected.name}</h2></div><button type="button" aria-label="Close integration scopes" onClick={() => setSelected(null)}><X size={17} /></button></header><div><p>Choose which workspace MAX may read through this connection. Provider permissions still apply.</p>{[selected.scope, "Transformation Office", "Finance Operations"].filter((scope, index, all) => all.indexOf(scope) === index).map((scope) => <label key={scope}><input type="radio" name="scope" defaultChecked={scope === selected.scope} /><span><strong>{scope}</strong><small>Authorized workspace scope</small></span></label>)}<button type="button" className="mxp-primary" onClick={() => { setMessage(`${selected.name} scope saved.`); setSelected(null) }}>Save scope</button></div></aside></> : null}
-			{accessLogOpen ? <><button type="button" className="mxp-panel-scrim" aria-label="Close access log" onClick={() => setAccessLogOpen(false)} /><aside className="mxp-integration-panel" aria-label="Integration access log"><header><div><small>Immutable audit trail</small><h2>Integration access log</h2></div><button type="button" aria-label="Close access log" onClick={() => setAccessLogOpen(false)}><X size={17} /></button></header><div className="mxp-access-log"><p><Database size={15} /><span><strong>Salesforce records read</strong><small>Discovery · Maya Chen · 8 minutes ago</small></span></p><p><ShieldCheck size={15} /><span><strong>SAP connection tested</strong><small>Tenant admin · 31 minutes ago</small></span></p><p><Plug size={15} /><span><strong>QuickBooks scope updated</strong><small>Tenant admin · Yesterday</small></span></p></div></aside></> : null}
+			{accessLogOpen ? <><button type="button" className="mxp-panel-scrim" aria-label="Close access log" onClick={() => setAccessLogOpen(false)} /><aside className="mxp-integration-panel" aria-label="Integration access log"><header><div><small>Immutable audit trail</small><h2>Integration access log</h2></div><button type="button" aria-label="Close access log" onClick={() => setAccessLogOpen(false)}><X size={17} /></button></header><div className="mxp-access-log"><p><Database size={15} /><span><strong>Salesforce records read</strong><small>Discovery · Root Admin · 8 minutes ago</small></span></p><p><ShieldCheck size={15} /><span><strong>SAP connection tested</strong><small>Tenant admin · 31 minutes ago</small></span></p><p><Plug size={15} /><span><strong>QuickBooks scope updated</strong><small>Tenant admin · Yesterday</small></span></p></div></aside></> : null}
 		</div>
 	)
 }

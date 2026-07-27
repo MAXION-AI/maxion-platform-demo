@@ -9,7 +9,7 @@ test("keeps the canonical MAXION shell functional across core modules", async ({
 	page.on("pageerror", (error) => runtimeErrors.push(error.message))
 
 	await page.goto("/maxion-prototype")
-	await expect(page.getByRole("heading", { name: "Good afternoon, Maya" })).toBeVisible()
+	await expect(page.getByRole("heading", { name: "Good afternoon, Root Admin" })).toBeVisible()
 	await expect(page.getByRole("img", { name: "MAXION" })).toHaveAttribute("src", "/maxion-logo-lockup-white.svg")
 
 	const navigation = page.getByRole("navigation", { name: "Portal sections" })
@@ -47,7 +47,7 @@ test("keeps the canonical MAXION shell functional across core modules", async ({
 	const approvalRequests = page.getByRole("region", { name: "Approval requests" })
 	await expect(approvalRequests.getByText("Priya Shah")).toBeVisible()
 	await expect(approvalRequests.getByText("Elena Ortiz")).toBeVisible()
-	await expect(approvalRequests.getByText("Maya Chen")).toBeVisible()
+	await expect(approvalRequests.getByText("Root Admin")).toBeVisible()
 	await expect(page.getByText("3 messages delivered")).toBeVisible()
 	const approvalAccessibility = await new AxeBuilder({ page }).analyze()
 	expect(approvalAccessibility.violations.filter((violation) => violation.impact === "critical" || violation.impact === "serious")).toEqual([])
@@ -99,7 +99,7 @@ test("keeps the canonical MAXION shell functional across core modules", async ({
 test("keeps the full MAXION navigation usable on mobile", async ({ page }) => {
 	await page.setViewportSize({ width: 390, height: 844 })
 	await page.goto("/maxion-prototype")
-	await expect(page.getByRole("heading", { name: "Good afternoon, Maya" })).toBeVisible()
+	await expect(page.getByRole("heading", { name: "Good afternoon, Root Admin" })).toBeVisible()
 	await page.getByRole("button", { name: "Open navigation" }).click()
 
 	const navigation = page.getByRole("navigation", { name: "Portal sections" })
