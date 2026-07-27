@@ -1,0 +1,343 @@
+/*
+ * MAXION's cross-module design contract.
+ *
+ * Modules retain their task-specific information architecture, but consume one
+ * family of typography, color, elevation, control, and motion decisions. This
+ * file intentionally follows the feature styles so it can normalize legacy
+ * prototype surfaces without duplicating component markup.
+ */
+.maxion-platform-prototype {
+	--mxp-font-sans: Geist, Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+	--mxp-space-1: 4px;
+	--mxp-space-2: 8px;
+	--mxp-space-3: 12px;
+	--mxp-space-4: 16px;
+	--mxp-space-5: 24px;
+	--mxp-space-6: 32px;
+	--mxp-radius-control: 8px;
+	--mxp-radius-card: 12px;
+	--mxp-radius-composer: 16px;
+	--mxp-control-sm: 32px;
+	--mxp-control: 36px;
+	--mxp-control-lg: 40px;
+	--mxp-focus-ring: rgba(23, 127, 124, .42);
+	--mxp-surface: #ffffff;
+	--mxp-surface-muted: #f1f4f3;
+	--mxp-border: #e0e5e3;
+	--mxp-border-strong: #cfd9d6;
+	--mxp-text: #17201f;
+	--mxp-text-muted: #64706e;
+	--mxp-text-subtle: #61706d;
+	--mxp-accent: #177f7c;
+	--mxp-accent-hover: #0d6967;
+	--mxp-accent-soft: #e6f4f2;
+	--mxp-dark: #0d1213;
+	--mxp-dark-raised: #172121;
+	--mxp-dark-line: rgba(255, 255, 255, .09);
+	--mxp-elevation-card: 0 1px 2px rgba(20, 35, 32, .045), 0 10px 30px rgba(20, 35, 32, .055);
+	--mxp-elevation-composer: 0 1px 2px rgba(20, 35, 32, .05), 0 18px 48px rgba(20, 35, 32, .085);
+	--mxp-ease-out: cubic-bezier(.16, 1, .3, 1);
+	font-family: var(--mxp-font-sans);
+	font-feature-settings: "cv02", "cv03", "cv04", "cv11";
+	font-optical-sizing: auto;
+}
+
+.maxion-platform-prototype :where(button, input, textarea, select) {
+	font-family: var(--mxp-font-sans);
+}
+
+.maxion-platform-prototype :where(button, input, textarea, select):focus-visible {
+	outline: 2px solid var(--mxp-focus-ring) !important;
+	outline-offset: 2px;
+}
+
+/* Discovery — shared paper, type scale, controls, and compose surface. */
+.maxion-platform-prototype .prototype {
+	--bg: var(--portal-bg);
+	--surface: var(--mxp-surface-muted);
+	--raised: var(--mxp-surface);
+	--subtle: #edf1f0;
+	--subtle-strong: #e2e8e5;
+	--ink: var(--mxp-text);
+	--ink-secondary: var(--mxp-text-muted);
+	--ink-muted: var(--mxp-text-subtle);
+	--line: var(--mxp-border);
+	--line-strong: var(--mxp-border-strong);
+	--brand: var(--mxp-accent);
+	--brand-hover: var(--mxp-accent-hover);
+	--brand-soft: var(--mxp-accent-soft);
+	--sidebar: var(--mxp-surface-muted);
+	--sidebar-hover: #e8efed;
+	--selection: var(--mxp-accent-soft);
+	--shadow-sm: 0 1px 2px rgba(20, 35, 32, .04), 0 4px 12px rgba(20, 35, 32, .025);
+	--shadow-md: var(--mxp-elevation-card);
+	font-family: var(--mxp-font-sans);
+	font-size: 14px;
+}
+
+.maxion-platform-prototype .prototype .primary-button,
+.maxion-platform-prototype .prototype .quiet-button,
+.maxion-platform-prototype .prototype .text-button {
+	min-height: var(--mxp-control);
+	border-radius: var(--mxp-radius-control);
+	font-size: 12px;
+	font-weight: 600;
+}
+
+.maxion-platform-prototype .prototype .brief-editor,
+.maxion-platform-prototype .prototype .command-composer {
+	border-radius: var(--mxp-radius-card);
+	box-shadow: var(--mxp-elevation-card);
+}
+
+.maxion-platform-prototype .prototype .brief-editor textarea {
+	min-height: 144px;
+	padding: 20px;
+	font-size: 15px;
+	line-height: 1.55;
+}
+
+.maxion-platform-prototype .prototype .command-composer {
+	border-radius: var(--mxp-radius-card);
+	box-shadow: var(--mxp-elevation-composer);
+}
+
+.maxion-platform-prototype .prototype .command-composer textarea {
+	min-height: 80px;
+	padding: 16px 18px 6px;
+	font-size: 14px;
+	line-height: 1.5;
+}
+
+.maxion-platform-prototype .prototype .setup-intro h1 {
+	font-size: clamp(32px, 3.6vw, 42px);
+	letter-spacing: -.04em;
+	line-height: 1.08;
+}
+
+.maxion-platform-prototype .prototype .setup-intro > p:last-child,
+.maxion-platform-prototype .prototype .workspace-title p {
+	font-size: 14px;
+	line-height: 1.55;
+}
+
+/* Plan — replace the lime/olive subsystem with MAXION's shared accent and rail. */
+.maxion-platform-prototype .apn-shell {
+	--apn-ink: var(--mxp-text);
+	--apn-muted: var(--mxp-text-muted);
+	--apn-subtle: var(--mxp-text-subtle);
+	--apn-line: var(--mxp-border);
+	--apn-line-strong: var(--mxp-border-strong);
+	--apn-paper: var(--portal-bg);
+	--apn-panel: var(--mxp-surface);
+	--apn-sidebar: var(--mxp-dark);
+	--apn-sidebar-panel: var(--mxp-dark-raised);
+	--apn-accent: var(--mxp-accent);
+	--apn-accent-deep: var(--mxp-accent-hover);
+	--apn-accent-soft: var(--mxp-accent-soft);
+	--apn-blue: #376b8e;
+	font-family: var(--mxp-font-sans);
+}
+
+.maxion-platform-prototype .apn-rail > nav button {
+	min-height: 38px;
+	border-radius: var(--mxp-radius-control);
+}
+
+.maxion-platform-prototype .apn-rail > nav button.is-active {
+	background: var(--mxp-dark-raised);
+	box-shadow: inset 2px 0 0 var(--mxp-accent);
+}
+
+.maxion-platform-prototype .apn-live-dot,
+.maxion-platform-prototype .apn-autonomy i,
+.maxion-platform-prototype .apn-run-hero > span i {
+	background: var(--mxp-accent);
+}
+
+.maxion-platform-prototype .apn-topbar button.is-approved {
+	border-color: #b9d9d6;
+	background: var(--mxp-accent-soft);
+	color: var(--mxp-accent-hover);
+}
+
+.maxion-platform-prototype .apn-topbar button.apn-execute,
+.maxion-platform-prototype .apn-composer footer button {
+	border-color: var(--mxp-accent-hover);
+	background: var(--mxp-accent-hover);
+}
+
+.maxion-platform-prototype .apn-run-hero h1 {
+	font-size: clamp(32px, 3.4vw, 42px);
+	line-height: 1.06;
+}
+
+.maxion-platform-prototype .apn-run-hero p,
+.maxion-platform-prototype .apn-agent-message p {
+	font-size: 13px;
+	line-height: 1.55;
+}
+
+.maxion-platform-prototype .apn-composer {
+	border-radius: var(--mxp-radius-card);
+	box-shadow: var(--mxp-elevation-card);
+}
+
+.maxion-platform-prototype .apn-composer:focus-within {
+	border-color: color-mix(in srgb, var(--mxp-accent) 58%, var(--mxp-border));
+	box-shadow: 0 0 0 3px rgba(23, 127, 124, .09), var(--mxp-elevation-card);
+}
+
+.maxion-platform-prototype .apn-composer textarea {
+	min-height: 68px;
+	padding: 16px 16px 9px;
+	font-size: 13px;
+}
+
+.maxion-platform-prototype .apn-composer footer {
+	min-height: 40px;
+}
+
+/* Agentix — retain its secondary rail, but use the same paper, accent, and compose geometry. */
+.maxion-platform-prototype .agentix-prototype.ax3-root {
+	--ax3-bg: var(--portal-bg);
+	--ax3-surface: var(--mxp-surface);
+	--ax3-surface-muted: var(--mxp-surface-muted);
+	--ax3-rail: #f2f5f4;
+	--ax3-ink: var(--mxp-text);
+	--ax3-muted: var(--mxp-text-muted);
+	--ax3-subtle: var(--mxp-text-subtle);
+	--ax3-line: var(--mxp-border);
+	--ax3-line-strong: var(--mxp-border-strong);
+	--ax3-accent: var(--mxp-accent);
+	--ax3-accent-hover: var(--mxp-accent-hover);
+	--ax3-accent-soft: var(--mxp-accent-soft);
+	font-family: var(--mxp-font-sans);
+	font-size: 14px;
+}
+
+.maxion-platform-prototype .ax3-header,
+.maxion-platform-prototype .ax3-composer-wrap {
+	background: color-mix(in srgb, var(--portal-bg) 94%, white);
+}
+
+.maxion-platform-prototype .ax3-composer {
+	border-radius: var(--mxp-radius-card);
+	box-shadow: var(--mxp-elevation-composer);
+}
+
+.maxion-platform-prototype .ax3-composer textarea {
+	height: 46px;
+	padding: 15px 16px 7px;
+	font-size: 14px;
+	line-height: 1.45;
+}
+
+.maxion-platform-prototype .ax3-composer-bar {
+	min-height: 36px;
+}
+
+.maxion-platform-prototype .ax3-composer-bar button {
+	width: 30px;
+	height: 30px;
+	border-radius: var(--mxp-radius-control);
+}
+
+.maxion-platform-prototype .ax3-today-lead h1 {
+	font-size: clamp(32px, 3.4vw, 42px);
+	letter-spacing: -.04em;
+	line-height: 1.08;
+}
+
+.maxion-platform-prototype .ax3-today-lead p {
+	font-size: 14px;
+	line-height: 1.55;
+}
+
+/* Execute intentionally keeps a dark, focused engineering surface; its tokens now map to MAXION. */
+.maxion-platform-prototype .aex-app {
+	--aex-bg: var(--mxp-dark);
+	--aex-bg-deep: #090e0f;
+	--aex-panel: #151d1d;
+	--aex-panel-raised: #1c2727;
+	--aex-hover: #223030;
+	--aex-line: var(--mxp-dark-line);
+	--aex-line-strong: rgba(255, 255, 255, .16);
+	--aex-text: #edf4f3;
+	--aex-text-2: #c6d0cf;
+	--aex-muted: #9ba8a6;
+	--aex-subtle: #a7b3b0;
+	--aex-accent: #5fd3cf;
+	--aex-accent-strong: #b9eeeb;
+	--aex-accent-soft: rgba(95, 211, 207, .12);
+	--aex-radius-sm: var(--mxp-radius-control);
+	--aex-radius: var(--mxp-radius-card);
+	--aex-radius-lg: var(--mxp-radius-composer);
+	font-family: var(--mxp-font-sans);
+}
+
+.maxion-platform-prototype .aex-rail {
+	background: #0a1011;
+}
+
+.maxion-platform-prototype .aex-home-title h1 {
+	font-size: clamp(34px, 3.6vw, 44px);
+	line-height: 1.06;
+}
+
+.maxion-platform-prototype .aex-home-title p,
+.maxion-platform-prototype .aex-thread-title p,
+.maxion-platform-prototype .aex-message p {
+	font-size: 14px;
+	line-height: 1.55;
+}
+
+.maxion-platform-prototype .aex-prompt,
+.maxion-platform-prototype .aex-steer {
+	border-radius: var(--mxp-radius-composer);
+}
+
+.maxion-platform-prototype .aex-prompt > textarea {
+	min-height: 152px;
+	padding: 22px 24px 16px;
+	font-size: 16px;
+	line-height: 1.55;
+}
+
+.maxion-platform-prototype .aex-prompt > footer {
+	min-height: 60px;
+}
+
+.maxion-platform-prototype .aex-new-task,
+.maxion-platform-prototype .aex-approval article > footer button,
+.maxion-platform-prototype .aex-approve,
+.maxion-platform-prototype .aex-thread-title button {
+	min-height: var(--mxp-control);
+	border-radius: var(--mxp-radius-control);
+}
+
+.maxion-platform-prototype .aex-steer textarea {
+	min-height: 52px;
+	padding: 14px 16px 5px;
+	font-size: 13px;
+}
+
+@media (max-width: 860px) {
+	.maxion-platform-prototype .prototype .brief-editor textarea { min-height: 132px; padding: 18px; }
+	.maxion-platform-prototype .prototype .command-composer textarea { min-height: 72px; padding-inline: 16px; }
+	.maxion-platform-prototype .apn-run-hero h1,
+	.maxion-platform-prototype .ax3-today-lead h1,
+	.maxion-platform-prototype .aex-home-title h1,
+	.maxion-platform-prototype .prototype .setup-intro h1 { font-size: 32px; }
+	.maxion-platform-prototype .aex-prompt > textarea { min-height: 144px; padding: 20px 18px 14px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+	.maxion-platform-prototype .prototype *,
+	.maxion-platform-prototype .apn-shell *,
+	.maxion-platform-prototype .agentix-prototype.ax3-root *,
+	.maxion-platform-prototype .aex-app * {
+		animation-duration: .01ms !important;
+		transition-duration: .01ms !important;
+	}
+}

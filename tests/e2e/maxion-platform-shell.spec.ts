@@ -1,0 +1,127 @@
+import AxeBuilder from "@axe-core/playwright"
+import { expect, test } from "@playwright/test"
+
+test("keeps the canonical MAXION shell functional across core modules", async ({ page }) => {
+	const runtimeErrors: string[] = []
+	page.on("console", (message) => {
+		if (message.type() === "error") runtimeErrors.push(message.text())
+	})
+	page.on("pageerror", (error) => runtimeErrors.push(error.message))
+
+	await page.goto("/maxion-prototype")
+	await expect(page.getByRole("heading", { name: "Good afternoon, Maya" })).toBeVisible()
+	await expect(page.getByRole("img", { name: "MAXION" })).toHaveAttribute("src", "/maxion-logo-lockup-white.svg")
+
+	const navigation = page.getByRole("navigation", { name: "Portal sections" })
+	for (const name of ["Dashboard", "Projects", "Discover", "Plan", "Consult Max", "Integrations"]) {
+		await expect(navigation.getByRole("button", { name })).toBeVisible()
+	}
+	await expect(navigation.getByRole("button", { name: "Execute 1 pending" })).toBeVisible()
+	await expect(navigation.getByRole("button", { name: "Agentix 2 pending" })).toBeVisible()
+	await page.getByRole("button", { name: "Collapse navigation" }).click()
+	await expect(page.getByRole("button", { name: "Expand navigation" })).toHaveAttribute("aria-pressed", "true")
+	await expect(page.locator(".mxp-root")).toHaveClass(/mxp-root--sidebar-collapsed/)
+
+	await navigation.getByRole("button", { name: "Projects" }).click()
+	await expect(page.getByRole("heading", { name: "Projects" })).toBeVisible()
+	await expect(page.getByRole("region", { name: "Projects" })).toBeVisible()
+
+	await navigation.getByRole("button", { name: "Plan" }).click()
+	await expect(page.getByRole("heading", { name: "From evidence to implementation-ready" })).toBeVisible()
+	await page.getByRole("button", { name: "Resume plan" }).click()
+	await expect(page.getByRole("heading", { name: "MAX built the implementation plan." })).toBeVisible()
+	await expect(page.getByText("15 architecture diagrams")).toBeVisible()
+	const planComposer = page.getByRole("textbox", { name: "Steer the Plan agent" })
+	await planComposer.fill("Keep the ServiceNow adapter behind the existing gateway.")
+	await planComposer.press("Enter")
+	await expect(page.getByText(/re-checked the affected L3 contracts and L4 acceptance criteria/)).toBeVisible()
+	await page.getByRole("navigation", { name: "Plan workspace" }).getByRole("button", { name: /Architecture/ }).click()
+	await expect(page.getByRole("heading", { name: "Every flow, from intent to code." })).toBeVisible()
+	await page.getByRole("navigation", { name: "Architecture flows" }).getByRole("button", { name: /ServiceNow financial-change event intake/ }).click()
+	await page.getByRole("button", { name: "L4 Build" }).click()
+	await expect(page.getByRole("img", { name: "L4 diagram for ServiceNow financial-change event intake" })).toBeVisible()
+	const planAccessibility = await new AxeBuilder({ page }).analyze()
+	expect(planAccessibility.violations.filter((violation) => violation.impact === "critical" || violation.impact === "serious")).toEqual([])
+	await page.getByRole("button", { name: "All plans" }).click()
+
+	await navigation.getByRole("button", { name: "Execute 1 pending" }).click()
+	await expect(page.getByRole("heading", { name: "What do you want built?", exact: true })).toBeVisible()
+	await expect(page.getByRole("button", { name: "Operations" })).toHaveCount(0)
+	await expect(page.getByRole("textbox", { name: "What should Execute deliver?" })).toBeVisible()
+	await page.getByRole("button", { name: "Import from Plan" }).click()
+	await page.getByRole("button", { name: "Start engagement" }).click()
+	await expect(page.getByRole("heading", { name: "Workspace topology" })).toBeVisible()
+	const topology = page.getByRole("group", { name: "Workspace dependency topology" })
+	await expect(topology).toBeVisible()
+	await topology.getByRole("button", { name: "Open Workspace 02: Add ServiceNow event adapter" }).click()
+	await expect(page.getByRole("heading", { name: "Add ServiceNow event adapter" })).toBeVisible()
+	const workspaceComposer = page.getByRole("textbox", { name: "Steer Workspace 02: Add ServiceNow event adapter" })
+	await workspaceComposer.fill("Reuse the existing webhook signature verifier.")
+	await workspaceComposer.press("Enter")
+	await expect(page.getByText("Reuse the existing webhook signature verifier.")).toBeVisible()
+	await page.getByRole("navigation", { name: "Engagement workspaces" }).getByRole("button", { name: "Open Workspace 03: Implement durable reconciliation" }).click()
+	await expect(page.getByRole("heading", { name: "Implement durable reconciliation" })).toBeVisible()
+	await expect(page.getByText("Reuse the existing webhook signature verifier.")).toHaveCount(0)
+	await page.getByRole("navigation", { name: "Engagement workspaces" }).getByRole("button", { name: "Open Workspace 02: Add ServiceNow event adapter" }).click()
+	await expect(page.getByText("Reuse the existing webhook signature verifier.")).toBeVisible()
+	const executeAccessibility = await new AxeBuilder({ page }).analyze()
+	expect(executeAccessibility.violations.filter((violation) => violation.impact === "critical" || violation.impact === "serious")).toEqual([])
+	await page.getByRole("button", { name: "All engagements" }).click()
+	await page.getByRole("button", { name: /Approve workspace boundary/ }).click()
+	await page.getByRole("button", { name: "Approve binding" }).click()
+	await expect(page.getByRole("heading", { name: "All caught up" })).toBeVisible()
+	await page.getByRole("button", { name: "Return to MAXION" }).click()
+
+	await navigation.getByRole("button", { name: "Integrations" }).click()
+	await expect(page.getByRole("heading", { name: "Integrations" })).toBeVisible()
+	await page.getByRole("textbox", { name: "Search integrations" }).fill("Workday")
+	await page.getByRole("button", { name: "Connect" }).click()
+	await expect(page.getByText("Workday connected.")).toBeVisible()
+
+	const accessibility = await new AxeBuilder({ page }).analyze()
+	expect(accessibility.violations.filter((violation) => violation.impact === "critical" || violation.impact === "serious")).toEqual([])
+	expect(runtimeErrors).toEqual([])
+})
+
+test("keeps the full MAXION navigation usable on mobile", async ({ page }) => {
+	await page.setViewportSize({ width: 390, height: 844 })
+	await page.goto("/maxion-prototype")
+	await expect(page.getByRole("heading", { name: "Good afternoon, Maya" })).toBeVisible()
+	await page.getByRole("button", { name: "Open navigation" }).click()
+
+	const navigation = page.getByRole("navigation", { name: "Portal sections" })
+	await expect(page.getByRole("img", { name: "MAXION" })).toBeVisible()
+	await expect(navigation.getByRole("button", { name: "Agentix 2 pending" })).toBeVisible()
+	await navigation.getByRole("button", { name: "Projects" }).click()
+	await expect(page.getByRole("heading", { name: "Projects" })).toBeVisible()
+	await expect(page.getByRole("button", { name: "Open navigation" })).toHaveAttribute("aria-expanded", "false")
+
+	await page.getByRole("button", { name: "Open navigation" }).click()
+	await navigation.getByRole("button", { name: "Plan" }).click()
+	await page.getByRole("button", { name: "Resume plan" }).click()
+	await expect(page.getByRole("heading", { name: "MAX built the implementation plan." })).toBeVisible()
+	await page.getByRole("navigation", { name: "Plan workspace" }).getByRole("button", { name: /Architecture/ }).click()
+	await expect(page.getByRole("heading", { name: "Every flow, from intent to code." })).toBeVisible()
+	await expect(page.getByRole("button", { name: "Plans" })).toBeVisible()
+	const mobilePlanAccessibility = await new AxeBuilder({ page }).analyze()
+	expect(mobilePlanAccessibility.violations.filter((violation) => violation.impact === "critical" || violation.impact === "serious")).toEqual([])
+	await page.getByRole("button", { name: "Plans" }).click()
+
+	await page.getByRole("button", { name: "Open navigation" }).click()
+	await navigation.getByRole("button", { name: "Execute 1 pending" }).click()
+	await expect(page.getByRole("heading", { name: "What do you want built?", exact: true })).toBeVisible()
+	const engagementComposer = page.getByRole("region", { name: "What should MAX deliver?" })
+	await expect(engagementComposer).toBeVisible()
+	const composerBox = await engagementComposer.boundingBox()
+	expect(composerBox).not.toBeNull()
+	expect(composerBox!.x).toBeGreaterThanOrEqual(0)
+	expect(composerBox!.x + composerBox!.width).toBeLessThanOrEqual(390)
+	const executeMobileAccessibility = await new AxeBuilder({ page }).analyze()
+	expect(executeMobileAccessibility.violations.filter((violation) => violation.impact === "critical" || violation.impact === "serious")).toEqual([])
+
+	const dimensions = await page.evaluate(() => ({
+		clientWidth: document.documentElement.clientWidth,
+		scrollWidth: document.documentElement.scrollWidth,
+	}))
+	expect(dimensions.scrollWidth).toBe(dimensions.clientWidth)
+})
