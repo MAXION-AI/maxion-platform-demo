@@ -32,7 +32,7 @@ The complete autonomous Discovery experience is also available directly at [http
 
 ## Deploy
 
-Pushes to `main` deploy the production build to GitHub Pages through `.github/workflows/deploy-pages.yml`. The Pages build sets the repository subpath automatically and publishes an SPA fallback so direct links such as `/maxion-prototype` continue to work when refreshed.
+Pushes to `main` deploy the production build to GitHub Pages through `.github/workflows/deploy-pages.yml`. The Pages build sets the repository subpath automatically and uses hash routing so module links continue to work when refreshed without returning a GitHub Pages 404.
 
 ## Verify
 

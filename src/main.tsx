@@ -1,6 +1,6 @@
 import { StrictMode } from "react"
 import { createRoot } from "react-dom/client"
-import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom"
+import { BrowserRouter, HashRouter, Navigate, Route, Routes } from "react-router-dom"
 
 import { DiscoveryAutonomousPrototypePage } from "@/features/discovery-autonomous/DiscoveryAutonomousPrototypePage"
 import { MaxionPlatformPrototypePage } from "@/features/platform-prototype/MaxionPlatformPrototypePage"
@@ -8,13 +8,13 @@ import { MaxionPlatformPrototypePage } from "@/features/platform-prototype/Maxio
 import "./styles.css"
 
 const root = document.getElementById("root")
-const routerBasename = import.meta.env.BASE_URL === "/" ? undefined : import.meta.env.BASE_URL.replace(/\/$/, "")
+const Router = import.meta.env.BASE_URL === "/" ? BrowserRouter : HashRouter
 
 if (!root) throw new Error("MAXION prototype root is missing")
 
 createRoot(root).render(
   <StrictMode>
-    <BrowserRouter basename={routerBasename}>
+    <Router>
       <Routes>
         <Route path="/maxion-prototype" element={<MaxionPlatformPrototypePage />} />
         <Route path="/agentix-prototype" element={<MaxionPlatformPrototypePage />} />
@@ -22,6 +22,6 @@ createRoot(root).render(
         <Route path="/" element={<Navigate to="/maxion-prototype" replace />} />
         <Route path="*" element={<Navigate to="/maxion-prototype" replace />} />
       </Routes>
-    </BrowserRouter>
+    </Router>
   </StrictMode>,
 )
