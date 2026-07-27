@@ -347,9 +347,63 @@ function PlanAgentRun({ steering, steer, onSteerChange, onSubmitSteer, onOpenArc
 	return <main className="apn-main apn-run"><div className="apn-run-column"><section className="apn-run-hero"><span><i />Autonomous plan run complete</span><h1>MAX built the implementation plan.</h1><p>It assembled the evidence, made the decomposition, drew every architecture flow, tested the guidance, and prepared the work for Execute. Your only required action is approval.</p></section><section className="apn-agent-thread" aria-label="Autonomous Plan activity"><div className="apn-agent-message"><MaxionSpiralMark /><div><strong>MAX</strong><p>I used the verified Discovery package as the decision source of truth. Where evidence was incomplete, I chose the safest reversible assumption and marked it in the plan.</p></div></div><ol>{steps.map(([title, detail], index) => <li key={title}><span><Check size={12} /></span><div><strong>{title}</strong><p>{detail}</p></div><time>{index === 0 ? "14:02" : index === 1 ? "14:08" : index === 2 ? "14:15" : "14:19"}</time></li>)}</ol>{steering.map((message, index) => message.role === "user" ? <div className="apn-user-message" key={`${message.text}-${index}`}><span>You</span><p>{message.text}</p></div> : <div className="apn-agent-message is-response" key={`${message.text}-${index}`}><MaxionSpiralMark /><div><strong>MAX</strong><p>{message.text}</p></div></div>)}</section><section className="apn-output"><header><div><span>Implementation package</span><strong>Ready for approval</strong></div><CheckCircle size={19} weight="fill" /></header><div><button type="button" onClick={onOpenArchitecture}><CirclesThree size={17} /><span><strong>15 architecture diagrams</strong><small>L2 context · L3 contracts · L4 sequences</small></span><ArrowRight size={14} /></button><button type="button" onClick={onOpenImplementation}><ListChecks size={17} /><span><strong>35 implementation items</strong><small>Acceptance, dependencies, tests, and rollback</small></span><ArrowRight size={14} /></button></div></section><form className="apn-composer" onSubmit={(event) => { event.preventDefault(); onSubmitSteer() }}><textarea aria-label="Steer the Plan agent" value={steer} onChange={(event) => onSteerChange(event.target.value)} onKeyDown={(event) => { if (event.key === "Enter" && !event.shiftKey) { event.preventDefault(); onSubmitSteer() } }} placeholder="Steer MAX only if something needs to change…" rows={2} /><footer><span><Sparkle size={13} />MAX will update affected artifacts and re-run critics</span><button type="submit" disabled={!steer.trim()} aria-label="Send Plan direction"><ArrowRight size={15} /></button></footer></form></div></main>
 }
 
+type PlanDiagramNode = PlanFlow["levels"][PlanArchitectureLevel]["nodes"][number]
+
+function PlanArchitectureDiagram({ level, flowTitle, nodes }: { level: PlanArchitectureLevel; flowTitle: string; nodes: readonly PlanDiagramNode[] }) {
+	const model = level === "L2" ? "Context boundary" : level === "L3" ? "Service contract map" : "Implementation sequence"
+	const nodePositions = nodes.map((_, index) => `is-node-${Math.min(index, 3)}`)
+	return (
+		<div className="apn-diagram-viewport">
+			<div className={`apn-architecture-diagram is-${level.toLowerCase()}`} role="img" tabIndex={0} aria-label={`${level} diagram for ${flowTitle}`}>
+				<svg viewBox="0 0 1000 360" preserveAspectRatio="none" aria-hidden="true">
+					<defs>
+						<marker id="apn-arrow" markerWidth="8" markerHeight="8" refX="6.4" refY="3.6" orient="auto"><path d="M0,0 L7,3.6 L0,7.2 Z" /></marker>
+					</defs>
+					{level === "L2" ? <>
+						<rect className="apn-diagram-boundary" x="24" y="30" width="952" height="296" rx="16" />
+						<text className="apn-diagram-svg-label" x="48" y="58">GOVERNED MISSION BOUNDARY</text>
+						<rect className="apn-diagram-zone is-entry" x="42" y="82" width="190" height="208" rx="12" />
+						<rect className="apn-diagram-zone is-control" x="256" y="82" width="470" height="208" rx="12" />
+						<rect className="apn-diagram-zone is-effect" x="750" y="82" width="208" height="208" rx="12" />
+						<text className="apn-diagram-zone-label" x="60" y="107">REQUEST</text>
+						<text className="apn-diagram-zone-label" x="278" y="107">GOVERNED DECISION</text>
+						<text className="apn-diagram-zone-label" x="770" y="107">APPROVED EFFECT</text>
+						{[238, 488, 738].map((x) => <path key={x} className="apn-diagram-link" d={`M ${x} 192 H ${x + 24}`} markerEnd="url(#apn-arrow)" />)}
+					</> : level === "L3" ? <>
+						<rect className="apn-diagram-boundary" x="24" y="30" width="952" height="296" rx="16" />
+						<text className="apn-diagram-svg-label" x="48" y="58">TENANT-SCOPED SERVICE PLANE</text>
+						<path className="apn-diagram-link" d="M 210 206 C 270 206, 274 138, 330 138" markerEnd="url(#apn-arrow)" />
+						<path className="apn-diagram-link" d="M 460 138 C 520 138, 534 244, 588 244" markerEnd="url(#apn-arrow)" />
+						<path className="apn-diagram-link" d="M 714 244 C 772 244, 770 178, 820 178" markerEnd="url(#apn-arrow)" />
+						<path className="apn-diagram-return" d="M 820 200 C 690 304, 368 304, 210 228" markerEnd="url(#apn-arrow)" />
+						<text className="apn-diagram-edge-label" x="244" y="165">typed contract</text>
+						<text className="apn-diagram-edge-label" x="520" y="194">durable decision</text>
+						<text className="apn-diagram-edge-label" x="744" y="212">signed handoff</text>
+					</> : <>
+						<rect className="apn-diagram-boundary" x="24" y="30" width="952" height="296" rx="16" />
+						<text className="apn-diagram-svg-label" x="48" y="58">IMPLEMENTATION SEQUENCE · DURABLE STATE AT EVERY BOUNDARY</text>
+						{[130, 370, 610, 850].map((x) => <line key={x} className="apn-diagram-lifeline" x1={x} x2={x} y1="158" y2="314" />)}
+						<path className="apn-diagram-link" d="M 130 184 H 364" markerEnd="url(#apn-arrow)" />
+						<path className="apn-diagram-link" d="M 370 228 H 604" markerEnd="url(#apn-arrow)" />
+						<path className="apn-diagram-link" d="M 610 272 H 844" markerEnd="url(#apn-arrow)" />
+						<path className="apn-diagram-return" d="M 850 304 H 136" markerEnd="url(#apn-arrow)" />
+						<text className="apn-diagram-edge-label" x="206" y="176">validate intent</text>
+						<text className="apn-diagram-edge-label" x="450" y="220">persist decision</text>
+						<text className="apn-diagram-edge-label" x="694" y="264">issue handoff</text>
+						<text className="apn-diagram-edge-label" x="466" y="296">return receipt / evidence</text>
+					</>}
+				</svg>
+				<div className="apn-diagram-model"><span>{level}</span><strong>{model}</strong></div>
+				{nodes.map((node, index) => <section key={node.title} className={`apn-diagram-node ${nodePositions[index]} is-${node.tone}`}><span>{String(index + 1).padStart(2, "0")}</span><strong>{node.title}</strong><small>{node.detail}</small></section>)}
+				<div className="apn-diagram-legend" aria-hidden="true"><span className="is-source">Entry</span><span className="is-core">Control</span><span className="is-store">Durable state</span><span className="is-effect">Effect / handoff</span></div>
+			</div>
+		</div>
+	)
+}
+
 function PlanArchitectureView({ selectedFlow, level, onLevelChange, onSelectFlow }: { selectedFlow: PlanFlow; level: PlanArchitectureLevel; onLevelChange: (level: PlanArchitectureLevel) => void; onSelectFlow: (flowId: string) => void }) {
 	const diagram = selectedFlow.levels[level]
-	return <main className="apn-main apn-architecture-view"><header className="apn-view-heading"><div><span>Implementation architecture</span><h1>Every flow, from intent to code.</h1><p>L2 defines the boundary. L3 defines the service contracts. L4 is the implementation and acceptance guidance Execute must follow.</p></div><div><strong>15 / 15</strong><small>diagrams generated</small></div></header><div className="apn-architecture-layout"><nav aria-label="Architecture flows"><span>Architecture flows</span>{PLAN_FLOWS.map((flow) => <button key={flow.id} type="button" className={selectedFlow.id === flow.id ? "is-active" : ""} onClick={() => onSelectFlow(flow.id)}><i>{flow.number}</i><span><strong>{flow.title}</strong><small>{flow.key} · {flow.items} L4 items</small></span><CheckCircle size={14} weight="fill" /></button>)}</nav><section className="apn-diagram-panel"><header><div><span>{selectedFlow.key}</span><h2>{selectedFlow.title}</h2></div><div role="group" aria-label="Architecture level">{(["L2", "L3", "L4"] as const).map((item) => <button key={item} type="button" aria-pressed={level === item} onClick={() => onLevelChange(item)}><strong>{item}</strong><small>{item === "L2" ? "Context" : item === "L3" ? "Contracts" : "Build"}</small></button>)}</div></header><div className="apn-diagram-meta"><span>{diagram.name}</span><p>{diagram.focus}</p><i><CheckCircle size={12} weight="fill" />Generated and critic-checked</i></div><div className="apn-flow-diagram" role="img" tabIndex={0} aria-label={`${level} diagram for ${selectedFlow.title}`}>{diagram.nodes.map((node, index) => <div className="apn-flow-step" key={node.title}><section className={`is-${node.tone}`}><span>{String(index + 1).padStart(2, "0")}</span><strong>{node.title}</strong><small>{node.detail}</small></section>{index < diagram.nodes.length - 1 ? <div className="apn-flow-connector"><i /><ArrowRight size={14} /></div> : null}</div>)}</div><footer><span>Guidance bound to this diagram</span><div>{diagram.guidance.map((item) => <p key={item}><Check size={12} />{item}</p>)}</div></footer></section></div></main>
+	return <main className="apn-main apn-architecture-view"><header className="apn-view-heading"><div><span>Implementation architecture</span><h1>Every flow, from intent to code.</h1><p>L2 defines the boundary. L3 defines the service contracts. L4 is the implementation and acceptance guidance Execute must follow.</p></div><div><strong>15 / 15</strong><small>diagrams generated</small></div></header><div className="apn-architecture-layout"><nav aria-label="Architecture flows"><span>Architecture flows</span>{PLAN_FLOWS.map((flow) => <button key={flow.id} type="button" className={selectedFlow.id === flow.id ? "is-active" : ""} onClick={() => onSelectFlow(flow.id)}><i>{flow.number}</i><span><strong>{flow.title}</strong><small>{flow.key} · {flow.items} L4 items</small></span><CheckCircle size={14} weight="fill" /></button>)}</nav><section className="apn-diagram-panel"><header><div><span>{selectedFlow.key}</span><h2>{selectedFlow.title}</h2></div><div role="group" aria-label="Architecture level">{(["L2", "L3", "L4"] as const).map((item) => <button key={item} type="button" aria-pressed={level === item} onClick={() => onLevelChange(item)}><strong>{item}</strong><small>{item === "L2" ? "Context" : item === "L3" ? "Contracts" : "Build"}</small></button>)}</div></header><div className="apn-diagram-meta"><span>{diagram.name}</span><p>{diagram.focus}</p><i><CheckCircle size={12} weight="fill" />Generated and critic-checked</i></div><PlanArchitectureDiagram level={level} flowTitle={selectedFlow.title} nodes={diagram.nodes} /><footer><span>Guidance bound to this diagram</span><div>{diagram.guidance.map((item) => <p key={item}><Check size={12} />{item}</p>)}</div></footer></section></div></main>
 }
 
 function PlanImplementationView({ onOpenArchitecture }: { onOpenArchitecture: (flowId: string, level: PlanArchitectureLevel) => void }) {
