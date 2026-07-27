@@ -114,8 +114,10 @@ describe("MaxionPlatformPrototypePage", () => {
 		renderPrototype()
 		fireEvent.click(screen.getByRole("button", { name: "Plan" }))
 		fireEvent.click(screen.getByRole("button", { name: "Create Plan" }))
-		const dialog = screen.getByRole("dialog", { name: "Give MAX a starting point" })
+		const dialog = screen.getByRole("dialog", { name: "Start a plan with MAX" })
 		expect(within(dialog).getByRole("button", { name: /Verified Discovery/ })).toHaveAttribute("aria-pressed", "true")
+		expect(within(dialog).getByRole("group", { name: "Starting context" })).toBeInTheDocument()
+		expect(within(dialog).getByRole("region", { name: "What MAX will deliver" })).toBeInTheDocument()
 		for (const source of ["Verified Discovery", "Documents", "Connected systems", "Project context", "Describe it"]) {
 			expect(within(dialog).getByRole("button", { name: new RegExp(source) })).toBeInTheDocument()
 		}
