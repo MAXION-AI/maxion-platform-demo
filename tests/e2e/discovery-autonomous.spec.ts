@@ -57,7 +57,9 @@ test("runs an autonomous Discovery from brief to verified package", async ({ pag
 	await composer.fill("End the owner interview")
 	await composer.press("Enter")
 	await expect(page.getByText(/That gives me enough owner context for this pass/)).toBeVisible()
-	await expect(page.getByText(/I won’t ask another interview question unless you reopen it/)).toBeVisible()
+	await expect(page.getByText(/keep the work visible in Autonomy and won’t ask another interview question unless you reopen it/)).toBeVisible()
+	await expect(page.getByRole("region", { name: "Autonomous work summary" })).toBeVisible()
+	await expect(page.getByRole("button", { name: "Open autonomy" })).toBeVisible()
 
 	await expect(page.getByRole("heading", { name: SCENARIO_EXCEPTION_TITLE })).toBeVisible({ timeout: 15_000 })
 	await page.getByRole("button", { name: "Approve once" }).click()
@@ -68,10 +70,13 @@ test("runs an autonomous Discovery from brief to verified package", async ({ pag
 	await expect(page.getByText("Generated automatically from readiness snapshot v7 and manifest v4.")).toBeVisible()
 	await expect(page.getByRole("button", { name: /Executive decision brief Current/ })).toBeVisible()
 
-	await page.getByRole("button", { name: "Overview" }).click()
-	await expect(page.getByRole("heading", { name: "Nothing right now" })).toBeVisible()
-	const overviewDimensions = await page.locator(".overview-main").evaluate((element) => ({ clientHeight: element.clientHeight, scrollHeight: element.scrollHeight }))
-	expect(overviewDimensions.scrollHeight).toBeLessThanOrEqual(overviewDimensions.clientHeight + 1)
+	await page.getByRole("button", { name: "Autonomy" }).click()
+	await expect(page.getByRole("heading", { name: "MAX is running the Discovery." })).toBeVisible()
+	await expect(page.getByRole("region", { name: "Work handled by MAX" })).toBeVisible()
+	await expect(page.getByRole("heading", { name: "What MAX is handling for you" })).toBeVisible()
+	await expect(page.getByRole("heading", { name: "Conversations MAX is managing" })).toBeVisible()
+	await expect(page.getByRole("heading", { name: "What MAX did and why" })).toBeVisible()
+	await expect(page.getByText("Approvals and handoff routed")).toBeVisible()
 	await page.getByRole("button", { name: "Package", exact: true }).click()
 
 	await page.getByRole("button", { name: "Manage package" }).click()

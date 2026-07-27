@@ -133,7 +133,7 @@ function getSpeechRecognitionConstructor() {
 
 const viewMeta: Array<{ id: View; label: string; icon: React.ElementType }> = [
 	{ id: "thread", label: "Thread", icon: Command },
-	{ id: "overview", label: "Overview", icon: Rows },
+	{ id: "overview", label: "Autonomy", icon: Rows },
 	{ id: "package", label: "Package", icon: Package },
 ]
 
@@ -301,10 +301,10 @@ export function DiscoveryAutonomousPrototypePage({ embedded = false, onPackageRe
 		addMessage({
 			id: `interview-complete-${Date.now()}`,
 			actor: "max",
-			text: `${prefix ? `${prefix} ` : ""}That gives me enough owner context for this pass. I’ve closed the interview, preserved the conversation for later additions, and started source verification and stakeholder coordination. I won’t ask another interview question unless you reopen it.`,
+			text: `${prefix ? `${prefix} ` : ""}That gives me enough owner context for this pass. I’ve closed the interview, preserved the conversation for later additions, and started source verification and stakeholder coordination. I’ll keep the work visible in Autonomy and won’t ask another interview question unless you reopen it.`,
 			trace: ["Saved the owner interview as a versioned context snapshot", "Replanned the inquiry map from the captured answers", "Started the autonomous work graph"],
 		})
-		setToast("Owner interview complete · autonomous work started")
+		setToast("Owner interview complete · Autonomy is now live")
 	}
 
 	const advanceOwnerInterview = (text: string, prompt: OwnerInterviewQuestion) => {
@@ -457,6 +457,8 @@ export function DiscoveryAutonomousPrototypePage({ embedded = false, onPackageRe
 							paused={paused}
 							decision={decision}
 							people={people}
+							interviewClosed={interviewClosed}
+							invitesSent={invitesSent}
 							traceOpen={traceOpen}
 							onToggleTrace={() => setTraceOpen((current) => !current)}
 							onResolveDecision={resolveDecision}
@@ -481,6 +483,7 @@ export function DiscoveryAutonomousPrototypePage({ embedded = false, onPackageRe
 							onOpenPeople={() => setDrawer("people")}
 							onOpenSources={() => setDrawer("sources")}
 							onOpenPackage={() => setView("package")}
+							onOpenAutonomy={() => setView("overview")}
 						/>
 					) : (
 						<Deliverables
@@ -709,11 +712,11 @@ function WorkspaceShell({
 		: paused
 		? "Paused at a verified checkpoint"
 		: phase <= 2
-			? "Owner interview · building the decision context"
+			? "MAX is mobilizing sources and stakeholders"
 			: phase <= 4
-				? `Interviewing and reconciling · ${Math.min(peopleCountForPhase(phase), scenario.people.length)} of ${scenario.people.length} complete`
+				? `MAX is interviewing and reconciling · ${Math.min(peopleCountForPhase(phase), scenario.people.length)} of ${scenario.people.length} complete`
 				: phase <= 6
-					? "Synthesizing findings · no action needed"
+					? "MAX is synthesizing findings · no action needed"
 					: "Package ready · routed for approval"
 	return (
 		<div className="workspace-shell">
@@ -768,6 +771,7 @@ function WorkspaceShell({
 								<button key={item.id} type="button" className={view === item.id ? "active" : ""} onClick={() => onViewChange(item.id)} disabled={item.id === "package" && phase < 6}>
 									<Icon size={15} weight={view === item.id ? "fill" : "regular"} />
 									{item.label}
+									{item.id === "overview" && interviewClosed && phase < 7 ? <span className="autonomy-tab-pulse" aria-hidden="true" /> : null}
 									{item.id === "package" && phase >= 6 ? <span className="tab-ready-dot" /> : null}
 								</button>
 							)
@@ -797,6 +801,8 @@ function Overview({
 	paused,
 	decision,
 	people,
+	interviewClosed,
+	invitesSent,
 	traceOpen,
 	onToggleTrace,
 	onResolveDecision,
@@ -809,6 +815,8 @@ function Overview({
 	paused: boolean
 	decision: DecisionState
 	people: Person[]
+	interviewClosed: boolean
+	invitesSent: boolean
 	traceOpen: boolean
 	onToggleTrace: () => void
 	onResolveDecision: (decision: Exclude<DecisionState, "pending">) => void
@@ -819,40 +827,121 @@ function Overview({
 	const decisionPending = phase === 4 && decision === "pending"
 	const progress = Math.round(((phase + 1) / OPERATIONS.length) * 100)
 	const interviewed = Math.min(people.length, Math.max(0, phase - 2))
+	const sourceRecords = scenario.sources.reduce((total, source) => total + Number(source.records.replace(/[^0-9]/g, "")), 0)
+	const followUps = phase >= 4 ? 4 : phase >= 3 ? 2 : 0
+	const autonomousActions = (phase + 1) * 6 + interviewed * 3 + (decision !== "pending" ? 4 : 0)
+	const autonomyStateLabel = {
+		complete: "Handled",
+		active: "Working",
+		attention: "Needs authority",
+		queued: "Queued",
+	} as const
+	const stateFor = (activeAt: number, completeAt: number) => phase >= completeAt ? "complete" : phase >= activeAt ? "active" : "queued"
+	const workstreams = [
+		{
+			label: "Evidence",
+			icon: <Database size={17} />,
+			state: stateFor(1, 2),
+			title: phase >= 2 ? `${sourceRecords.toLocaleString()} records screened` : "Reading governed sources",
+			detail: `${scenario.sources.length} source scopes · provenance retained`,
+		},
+		{
+			label: "Stakeholders",
+			icon: <UsersThree size={17} />,
+			state: stateFor(2, 5),
+			title: `${people.length} conversations coordinated`,
+			detail: `${interviewed} interviews · ${followUps} follow-ups${invitesSent ? " · delivery verified" : ""}`,
+		},
+		{
+			label: "Conflicts",
+			icon: <EnvelopeSimple size={17} />,
+			state: decisionPending ? "attention" : stateFor(3, 5),
+			title: phase >= 4 ? "Material tension isolated" : "Comparing stakeholder positions",
+			detail: phase >= 4 ? "Evidence reconciled before owner escalation" : "Contradictions are being tested against source evidence",
+		},
+		{
+			label: "Risks and authority",
+			icon: <ShieldCheck size={17} />,
+			state: decisionPending ? "attention" : stateFor(4, 6),
+			title: decisionPending ? "One exact decision routed" : phase >= 6 ? "Risks have accountable owners" : "Classifying exposure and decision rights",
+			detail: decisionPending ? "All unaffected work continues" : "Only material exceptions interrupt the owner",
+		},
+	] as const
+	const mappedPeople = people.length ? people : scenario.people
+	const coordinationThreads = [
+		{
+			people: [mappedPeople[0], mappedPeople[1]].filter(Boolean),
+			title: `${scenario.inquiries[0]} versus ${scenario.inquiries[1]}`,
+			detail: `MAX compared the positions from ${mappedPeople[0]?.name ?? "the business owner"} and ${mappedPeople[1]?.name ?? "the control owner"}, checked the governing evidence, and sent two focused follow-ups instead of forwarding the disagreement to you.`,
+			meta: phase >= 4 ? "4 exchanges · common position established" : "Follow-ups in progress",
+			state: phase >= 4 ? "resolved" : phase >= 3 ? "active" : "queued",
+		},
+		{
+			people: [mappedPeople[2], mappedPeople[3]].filter(Boolean),
+			title: `${scenario.inquiries[2]} versus ${scenario.inquiries[4]}`,
+			detail: `MAX challenged the initial assumptions, returned cited evidence to both stakeholders, and converted the remaining uncertainty into an owned risk with a response deadline.`,
+			meta: phase >= 5 ? "3 exchanges · risk owner confirmed" : "Evidence comparison underway",
+			state: phase >= 5 ? "resolved" : phase >= 3 ? "active" : "queued",
+		},
+		{
+			people: [],
+			title: "Owner authority boundary",
+			detail: `${scenario.exception.title}. MAX kept every unaffected inquiry moving and prepared only the evidence needed for the bounded decision.`,
+			meta: decisionPending ? "Waiting on one owner decision" : phase > 4 ? "Decision recorded · work resumed" : "Monitoring for material exceptions",
+			state: decisionPending ? "attention" : phase > 4 ? "resolved" : "queued",
+		},
+	] as const
+	const ledger = [
+		{ phase: 0, time: "09:04", title: "Mission and authority established", detail: "Converted the brief into an objective, completion condition, source scope, and interruption boundary." },
+		{ phase: 1, time: "09:07", title: "Source access verified", detail: `Bound ${scenario.sources.length} permitted systems and retained record-level provenance.` },
+		{ phase: 2, time: "09:11", title: "Stakeholder program launched", detail: `Mapped ${people.length} accountable roles and tailored each interview to a different evidence gap.` },
+		{ phase: 3, time: "09:18", title: "Interviews adapted in flight", detail: "Skipped questions already answered by records and sent targeted follow-ups where positions diverged." },
+		{ phase: 4, time: "09:26", title: "Conflict detected and contained", detail: "Reconciled the evidence, isolated the material exception, and kept unaffected work running." },
+		{ phase: 5, time: "09:31", title: "Risk and readiness snapshot frozen", detail: "Bound claims, unresolved tensions, decisions, and accountable owners into one canonical snapshot." },
+		{ phase: 6, time: "09:36", title: "Decision package generated", detail: `Built ${DELIVERABLES.length} linked deliverables from the verified manifest.` },
+		{ phase: 7, time: "09:40", title: "Approvals and handoff routed", detail: "Sent the right artifact and decision scope to each approved recipient." },
+	].filter((event) => event.phase <= phase).slice(-5)
 
 	return (
 		<div className="overview-workspace">
 			<section className="overview-main">
-				<header className="overview-mission">
+				<header className="autonomy-hero">
 					<div>
-						<p className="eyebrow">Mission outcome</p>
-						<h1>{missionBrief || scenario.objective}</h1>
+						<p className="eyebrow"><span className={paused ? "autonomy-live-dot paused" : "autonomy-live-dot"} />Autonomy run</p>
+						<h1>{interviewClosed ? "MAX is running the Discovery." : "MAX is forming the mission with you."}</h1>
+						<p>{missionBrief || scenario.objective}</p>
 					</div>
-					<div className="mission-deadline"><Clock size={16} /><span>{scenario.deadline}</span></div>
+					<div className="autonomy-progress-summary" role="progressbar" aria-label="Autonomous Discovery progress" aria-valuemin={0} aria-valuemax={100} aria-valuenow={progress}><strong>{progress}%</strong><span>{phase >= 7 ? "Complete" : paused ? "Paused" : "Working"}</span><div><motion.span animate={{ width: `${progress}%` }} transition={{ duration: 0.45, ease: [0.16, 1, 0.3, 1] }} /></div></div>
 				</header>
 
+				<section className="autonomy-value-strip" aria-label="Work handled by MAX">
+					<div><strong>{autonomousActions}</strong><span>Verified actions</span><small>completed without prompting</small></div>
+					<div><strong>{phase >= 2 ? sourceRecords.toLocaleString() : "—"}</strong><span>Records screened</span><small>across {scenario.sources.length} governed sources</small></div>
+					<div><strong>{interviewed} + {followUps}</strong><span>Interviews + follow-ups</span><small>{people.length} stakeholder threads managed</small></div>
+					<div><strong>{decisionPending ? "1" : "0"}</strong><span>Owner interruptions</span><small>unaffected branches kept moving</small></div>
+				</section>
+
 				<div className="overview-priority-grid">
-					<section className="overview-current" aria-labelledby="current-operation">
+					<section className="overview-current autonomy-current" aria-labelledby="current-operation" aria-live="polite">
 						<div className="operation-heading">
 							<div>
-								<p className="eyebrow">MAX is working on</p>
+								<p className="eyebrow">Now handling</p>
 								<h2 id="current-operation">{paused ? "Work paused" : phase >= 7 ? "Package complete" : OPERATIONS[phase].label}</h2>
 								<p>{paused ? "No new actions will start until you resume." : OPERATIONS[phase].detail}</p>
 							</div>
-							<span className="progress-number">{progress}%</span>
+							<span className={paused ? "autonomy-state paused" : phase >= 7 ? "autonomy-state complete" : "autonomy-state working"}>{paused ? "Paused" : phase >= 7 ? "Verified" : "Running"}</span>
 						</div>
-						<div className="progress-track"><motion.span animate={{ width: `${progress}%` }} transition={{ duration: 0.45, ease: [0.16, 1, 0.3, 1] }} /></div>
 						<div className="work-trace compact-trace">
 							<button type="button" onClick={onToggleTrace} aria-expanded={traceOpen}>
 								<span className="trace-active-dot" />
-								<strong>{paused ? "Checkpoint preserved" : phase >= 7 ? "All work verified" : "View verified work"}</strong>
-								<span>{phase + 1} events</span>
+								<strong>{paused ? "Checkpoint preserved" : phase >= 7 ? "All work verified" : "Inspect the current work trace"}</strong>
+								<span>{phase + 1} stages</span>
 								<CaretDown size={14} className={traceOpen ? "rotated" : ""} />
 							</button>
 							<AnimatePresence initial={false}>
 								{traceOpen ? (
 									<motion.ol initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: "auto" }} exit={{ opacity: 0, height: 0 }}>
-										{OPERATIONS.slice(Math.max(0, phase - 1), phase + 1).map((operation, index, visible) => (
+										{OPERATIONS.slice(0, phase + 1).slice(-3).map((operation, index, visible) => (
 											<li key={operation.label} className={index === visible.length - 1 && !paused && phase < 7 ? "active" : "complete"}>
 												<span>{index === visible.length - 1 && !paused && phase < 7 ? <CircleNotch size={13} className="spin" /> : <Check size={13} weight="bold" />}</span>
 												<div><strong>{operation.label}</strong><p>{operation.detail}</p></div>
@@ -866,7 +955,7 @@ function Overview({
 
 					<section className={decisionPending ? "overview-attention needs-decision" : "overview-attention"}>
 						<div className="rail-section-title">
-							<div><p className="eyebrow">Needs you</p><h2>{decisionPending ? "1 decision" : "Nothing right now"}</h2></div>
+							<div><p className="eyebrow">Human authority</p><h2>{decisionPending ? "1 decision needs you" : "Nothing right now"}</h2></div>
 							{decisionPending ? <span className="attention-count">1</span> : <CheckCircle size={20} weight="fill" />}
 						</div>
 						{decisionPending ? (
@@ -878,54 +967,47 @@ function Overview({
 									<button className="quiet-button" type="button" onClick={() => onResolveDecision("modified")}>Keep internal</button>
 								</div>
 							</div>
-						) : <p className="attention-clear-copy">MAX can continue inside the authority you granted. You’ll only be interrupted for a material exception.</p>}
+						) : <p className="attention-clear-copy">MAX is continuing inside the authority you granted. Stakeholder follow-ups, source checks, and routine conflict resolution do not need your attention.</p>}
 					</section>
 				</div>
 
-				<section className="inquiry-snapshot" aria-labelledby="mission-health-heading">
+				<section className="autonomy-workstreams" aria-labelledby="autonomy-workstreams-heading">
 					<div className="section-heading-row compact">
-						<div><p className="eyebrow">Inquiry coverage</p><h2 id="mission-health-heading">What MAX is resolving</h2></div>
-						<span>{scenario.inquiries.filter((_, index) => index < Math.max(2, phase)).length} of {scenario.inquiries.length} inquiry areas evidenced</span>
+						<div><p className="eyebrow">Autonomous workstreams</p><h2 id="autonomy-workstreams-heading">What MAX is handling for you</h2></div>
+						<span>{workstreams.filter((item) => item.state === "complete").length} handled · {workstreams.filter((item) => item.state === "active" || item.state === "attention").length} active</span>
 					</div>
-					<div className="coverage-list compact-coverage">
-						{scenario.inquiries.map((inquiry, index) => {
-							const evidenced = index < Math.max(2, phase)
-							const active = !evidenced && index === Math.max(2, phase)
-							return (
-								<div key={inquiry} className={active ? "active" : evidenced ? "evidenced" : ""}>
-									<span>{evidenced ? <Check size={11} weight="bold" /> : index + 1}</span>
-									<strong>{inquiry}</strong>
-									<em>{evidenced ? "Evidence bound" : active ? "In progress" : "Queued"}</em>
-								</div>
-							)
-						})}
+					<div className="autonomy-workstream-grid">
+						{workstreams.map((item) => <article key={item.label} className={`is-${item.state}`}><header><span>{item.icon}</span><div><small>{item.label}</small><strong>{item.title}</strong></div><i>{autonomyStateLabel[item.state]}</i></header><p>{item.detail}</p></article>)}
 					</div>
 				</section>
 
-				<section className="overview-log" aria-labelledby="operating-log-heading">
-					<div className="section-heading-row compact">
-						<div><p className="eyebrow">Verified changes</p><h2 id="operating-log-heading">Latest work</h2></div>
-						<button className="text-button" type="button" onClick={onOpenThread}>Open thread <ArrowRight size={14} /></button>
+				<div className="autonomy-detail-grid">
+					<section className="autonomy-coordination" aria-labelledby="stakeholder-coordination-heading">
+						<div className="section-heading-row compact"><div><p className="eyebrow">Stakeholder coordination</p><h2 id="stakeholder-coordination-heading">Conversations MAX is managing</h2></div><span>{interviewed + followUps} exchanges handled</span></div>
+						<div>
+							{coordinationThreads.map((thread) => <article key={thread.title} className={`is-${thread.state}`}><header><span className="autonomy-avatar-stack">{thread.people.map((person) => <i key={person.id} title={person.name}>{person.initials}</i>)}</span><strong>{thread.title}</strong><em>{thread.state === "resolved" ? "Resolved" : thread.state === "attention" ? "Owner decision" : thread.state === "active" ? "Working" : "Queued"}</em></header><p>{thread.detail}</p><footer><EnvelopeSimple size={13} /><span>{thread.meta}</span></footer></article>)}
+						</div>
+					</section>
+
+					<section className="autonomy-ledger" aria-labelledby="autonomy-ledger-heading">
+						<div className="section-heading-row compact"><div><p className="eyebrow">Autonomy ledger</p><h2 id="autonomy-ledger-heading">What MAX did and why</h2></div><button className="text-button" type="button" onClick={onOpenThread}>Owner thread <ArrowRight size={14} /></button></div>
+						<ol>{ledger.map((event) => <li key={event.title} className={event.phase === phase && phase < 7 ? "is-current" : "is-complete"}><span>{event.phase === phase && phase < 7 ? <CircleNotch size={13} className={paused ? "" : "spin"} /> : <Check size={12} weight="bold" />}</span><div><strong>{event.title}</strong><p>{event.detail}</p></div><time>{event.time}</time></li>)}</ol>
+					</section>
 					</div>
-					<div className="overview-log-rows">
-						<div className="log-row"><CheckCircle size={16} weight="fill" /><strong>Source scopes bound</strong><span>{scenario.sources.map((source) => source.system).join(" · ")}</span><time>now</time></div>
-						<div className="log-row"><CheckCircle size={16} weight="fill" /><strong>Inquiry map adapted</strong><span>{scenario.inquiries.slice(0, 3).join(" · ")}</span><time>1m</time></div>
-						<div className={phase >= 3 ? "log-row" : "log-row muted-row"}><EnvelopeSimple size={16} /><strong>Stakeholder program</strong><span>{phase >= 3 ? `${people.length} channels scheduled` : "Waiting for role map"}</span><time>{phase >= 3 ? "2m" : "—"}</time></div>
-					</div>
-				</section>
 			</section>
 
 			<aside className="overview-inspector" aria-label="Discovery details">
-				<div><p className="eyebrow">At a glance</p><h2>Discovery details</h2></div>
+				<div><p className="eyebrow">Supervision</p><h2>Discovery controls</h2></div>
 				<section className="overview-list">
 					<OverviewRow icon={<UsersThree size={17} />} label="People" detail={`${people.length} mapped · ${interviewed} complete`} onClick={() => onOpenDrawer("people")} />
 					<OverviewRow icon={<Database size={17} />} label="Sources" detail={`${scenario.sources.length} connected · read automatically`} onClick={() => onOpenDrawer("sources")} />
 					<OverviewRow icon={<Package size={17} />} label="Package" detail={phase >= 7 ? "5 deliverables ready" : "Plan refining with evidence"} onClick={() => onOpenDrawer("package")} />
 				</section>
 
+				<section className="autonomy-supervision-facts"><span>Intervention policy</span><dl><div><dt>Routine actions</dt><dd>Automatic</dd></div><div><dt>Material exceptions</dt><dd>{decisionPending ? "1 waiting" : "None"}</dd></div><div><dt>Blocked branches</dt><dd>0</dd></div><div><dt>Next owner update</dt><dd>{phase >= 7 ? "Delivered" : "At readiness"}</dd></div></dl></section>
 				<section className="authority-summary">
 					<div><ShieldCheck size={17} weight="fill" /><strong>Authority envelope</strong></div>
-					<p>Internal outreach · approved source scopes · 2 follow-ups · $45 model budget</p>
+					<p>Internal outreach · approved source scopes · two follow-ups per stakeholder · $45 model budget</p>
 					<button className="text-button" type="button">Review policy</button>
 				</section>
 				<button className="overview-steer primary-button" type="button" onClick={onOpenThread}>Steer MAX <ArrowRight size={15} /></button>
@@ -955,6 +1037,7 @@ function Thread({
 	onOpenPeople,
 	onOpenSources,
 	onOpenPackage,
+	onOpenAutonomy,
 }: {
 	scenarioKey: ScenarioKey
 	missionBrief: string
@@ -972,11 +1055,15 @@ function Thread({
 	onOpenPeople: () => void
 	onOpenSources: () => void
 	onOpenPackage: () => void
+	onOpenAutonomy: () => void
 }) {
 	const scenario = SCENARIOS[scenarioKey]
 	const decisionPending = phase === 4 && decision === "pending"
 	const packageReady = phase >= 7
 	const interviewing = !interviewClosed
+	const sourceRecords = scenario.sources.reduce((total, source) => total + Number(source.records.replace(/[^0-9]/g, "")), 0)
+	const stakeholderInterviews = Math.min(people.length, Math.max(0, phase - 2))
+	const autonomousActions = (phase + 1) * 6 + stakeholderInterviews * 3 + (decision !== "pending" ? 4 : 0)
 	const currentInterviewPrompt = scenario.ownerInterview[Math.min(interviewIndex, scenario.ownerInterview.length - 1)]
 	const scrollRef = useRef<HTMLDivElement>(null)
 	const voiceButtonRef = useRef<HTMLButtonElement>(null)
@@ -1006,6 +1093,15 @@ function Thread({
 							</div>
 						</div>
 					))}
+					{!interviewing ? (
+						<section className="thread-event autonomy-thread-digest" aria-label="Autonomous work summary">
+							<header><span><i />Autonomy live</span><button type="button" onClick={onOpenAutonomy}>Open autonomy <ArrowRight size={13} /></button></header>
+							<h2>MAX is handling the Discovery in parallel.</h2>
+							<p>Source checks, stakeholder interviews, follow-ups, conflict resolution, risk ownership, and approval preparation stay visible while they run.</p>
+							<div className="autonomy-thread-metrics"><span><strong>{autonomousActions}</strong> verified actions</span><span><strong>{phase >= 2 ? sourceRecords.toLocaleString() : "—"}</strong> records screened</span><span><strong>{stakeholderInterviews}</strong> interviews managed</span><span><strong>{decisionPending ? "1" : "0"}</strong> owner interruptions</span></div>
+							<footer><span className="work-status-pulse" /><div><strong>{phase >= 7 ? "Autonomous run complete" : OPERATIONS[phase].label}</strong><small>{decisionPending ? "One bounded decision is waiting; every unaffected branch is still moving." : OPERATIONS[phase].detail}</small></div></footer>
+						</section>
+					) : null}
 					{decisionPending ? (
 						<section className="thread-event decision-event" aria-labelledby="thread-decision-title">
 							<div className="thread-event-kicker"><span /> Decision needed to continue one branch</div>

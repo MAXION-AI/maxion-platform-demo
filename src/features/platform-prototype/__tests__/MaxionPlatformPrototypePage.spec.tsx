@@ -67,6 +67,8 @@ describe("MaxionPlatformPrototypePage", () => {
 		const discoveryComposer = screen.getByRole("textbox", { name: "Message MAX" })
 		fireEvent.change(discoveryComposer, { target: { value: "End the owner interview" } })
 		fireEvent.keyDown(discoveryComposer, { key: "Enter", code: "Enter" })
+		expect(await screen.findByRole("region", { name: "Autonomous work summary" }, { timeout: 6_000 })).toBeInTheDocument()
+		expect(screen.getByRole("button", { name: "Open autonomy" })).toBeInTheDocument()
 		expect(await screen.findByRole("heading", { name: "External counsel is outside the authority envelope" }, { timeout: 6_000 })).toBeInTheDocument()
 		fireEvent.click(screen.getByRole("button", { name: "Approve once" }))
 
