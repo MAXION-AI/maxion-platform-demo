@@ -85,12 +85,15 @@ function interviewMessage(scenarioKey: ScenarioKey, index: number, prefix?: stri
 	}
 }
 
-function initialInterviewMessages(scenarioKey: ScenarioKey): ChatMessage[] {
+function initialInterviewMessages(scenarioKey: ScenarioKey, missionBrief = ""): ChatMessage[] {
 	const scenario = SCENARIOS[scenarioKey]
+	const missionContext = missionBrief.trim()
+		? `I’ve captured your mission: “${conciseAnswer(missionBrief)}”. `
+		: ""
 	return [interviewMessage(
 		scenarioKey,
 		0,
-		`I’ll lead this as the ${scenario.interviewer}. I’ve already bound ${scenario.sources.length} permitted sources, so I’ll ask only for judgment the records can’t supply.`,
+		`${missionContext}I’ll lead this as the ${scenario.interviewer}. I’ve already bound ${scenario.sources.length} permitted sources, so I’ll ask only for judgment the records can’t supply.`,
 	)]
 }
 
@@ -101,6 +104,11 @@ function isUncertainAnswer(text: string) {
 function conciseAnswer(text: string) {
 	const sentence = text.trim().split(/[.!?]\s/)[0]
 	return sentence.length > 120 ? `${sentence.slice(0, 117).trim()}…` : sentence
+}
+
+function missionTitle(brief: string) {
+	const title = conciseAnswer(brief).replace(/\s+/g, " ")
+	return title || "New Discovery"
 }
 
 function referencedSource(text: string, scenarioKey: ScenarioKey) {
@@ -143,6 +151,7 @@ interface DiscoveryAutonomousPrototypePageProps {
 export function DiscoveryAutonomousPrototypePage({ embedded = false, onPackageReady }: DiscoveryAutonomousPrototypePageProps = {}) {
 	const reducedMotion = Boolean(useReducedMotion())
 	const [scenarioKey, setScenarioKey] = useState<ScenarioKey>("tprm")
+	const [missionBrief, setMissionBrief] = useState("")
 	const [screen, setScreen] = useState<"setup" | "preparing" | "workspace">("setup")
 	const [view, setView] = useState<View>("thread")
 	const [drawer, setDrawer] = useState<Drawer>(null)
@@ -162,6 +171,7 @@ export function DiscoveryAutonomousPrototypePage({ embedded = false, onPackageRe
 	const [packageSelection, setPackageSelection] = useState(0)
 	const [invitesSent, setInvitesSent] = useState(false)
 	const scenario = SCENARIOS[scenarioKey]
+	const currentMissionTitle = missionTitle(missionBrief)
 	const needsDecision = screen === "workspace" && phase === 4 && decision === "pending"
 	const complete = phase >= OPERATIONS.length - 1
 
@@ -188,6 +198,7 @@ export function DiscoveryAutonomousPrototypePage({ embedded = false, onPackageRe
 	}, [toast])
 
 	const start = () => {
+		if (!missionBrief.trim()) return
 		setScreen("preparing")
 		setView("thread")
 		setPhase(0)
@@ -196,13 +207,14 @@ export function DiscoveryAutonomousPrototypePage({ embedded = false, onPackageRe
 		setInterviewIndex(0)
 		setInterviewClosed(false)
 		setClarificationPending(false)
-		setMessages(initialInterviewMessages(scenarioKey))
+		setMessages(initialInterviewMessages(scenarioKey, missionBrief))
 		setInvitesSent(false)
 		window.setTimeout(() => setScreen("workspace"), reducedMotion ? 700 : 2400)
 	}
 
 	const restart = () => {
 		setScreen("setup")
+		setMissionBrief("")
 		setView("thread")
 		setDrawer(null)
 		setPhase(0)
@@ -413,18 +425,19 @@ export function DiscoveryAutonomousPrototypePage({ embedded = false, onPackageRe
 		<div className={`prototype${dark ? " dark" : ""}${embedded ? " embedded" : ""}`}>
 			{screen === "setup" ? (
 					<SetupScreen
-						scenarioKey={scenarioKey}
-						onScenarioChange={setScenarioKey}
+						missionBrief={missionBrief}
+						onMissionBriefChange={setMissionBrief}
 						onStart={start}
 						embedded={embedded}
 						dark={dark}
 					onToggleDark={() => setDark((current) => !current)}
 				/>
 			) : screen === "preparing" ? (
-				<PreparingScreen scenarioKey={scenarioKey} />
+				<PreparingScreen missionTitle={currentMissionTitle} />
 			) : (
 					<WorkspaceShell
 						scenarioKey={scenarioKey}
+						missionTitle={currentMissionTitle}
 						embedded={embedded}
 					view={view}
 					onViewChange={setView}
@@ -439,6 +452,7 @@ export function DiscoveryAutonomousPrototypePage({ embedded = false, onPackageRe
 					{view === "overview" ? (
 						<Overview
 							scenarioKey={scenarioKey}
+							missionBrief={missionBrief}
 							phase={phase}
 							paused={paused}
 							decision={decision}
@@ -452,6 +466,7 @@ export function DiscoveryAutonomousPrototypePage({ embedded = false, onPackageRe
 					) : view === "thread" ? (
 						<Thread
 							scenarioKey={scenarioKey}
+							missionBrief={missionBrief}
 							phase={phase}
 							people={people}
 							decision={decision}
@@ -509,21 +524,21 @@ export function DiscoveryAutonomousPrototypePage({ embedded = false, onPackageRe
 }
 
 function SetupScreen({
-	scenarioKey,
-	onScenarioChange,
+	missionBrief,
+	onMissionBriefChange,
 	onStart,
 	embedded,
 	dark,
 	onToggleDark,
 }: {
-	scenarioKey: ScenarioKey
-	onScenarioChange: (key: ScenarioKey) => void
+	missionBrief: string
+	onMissionBriefChange: (value: string) => void
 	onStart: () => void
 	embedded: boolean
 	dark: boolean
 	onToggleDark: () => void
 }) {
-	const scenario = SCENARIOS[scenarioKey]
+	const hasMission = Boolean(missionBrief.trim())
 	return (
 		<div className="setup-shell">
 			<aside className="setup-header" hidden={embedded}>
@@ -551,37 +566,23 @@ function SetupScreen({
 						<p>Describe the decision and the outcome. MAX will work out the investigation.</p>
 					</section>
 
-					<div className="scenario-switch" role="tablist" aria-label="Prototype scenario">
-						{Object.values(SCENARIOS).map((item) => (
-							<button
-								key={item.key}
-								type="button"
-								role="tab"
-								aria-selected={scenarioKey === item.key}
-								className={scenarioKey === item.key ? "selected" : ""}
-								onClick={() => onScenarioChange(item.key)}>
-								{item.shortLabel}
-							</button>
-						))}
-					</div>
-
 					<div className="setup-grid">
 						<section className="brief-editor" aria-labelledby="brief-heading">
 						<div className="section-heading-row">
 							<div>
 								<p className="eyebrow">Mission brief</p>
-								<h2 id="brief-heading">{scenario.title}</h2>
+								<h2 id="brief-heading">Describe the outcome</h2>
 							</div>
 							<span className="draft-status">Draft saved</span>
 						</div>
-						<textarea value={scenario.brief} readOnly aria-label="Discovery brief" />
+						<textarea value={missionBrief} onChange={(event) => onMissionBriefChange(event.target.value)} aria-label="Discovery brief" placeholder="Describe the decision, outcome, or problem. MAX will form the investigation, bind relevant evidence, and return with a decision package." autoFocus />
 						<div className="brief-context">
-							<div><span>Decision</span><strong>{scenario.decision}</strong></div>
-							<div><span>Decision horizon</span><strong>{scenario.deadline}</strong></div>
+							<div><span>Decision</span><strong>{hasMission ? "MAX will establish the decision boundary from your brief." : "MAX will identify the decision boundary."}</strong></div>
+							<div><span>Decision horizon</span><strong>MAX will confirm the right horizon from the evidence.</strong></div>
 						</div>
 						<div className="composer-action-row">
-							<div><Database size={15} /><span>{scenario.sources.length} connected sources available</span></div>
-							<button className="primary-button launch-button" type="button" onClick={onStart}>
+							<div><Database size={15} /><span>Connected sources will be scoped automatically</span></div>
+							<button className="primary-button launch-button" type="button" onClick={onStart} disabled={!hasMission}>
 								Start autonomous Discovery <ArrowRight size={17} weight="bold" />
 							</button>
 						</div>
@@ -597,18 +598,18 @@ function SetupScreen({
 						</div>
 						<div className="preview-row">
 							<span>Objective</span>
-							<p>{scenario.objective}</p>
+							<p>{hasMission ? "Turn your outcome into a bounded mission and evidence plan." : "Describe the outcome and MAX will turn it into a bounded mission."}</p>
 						</div>
 						<div className="preview-row">
 							<span>Completion condition</span>
-							<p>{scenario.doneWhen}</p>
+							<p>A decision package with cited evidence, accountable owners, and a clear next action.</p>
 						</div>
 						<div className="preview-metrics">
 							<button type="button" aria-label="Review connected sources">
-								<Database size={17} /><span><strong>{scenario.sources.length}</strong> sources auto-bound</span>
+								<Database size={17} /><span><strong>Relevant</strong> sources auto-bound</span>
 							</button>
 							<button type="button" aria-label="Review proposed stakeholder roles">
-								<UsersThree size={17} /><span><strong>{scenario.people.length}</strong> roles identified</span>
+								<UsersThree size={17} /><span><strong>Right</strong> roles identified</span>
 							</button>
 							<button type="button" aria-label="Review deliverable plan">
 								<Package size={17} /><span><strong>{DELIVERABLES.length}</strong> outputs planned</span>
@@ -629,10 +630,9 @@ function SetupScreen({
 	)
 }
 
-function PreparingScreen({ scenarioKey }: { scenarioKey: ScenarioKey }) {
+function PreparingScreen({ missionTitle }: { missionTitle: string }) {
 	const orbitRef = useRef<HTMLDivElement>(null)
 	const stepsRef = useRef<HTMLDivElement>(null)
-	const scenario = SCENARIOS[scenarioKey]
 	const reducedMotion = Boolean(useReducedMotion())
 
 	useEffect(() => {
@@ -660,7 +660,7 @@ function PreparingScreen({ scenarioKey }: { scenarioKey: ScenarioKey }) {
 				</div>
 				<img src="/maxion-logo-gradient.svg" alt="" className="preparing-mark" />
 				<p className="eyebrow">Establishing the mission</p>
-				<h1>{scenario.title}</h1>
+				<h1>{missionTitle}</h1>
 				<div className="preparing-steps" ref={stepsRef}>
 					<div><Check size={14} /> Normalizing the objective and authority envelope</div>
 					<div><Check size={14} /> Binding permitted sources and evidence scopes</div>
@@ -674,6 +674,7 @@ function PreparingScreen({ scenarioKey }: { scenarioKey: ScenarioKey }) {
 
 function WorkspaceShell({
 	scenarioKey,
+	missionTitle,
 	embedded,
 	view,
 	onViewChange,
@@ -688,6 +689,7 @@ function WorkspaceShell({
 	children,
 }: {
 	scenarioKey: ScenarioKey
+	missionTitle: string
 	embedded: boolean
 	view: View
 	onViewChange: (view: View) => void
@@ -726,7 +728,7 @@ function WorkspaceShell({
 				</nav>
 				<div className="rail-recents">
 					<span>Current task</span>
-					<button type="button" className="active" onClick={() => onViewChange(phase >= 7 ? "package" : "thread")}><i /><div><strong>{scenario.title}</strong><small>{phase >= 7 ? "Complete" : paused ? "Paused" : "Running"}</small></div></button>
+					<button type="button" className="active" onClick={() => onViewChange(phase >= 7 ? "package" : "thread")}><i /><div><strong>{missionTitle}</strong><small>{phase >= 7 ? "Complete" : paused ? "Paused" : "Running"}</small></div></button>
 					<span>Recent</span>
 					<button type="button"><div><strong>AI governance operating model</strong><small>Package ready</small></div></button>
 					<button type="button"><div><strong>ERP upgrade evaluation</strong><small>Waiting on people</small></div></button>
@@ -742,7 +744,7 @@ function WorkspaceShell({
 					<div className="workspace-title">
 						<div className={paused ? "live-indicator paused" : "live-indicator"} aria-hidden="true" />
 						<div>
-							<div className="title-line"><strong>{scenario.title}</strong></div>
+							<div className="title-line"><strong>{missionTitle}</strong></div>
 								<p>{scenario.deadline}</p>
 						</div>
 					</div>
@@ -790,6 +792,7 @@ function peopleCountForPhase(phase: number) {
 
 function Overview({
 	scenarioKey,
+	missionBrief,
 	phase,
 	paused,
 	decision,
@@ -801,6 +804,7 @@ function Overview({
 	onOpenThread,
 }: {
 	scenarioKey: ScenarioKey
+	missionBrief: string
 	phase: number
 	paused: boolean
 	decision: DecisionState
@@ -822,7 +826,7 @@ function Overview({
 				<header className="overview-mission">
 					<div>
 						<p className="eyebrow">Mission outcome</p>
-						<h1>{scenario.objective}</h1>
+						<h1>{missionBrief || scenario.objective}</h1>
 					</div>
 					<div className="mission-deadline"><Clock size={16} /><span>{scenario.deadline}</span></div>
 				</header>
@@ -936,6 +940,7 @@ function OverviewRow({ icon, label, detail, onClick }: { icon: React.ReactNode; 
 
 function Thread({
 	scenarioKey,
+	missionBrief,
 	phase,
 	people,
 	decision,
@@ -952,6 +957,7 @@ function Thread({
 	onOpenPackage,
 }: {
 	scenarioKey: ScenarioKey
+	missionBrief: string
 	phase: number
 	people: Person[]
 	decision: DecisionState
@@ -1060,7 +1066,7 @@ function Thread({
 
 			<aside className="conversation-context thread-inspector">
 				<div className="section-heading-row compact"><div><p className="eyebrow">Context inspector</p><h2>{interviewing ? "Interview context" : packageReady ? "Result context" : "Operating context"}</h2></div></div>
-				<div className="context-section"><span>Current objective</span><p>{scenario.objective}</p></div>
+				<div className="context-section"><span>Current objective</span><p>{missionBrief || scenario.objective}</p></div>
 				<button className="context-section interactive" type="button" onClick={onOpenPeople}><span>Stakeholders</span><strong>{people.length} mapped</strong><p>{joinNames(people)}</p><CaretRight size={14} /></button>
 				<button className="context-section interactive" type="button" onClick={onOpenSources}><span>Connected sources</span><strong>{scenario.sources.length} reading automatically</strong><p>{scenario.sources.map((source) => source.system).join(" · ")}</p><CaretRight size={14} /></button>
 				<div className="context-section"><span>{interviewing ? `Interview focus · ${interviewIndex + 1} of ${scenario.ownerInterview.length}` : "Current operation"}</span><strong>{interviewing ? currentInterviewPrompt.topic : OPERATIONS[phase].label}</strong><p>{interviewing ? currentInterviewPrompt.evidenceHint : OPERATIONS[phase].detail}</p>{interviewing ? <div className="interview-progress" role="progressbar" aria-label="Owner interview progress" aria-valuemin={1} aria-valuemax={scenario.ownerInterview.length} aria-valuenow={interviewIndex + 1}><span style={{ width: `${((interviewIndex + 1) / scenario.ownerInterview.length) * 100}%` }} /></div> : null}</div>

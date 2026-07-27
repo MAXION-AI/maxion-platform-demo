@@ -57,6 +57,10 @@ describe("MaxionPlatformPrototypePage", () => {
 	it("runs the autonomous Discovery interview through a verified package", async () => {
 		renderPrototype()
 		fireEvent.click(screen.getByRole("button", { name: "Discover" }))
+		const discoveryBrief = await screen.findByRole("textbox", { name: "Discovery brief" })
+		fireEvent.change(discoveryBrief, { target: { value: "Reduce finance-close exceptions with a decision-ready control redesign." } })
+		expect(discoveryBrief).toHaveValue("Reduce finance-close exceptions with a decision-ready control redesign.")
+		expect(screen.queryByRole("tab", { name: "TPRM" })).not.toBeInTheDocument()
 		fireEvent.click(await screen.findByRole("button", { name: "Start autonomous Discovery" }))
 
 		expect(await screen.findByRole("heading", { name: "Interview with MAX" }, { timeout: 4_000 })).toBeInTheDocument()
