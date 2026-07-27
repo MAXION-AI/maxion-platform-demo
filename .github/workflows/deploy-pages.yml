@@ -7,6 +7,7 @@ on:
   workflow_dispatch:
 
 permissions:
+  actions: read
   contents: read
   pages: write
   id-token: write
@@ -40,6 +41,34 @@ jobs:
         env:
           GITHUB_PAGES: "true"
         run: pnpm build
+
+      # GitHub Pages serves HTML and assets with a short CDN cache. Retaining the
+      # recent hashed assets means an HTML document cached just before a deploy
+      # can still load while the CDN revalidates it against the new release.
+      - name: Retain recent Pages assets during CDN propagation
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          archive_dir="$(mktemp -d)"
+
+          gh api "repos/${GITHUB_REPOSITORY}/actions/workflows/deploy-pages.yml/runs?status=success&per_page=10" \
+            --jq '.workflow_runs[].id' > "$archive_dir/run-ids"
+
+          while read -r run_id; do
+            [ -n "$run_id" ] || continue
+            artifact_id="$(gh api "repos/${GITHUB_REPOSITORY}/actions/runs/${run_id}/artifacts" \
+              --jq '.artifacts[] | select(.name == "github-pages" and .expired == false) | .id' | head -n 1 || true)"
+            [ -n "$artifact_id" ] || continue
+
+            artifact_dir="$archive_dir/$artifact_id"
+            mkdir -p "$artifact_dir"
+            gh api "repos/${GITHUB_REPOSITORY}/actions/artifacts/${artifact_id}/zip" > "$artifact_dir/pages.zip" || continue
+            unzip -p "$artifact_dir/pages.zip" artifact.tar > "$artifact_dir/artifact.tar" || continue
+            tar -xf "$artifact_dir/artifact.tar" -C "$artifact_dir" || continue
+            [ -d "$artifact_dir/assets" ] || continue
+            find "$artifact_dir/assets" -maxdepth 1 -type f -exec cp -n {} dist/assets/ \;
+          done < "$archive_dir/run-ids"
 
       - name: Add single-page app fallback
         run: cp dist/index.html dist/404.html
