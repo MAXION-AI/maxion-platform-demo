@@ -15,7 +15,7 @@
 	display: grid;
 	width: 100%;
 	height: 100%;
-	grid-template-columns: 228px minmax(540px, 1fr) 304px;
+	grid-template-columns: 236px minmax(540px, 1fr) 304px;
 	background: var(--apn-paper);
 	color: var(--apn-ink);
 	overflow: hidden;

@@ -46,6 +46,8 @@ test("keeps the canonical MAXION shell functional across core modules", async ({
 
 	await navigation.getByRole("button", { name: "Execute 1 pending" }).click()
 	await expect(page.getByRole("heading", { name: "What do you want built?", exact: true })).toBeVisible()
+	await expect(page.getByRole("complementary", { name: "Main navigation" })).toBeVisible()
+	await expect(page.getByRole("button", { name: "Expand navigation" })).toHaveAttribute("aria-pressed", "true")
 	await expect(page.getByRole("button", { name: "Operations" })).toHaveCount(0)
 	await expect(page.getByRole("textbox", { name: "What should Execute deliver?" })).toBeVisible()
 	await page.getByRole("button", { name: "Import from Plan" }).click()

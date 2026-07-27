@@ -138,6 +138,8 @@ describe("MaxionPlatformPrototypePage", () => {
 	it("starts an autonomous engagement from a prompt or an approved Plan and exposes workspace topology", async () => {
 		renderPrototype()
 		fireEvent.click(portalNavigation().getByRole("button", { name: /^Execute/ }))
+		expect(screen.getByRole("complementary", { name: "Main navigation" })).toHaveClass("is-collapsed")
+		expect(screen.getByRole("button", { name: "Expand navigation" })).toHaveAttribute("aria-pressed", "true")
 		expect(screen.getByRole("textbox", { name: "What should Execute deliver?" })).toBeInTheDocument()
 		fireEvent.click(screen.getByRole("button", { name: "Import from Plan" }))
 		expect(screen.getByRole("button", { name: /ERP modernization delivery plan/ })).toHaveAttribute("aria-pressed", "true")

@@ -754,6 +754,11 @@ export function MaxionPlatformPrototypePage() {
 	}, [])
 
 	const navigate = (module: MaxionModuleId) => {
+		// Execute is a focused, long-running workspace. Keep MAXION navigation one
+		// action away without taking meaningful width away from the work surface.
+		if (module === "execute") {
+			setSidebarCollapsed(true)
+		}
 		setActiveModule(module)
 		setCommandOpen(false)
 		setMobileNavOpen(false)
@@ -763,8 +768,8 @@ export function MaxionPlatformPrototypePage() {
 		"MAXION"
 
 	return (
-		<div className={`maxion-platform-prototype mxp-root${activeModule === "execute" ? " mxp-root--execute" : ""}${sidebarCollapsed && activeModule !== "execute" ? " mxp-root--sidebar-collapsed" : ""}`}>
-			{activeModule !== "execute" ? <PortalSidebar active={activeModule} onNavigate={navigate} onCommand={() => setCommandOpen(true)} mobileOpen={mobileNavOpen} onMobileOpenChange={setMobileNavOpen} collapsed={sidebarCollapsed} onCollapsedChange={setSidebarCollapsed} /> : null}
+		<div className={`maxion-platform-prototype mxp-root${activeModule === "execute" ? " mxp-root--execute" : ""}${sidebarCollapsed ? " mxp-root--sidebar-collapsed" : ""}`}>
+			<PortalSidebar active={activeModule} onNavigate={navigate} onCommand={() => setCommandOpen(true)} mobileOpen={mobileNavOpen} onMobileOpenChange={setMobileNavOpen} collapsed={sidebarCollapsed} onCollapsedChange={setSidebarCollapsed} />
 			<div className="mxp-stage" aria-label={`${currentLabel} module`}>
 				<div className="mxp-stage-view" hidden={activeModule !== "dashboard"}><DashboardModule projects={projects} onNavigate={navigate} discoveryReady={discoveryReady} planSent={planSent} executeVerified={executeVerified} /></div>
 				<div className="mxp-stage-view" hidden={activeModule !== "projects"}><ProjectsModule projects={projects} onProjectsChange={setProjects} onNavigate={navigate} /></div>
