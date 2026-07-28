@@ -109,7 +109,7 @@ export function DashboardModule({
 			module: "plan" as const,
 			icon: FlowArrow,
 			title: planSent ? "ERP modernization plan sent to Execute" : "ERP modernization plan updated",
-			detail: "18 outcomes · 70 delivery items · v12",
+			detail: "5 flows · 17 build packages · v12",
 			time: "24m",
 			tone: "info",
 		},
@@ -313,13 +313,13 @@ export function ProjectsModule({
 }
 
 const PLAN_LIBRARY = [
-	{ id: "erp", name: "ERP modernization delivery plan", project: "ERP modernization", status: "active", detail: "18 outcomes · 70 delivery items", updated: "12 minutes ago" },
+	{ id: "erp", name: "ERP modernization delivery plan", project: "ERP modernization", status: "active", detail: "5 flows · 17 build packages", updated: "12 minutes ago" },
 	{ id: "northbridge", name: "NorthBridge 100-day plan", project: "NorthBridge acquisition", status: "generated", detail: "Investment committee package ready", updated: "Yesterday" },
 	{ id: "customer", name: "Customer data foundation", project: "Customer 360", status: "active", detail: "11 outcomes · 38 delivery items", updated: "4 days ago" },
 	{ id: "pricing", name: "Pricing transformation roadmap", project: "Pricing transformation", status: "completed", detail: "Fully delivered", updated: "Jun 18" },
 ] as const
 
-export function PlanLibraryModule({ projects, onOpenPlan, onNavigate }: { projects: PortalProject[]; onOpenPlan: () => void; onNavigate: Navigate }) {
+export function PlanLibraryModule({ projects, onOpenPlan, onStartPlan, onNavigate }: { projects: PortalProject[]; onOpenPlan: () => void; onStartPlan: () => void; onNavigate: Navigate }) {
 	const [tab, setTab] = useState<"all" | "active" | "generated" | "completed">("all")
 	const [createOpen, setCreateOpen] = useState(false)
 	const [projectId, setProjectId] = useState(projects.find((project) => project.status === "active")?.id ?? "")
@@ -330,7 +330,7 @@ export function PlanLibraryModule({ projects, onOpenPlan, onNavigate }: { projec
 		event.preventDefault()
 		if (!projectId || (source === "manual" && !objective.trim())) return
 		setCreateOpen(false)
-		onOpenPlan()
+		onStartPlan()
 	}
 	const planSources = [
 		{ id: "discovery", label: "Verified Discovery", detail: "Recommended · 124 claims ready", icon: Compass },
@@ -375,10 +375,12 @@ export function ExecuteHubModule({
 	onOpenRun,
 	onNavigate,
 	planHandoff,
+	planSnapshot,
 }: {
 	onOpenRun: (intent: ExecuteLaunchIntent) => void
 	onNavigate: Navigate
 	planHandoff: boolean
+	planSnapshot: string
 }) {
 	const [view, setView] = useState<"engagements" | "approvals">("engagements")
 	const [approved, setApproved] = useState(false)
@@ -408,7 +410,7 @@ export function ExecuteHubModule({
 	const openPlanHandoff = () => onOpenRun({
 		source: "plan",
 		title: "ERP modernization delivery",
-		brief: "ERP modernization delivery plan · 18 outcomes · 70 evidence-linked delivery items",
+		brief: "ERP modernization delivery plan · 5 flows · 17 evidence-linked build packages",
 		autoStart: false,
 	})
 
@@ -451,7 +453,7 @@ export function ExecuteHubModule({
 							</footer>
 						</form>
 						<div className="aex-autonomy-line"><span><ShieldCheck size={14} />Bounded authority</span><span><TerminalWindow size={14} />Live tool trace</span><span><CheckCircle size={14} />Self-repairing verification</span></div>
-						{planHandoff ? <button type="button" className="aex-plan-handoff" onClick={openPlanHandoff}><FlowArrow size={15} /><span><strong>Plan handoff attached</strong><small>ERP modernization · 18 outcomes · evidence snapshot v7</small></span><b>Inspect</b><ArrowRight size={14} /></button> : null}
+						{planHandoff ? <button type="button" className="aex-plan-handoff" onClick={openPlanHandoff}><FlowArrow size={15} /><span><strong>Plan handoff attached</strong><small>ERP modernization · 5 flows · 17 packages · evidence snapshot {planSnapshot}</small></span><b>Inspect</b><ArrowRight size={14} /></button> : null}
 					</motion.section>
 				) : (
 					<motion.section className="aex-approval" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: .28, ease: [0.16, 1, 0.3, 1] }}>
@@ -502,7 +504,7 @@ function LegacyExecuteHubModule({
 		onOpenRun({
 			source: "plan",
 			title: "ERP modernization delivery",
-			brief: "ERP modernization delivery plan · 18 outcomes · 70 evidence-linked delivery items",
+			brief: "ERP modernization delivery plan · 5 flows · 17 evidence-linked build packages",
 			autoStart: false,
 		})
 
@@ -560,7 +562,7 @@ function LegacyExecuteHubModule({
 					</section>
 
 					<div className="mxp-execute-home-footer">
-						{planHandoff ? <button type="button" onClick={openPlanHandoff}><FlowArrow size={16} /><span><strong>Plan handoff attached</strong><small>ERP modernization · 18 outcomes · evidence snapshot v7</small></span><b>Inspect</b><CaretRight size={14} /></button> : null}
+						{planHandoff ? <button type="button" onClick={openPlanHandoff}><FlowArrow size={16} /><span><strong>Plan handoff attached</strong><small>ERP modernization · 5 flows · 17 packages · evidence snapshot v12</small></span><b>Inspect</b><CaretRight size={14} /></button> : null}
 						<button type="button" onClick={() => setView("approvals")}><ShieldCheck size={16} /><span><strong>{approved ? "No approvals waiting" : "One decision needs you"}</strong><small>{approved ? "MAX can continue independently" : "Approve the generated workspace boundary"}</small></span>{approved ? <Check size={15} /> : <b>Review</b>}<CaretRight size={14} /></button>
 					</div>
 				</div>

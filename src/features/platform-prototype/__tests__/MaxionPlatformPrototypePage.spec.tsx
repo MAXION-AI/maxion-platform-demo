@@ -117,7 +117,7 @@ describe("MaxionPlatformPrototypePage", () => {
 		expect(screen.getByRole("button", { name: "Run verified" })).toBeInTheDocument()
 	}, 120_000)
 
-	it("creates an autonomous Plan from existing context and provides L2, L3, and L4 guidance for every flow", () => {
+	it("creates an autonomous Plan from existing context and provides L2, L3, and L4 guidance for every flow", async () => {
 		renderPrototype()
 		fireEvent.click(screen.getByRole("button", { name: "Plan" }))
 		fireEvent.click(screen.getByRole("button", { name: "Create Plan" }))
@@ -132,14 +132,20 @@ describe("MaxionPlatformPrototypePage", () => {
 		fireEvent.click(within(dialog).getByRole("button", { name: "Cancel" }))
 		fireEvent.click(screen.getByRole("button", { name: "Resume plan" }))
 
-		expect(screen.getByText("MAX is active")).toBeInTheDocument()
+		expect(screen.getAllByText("MAX is maintaining this plan").length).toBeGreaterThan(0)
 		expect(screen.getByText("15 visual architecture diagrams")).toBeInTheDocument()
 		expect(screen.getByRole("region", { name: "Work MAX handled autonomously" })).toHaveTextContent("2owners interviewed")
 		const planComposer = screen.getByRole("textbox", { name: "Steer the Plan agent" })
 		fireEvent.change(planComposer, { target: { value: "Keep the ServiceNow adapter behind the existing gateway." } })
 		fireEvent.keyDown(planComposer, { key: "Enter", code: "Enter" })
 		expect(screen.getByText("Keep the ServiceNow adapter behind the existing gateway.")).toBeInTheDocument()
-		expect(screen.getByText(/re-checked the affected L3 contracts and L4 acceptance criteria/)).toBeInTheDocument()
+		expect(screen.getByText(/Tracing the blast radius/)).toBeInTheDocument()
+		const impactCard = await screen.findByRole("article", { name: "Steering impact preview" }, { timeout: 4000 })
+		expect(impactCard).toHaveTextContent("Impact preview · nothing applied yet")
+		expect(impactCard).toHaveTextContent("Contained change")
+		fireEvent.click(within(impactCard).getByRole("button", { name: "Apply to plan" }))
+		expect(within(impactCard).getByText(/Applied · snapshot v13/)).toBeInTheDocument()
+		expect(screen.getByRole("button", { name: "Verified Discovery · snapshot v13" })).toBeInTheDocument()
 		fireEvent.click(within(screen.getByRole("navigation", { name: "Plan workspace" })).getByRole("button", { name: /Architecture/ }))
 		expect(screen.getByRole("heading", { name: "See the system. Select a node. Know what to build." })).toBeInTheDocument()
 		expect(screen.queryByText("Generated flows")).not.toBeInTheDocument()
@@ -178,6 +184,49 @@ describe("MaxionPlatformPrototypePage", () => {
 		expect(within(l4Handoff).queryByText("SNOW-101")).not.toBeInTheDocument()
 		expect(within(l4Handoff).getByText("MULE-201")).toBeInTheDocument()
 		expect(screen.getByText("Traceability complete")).toBeInTheDocument()
+
+		const flowNavigation = screen.getByRole("navigation", { name: "Architecture flows" })
+		fireEvent.click(within(flowNavigation).getByRole("button", { name: /System blueprint/ }))
+		expect(screen.getByRole("group", { name: "System blueprint for the five implementation flows" })).toBeInTheDocument()
+		fireEvent.click(screen.getByRole("button", { name: "Open Mission authority and approval boundary" }))
+		const authorityDiagram = screen.getByRole("group", { name: "L2 diagram for Mission authority and approval boundary" })
+		expect(authorityDiagram).toBeInTheDocument()
+		expect(within(authorityDiagram).getByText("MAXION AUTHORITY PLANE")).toBeInTheDocument()
+		expect(within(authorityDiagram).getByText("AUTH-01 · scope evaluation")).toBeInTheDocument()
+	})
+
+	it("runs a live Plan pass, previews steering impact honestly, and records revisions", async () => {
+		renderPrototype()
+		fireEvent.click(screen.getByRole("button", { name: "Plan" }))
+		fireEvent.click(screen.getByRole("button", { name: "Create Plan" }))
+		fireEvent.click(within(screen.getByRole("dialog", { name: "Start a plan with MAX" })).getByRole("button", { name: "Start autonomous plan" }))
+
+		expect(screen.getByRole("heading", { name: "MAX is building the implementation plan." })).toBeInTheDocument()
+		expect(screen.getByRole("textbox", { name: "Steer the Plan agent" })).toBeDisabled()
+		expect(within(screen.getByRole("navigation", { name: "Plan workspace" })).getByRole("button", { name: /Architecture/ })).toBeDisabled()
+		fireEvent.click(screen.getByRole("button", { name: "Skip to the finished plan" }))
+		expect(screen.getByRole("heading", { name: "MAX built the implementation plan." })).toBeInTheDocument()
+
+		const composer = screen.getByRole("textbox", { name: "Steer the Plan agent" })
+		fireEvent.change(composer, { target: { value: "Switch the integration to Boomi instead of MuleSoft — we lost the license." } })
+		fireEvent.keyDown(composer, { key: "Enter", code: "Enter" })
+		const impactCard = await screen.findByRole("article", { name: "Steering impact preview" }, { timeout: 4000 })
+		expect(impactCard).toHaveTextContent("Structural change")
+		expect(impactCard).toHaveTextContent(/exceeds the approved implementation boundary/)
+		fireEvent.click(within(impactCard).getByRole("button", { name: "Apply to plan" }))
+		expect(within(impactCard).getByText(/Applied · snapshot v13/)).toBeInTheDocument()
+		expect(within(impactCard).getByText(/approval routing reopened/)).toBeInTheDocument()
+
+		fireEvent.click(within(screen.getByRole("navigation", { name: "Plan workspace" })).getByRole("button", { name: /Revisions/ }))
+		expect(screen.getByRole("heading", { name: "Every pass is recorded. Nothing changes silently." })).toBeInTheDocument()
+		expect(screen.getByText("The integration control plane moves — 12 artifacts re-derive")).toBeInTheDocument()
+		expect(screen.getByText("Initial decomposition: five flows through L2–L4")).toBeInTheDocument()
+
+		fireEvent.click(within(screen.getByRole("navigation", { name: "Plan workspace" })).getByRole("button", { name: /Evidence/ }))
+		expect(screen.getByText("CLM-014")).toBeInTheDocument()
+		fireEvent.click(screen.getByRole("button", { name: /^ServiceNow 19 contracts/ }))
+		expect(screen.getByText("CLM-058")).toBeInTheDocument()
+		expect(screen.getByText(/free-text and drift from the Workday hierarchy/)).toBeInTheDocument()
 	})
 
 	it("starts an autonomous engagement from a prompt or an approved Plan and exposes workspace topology", async () => {
