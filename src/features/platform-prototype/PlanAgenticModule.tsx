@@ -539,10 +539,28 @@ function deriveSteeringImpact(rawText: string): PlanImpact {
 	}
 }
 
+function deriveSteeringAnswer(rawText: string, target: string) {
+	const text = rawText.toLowerCase()
+	if (/architecture|diagram|boundary|l2|l3|l4/.test(text) || /\bL[234]\b/.test(target)) {
+		return `${target} shows the decision at the level your current reviewer needs: L2 fixes ownership and system boundaries, L3 fixes deployable components and versioned interfaces, and L4 assigns build packages with dependencies and done conditions. Every node traces to evidence and the next implementation artifact.`
+	}
+	if (/approval|approver|decision/.test(text) || target === "Approval routing") {
+		return "MAX matched each bounded decision to the project RACI and policy owner, sent the exact evidence and rollback boundary they need, and retained every response with the plan snapshot. No blanket owner approval is being inferred."
+	}
+	if (/evidence|source|claim|why/.test(text) || target === "Evidence and provenance") {
+		return "The current recommendation is grounded in 124 verified claims. MAX reconciled conflicting sources against the authoritative system, preserved the rationale, and linked each material claim to the architecture, contract, test, or approval it changed."
+	}
+	return "This plan is implementation-ready because the solution boundary, technical contracts, team-owned build packages, dependency order, acceptance evidence, and approval routing remain traceable as one versioned system."
+}
+
 type PlanThreadEntry =
-	| { id: number; kind: "user"; text: string }
+	| { id: number; kind: "user"; text: string; target?: string }
 	| { id: number; kind: "working" }
+	| { id: number; kind: "queued"; text: string; target: string }
+	| { id: number; kind: "answer"; text: string; target: string }
 	| { id: number; kind: "impact"; impact: PlanImpact; status: "proposed" | "applied" | "discarded"; revision?: string }
+
+const PLAN_EXPLANATION_PATTERN = /^(explain|why|what|how|show|summarize|which|where|who|does|is|can)\b|\?\s*$/
 
 const PLAN_RUN_STAGES = [
 	{ key: "reading", live: "Reading the operating context", done: "Read the operating context", detail: "Grounded the plan in 124 verified claims from Discovery, project decisions, ServiceNow, Workday, integration standards, and policy.", duration: 2400 },
@@ -557,6 +575,25 @@ const PLAN_LIVE_TIMES = ["0:02", "0:05", "0:07", "0:09", "0:13"] as const
 
 function prefersReducedMotion() {
 	return typeof window !== "undefined" && typeof window.matchMedia === "function" && window.matchMedia("(prefers-reduced-motion: reduce)").matches
+}
+
+function useStreamedText(text: string, active: boolean) {
+	const [count, setCount] = useState(active && !prefersReducedMotion() ? 0 : Number.MAX_SAFE_INTEGER)
+	useEffect(() => {
+		if (!active || prefersReducedMotion()) { setCount(Number.MAX_SAFE_INTEGER); return }
+		setCount(0)
+		const total = text.split(" ").length
+		const timer = window.setInterval(() => {
+			setCount((current) => {
+				if (current >= total) { window.clearInterval(timer); return current }
+				return current + 1
+			})
+		}, 26)
+		return () => window.clearInterval(timer)
+	}, [text, active])
+	if (!active) return text
+	const words = text.split(" ")
+	return count >= words.length ? text : words.slice(0, count).join(" ")
 }
 
 function useCountUp(target: number, started: boolean, animate: boolean, duration = 1400) {
@@ -603,18 +640,37 @@ function PlanWorkspaceModule({ live, onBack, onCommand, onSendToExecute }: { liv
 	const [selectedFlowId, setSelectedFlowId] = useState("adapter")
 	const [level, setLevel] = useState<PlanArchitectureLevel>("L2")
 	const [steer, setSteer] = useState("")
+	const [steeringTarget, setSteeringTarget] = useState<string | null>(null)
 	const [steerFocusTick, setSteerFocusTick] = useState(0)
 	const [thread, setThread] = useState<PlanThreadEntry[]>([])
 	const [revisions, setRevisions] = useState<readonly PlanRevision[]>(PLAN_REVISION_HISTORY)
 	const [readinessOpen, setReadinessOpen] = useState(false)
+	const [dismissedReceiptId, setDismissedReceiptId] = useState(0)
 	const entryIdRef = useRef(0)
 	const impactTimerRef = useRef(0)
+	const queueFlushTimerRef = useRef(0)
 
 	const complete = stage >= PLAN_RUN_STAGES.length
 	const selectedFlow = PLAN_FLOWS.find((flow) => flow.id === selectedFlowId)
 	const selectedBrief = selectedFlow ? PLAN_EXECUTION_BRIEFS[selectedFlow.id] : undefined
 	const snapshot = revisions[0].version
 	const passCount = revisions[0].pass
+	const unresolvedCount = Number(!clarificationResolved) + Number(!approved)
+	const defaultSteeringTarget: Record<PlanView, string> = {
+		run: "Entire implementation plan",
+		architecture: selectedFlow ? `${level} · ${selectedFlow.title}` : `${level} architecture`,
+		backlog: "Implementation packages",
+		roadmap: "Dependency model",
+		questions: "Current design decision",
+		evidence: "Evidence and provenance",
+		approvals: "Approval routing",
+		revisions: `Snapshot ${snapshot}`,
+	}
+	const activeSteeringTarget = steeringTarget ?? defaultSteeringTarget[view]
+	const latestSteeringEntry = [...thread].reverse().find((entry): entry is Exclude<PlanThreadEntry, { kind: "user" }> => entry.kind !== "user")
+	const visibleSteeringEntry = latestSteeringEntry && latestSteeringEntry.id !== dismissedReceiptId ? latestSteeringEntry : undefined
+	const latestSteeringRef = useRef(latestSteeringEntry)
+	latestSteeringRef.current = latestSteeringEntry
 
 	useEffect(() => {
 		if (!live || complete) return
@@ -622,7 +678,38 @@ function PlanWorkspaceModule({ live, onBack, onCommand, onSendToExecute }: { liv
 		return () => window.clearTimeout(timer)
 	}, [live, stage, complete])
 
-	useEffect(() => () => window.clearTimeout(impactTimerRef.current), [])
+	useEffect(() => () => { window.clearTimeout(impactTimerRef.current); window.clearTimeout(queueFlushTimerRef.current) }, [])
+
+	useEffect(() => setSteeringTarget(null), [view, selectedFlowId, level])
+
+	// Directions queued mid-run are folded in as soon as the pass lands.
+	useEffect(() => {
+		if (!complete) return
+		const queued = thread.filter((entry): entry is Extract<PlanThreadEntry, { kind: "queued" }> => entry.kind === "queued")
+		if (!queued.length) return
+		setThread((current) => current.map((entry) => entry.kind === "queued" ? { id: entry.id, kind: "working" as const } : entry))
+		queueFlushTimerRef.current = window.setTimeout(() => {
+			setThread((current) => current.map((entry) => {
+				const source = queued.find((item) => item.id === entry.id)
+				if (!source || entry.kind !== "working") return entry
+				return PLAN_EXPLANATION_PATTERN.test(source.text.toLowerCase())
+					? { id: entry.id, kind: "answer" as const, text: deriveSteeringAnswer(source.text, source.target), target: source.target }
+					: { id: entry.id, kind: "impact" as const, impact: deriveSteeringImpact(source.text), status: "proposed" as const }
+			}))
+		}, 1400)
+	}, [complete, thread])
+
+	// Terminal receipts fade on their own; a pending impact preview follows you until decided.
+	useEffect(() => {
+		if (!latestSteeringEntry || latestSteeringEntry.kind !== "impact" || latestSteeringEntry.status === "proposed") return
+		const timer = window.setTimeout(() => setDismissedReceiptId(latestSteeringEntry.id), latestSteeringEntry.status === "applied" ? 8000 : 4000)
+		return () => window.clearTimeout(timer)
+	}, [latestSteeringEntry])
+
+	useEffect(() => {
+		const entry = latestSteeringRef.current
+		if (entry && (entry.kind === "answer" || (entry.kind === "impact" && entry.status !== "proposed"))) setDismissedReceiptId(entry.id)
+	}, [view])
 
 	const addRevision = (trigger: PlanRevision["trigger"], title: string, detail: string, changes: readonly PlanRevisionChange[]) => {
 		setRevisions((current) => [{ version: `v${Number(current[0].version.slice(1)) + 1}`, pass: current[0].pass + 1, time: "Just now", trigger, title, detail, changes }, ...current])
@@ -645,14 +732,24 @@ function PlanWorkspaceModule({ live, onBack, onCommand, onSendToExecute }: { liv
 
 	const submitSteer = () => {
 		const direction = steer.trim()
-		if (!direction || !complete) return
+		if (!direction) return
 		const userId = ++entryIdRef.current
-		const workingId = ++entryIdRef.current
-		setThread((current) => [...current, { id: userId, kind: "user", text: direction }, { id: workingId, kind: "working" }])
+		const followUpId = ++entryIdRef.current
+		if (!complete) {
+			setThread((current) => [...current, { id: userId, kind: "user", text: direction, target: activeSteeringTarget }, { id: followUpId, kind: "queued", text: direction, target: activeSteeringTarget }])
+			setSteer("")
+			return
+		}
+		setThread((current) => [...current, { id: userId, kind: "user", text: direction, target: activeSteeringTarget }, { id: followUpId, kind: "working" }])
 		setSteer("")
+		const asksForExplanation = PLAN_EXPLANATION_PATTERN.test(direction.toLowerCase())
 		const impact = deriveSteeringImpact(direction)
 		impactTimerRef.current = window.setTimeout(() => {
-			setThread((current) => current.map((entry) => entry.id === workingId ? { id: workingId, kind: "impact", impact, status: "proposed" } : entry))
+			setThread((current) => current.map((entry) => entry.id === followUpId
+				? asksForExplanation
+					? { id: followUpId, kind: "answer", text: deriveSteeringAnswer(direction, activeSteeringTarget), target: activeSteeringTarget }
+					: { id: followUpId, kind: "impact", impact, status: "proposed" }
+				: entry))
 		}, 1100)
 	}
 
@@ -670,8 +767,13 @@ function PlanWorkspaceModule({ live, onBack, onCommand, onSendToExecute }: { liv
 	}
 
 	const steerOnNode = (context: string) => {
-		setView("run")
-		setSteer(`Regarding ${context}: `)
+		setSteeringTarget(context)
+		setSteer("")
+		setSteerFocusTick((tick) => tick + 1)
+	}
+
+	const primeSteer = (direction: string) => {
+		setSteer(direction)
 		setSteerFocusTick((tick) => tick + 1)
 	}
 
@@ -689,7 +791,7 @@ function PlanWorkspaceModule({ live, onBack, onCommand, onSendToExecute }: { liv
 	return (
 		<div className="apn-shell">
 			<aside className="apn-rail">
-				<header><button type="button" onClick={onBack}><ArrowLeft size={15} /><span>All plans</span></button><div><MaxionSpiralMark /><span><small>PLAN</small><strong>ERP modernization</strong></span></div></header>
+				<header><button type="button" aria-label="All plans" onClick={onBack}><ArrowLeft size={15} /><span>All plans</span></button><div><MaxionSpiralMark /><span><small>PLAN</small><strong>ERP modernization</strong></span></div></header>
 				<nav aria-label="Plan workspace">{navigation.map(([id, Icon, label, count]) => <button key={id} type="button" className={view === id ? "is-active" : ""} disabled={!complete && id !== "run" && id !== "evidence"} title={!complete && id !== "run" && id !== "evidence" ? "Available when this pass lands" : undefined} onClick={() => setView(id)}><Icon size={16} /><span>{label}</span>{count ? <small>{count}</small> : null}</button>)}</nav>
 				<footer><div><span className={`apn-live-dot${!complete ? " is-working" : ""}`} /><p><strong>{complete ? "MAX is maintaining this plan" : "MAX is working"}</strong><small>{complete ? "Watching evidence drift" : PLAN_RUN_STAGES[stage].live}</small></p></div><button type="button" aria-label="Search plan" onClick={onCommand}><MagnifyingGlass size={15} /></button></footer>
 			</aside>
@@ -700,14 +802,21 @@ function PlanWorkspaceModule({ live, onBack, onCommand, onSendToExecute }: { liv
 					<div>
 						<span className={`apn-autonomy${!complete ? " is-working" : ""}`}><i />{complete ? "MAX maintaining this plan" : `MAX working · ${PLAN_RUN_STAGES[stage].live.toLowerCase()}`}</span>
 						<span className="apn-run-meta">{complete ? `${passCount} passes · 18m · 3 conflicts resolved` : `pass 1 · ${PLAN_LIVE_TIMES[Math.min(stage, PLAN_LIVE_TIMES.length - 1)]} elapsed`}</span>
-						<button type="button" className="apn-readiness-chip" onClick={() => setReadinessOpen(true)}><ShieldCheck size={14} />Readiness {5 + Number(clarificationResolved) + Number(approved)}/7</button>
-						<button type="button" className={`apn-question-route${clarificationResolved ? " is-resolved" : ""}`} disabled={!complete} onClick={() => setView("questions")}><ChatCircleText size={15} />{!complete ? "Isolating decisions…" : clarificationResolved ? "Questions resolved" : "1 design decision"}</button>
-						<button type="button" className={`apn-approval-route${approved ? " is-approved" : ""}`} disabled={!complete} onClick={() => setView("approvals")}>{approved ? <CheckCircle size={15} weight="fill" /> : <ShieldCheck size={15} />}{!complete ? "Routing…" : approved ? "3 approvals complete" : "1 approval needed"}</button>
+						<button
+							type="button"
+							className={`apn-attention-route${complete && unresolvedCount === 0 ? " is-ready" : ""}`}
+							disabled={!complete}
+							aria-label={!complete ? "MAX is preparing decisions" : unresolvedCount ? `${unresolvedCount} decision${unresolvedCount === 1 ? " needs" : "s need"} you` : "Plan ready"}
+							onClick={() => { if (!clarificationResolved) setView("questions"); else if (!approved) setView("approvals"); else setReadinessOpen(true) }}>
+							{complete && unresolvedCount === 0 ? <CheckCircle size={15} weight="fill" /> : <ChatCircleText size={15} />}
+							<span>{!complete ? "Preparing decisions" : unresolvedCount ? `${unresolvedCount} need${unresolvedCount === 1 ? "s" : ""} you` : "Plan ready"}</span>
+							<small>{5 + Number(clarificationResolved) + Number(approved)}/7</small>
+						</button>
 						<button type="button" className="apn-execute" disabled={!complete || !approved || !clarificationResolved} title={!complete ? "The first pass has not finished" : !clarificationResolved ? "One design decision must be resolved before Execute handoff" : approved ? "Send approved L3 and L4 artifacts to Execute" : "Approval routing is still waiting on one decision"} onClick={() => onSendToExecute(snapshot)}>Send to Execute<ArrowRight size={14} /></button>
 					</div>
 				</header>
 
-				{view === "run" ? <PlanAgentRun live={live} stage={stage} complete={complete} onSkip={() => setStage(PLAN_RUN_STAGES.length)} clarificationResolved={clarificationResolved} thread={thread} steer={steer} steerFocusTick={steerFocusTick} onSteerChange={setSteer} onSubmitSteer={submitSteer} onApplyImpact={applyImpact} onDiscardImpact={discardImpact} onOpenArchitecture={() => openArchitecture("adapter", "L2")} onOpenBlueprint={() => openArchitecture("system", "L2")} onOpenImplementation={() => setView("backlog")} onOpenQuestions={() => setView("questions")} onOpenRevisions={() => setView("revisions")} /> : null}
+				{view === "run" ? <PlanAgentRun live={live} stage={stage} complete={complete} onSkip={() => setStage(PLAN_RUN_STAGES.length)} clarificationResolved={clarificationResolved} thread={thread} onApplyImpact={applyImpact} onDiscardImpact={discardImpact} onOpenArchitecture={() => openArchitecture("adapter", "L2")} onOpenBlueprint={() => openArchitecture("system", "L2")} onOpenImplementation={() => setView("backlog")} onOpenQuestions={() => setView("questions")} onOpenRevisions={() => setView("revisions")} /> : null}
 				{view === "architecture" ? <PlanArchitectureView selectedFlowId={selectedFlowId} level={level} onLevelChange={setLevel} onSelectFlow={setSelectedFlowId} onOpenImplementation={() => setView("backlog")} onSteerNode={steerOnNode} /> : null}
 				{view === "backlog" ? <PlanImplementationView onOpenArchitecture={openArchitecture} /> : null}
 				{view === "roadmap" ? <PlanDependencyView onOpenArchitecture={openArchitecture} /> : null}
@@ -715,6 +824,21 @@ function PlanWorkspaceModule({ live, onBack, onCommand, onSendToExecute }: { liv
 				{view === "approvals" ? <PlanApprovalView approved={approved} onApprove={() => setApproved(true)} /> : null}
 				{view === "revisions" ? <PlanRevisionsView revisions={revisions} onOpenArchitecture={() => openArchitecture("adapter", "L3")} /> : null}
 				{view === "evidence" ? <PlanEvidenceView /> : null}
+				<PlanSteeringDock
+					view={view}
+					target={activeSteeringTarget}
+					complete={complete}
+					value={steer}
+					focusTick={steerFocusTick}
+					entry={visibleSteeringEntry}
+					onChange={setSteer}
+					onPrime={primeSteer}
+					onSubmit={submitSteer}
+					onApply={applyImpact}
+					onDiscard={discardImpact}
+					onDismiss={(entryId) => setDismissedReceiptId(entryId)}
+					onOpenRevisions={() => setView("revisions")}
+				/>
 			</section>
 
 			<aside className="apn-inspector" aria-label="Plan inspector">
@@ -765,14 +889,10 @@ function PlanBuildStrip({ stage, complete, onOpenBlueprint }: { stage: number; c
 	)
 }
 
-function PlanAgentRun({ live, stage, complete, onSkip, clarificationResolved, thread, steer, steerFocusTick, onSteerChange, onSubmitSteer, onApplyImpact, onDiscardImpact, onOpenArchitecture, onOpenBlueprint, onOpenImplementation, onOpenQuestions, onOpenRevisions }: { live: boolean; stage: number; complete: boolean; onSkip: () => void; clarificationResolved: boolean; thread: PlanThreadEntry[]; steer: string; steerFocusTick: number; onSteerChange: (value: string) => void; onSubmitSteer: () => void; onApplyImpact: (entryId: number) => void; onDiscardImpact: (entryId: number) => void; onOpenArchitecture: () => void; onOpenBlueprint: () => void; onOpenImplementation: () => void; onOpenQuestions: () => void; onOpenRevisions: () => void }) {
-	const composerRef = useRef<HTMLTextAreaElement>(null)
+function PlanAgentRun({ live, stage, complete, onSkip, clarificationResolved, thread, onApplyImpact, onDiscardImpact, onOpenArchitecture, onOpenBlueprint, onOpenImplementation, onOpenQuestions, onOpenRevisions }: { live: boolean; stage: number; complete: boolean; onSkip: () => void; clarificationResolved: boolean; thread: PlanThreadEntry[]; onApplyImpact: (entryId: number) => void; onDiscardImpact: (entryId: number) => void; onOpenArchitecture: () => void; onOpenBlueprint: () => void; onOpenImplementation: () => void; onOpenQuestions: () => void; onOpenRevisions: () => void }) {
 	const claims = useCountUp(124, stage >= 0, live && stage === 0)
 	const conflicts = useCountUp(3, stage >= 1, live && stage === 1, 900)
 	const owners = useCountUp(2, stage >= 2, live && stage === 2, 900)
-	useEffect(() => {
-		if (steerFocusTick > 0) composerRef.current?.focus()
-	}, [steerFocusTick])
 	return (
 		<main className="apn-main apn-run">
 			<div className="apn-run-column">
@@ -786,8 +906,10 @@ function PlanAgentRun({ live, stage, complete, onSkip, clarificationResolved, th
 					<header><span>Autonomy ledger</span><strong>What MAX handled without you</strong></header>
 					<div><article><strong>{claims}</strong><span>claims read</span></article><article><strong>{conflicts}</strong><span>conflicts resolved</span></article><article><strong>{owners}</strong><span>owners interviewed</span></article><article className={!complete ? "" : clarificationResolved ? "is-clear" : "is-attention"}><strong>{!complete ? "—" : clarificationResolved ? "0" : "1"}</strong><span>{complete && clarificationResolved ? "questions open" : "decision for you"}</span></article></div>
 				</section>
+				{complete ? <section className={`apn-agent-question${clarificationResolved ? " is-resolved" : ""}`} aria-label="Plan clarification status"><div><span>{clarificationResolved ? <CheckCircle size={16} weight="fill" /> : <ChatCircleText size={16} />}</span><div><small>{clarificationResolved ? "Decision incorporated" : "Your input is needed"}</small><strong>{clarificationResolved ? "Atomic journal posting is now the approved contract." : "Should a journal batch fail atomically or allow partial posting?"}</strong><p>{clarificationResolved ? "MAX updated INT-02, MULE-202, WDAY-301, the error taxonomy, and the affected acceptance tests." : "ServiceNow approval intent and Workday line-level behavior conflict. MAX prepared a recommendation and limited the question to this one policy choice."}</p></div></div><button type="button" onClick={onOpenQuestions}>{clarificationResolved ? "Review decision" : "Review recommendation"}<ArrowRight size={14} /></button></section> : null}
 				<PlanBuildStrip stage={stage} complete={complete} onOpenBlueprint={onOpenBlueprint} />
-				<section className="apn-agent-thread" aria-label="Autonomous Plan activity" aria-live="polite">
+				<details className="apn-agent-thread" aria-label="Autonomous Plan activity" aria-live="polite" open={!complete || thread.length > 0}>
+					<summary><span>Agent work log</span><small>{complete ? "5 stages · 3 conflicts resolved · 2 owners interviewed" : PLAN_RUN_STAGES[stage].live}</small><CaretDown size={14} /></summary>
 					<div className="apn-agent-message"><MaxionSpiralMark /><div><strong>MAX</strong><p>{complete ? "I compared the verified Discovery package with connected-system metadata and project governance. I used the safest reversible assumption where the evidence agreed, contacted domain owners where they held the answer, and isolated one remaining decision that changes financial posting behavior." : "I'm comparing the verified Discovery package with connected-system metadata and project governance. Where the evidence agrees I take the safest reversible assumption; where a domain owner holds the answer I ask them directly."}</p></div></div>
 					<ol>
 						{PLAN_RUN_STAGES.map((step, index) => {
@@ -802,33 +924,92 @@ function PlanAgentRun({ live, stage, complete, onSkip, clarificationResolved, th
 							)
 						})}
 					</ol>
-					{complete ? <section className={`apn-agent-question${clarificationResolved ? " is-resolved" : ""}`} aria-label="Plan clarification status"><div><span>{clarificationResolved ? <CheckCircle size={16} weight="fill" /> : <ChatCircleText size={16} />}</span><div><small>{clarificationResolved ? "Decision incorporated" : "Your input is needed"}</small><strong>{clarificationResolved ? "Atomic journal posting is now the approved contract." : "Should a journal batch fail atomically or allow partial posting?"}</strong><p>{clarificationResolved ? "MAX updated INT-02, MULE-202, WDAY-301, the error taxonomy, and the affected acceptance tests." : "ServiceNow approval intent and Workday line-level behavior conflict. MAX prepared a recommendation and limited the question to this one policy choice."}</p></div></div><button type="button" onClick={onOpenQuestions}>{clarificationResolved ? "Review decision" : "Review recommendation"}<ArrowRight size={14} /></button></section> : null}
 					{thread.map((entry) => {
-						if (entry.kind === "user") return <div className="apn-user-message" key={entry.id}><span>You</span><p>{entry.text}</p></div>
-						if (entry.kind === "working") return <div className="apn-agent-message is-working" key={entry.id}><MaxionSpiralMark /><div><strong>MAX</strong><p className="apn-working-line"><SpinnerGap className="apn-spin" size={13} />Tracing the blast radius across contracts, diagrams, tests, and approvals…</p></div></div>
-						return <PlanImpactCard key={entry.id} entry={entry} onApply={() => onApplyImpact(entry.id)} onDiscard={() => onDiscardImpact(entry.id)} onOpenRevisions={onOpenRevisions} />
+						if (entry.kind === "user") return <div className="apn-user-message" key={entry.id}><span>You · {entry.target ?? "Plan"}</span><p>{entry.text}</p></div>
+						if (entry.kind === "working") return <div className="apn-agent-message is-working" key={entry.id}><MaxionSpiralMark /><div><strong>MAX</strong><p className="apn-working-line"><SpinnerGap className="apn-spin" size={13} />Reading the active context and checking contracts, diagrams, tests, and approvals…</p></div></div>
+						if (entry.kind === "queued") return <div className="apn-thread-outcome is-queued" key={entry.id}><Clock size={13} /><span><strong>Queued for this pass</strong> · {entry.target}</span></div>
+						if (entry.kind === "answer") return <div className="apn-thread-outcome is-answer" key={entry.id}><Sparkle size={13} weight="fill" /><span><strong>Answered in context</strong> · {entry.target}</span></div>
+						return (
+							<div className={`apn-thread-outcome is-${entry.status}`} key={entry.id}>
+								{entry.status === "applied" ? <CheckCircle size={13} weight="fill" /> : entry.status === "discarded" ? <X size={13} /> : <Lightning size={13} weight="fill" />}
+								<span><strong>{entry.status === "applied" ? `Impact applied · snapshot ${entry.revision}` : entry.status === "discarded" ? "Impact discarded" : "Impact preview awaiting your decision"}</strong> · {entry.impact.headline}</span>
+								{entry.status === "applied" ? <button type="button" onClick={onOpenRevisions}>Open revisions<ArrowRight size={12} /></button> : null}
+							</div>
+						)
 					})}
-				</section>
+				</details>
 				{complete ? <section className="apn-output"><header><div><span>Implementation package</span><strong>{clarificationResolved ? "Ready for final approval" : "One decision before final approval"}</strong></div><CheckCircle size={19} weight="fill" /></header><div><button type="button" onClick={onOpenArchitecture}><CirclesThree size={17} /><span><strong>{PLAN_VIEW_COUNT} visual architecture diagrams</strong><small>L2 solution · L3 technical · L4 build</small></span><ArrowRight size={14} /></button><button type="button" onClick={onOpenImplementation}><ListChecks size={17} /><span><strong>{PLAN_PACKAGE_COUNT} implementation packages</strong><small>Team ownership, dependencies, tests, and done conditions</small></span><ArrowRight size={14} /></button></div></section> : null}
-				<form className="apn-composer" onSubmit={(event) => { event.preventDefault(); onSubmitSteer() }}>
-					<textarea ref={composerRef} aria-label="Steer the Plan agent" value={steer} disabled={!complete} onChange={(event) => onSteerChange(event.target.value)} onKeyDown={(event) => { if (event.key === "Enter" && !event.shiftKey) { event.preventDefault(); onSubmitSteer() } }} placeholder={complete ? "Ask MAX to explain, revise, or test any part of the plan…" : "MAX is mid-pass — steering opens when this pass lands."} rows={2} />
-					<footer><span><Sparkle size={13} />MAX previews the exact impact before anything is applied</span><button type="submit" disabled={!complete || !steer.trim()} aria-label="Send Plan direction"><ArrowRight size={15} /></button></footer>
-				</form>
 			</div>
 		</main>
 	)
 }
 
-function PlanImpactCard({ entry, onApply, onDiscard, onOpenRevisions }: { entry: Extract<PlanThreadEntry, { kind: "impact" }>; onApply: () => void; onDiscard: () => void; onOpenRevisions: () => void }) {
+function PlanSteeringAnswer({ entry, onDismiss }: { entry: Extract<PlanThreadEntry, { kind: "answer" }>; onDismiss: () => void }) {
+	const streamed = useStreamedText(entry.text, true)
+	return (
+		<div className="apn-steering-receipt is-answer" role="status" aria-live="polite">
+			<header><Sparkle size={14} weight="fill" /><span><strong>MAX answered in context</strong><small>{entry.target}</small></span><button type="button" aria-label="Dismiss answer" onClick={onDismiss}><X size={14} /></button></header>
+			<p className="apn-steering-answer">{streamed}</p>
+		</div>
+	)
+}
+
+function PlanSteeringDock({ view, target, complete, value, focusTick, entry, onChange, onPrime, onSubmit, onApply, onDiscard, onDismiss, onOpenRevisions }: { view: PlanView; target: string; complete: boolean; value: string; focusTick: number; entry?: Exclude<PlanThreadEntry, { kind: "user" }>; onChange: (value: string) => void; onPrime: (value: string) => void; onSubmit: () => void; onApply: (entryId: number) => void; onDiscard: (entryId: number) => void; onDismiss: (entryId: number) => void; onOpenRevisions: () => void }) {
+	const composerRef = useRef<HTMLTextAreaElement>(null)
+	const quickPrompts = view === "architecture"
+		? ["Explain this architecture", "Challenge this assumption", "Add a technical constraint"]
+		: view === "backlog"
+			? ["Re-sequence this work", "Challenge a done condition", "Add a delivery constraint"]
+			: ["Explain the current plan", "Challenge an assumption", "Add a constraint"]
+
+	useEffect(() => {
+		if (focusTick > 0) composerRef.current?.focus()
+	}, [focusTick])
+
+	return (
+		<section className="apn-steering-dock" aria-label="Steer MAX">
+			{entry?.kind === "working" ? (
+				<div className="apn-steering-receipt is-working" role="status" aria-live="polite">
+					<header><SpinnerGap className="apn-spin" size={13} /><span><strong>MAX is tracing that direction</strong><small>Contracts, diagrams, tests, and approvals are being checked.</small></span></header>
+				</div>
+			) : null}
+			{entry?.kind === "queued" ? (
+				<div className="apn-steering-receipt is-queued" role="status" aria-live="polite">
+					<header><Clock size={14} /><span><strong>Direction queued for this pass</strong><small>MAX folds it in when the current pass lands.</small></span><button type="button" aria-label="Withdraw queued direction" onClick={() => onDismiss(entry.id)}><X size={14} /></button></header>
+				</div>
+			) : null}
+			{entry?.kind === "answer" ? <PlanSteeringAnswer key={entry.id} entry={entry} onDismiss={() => onDismiss(entry.id)} /> : null}
+			{entry?.kind === "impact" && entry.status !== "discarded" ? (
+				<div className="apn-steering-impact" role="status" aria-live="polite">
+					<PlanImpactCard key={entry.id} entry={entry} onApply={() => onApply(entry.id)} onDiscard={() => onDiscard(entry.id)} onDismiss={entry.status === "applied" ? () => onDismiss(entry.id) : undefined} onOpenRevisions={onOpenRevisions} />
+				</div>
+			) : null}
+			{entry?.kind === "impact" && entry.status === "discarded" ? (
+				<div className="apn-steering-receipt is-discarded" role="status" aria-live="polite">
+					<header><X size={14} /><span><strong>Direction discarded</strong><small>No plan artifacts changed.</small></span><button type="button" aria-label="Dismiss" onClick={() => onDismiss(entry.id)}><X size={14} /></button></header>
+				</div>
+			) : null}
+			<form onSubmit={(event) => { event.preventDefault(); onSubmit() }}>
+				<div className="apn-steering-target"><Sparkle size={14} weight="fill" /><span><small>Steering</small><strong>{target}</strong></span></div>
+				<textarea ref={composerRef} aria-label="Steer the Plan agent" value={value} onChange={(event) => onChange(event.target.value)} onKeyDown={(event) => { if (event.key === "Enter" && !event.shiftKey) { event.preventDefault(); onSubmit() } }} placeholder={complete ? "Tell MAX what to explain, challenge, or change…" : "Add direction while MAX works — MAX folds it into this pass before it lands…"} rows={1} />
+				<button type="submit" disabled={!value.trim()} aria-label="Send Plan direction"><ArrowRight size={16} /></button>
+			</form>
+			<footer><div aria-label="Steering suggestions"><span>Try</span>{quickPrompts.map((prompt) => <button type="button" key={prompt} onClick={() => onPrime(prompt)}>{prompt}</button>)}</div><span>Enter to send · impact is previewed first</span></footer>
+		</section>
+	)
+}
+
+function PlanImpactCard({ entry, onApply, onDiscard, onDismiss, onOpenRevisions }: { entry: Extract<PlanThreadEntry, { kind: "impact" }>; onApply: () => void; onDiscard: () => void; onDismiss?: () => void; onOpenRevisions: () => void }) {
 	const { impact, status } = entry
+	const summary = useStreamedText(impact.summary, status === "proposed")
 	return (
 		<article className={`apn-impact-card is-${impact.scale} is-${status}`} aria-label="Steering impact preview">
 			<header>
 				<span className="apn-impact-flag">{status === "proposed" ? <><Lightning size={13} weight="fill" />Impact preview · nothing applied yet</> : status === "applied" ? <><CheckCircle size={13} weight="fill" />Applied · snapshot {entry.revision}</> : <><X size={13} />Discarded · nothing changed</>}</span>
-				<i className={`apn-impact-scale is-${impact.scale}`}>{impact.scale === "contained" ? "Contained change" : "Structural change"}</i>
+				<span className="apn-impact-header-side"><i className={`apn-impact-scale is-${impact.scale}`}>{impact.scale === "contained" ? "Contained change" : "Structural change"}</i>{onDismiss ? <button type="button" className="apn-impact-dismiss" aria-label="Dismiss receipt" onClick={onDismiss}><X size={13} /></button> : null}</span>
 			</header>
 			<strong>{impact.headline}</strong>
-			<p>{impact.summary}</p>
+			<p>{summary}</p>
 			{status !== "discarded" ? <ul>{impact.artifacts.map((artifact) => <li key={artifact.id}><code>{artifact.id}</code><span>{artifact.kind}</span><p>{artifact.change}</p></li>)}</ul> : null}
 			{status !== "discarded" && impact.boundaryNote ? <div className="apn-impact-boundary"><Warning size={15} weight="fill" /><p>{impact.boundaryNote}</p></div> : null}
 			{status === "proposed" ? <footer><button type="button" onClick={onDiscard}>Discard</button><button type="button" className="apn-impact-apply" onClick={onApply}><Check size={14} />Apply to plan</button></footer> : null}
