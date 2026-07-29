@@ -830,7 +830,7 @@ function PlanWorkspaceModule({ live, onBack, onCommand, onSendToExecute }: { liv
 					))}
 				</nav>
 
-				{view === "plan" ? <PlanHomeView live={live} stage={stage} complete={complete} passCount={passCount} onSkip={() => setStage(PLAN_RUN_STAGES.length)} clarificationResolved={clarificationResolved} approved={approved} onResolve={resolveClarification} thread={thread} onOpenFlow={(flowId) => openFlow(flowId, "L2")} onOpenDesign={() => openFlow("adapter", "L2")} onOpenDecisions={() => openLedger("decisions")} onOpenRevisions={() => openLedger("history")} onOpenContract={() => openFlow("adapter", "L3")} /> : null}
+				{view === "plan" ? <PlanHomeView live={live} stage={stage} complete={complete} passCount={passCount} onSkip={() => setStage(PLAN_RUN_STAGES.length)} clarificationResolved={clarificationResolved} approved={approved} onResolve={resolveClarification} onApprove={() => setApproved(true)} thread={thread} onOpenFlow={(flowId) => openFlow(flowId, "L2")} onOpenDesign={() => openFlow("adapter", "L2")} onOpenDecisions={() => openLedger("decisions")} onOpenRevisions={() => openLedger("history")} onOpenContract={() => openFlow("adapter", "L3")} /> : null}
 				{view === "design" ? <PlanDesignView selectedFlowId={selectedFlowId} level={level} onLevelChange={setLevel} onSelectFlow={setSelectedFlowId} onSteerNode={steerOnNode} /> : null}
 				{view === "ledger" ? <PlanLedgerView section={ledgerSection} onSectionChange={setLedgerSection} revisions={revisions} clarificationResolved={clarificationResolved} approved={approved} onResolve={resolveClarification} onApprove={() => setApproved(true)} onOpenContract={() => openFlow("adapter", "L3")} /> : null}
 				<PlanSteeringDock
@@ -853,6 +853,37 @@ function PlanWorkspaceModule({ live, onBack, onCommand, onSendToExecute }: { liv
 	)
 }
 
+type PlanApprovalRequest = { id: string; initials: string; name: string; role: string; scope: string; basis: string; channel: string; status: "Approved" | "Decision needed"; youOwn: boolean }
+
+function planApprovalRequests(approved: boolean): readonly PlanApprovalRequest[] {
+	return [
+		{ id: "architecture", initials: "PS", name: "Priya Shah", role: "Director, Enterprise Architecture", scope: "L3 service contracts and the Execute build boundary", basis: "Project RACI · Architecture policy AP-19", channel: "Teams + email · delivered 14:19", status: "Approved", youOwn: false },
+		{ id: "security", initials: "EO", name: "Elena Ortiz", role: "Security Controls Lead", scope: "Tenant isolation, replay protection, and evidence retention", basis: "Control owner registry · SEC-44", channel: "Teams + email · delivered 14:20", status: "Approved", youOwn: false },
+		{ id: "program", initials: "RA", name: "Root Admin", role: "Program owner", scope: "Authorize Execute to build the approved L3 and L4 scope", basis: "Mission authority record · D-14", channel: "Teams + email · delivered 14:21", status: approved ? "Approved" : "Decision needed", youOwn: true },
+	]
+}
+
+function PlanSpineApproval({ request, onApprove, onOpenDecisions }: { request: PlanApprovalRequest; onApprove: () => void; onOpenDecisions: () => void }) {
+	return (
+		<article className="apn-spine-approval" aria-label={`Approval request for ${request.name}`}>
+			<header>
+				<span className="apn-approval-avatar">{request.initials}</span>
+				<div><small>{request.youOwn ? "Your approval" : `Waiting on ${request.name}`}</small><strong>{request.scope}</strong></div>
+				<i><ShieldCheck size={13} />Decision needed</i>
+			</header>
+			<dl>
+				<div><dt>Approver</dt><dd>{request.name} · {request.role}</dd></div>
+				<div><dt>Why this approver</dt><dd>{request.basis}</dd></div>
+			</dl>
+			<p className="apn-spine-approval-scope"><ShieldCheck size={13} />Grants build authority only — no provider writes, no deployment approval. The L2 boundary, L3 contracts, L4 sequence, tests, evidence, and rollback travel with the request.</p>
+			<footer>
+				<button type="button" onClick={onOpenDecisions}>Open full request</button>
+				{request.youOwn ? <button type="button" className="apn-spine-approve" onClick={onApprove}><ShieldCheck size={14} />Approve implementation boundary</button> : <span className="apn-spine-waiting"><Clock size={13} />{request.channel}</span>}
+			</footer>
+		</article>
+	)
+}
+
 function PlanDecisionCard({ resolved, onResolve, onOpenContract }: { resolved: boolean; onResolve: () => void; onOpenContract: () => void }) {
 	const [answer, setAnswer] = useState("")
 	return (
@@ -866,8 +897,12 @@ function PlanDecisionCard({ resolved, onResolve, onOpenContract }: { resolved: b
 	)
 }
 
-function PlanHomeView({ live, stage, complete, passCount, onSkip, clarificationResolved, approved, onResolve, thread, onOpenFlow, onOpenDesign, onOpenDecisions, onOpenRevisions, onOpenContract }: { live: boolean; stage: number; complete: boolean; passCount: number; onSkip: () => void; clarificationResolved: boolean; approved: boolean; onResolve: () => void; thread: PlanThreadEntry[]; onOpenFlow: (flowId: string) => void; onOpenDesign: () => void; onOpenDecisions: () => void; onOpenRevisions: () => void; onOpenContract: () => void }) {
+function PlanHomeView({ live, stage, complete, passCount, onSkip, clarificationResolved, approved, onResolve, onApprove, thread, onOpenFlow, onOpenDesign, onOpenDecisions, onOpenRevisions, onOpenContract }: { live: boolean; stage: number; complete: boolean; passCount: number; onSkip: () => void; clarificationResolved: boolean; approved: boolean; onResolve: () => void; onApprove: () => void; thread: PlanThreadEntry[]; onOpenFlow: (flowId: string) => void; onOpenDesign: () => void; onOpenDecisions: () => void; onOpenRevisions: () => void; onOpenContract: () => void }) {
 	const blueprintReady = complete || stage > 3
+	const approvals = planApprovalRequests(approved)
+	const pendingApprovals = approvals.filter((request) => request.status === "Decision needed")
+	const recordedApprovals = approvals.filter((request) => request.status === "Approved")
+	const openCount = Number(!clarificationResolved) + pendingApprovals.length
 	return (
 		<main className="apn-main apn-home">
 			<div className="apn-run-column">
@@ -880,15 +915,11 @@ function PlanHomeView({ live, stage, complete, passCount, onSkip, clarificationR
 
 				{complete ? (
 					<section className="apn-needs-you" aria-label="Work that needs you">
-						<header><span>{clarificationResolved && approved ? "Nothing needs you" : "Needs you first"}</span>{!clarificationResolved || !approved ? <small>{Number(!clarificationResolved) + Number(!approved)} open</small> : null}</header>
+						<header><span>{openCount === 0 ? "Nothing needs you" : "Needs you first"}</span>{openCount ? <small>{openCount} open</small> : null}</header>
 						{!clarificationResolved ? <PlanDecisionCard resolved={false} onResolve={onResolve} onOpenContract={onOpenContract} /> : null}
-						{clarificationResolved && !approved ? (
-							<div className="apn-home-prompt">
-								<div><ShieldCheck size={16} /><span><strong>Your approval is the last gate.</strong><small>Grant Execute the approved L3 and L4 scope — build authority only, no production effect.</small></span></div>
-								<button type="button" onClick={onOpenDecisions}>Review and approve<ArrowRight size={14} /></button>
-							</div>
-						) : null}
-						{clarificationResolved && approved ? (
+						{pendingApprovals.map((request) => <PlanSpineApproval key={request.id} request={request} onApprove={onApprove} onOpenDecisions={onOpenDecisions} />)}
+						{recordedApprovals.length ? <button type="button" className="apn-spine-recorded" onClick={onOpenDecisions}><CheckCircle size={13} weight="fill" />{recordedApprovals.length} approval{recordedApprovals.length === 1 ? "" : "s"} already recorded · {recordedApprovals.map((request) => request.name).join(" · ")}<ArrowRight size={12} /></button> : null}
+						{openCount === 0 ? (
 							<div className="apn-home-prompt is-ready">
 								<div><CheckCircle size={16} weight="fill" /><span><strong>Plan is ready for Execute.</strong><small>All decisions are recorded and approvals routed — use Send to Execute above.</small></span></div>
 							</div>
@@ -1331,11 +1362,7 @@ function PlanDecisionsSection({ resolved, approved, onResolve, onApprove, onOpen
 		["Who owns the journal-status callback?", "MAX reconciled the project RACI with the integration catalogue and assigned the callback contract to MuleSoft.", "Resolved from governance"],
 		["How should closed accounting periods fail?", "MAX asked Marcus Lee, Workday owner, then added a classified non-retryable response to INT-02.", "Owner answered · 14:11"],
 	] as const
-	const requests = [
-		{ id: "architecture", initials: "PS", name: "Priya Shah", role: "Director, Enterprise Architecture", scope: "L3 service contracts and the Execute build boundary", basis: "Project RACI · Architecture policy AP-19", channel: "Teams + email · delivered 14:19", status: "Approved" },
-		{ id: "security", initials: "EO", name: "Elena Ortiz", role: "Security Controls Lead", scope: "Tenant isolation, replay protection, and evidence retention", basis: "Control owner registry · SEC-44", channel: "Teams + email · delivered 14:20", status: "Approved" },
-		{ id: "program", initials: "RA", name: "Root Admin", role: "Program owner", scope: "Authorize Execute to build the approved L3 and L4 scope", basis: "Mission authority record · D-14", channel: "Teams + email · delivered 14:21", status: approved ? "Approved" : "Decision needed" },
-	] as const
+	const requests = planApprovalRequests(approved)
 	return (
 		<section className="apn-ledger-section apn-questions-view">
 			<header className="apn-view-heading"><div><span>Decisions</span><h1>MAX asks only when the context cannot decide safely.</h1><p>It resolves factual gaps from evidence, asks domain owners for system knowledge, and escalates only consequential choices that require business authority. Every answer updates the affected diagrams, contracts, tests, and approvals.</p></div><div><strong>{Number(!resolved) + Number(!approved)}</strong><small>waiting for you</small></div></header>
