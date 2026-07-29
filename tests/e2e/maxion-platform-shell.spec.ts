@@ -82,6 +82,23 @@ test("keeps the canonical MAXION shell functional across core modules", async ({
 	expect(approvalAccessibility.violations.filter((violation) => violation.impact === "critical" || violation.impact === "serious")).toEqual([])
 	await page.getByRole("button", { name: "Approve implementation boundary" }).click()
 	await expect(page.getByRole("button", { name: "Plan ready" })).toBeVisible()
+
+	await page.keyboard.press("ControlOrMeta+k")
+	const planPalette = page.getByRole("dialog", { name: "Plan command menu" })
+	await expect(planPalette).toBeVisible()
+	await planPalette.getByRole("textbox").fill("workday")
+	await planPalette.getByRole("textbox").press("Enter")
+	await expect(page.getByRole("heading", { name: "See the system. Select a node. Know what to build." })).toBeVisible()
+	await page.keyboard.press("1")
+	await expect(page.getByRole("heading", { name: "MAX built the implementation plan." })).toBeVisible()
+	await page.getByRole("button", { name: "All plans" }).click()
+
+	await page.getByRole("button", { name: "Create Plan" }).click()
+	await page.getByRole("button", { name: "Start autonomous plan" }).click()
+	await expect(page.getByLabel("MAX is assembling the plan")).toBeVisible()
+	await expect(page.locator(".apn-assembly-flow")).toHaveCount(5, { timeout: 15000 })
+	await page.getByRole("button", { name: "Skip to the finished plan" }).click()
+	await expect(page.getByRole("heading", { name: "MAX built the implementation plan." })).toBeVisible()
 	await page.getByRole("button", { name: "All plans" }).click()
 
 	await navigation.getByRole("button", { name: "Execute 1 pending" }).click()

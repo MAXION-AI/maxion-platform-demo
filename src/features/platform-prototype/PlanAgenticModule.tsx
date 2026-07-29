@@ -434,7 +434,7 @@ const PLAN_REVISION_HISTORY: readonly PlanRevision[] = [
 	{ version: "v5", pass: 2, time: "14:04", trigger: "Autonomous", title: "Initial decomposition: five flows through L2–L4", detail: "The verified Discovery package decomposed into five implementation flows with full level coverage.", changes: [{ id: "FLOWS", change: `5 flows · ${PLAN_VIEW_COUNT} architecture views` }, { id: "PACKAGES", change: `${PLAN_PACKAGE_COUNT} owned work packages` }] },
 ] as const
 
-type PlanImpactArtifact = { id: string; kind: "contract" | "diagram" | "package" | "tests" | "mapping" | "approval"; change: string }
+type PlanImpactArtifact = { id: string; kind: "contract" | "diagram" | "package" | "tests" | "mapping" | "approval"; change: string; diff?: { before: string; after: string } }
 type PlanImpact = {
 	scale: "contained" | "structural"
 	headline: string
@@ -453,9 +453,9 @@ function deriveSteeringImpact(rawText: string): PlanImpact {
 			headline: "The integration control plane moves — 12 artifacts re-derive",
 			summary: "This displaces the approved middleware boundary. Ingress, orchestration, queueing, and the Workday adapter change owner; every contract that names the current platform is re-authored before any team can build.",
 			artifacts: [
-				{ id: "INT-01", kind: "contract", change: "Transport and security re-authored for the replacement platform" },
-				{ id: "INT-02", kind: "contract", change: "Journal call re-homed; timeout and retry behavior re-proven" },
-				{ id: "INT-03", kind: "contract", change: "Callback ownership reassigned" },
+				{ id: "INT-01", kind: "contract", change: "Transport and security re-authored for the replacement platform", diff: { before: "ServiceNow → MuleSoft Experience API · OAuth 2.0 client credentials + mTLS", after: "ServiceNow → replacement-platform ingress · contract re-authored and re-proven" } },
+				{ id: "INT-02", kind: "contract", change: "Journal call re-homed; timeout and retry behavior re-proven", diff: { before: "POST /financialManagement/v1/accountingJournals via MuleSoft System API", after: "Journal call re-homed to the replacement platform adapter · timeout and retry re-proven" } },
+				{ id: "INT-03", kind: "contract", change: "Callback ownership reassigned", diff: { before: "MuleSoft callback → ServiceNow source record · scoped integration user", after: "Callback contract reassigned to the replacement platform team" } },
 				{ id: "CMP-INT-02 · L2–L4", kind: "diagram", change: "Integration control plane re-drawn across 3 views" },
 				{ id: "MULE-201 · MULE-202", kind: "package", change: "Withdrawn and re-scoped to the replacement platform team" },
 				{ id: "6 acceptance tests", kind: "tests", change: "Invalidated until the new contracts are baselined" },
@@ -469,7 +469,7 @@ function deriveSteeringImpact(rawText: string): PlanImpact {
 			headline: "The failure contract on the Workday call tightens",
 			summary: "The change lands inside the existing MuleSoft orchestration boundary. No team ownership or approved pattern moves.",
 			artifacts: [
-				{ id: "INT-02", kind: "contract", change: "Failure contract updated with the new retry behavior" },
+				{ id: "INT-02", kind: "contract", change: "Failure contract updated with the new retry behavior", diff: { before: "15s timeout · exponential retry · terminal errors to DLQ", after: "Failure contract re-derived with the directed retry behavior" } },
 				{ id: "MULE-202", kind: "package", change: "Retry and DLQ configuration re-scoped" },
 				{ id: "3 acceptance tests", kind: "tests", change: "Re-derived for the new failure behavior" },
 			],
@@ -546,12 +546,12 @@ function deriveSteeringAnswer(rawText: string, target: string) {
 		return `${target} shows the decision at the level your current reviewer needs: L2 fixes ownership and system boundaries, L3 fixes deployable components and versioned interfaces, and L4 assigns build packages with dependencies and done conditions. Every node traces to evidence and the next implementation artifact.`
 	}
 	if (/approval|approver|decision/.test(text) || target === "Approval routing") {
-		return "MAX matched each bounded decision to the project RACI and policy owner, sent the exact evidence and rollback boundary they need, and retained every response with the plan snapshot. No blanket owner approval is being inferred."
+		return "MAX matched each bounded decision to the project RACI and policy owner, sent the exact evidence and rollback boundary they need, and retained every response with the plan snapshot in APPROVALS. No blanket owner approval is being inferred."
 	}
 	if (/evidence|source|claim|why/.test(text) || target === "Evidence and provenance") {
-		return "The current recommendation is grounded in 124 verified claims. MAX reconciled conflicting sources against the authoritative system, preserved the rationale, and linked each material claim to the architecture, contract, test, or approval it changed."
+		return "The current recommendation is grounded in 124 verified claims — CLM-042 fixed the cost-center authority and CLM-061 exposed the drift that made the FIELD MAPPING necessary. MAX reconciled conflicting sources against the authoritative system, preserved the rationale, and linked each material claim to the architecture, contract, test, or approval it changed."
 	}
-	return "This plan is implementation-ready because the solution boundary, technical contracts, team-owned build packages, dependency order, acceptance evidence, and approval routing remain traceable as one versioned system."
+	return "This plan is implementation-ready because the solution boundary, technical contracts like INT-02, team-owned build packages like MULE-202, dependency order, acceptance evidence, and approval routing remain traceable as one versioned system."
 }
 
 type PlanThreadEntry =
@@ -615,6 +615,137 @@ function useCountUp(target: number, started: boolean, animate: boolean, duration
 	return started ? value : 0
 }
 
+type PlanEvidenceClaim = { id: string; statement: string; confidence: number; fingerprint: string; influences: readonly string[]; excerpt: string }
+
+const PLAN_EVIDENCE_SOURCES: ReadonlyArray<{ name: string; coverage: string; usedBy: string; detail: string; claims: readonly PlanEvidenceClaim[] }> = [
+	{
+		name: "Verified Discovery", coverage: "124 claims", usedBy: "All 5 flows", detail: "Snapshot v12 · decision source",
+		claims: [
+			{ id: "CLM-014", statement: "ServiceNow approval FIN-18 treats a financial change as one business transaction", confidence: 0.96, fingerprint: "sha256 · 8f31c2", influences: ["INT-02", "Posting decision"], excerpt: "“Approval applies to the complete requested journal, not to individual lines.” — Change policy FIN-18 §4.2" },
+			{ id: "CLM-021", statement: "The October cutover is a hard program constraint", confidence: 0.92, fingerprint: "sha256 · 77aa19", influences: ["Build order", "CMP-REL-05"], excerpt: "“No financial posting changes may land inside the October cutover window.” — Program charter, delivery constraints" },
+			{ id: "CLM-042", statement: "Cost centers are mastered in Workday, not ServiceNow", confidence: 0.94, fingerprint: "sha256 · 3d90b4", influences: ["FIELD MAPPING", "MULE-202"], excerpt: "“Workday is the system of record for the cost-center hierarchy.” — Finance data standards §2" },
+		],
+	},
+	{
+		name: "ServiceNow", coverage: "19 contracts", usedBy: "Flow 02", detail: "Schema + event samples",
+		claims: [
+			{ id: "CLM-058", statement: "Approved changes can emit a signed outbound REST event from Flow Designer", confidence: 0.97, fingerprint: "sha256 · 41be07", influences: ["INT-01", "SNOW-101"], excerpt: "Instance metadata: Flow Designer + outbound REST message with OAuth 2.0 profile available on u_financial_change." },
+			{ id: "CLM-061", statement: "u_cost_center values are free-text and drift from the Workday hierarchy", confidence: 0.88, fingerprint: "sha256 · c2d914", influences: ["FIELD MAPPING", "Question Q-02"], excerpt: "Sample export: 7 of 200 records carry cost-center labels with no Workday reference match." },
+		],
+	},
+	{
+		name: "SAP and QuickBooks", coverage: "31 observations", usedBy: "Flows 03–05", detail: "Provider capability snapshots",
+		claims: [
+			{ id: "CLM-077", statement: "Provider reads are paged and rate-limited; full scans need durable cursors", confidence: 0.93, fingerprint: "sha256 · 5e88af", influences: ["REC-02", "INT-201"], excerpt: "Capability snapshot: 500-record pages, 40 req/min ceiling, cursor tokens expire after 15 minutes." },
+			{ id: "CLM-081", statement: "Neither provider exposes a native idempotency key on journal writes", confidence: 0.95, fingerprint: "sha256 · 19d3c6", influences: ["CMP-SEC-04", "SEC-201"], excerpt: "API review: duplicate posting protection must be enforced on the MAXION side of the boundary." },
+		],
+	},
+	{
+		name: "Policy library", coverage: "14 controls", usedBy: "Flows 01, 04, 05", detail: "Authority + retention rules",
+		claims: [
+			{ id: "CLM-102", statement: "Architecture changes to financial integrations require AP-19 approval", confidence: 0.98, fingerprint: "sha256 · b04e71", influences: ["Approval routing", "Priya Shah"], excerpt: "“Material changes to financial integration architecture require Enterprise Architecture approval.” — AP-19 §1" },
+			{ id: "CLM-108", statement: "Replay and idempotency controls fall under SEC-44 ownership", confidence: 0.97, fingerprint: "sha256 · f6a2d8", influences: ["CMP-SEC-04", "Elena Ortiz"], excerpt: "Control registry: SEC-44 — duplicate-effect prevention, owner: Security Controls Lead." },
+		],
+	},
+	{
+		name: "Project workspace", coverage: "8 decisions", usedBy: "All 5 flows", detail: "Goals, owners, and constraints",
+		claims: [
+			{ id: "CLM-115", statement: "Decision D-14 grants Plan the authority to propose bounded build missions", confidence: 0.99, fingerprint: "sha256 · 2c9b53", influences: ["CMP-AUTH-01", "Approval routing"], excerpt: "Project decision D-14: MAX may propose missions; effect authority requires a named approver." },
+			{ id: "CLM-118", statement: "MuleSoft is the approved integration vendor for this program", confidence: 0.95, fingerprint: "sha256 · 9a71e0", influences: ["CMP-INT-02", "Integration pattern"], excerpt: "Approved-vendor register: MuleSoft Anypoint (integration), reviewed this fiscal year." },
+		],
+	},
+]
+
+type PlanJumpTarget = { kind: "design"; flowId: string; level: PlanArchitectureLevel } | { kind: "ledger"; section: PlanLedgerSection }
+
+const PLAN_ARTIFACT_TARGETS: ReadonlyMap<string, PlanJumpTarget> = (() => {
+	const map = new Map<string, PlanJumpTarget>()
+	for (const flow of PLAN_FLOWS) {
+		map.set(flow.key, { kind: "design", flowId: flow.id, level: "L2" })
+		const brief = PLAN_EXECUTION_BRIEFS[flow.id]
+		for (const contract of brief.contracts) map.set(contract.id, { kind: "design", flowId: flow.id, level: "L3" })
+		for (const pkg of brief.workPackages) map.set(pkg.id, { kind: "design", flowId: flow.id, level: "L4" })
+	}
+	for (const source of PLAN_EVIDENCE_SOURCES) for (const claim of source.claims) map.set(claim.id, { kind: "ledger", section: "sources" })
+	for (const revision of PLAN_REVISION_HISTORY) map.set(revision.version, { kind: "ledger", section: "history" })
+	map.set("FIELD MAPPING", { kind: "design", flowId: "adapter", level: "L3" })
+	map.set("APPROVALS", { kind: "ledger", section: "decisions" })
+	return map
+})()
+
+const PLAN_ARTIFACT_PATTERN = new RegExp(`\\b(${[...PLAN_ARTIFACT_TARGETS.keys()].filter((key) => /^[A-Z]/.test(key)).sort((a, b) => b.length - a.length).map((key) => key.replace(/[-\/\\^$*+?.()|[\]{}]/g, "\\$&")).join("|")})\\b`, "g")
+
+function linkifyArtifacts(text: string, onJump: (id: string) => void) {
+	const parts = text.split(PLAN_ARTIFACT_PATTERN)
+	return parts.map((part, index) => PLAN_ARTIFACT_TARGETS.has(part)
+		? <button type="button" key={`${part}-${index}`} className="apn-artifact-chip" onClick={() => onJump(part)}>{part}</button>
+		: <span key={index}>{part}</span>)
+}
+
+type PlanPaletteAction = { type: "view"; view: PlanView } | { type: "flow"; flowId: string; level: PlanArchitectureLevel } | { type: "ledger"; section: PlanLedgerSection } | { type: "send" }
+type PlanPaletteItem = { id: string; group: string; label: string; hint: string; keywords: string; action: PlanPaletteAction }
+
+function buildPaletteItems(readyForExecute: boolean): PlanPaletteItem[] {
+	const items: PlanPaletteItem[] = [
+		{ id: "go-plan", group: "Go to", label: "Plan", hint: "Status, decisions, conversation", keywords: "home spine plan", action: { type: "view", view: "plan" } },
+		{ id: "go-design", group: "Go to", label: "Design", hint: "Blueprint, flows, packages", keywords: "architecture diagram design", action: { type: "view", view: "design" } },
+		{ id: "go-ledger", group: "Go to", label: "Ledger", hint: "Decisions, history, sources", keywords: "ledger receipts trust", action: { type: "ledger", section: "decisions" } },
+		{ id: "go-blueprint", group: "Go to", label: "System blueprint", hint: "How the five flows compose", keywords: "map system blueprint overview", action: { type: "flow", flowId: "system", level: "L2" } },
+		{ id: "go-packages", group: "Go to", label: "All work packages", hint: `${PLAN_PACKAGE_COUNT} owned build items`, keywords: "packages implementation backlog cockpit", action: { type: "flow", flowId: "packages", level: "L4" } },
+		{ id: "go-decision", group: "Decisions", label: "Open design decision", hint: "Atomic vs partial journal posting", keywords: "decision question atomic posting approve", action: { type: "ledger", section: "decisions" } },
+		{ id: "go-history", group: "Ledger", label: "Revision history", hint: `${PLAN_REVISION_HISTORY.length} recorded passes`, keywords: "revisions history snapshots passes", action: { type: "ledger", section: "history" } },
+		{ id: "go-sources", group: "Ledger", label: "Evidence sources", hint: "Claims, fingerprints, provenance", keywords: "evidence claims sources provenance", action: { type: "ledger", section: "sources" } },
+	]
+	if (readyForExecute) items.push({ id: "send", group: "Actions", label: "Send to Execute", hint: "Hand off the approved L3/L4 scope", keywords: "send execute handoff ship", action: { type: "send" } })
+	for (const flow of PLAN_FLOWS) {
+		items.push({ id: `flow-${flow.id}`, group: "Flows", label: flow.title, hint: `${flow.key} · L2 solution view`, keywords: `${flow.key} ${flow.summary}`, action: { type: "flow", flowId: flow.id, level: "L2" } })
+		const brief = PLAN_EXECUTION_BRIEFS[flow.id]
+		for (const contract of brief.contracts) items.push({ id: `contract-${contract.id}`, group: "Contracts", label: `${contract.id} · ${contract.from} → ${contract.to}`, hint: contract.transport, keywords: `${contract.payload} ${contract.security}`, action: { type: "flow", flowId: flow.id, level: "L3" } })
+		for (const pkg of brief.workPackages) items.push({ id: `pkg-${pkg.id}`, group: "Packages", label: `${pkg.id} · ${pkg.title}`, hint: pkg.team, keywords: pkg.artifact, action: { type: "flow", flowId: flow.id, level: "L4" } })
+	}
+	for (const revision of PLAN_REVISION_HISTORY) items.push({ id: `rev-${revision.version}`, group: "Revisions", label: `${revision.version} · ${revision.title}`, hint: `Pass ${revision.pass} · ${revision.trigger}`, keywords: revision.detail, action: { type: "ledger", section: "history" } })
+	for (const source of PLAN_EVIDENCE_SOURCES) for (const claim of source.claims) items.push({ id: `claim-${claim.id}`, group: "Claims", label: `${claim.id} · ${claim.statement}`, hint: source.name, keywords: claim.excerpt, action: { type: "ledger", section: "sources" } })
+	return items
+}
+
+function PlanCommandPalette({ readyForExecute, onRun, onClose }: { readyForExecute: boolean; onRun: (action: PlanPaletteAction) => void; onClose: () => void }) {
+	const [query, setQuery] = useState("")
+	const [active, setActive] = useState(0)
+	const items = buildPaletteItems(readyForExecute)
+	const q = query.trim().toLowerCase()
+	const filtered = q ? items.filter((item) => `${item.label} ${item.hint} ${item.keywords}`.toLowerCase().includes(q)).slice(0, 9) : items.slice(0, 9)
+	const activeIndex = Math.min(active, Math.max(0, filtered.length - 1))
+	return (
+		<div className="apn-palette-layer">
+			<button type="button" className="apn-palette-scrim" aria-label="Close command menu" onClick={onClose} />
+			<div role="dialog" aria-label="Plan command menu" className="apn-palette">
+				<input
+					autoFocus
+					value={query}
+					placeholder="Jump to a flow, contract, package, claim, or decision…"
+					aria-label="Search the plan"
+					onChange={(event) => { setQuery(event.target.value); setActive(0) }}
+					onKeyDown={(event) => {
+						if (event.key === "ArrowDown") { event.preventDefault(); setActive((current) => Math.min(current + 1, filtered.length - 1)) }
+						if (event.key === "ArrowUp") { event.preventDefault(); setActive((current) => Math.max(current - 1, 0)) }
+						if (event.key === "Enter" && filtered[activeIndex]) { event.preventDefault(); onRun(filtered[activeIndex].action); onClose() }
+						if (event.key === "Escape") { event.preventDefault(); onClose() }
+					}}
+				/>
+				<div className="apn-palette-list">
+					{filtered.map((item, index) => (
+						<button type="button" key={item.id} className={index === activeIndex ? "is-active" : ""} onMouseEnter={() => setActive(index)} onClick={() => { onRun(item.action); onClose() }}>
+							<i>{item.group}</i><span>{item.label}</span><small>{item.hint}</small>
+						</button>
+					))}
+					{filtered.length === 0 ? <p className="apn-palette-empty">Nothing in this plan matches “{query}”.</p> : null}
+				</div>
+				<footer><span><kbd>↑↓</kbd> navigate</span><span><kbd>↵</kbd> open</span><span><kbd>esc</kbd> close</span></footer>
+			</div>
+		</div>
+	)
+}
+
 export function PlanModule({
 	projects,
 	onCommand,
@@ -647,7 +778,9 @@ function PlanWorkspaceModule({ live, onBack, onCommand, onSendToExecute }: { liv
 	const [thread, setThread] = useState<PlanThreadEntry[]>([])
 	const [revisions, setRevisions] = useState<readonly PlanRevision[]>(PLAN_REVISION_HISTORY)
 	const [gatesOpen, setGatesOpen] = useState(false)
+	const [paletteOpen, setPaletteOpen] = useState(false)
 	const [dismissedReceiptId, setDismissedReceiptId] = useState(0)
+	const shellRef = useRef<HTMLDivElement>(null)
 	const entryIdRef = useRef(0)
 	const impactTimerRef = useRef(0)
 	const queueFlushTimerRef = useRef(0)
@@ -768,6 +901,45 @@ function PlanWorkspaceModule({ live, onBack, onCommand, onSendToExecute }: { liv
 		setThread((current) => current.map((item) => item.id === entryId && item.kind === "impact" ? { ...item, status: "discarded" } : item))
 	}
 
+	const runPaletteAction = (action: PlanPaletteAction) => {
+		if (action.type === "view") { if (action.view === "design") openFlow(selectedFlowId === "system" || selectedFlowId === "packages" ? "adapter" : selectedFlowId, level); else setView(action.view); return }
+		if (action.type === "flow") { openFlow(action.flowId, action.level); return }
+		if (action.type === "ledger") { openLedger(action.section); return }
+		if (action.type === "send" && readyForExecute) onSendToExecute(snapshot)
+	}
+
+	const jumpToArtifact = (id: string) => {
+		const target = PLAN_ARTIFACT_TARGETS.get(id)
+		if (!target) return
+		if (target.kind === "design") openFlow(target.flowId, target.level)
+		else openLedger(target.section)
+	}
+
+	useEffect(() => {
+		const onKeyDown = (event: KeyboardEvent) => {
+			// The portal keeps every module stage mounted behind `hidden` — only
+			// the visible workspace may own the keyboard.
+			if (!shellRef.current?.offsetParent) return
+			const target = event.target as HTMLElement | null
+			const typing = !!target && (target.tagName === "INPUT" || target.tagName === "TEXTAREA" || target.isContentEditable)
+			if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "k") {
+				if (!complete) return
+				event.preventDefault()
+				event.stopPropagation()
+				setPaletteOpen((open) => !open)
+				return
+			}
+			if (event.key === "Escape") { setPaletteOpen(false); setGatesOpen(false); return }
+			if (typing) return
+			if (event.key === "/") { event.preventDefault(); setSteerFocusTick((tick) => tick + 1); return }
+			if (complete && ["1", "2", "3"].includes(event.key)) {
+				setView((["plan", "design", "ledger"] as const)[Number(event.key) - 1])
+			}
+		}
+		window.addEventListener("keydown", onKeyDown, { capture: true })
+		return () => window.removeEventListener("keydown", onKeyDown, { capture: true })
+	}, [complete, readyForExecute, snapshot, selectedFlowId, level])
+
 	const steerOnNode = (context: string) => {
 		setSteeringTarget(context)
 		setSteer("")
@@ -786,12 +958,12 @@ function PlanWorkspaceModule({ live, onBack, onCommand, onSendToExecute }: { liv
 	] as const
 
 	return (
-		<div className="apn-shell">
+		<div className="apn-shell" ref={shellRef}>
 			<section className="apn-workspace">
 				<header className="apn-topbar">
 					<div><button type="button" className="apn-back" onClick={onBack}><ArrowLeft size={15} /><span>All plans</span></button><button type="button" className="apn-mobile-back" onClick={onBack}><ArrowLeft size={14} />Plans</button><div className="apn-topbar-title"><span>ERP modernization delivery plan</span><button type="button" className="apn-snapshot" onClick={() => { if (complete) openLedger("history") }}>Verified Discovery · snapshot {snapshot}</button></div></div>
 					<div>
-						<button type="button" className="apn-search-btn" aria-label="Search plan" title="Search the plan" onClick={onCommand}><MagnifyingGlass size={15} /></button>
+						<button type="button" className="apn-search-btn" aria-label="Search plan" title="Search the plan · ⌘K" disabled={!complete} onClick={() => setPaletteOpen(true)}><MagnifyingGlass size={15} /></button>
 						<span className={`apn-autonomy${!complete ? " is-working" : ""}`}><i />{complete ? "MAX maintaining this plan" : `MAX working · ${PLAN_RUN_STAGES[stage].live.toLowerCase()}`}</span>
 						<button
 							type="button"
@@ -830,7 +1002,7 @@ function PlanWorkspaceModule({ live, onBack, onCommand, onSendToExecute }: { liv
 					))}
 				</nav>
 
-				{view === "plan" ? <PlanHomeView live={live} stage={stage} complete={complete} passCount={passCount} onSkip={() => setStage(PLAN_RUN_STAGES.length)} clarificationResolved={clarificationResolved} approved={approved} onResolve={resolveClarification} onApprove={() => setApproved(true)} thread={thread} onOpenDesign={() => openFlow("system", "L2")} onOpenDecisions={() => openLedger("decisions")} onOpenRevisions={() => openLedger("history")} onOpenContract={() => openFlow("adapter", "L3")} /> : null}
+				{view === "plan" ? <PlanHomeView live={live} stage={stage} complete={complete} passCount={passCount} onSkip={() => setStage(PLAN_RUN_STAGES.length)} clarificationResolved={clarificationResolved} approved={approved} onResolve={resolveClarification} onApprove={() => setApproved(true)} thread={thread} onJump={jumpToArtifact} onOpenDesign={() => openFlow("system", "L2")} onOpenDecisions={() => openLedger("decisions")} onOpenRevisions={() => openLedger("history")} onOpenContract={() => openFlow("adapter", "L3")} /> : null}
 				{view === "design" ? <PlanDesignView selectedFlowId={selectedFlowId} level={level} onLevelChange={setLevel} onSelectFlow={setSelectedFlowId} onSteerNode={steerOnNode} /> : null}
 				{view === "ledger" ? <PlanLedgerView section={ledgerSection} onSectionChange={setLedgerSection} revisions={revisions} clarificationResolved={clarificationResolved} approved={approved} onResolve={resolveClarification} onApprove={() => setApproved(true)} onOpenContract={() => openFlow("adapter", "L3")} /> : null}
 				<PlanSteeringDock
@@ -847,8 +1019,10 @@ function PlanWorkspaceModule({ live, onBack, onCommand, onSendToExecute }: { liv
 					onDiscard={discardImpact}
 					onDismiss={(entryId) => setDismissedReceiptId(entryId)}
 					onOpenRevisions={() => openLedger("history")}
+					onJump={jumpToArtifact}
 				/>
 			</section>
+			{paletteOpen && complete ? <PlanCommandPalette readyForExecute={readyForExecute} onRun={runPaletteAction} onClose={() => setPaletteOpen(false)} /> : null}
 		</div>
 	)
 }
@@ -901,7 +1075,42 @@ function PlanDecisionCard({ resolved, onResolve, onOpenContract }: { resolved: b
 	)
 }
 
-function PlanSpineDecision({ onResolve, onOpenContract, onOpenDecisions }: { onResolve: () => void; onOpenContract: () => void; onOpenDecisions: () => void }) {
+const PLAN_ASSEMBLY_STEPS = [
+	{ minStage: 0, icon: "claims", label: "Verified Discovery ingested", detail: "124 claims · snapshot v12 · decision source" },
+	{ minStage: 1, icon: "conflicts", label: "3 conflicts reconciled", detail: "Field ownership · callback responsibility · retry policy" },
+	{ minStage: 2, icon: "owners", label: "2 domain owners interviewed", detail: "Workday · MuleSoft — transcripts preserved" },
+	{ minStage: 4, icon: "routing", label: "Decisions routed to named approvers", detail: "Architecture · security · program — via project RACI" },
+] as const
+
+function PlanAssemblyStream({ stage }: { stage: number }) {
+	return (
+		<div className="apn-assembly" aria-label="MAX is assembling the plan">
+			{PLAN_ASSEMBLY_STEPS.filter((step) => stage >= step.minStage).map((step) => {
+				const working = stage === step.minStage
+				return (
+					<div key={step.label} className={`apn-assembly-item${working ? " is-working" : ""}`}>
+						<span>{working ? <SpinnerGap className="apn-spin" size={13} /> : <CheckCircle size={13} weight="fill" />}</span>
+						<div><strong>{step.label}</strong><small>{step.detail}</small></div>
+					</div>
+				)
+			})}
+			{stage >= 3 ? (
+				<div className="apn-assembly-flows">
+					<span className="apn-assembly-flows-label">{stage === 3 ? "Decomposing into implementation flows…" : "Five flows decomposed and critic-checked"}</span>
+					{PLAN_FLOWS.map((flow, index) => (
+						<div key={flow.id} className="apn-assembly-flow" style={{ "--apn-stagger": `${index * 0.55}s` } as CSSProperties}>
+							<i>{flow.number}</i>
+							<div><strong>{flow.title}</strong><small>{flow.key} · {PLAN_EXECUTION_BRIEFS[flow.id].workPackages.length} packages</small></div>
+							{stage === 3 && index === PLAN_FLOWS.length - 1 ? <SpinnerGap className="apn-spin" size={12} /> : <CheckCircle size={12} weight="fill" />}
+						</div>
+					))}
+				</div>
+			) : null}
+		</div>
+	)
+}
+
+function PlanSpineDecision({ onResolve, onOpenContract, onOpenDecisions, onJump }: { onResolve: () => void; onOpenContract: () => void; onOpenDecisions: () => void; onJump?: (id: string) => void }) {
 	const [answer, setAnswer] = useState("")
 	return (
 		<article className="apn-spine-decision" aria-label="Open design decision">
@@ -912,7 +1121,7 @@ function PlanSpineDecision({ onResolve, onOpenContract, onOpenDecisions }: { onR
 			</header>
 			<div className="apn-spine-decision-rec">
 				<MaxionSpiralMark variant="current" className="apn-inline-mark" />
-				<div><small>MAX recommends</small><strong>Fail the batch atomically before posting any journal line.</strong><p>Preserves the ServiceNow approval boundary, avoids unapproved partial financial effects, and produces one replay-safe result.</p><div><code>INT-02</code><code>MULE-202</code><code>WDAY-301</code><code>6 acceptance tests</code></div></div>
+				<div><small>MAX recommends</small><strong>Fail the batch atomically before posting any journal line.</strong><p>Preserves the ServiceNow approval boundary, avoids unapproved partial financial effects, and produces one replay-safe result.</p><div>{["INT-02", "MULE-202", "WDAY-301"].map((id) => onJump ? <button type="button" key={id} className="apn-artifact-chip is-code" onClick={() => onJump(id)}>{id}</button> : <code key={id}>{id}</code>)}<code>6 acceptance tests</code></div></div>
 			</div>
 			<details className="apn-spine-decision-more">
 				<summary><CaretDown size={13} />Show the evidence conflict and alternatives</summary>
@@ -931,7 +1140,7 @@ function PlanSpineDecision({ onResolve, onOpenContract, onOpenDecisions }: { onR
 	)
 }
 
-function PlanHomeView({ live, stage, complete, passCount, onSkip, clarificationResolved, approved, onResolve, onApprove, thread, onOpenDesign, onOpenDecisions, onOpenRevisions, onOpenContract }: { live: boolean; stage: number; complete: boolean; passCount: number; onSkip: () => void; clarificationResolved: boolean; approved: boolean; onResolve: () => void; onApprove: () => void; thread: PlanThreadEntry[]; onOpenDesign: () => void; onOpenDecisions: () => void; onOpenRevisions: () => void; onOpenContract: () => void }) {
+function PlanHomeView({ live, stage, complete, passCount, onSkip, clarificationResolved, approved, onResolve, onApprove, thread, onJump, onOpenDesign, onOpenDecisions, onOpenRevisions, onOpenContract }: { live: boolean; stage: number; complete: boolean; passCount: number; onSkip: () => void; clarificationResolved: boolean; approved: boolean; onResolve: () => void; onApprove: () => void; thread: PlanThreadEntry[]; onJump: (id: string) => void; onOpenDesign: () => void; onOpenDecisions: () => void; onOpenRevisions: () => void; onOpenContract: () => void }) {
 	const approvals = planApprovalRequests(approved)
 	const pendingApprovals = approvals.filter((request) => request.status === "Decision needed")
 	const recordedApprovals = approvals.filter((request) => request.status === "Approved")
@@ -954,8 +1163,8 @@ function PlanHomeView({ live, stage, complete, passCount, onSkip, clarificationR
 				<section className="apn-home-col apn-needs-you" aria-label="Work that needs you">
 					<header><span>{openCount === 0 ? "Nothing needs you" : "Needs you first"}</span>{openCount ? <small>{openCount} open</small> : null}</header>
 					<div className="apn-home-col-body">
-						{!complete ? <p className="apn-build-strip-waiting"><SpinnerGap className="apn-spin" size={14} />MAX will surface the exact decisions it needs when this pass lands.</p> : null}
-						{complete && !clarificationResolved ? <PlanSpineDecision onResolve={onResolve} onOpenContract={onOpenContract} onOpenDecisions={onOpenDecisions} /> : null}
+						{!complete ? <PlanAssemblyStream stage={stage} /> : null}
+						{complete && !clarificationResolved ? <PlanSpineDecision onResolve={onResolve} onOpenContract={onOpenContract} onOpenDecisions={onOpenDecisions} onJump={onJump} /> : null}
 						{complete ? pendingApprovals.map((request) => <PlanSpineApproval key={request.id} request={request} onApprove={onApprove} onOpenDecisions={onOpenDecisions} />) : null}
 						{complete && openCount === 0 ? (
 							<div className="apn-home-prompt is-ready">
@@ -990,7 +1199,7 @@ function PlanHomeView({ live, stage, complete, passCount, onSkip, clarificationR
 							if (entry.kind === "user") return <div className="apn-user-message" key={entry.id}><span>You · {entry.target ?? "Plan"}</span><p>{entry.text}</p></div>
 							if (entry.kind === "working") return <div className="apn-agent-message is-working" key={entry.id}><MaxionSpiralMark /><div><strong>MAX</strong><p className="apn-working-line"><SpinnerGap className="apn-spin" size={13} />Reading the active context and checking contracts, diagrams, tests, and approvals…</p></div></div>
 							if (entry.kind === "queued") return <div className="apn-thread-outcome is-queued" key={entry.id}><Clock size={13} /><span><strong>Queued for this pass</strong> · {entry.target}</span></div>
-							if (entry.kind === "answer") return <div className="apn-agent-message is-response" key={entry.id}><MaxionSpiralMark /><div><strong>MAX · {entry.target}</strong><p>{entry.text}</p></div></div>
+							if (entry.kind === "answer") return <PlanThreadAnswer key={entry.id} entry={entry} onJump={onJump} />
 							return (
 								<div className={`apn-thread-outcome is-${entry.status}`} key={entry.id}>
 									{entry.status === "applied" ? <CheckCircle size={13} weight="fill" /> : entry.status === "discarded" ? <X size={13} /> : <Lightning size={13} weight="fill" />}
@@ -1007,6 +1216,16 @@ function PlanHomeView({ live, stage, complete, passCount, onSkip, clarificationR
 	)
 }
 
+const PLAN_STREAMED_ENTRIES = new WeakSet<object>()
+
+function PlanThreadAnswer({ entry, onJump }: { entry: Extract<PlanThreadEntry, { kind: "answer" }>; onJump: (id: string) => void }) {
+	const fresh = !PLAN_STREAMED_ENTRIES.has(entry)
+	useEffect(() => { PLAN_STREAMED_ENTRIES.add(entry) }, [entry])
+	const streamed = useStreamedText(entry.text, fresh)
+	const done = streamed === entry.text
+	return <div className="apn-agent-message is-response"><MaxionSpiralMark /><div><strong>MAX · {entry.target}</strong><p>{done ? linkifyArtifacts(entry.text, onJump) : streamed}</p></div></div>
+}
+
 function PlanSteeringAnswer({ entry, onDismiss }: { entry: Extract<PlanThreadEntry, { kind: "answer" }>; onDismiss: () => void }) {
 	const streamed = useStreamedText(entry.text, true)
 	return (
@@ -1017,7 +1236,7 @@ function PlanSteeringAnswer({ entry, onDismiss }: { entry: Extract<PlanThreadEnt
 	)
 }
 
-function PlanSteeringDock({ view, target, complete, value, focusTick, entry, onChange, onPrime, onSubmit, onApply, onDiscard, onDismiss, onOpenRevisions }: { view: PlanView; target: string; complete: boolean; value: string; focusTick: number; entry?: Exclude<PlanThreadEntry, { kind: "user" }>; onChange: (value: string) => void; onPrime: (value: string) => void; onSubmit: () => void; onApply: (entryId: number) => void; onDiscard: (entryId: number) => void; onDismiss: (entryId: number) => void; onOpenRevisions: () => void }) {
+function PlanSteeringDock({ view, target, complete, value, focusTick, entry, onChange, onPrime, onSubmit, onApply, onDiscard, onDismiss, onOpenRevisions, onJump }: { view: PlanView; target: string; complete: boolean; value: string; focusTick: number; entry?: Exclude<PlanThreadEntry, { kind: "user" }>; onChange: (value: string) => void; onPrime: (value: string) => void; onSubmit: () => void; onApply: (entryId: number) => void; onDiscard: (entryId: number) => void; onDismiss: (entryId: number) => void; onOpenRevisions: () => void; onJump: (id: string) => void }) {
 	const composerRef = useRef<HTMLTextAreaElement>(null)
 	const quickPrompts = view === "design"
 		? ["Explain this architecture", "Challenge this assumption", "Add a technical constraint"]
@@ -1044,7 +1263,7 @@ function PlanSteeringDock({ view, target, complete, value, focusTick, entry, onC
 			{entry?.kind === "answer" ? <PlanSteeringAnswer key={entry.id} entry={entry} onDismiss={() => onDismiss(entry.id)} /> : null}
 			{entry?.kind === "impact" && entry.status !== "discarded" ? (
 				<div className="apn-steering-impact" role="status" aria-live="polite">
-					<PlanImpactCard key={entry.id} entry={entry} onApply={() => onApply(entry.id)} onDiscard={() => onDiscard(entry.id)} onDismiss={entry.status === "applied" ? () => onDismiss(entry.id) : undefined} onOpenRevisions={onOpenRevisions} />
+					<PlanImpactCard key={entry.id} entry={entry} onApply={() => onApply(entry.id)} onDiscard={() => onDiscard(entry.id)} onDismiss={entry.status === "applied" ? () => onDismiss(entry.id) : undefined} onOpenRevisions={onOpenRevisions} onJump={onJump} />
 				</div>
 			) : null}
 			{entry?.kind === "impact" && entry.status === "discarded" ? (
@@ -1062,7 +1281,7 @@ function PlanSteeringDock({ view, target, complete, value, focusTick, entry, onC
 	)
 }
 
-function PlanImpactCard({ entry, onApply, onDiscard, onDismiss, onOpenRevisions }: { entry: Extract<PlanThreadEntry, { kind: "impact" }>; onApply: () => void; onDiscard: () => void; onDismiss?: () => void; onOpenRevisions: () => void }) {
+function PlanImpactCard({ entry, onApply, onDiscard, onDismiss, onOpenRevisions, onJump }: { entry: Extract<PlanThreadEntry, { kind: "impact" }>; onApply: () => void; onDiscard: () => void; onDismiss?: () => void; onOpenRevisions: () => void; onJump?: (id: string) => void }) {
 	const { impact, status } = entry
 	const summary = useStreamedText(impact.summary, status === "proposed")
 	return (
@@ -1073,7 +1292,7 @@ function PlanImpactCard({ entry, onApply, onDiscard, onDismiss, onOpenRevisions 
 			</header>
 			<strong>{impact.headline}</strong>
 			<p>{summary}</p>
-			{status !== "discarded" ? <ul>{impact.artifacts.map((artifact) => <li key={artifact.id}><code>{artifact.id}</code><span>{artifact.kind}</span><p>{artifact.change}</p></li>)}</ul> : null}
+			{status !== "discarded" ? <ul>{impact.artifacts.map((artifact) => <li key={artifact.id}>{onJump && PLAN_ARTIFACT_TARGETS.has(artifact.id.split(" · ")[0]) ? <button type="button" className="apn-artifact-chip is-code" onClick={() => onJump(artifact.id.split(" · ")[0])}>{artifact.id}</button> : <code>{artifact.id}</code>}<span>{artifact.kind}</span><div className="apn-impact-cell"><p>{artifact.change}</p>{artifact.diff ? <div className="apn-impact-diff"><del>{artifact.diff.before}</del><ins>{artifact.diff.after}</ins></div> : null}</div></li>)}</ul> : null}
 			{status !== "discarded" && impact.boundaryNote ? <div className="apn-impact-boundary"><Warning size={15} weight="fill" /><p>{impact.boundaryNote}</p></div> : null}
 			{status === "proposed" ? <footer><button type="button" onClick={onDiscard}>Discard</button><button type="button" className="apn-impact-apply" onClick={onApply}><Check size={14} />Apply to plan</button></footer> : null}
 			{status === "applied" ? <footer className="is-receipt"><span><CheckCircle size={14} weight="fill" />{impact.artifacts.length} artifacts updated · affected views re-checked{impact.scale === "structural" ? " · approval routing reopened" : ""}</span><button type="button" onClick={onOpenRevisions}>Open revisions<ArrowRight size={13} /></button></footer> : null}
@@ -1244,14 +1463,16 @@ function PlanDesignView({ selectedFlowId, level, onLevelChange, onSelectFlow, on
 	const selectedFlow = PLAN_FLOWS.find((flow) => flow.id === selectedFlowId) ?? PLAN_FLOWS[0]
 	const diagram = selectedFlow.levels[level]
 	const brief = PLAN_EXECUTION_BRIEFS[selectedFlow.id]
-	const [selectedNodeTitle, setSelectedNodeTitle] = useState(diagram.nodes[0]?.title ?? "")
-	useEffect(() => setSelectedNodeTitle(diagram.nodes[0]?.title ?? ""), [diagram.nodes, level, selectedFlowId])
-	const nodeIndex = Math.max(0, diagram.nodes.findIndex((node) => node.title === selectedNodeTitle))
+	const [selectedNodeIndex, setSelectedNodeIndex] = useState(0)
+	useEffect(() => setSelectedNodeIndex(0), [selectedFlowId])
+	const nodeIndex = Math.min(selectedNodeIndex, Math.max(0, diagram.nodes.length - 1))
 	const selectedNode = diagram.nodes[nodeIndex] ?? diagram.nodes[0]
+	const selectedNodeTitle = selectedNode?.title ?? ""
+	const setSelectedNodeTitle = (title: string) => setSelectedNodeIndex(Math.max(0, diagram.nodes.findIndex((node) => node.title === title)))
 	return (
-		<main className="apn-main apn-architecture-view">
-			<header className="apn-view-heading"><div><span>Design</span><h1>See the system. Select a node. Know what to build.</h1><p>The diagram is the primary workspace. Start from the system blueprint, follow each flow left to right, select any node for its owner and contract, then move from L2 solution intent to L3 technical interfaces and L4 build packages without losing context.</p></div><div><strong>{PLAN_VIEW_COUNT} / {PLAN_VIEW_COUNT}</strong><small>traceable architecture views</small></div></header>
-			<div className="apn-architecture-layout">
+		<main className="apn-main apn-architecture-view apn-design-shell">
+			<header className="apn-view-heading apn-design-toolbar"><div><span>Design</span><h1>See the system. Select a node. Know what to build.</h1></div><div><strong>{PLAN_VIEW_COUNT} / {PLAN_VIEW_COUNT}</strong><small>traceable architecture views</small></div></header>
+			<div className="apn-architecture-layout apn-design-layout">
 				<nav aria-label="Architecture flows">
 					<span>Implementation flows</span>
 					<button type="button" className={`apn-flow-system${isSystem ? " is-active" : ""}`} onClick={() => onSelectFlow("system")}><i><TreeStructure size={14} /></i><span><strong>System blueprint</strong><small>How the five flows compose</small></span><CaretRight size={14} /></button>
@@ -1289,7 +1510,7 @@ function PlanDesignView({ selectedFlowId, level, onLevelChange, onSelectFlow, on
 function PlanRevisionsView({ revisions, onOpenArchitecture }: { revisions: readonly PlanRevision[]; onOpenArchitecture: () => void }) {
 	return (
 		<section className="apn-ledger-section apn-revisions-view">
-			<header className="apn-view-heading"><div><span>Revisions</span><h1>Every pass is recorded. Nothing changes silently.</h1><p>Each revision names what triggered it, what changed, and which artifacts re-derived. Steering you apply lands here with the same receipts as MAX's own passes.</p></div><div><strong>{revisions[0].version}</strong><small>current snapshot</small></div></header>
+			<header className="apn-view-heading apn-ledger-toolbar"><div><span>Revisions</span><h1>Every pass is recorded. Nothing changes silently.</h1></div><div><strong>{revisions[0].version}</strong><small>current snapshot</small></div></header>
 			<section className="apn-revision-timeline" aria-label="Plan revision history">
 				{revisions.map((revision, index) => (
 					<article key={revision.version} className={index === 0 ? "is-current" : ""}>
@@ -1308,52 +1529,11 @@ function PlanRevisionsView({ revisions, onOpenArchitecture }: { revisions: reado
 	)
 }
 
-type PlanEvidenceClaim = { id: string; statement: string; confidence: number; fingerprint: string; influences: readonly string[]; excerpt: string }
-
-const PLAN_EVIDENCE_SOURCES: ReadonlyArray<{ name: string; coverage: string; usedBy: string; detail: string; claims: readonly PlanEvidenceClaim[] }> = [
-	{
-		name: "Verified Discovery", coverage: "124 claims", usedBy: "All 5 flows", detail: "Snapshot v12 · decision source",
-		claims: [
-			{ id: "CLM-014", statement: "ServiceNow approval FIN-18 treats a financial change as one business transaction", confidence: 0.96, fingerprint: "sha256 · 8f31c2", influences: ["INT-02", "Posting decision"], excerpt: "“Approval applies to the complete requested journal, not to individual lines.” — Change policy FIN-18 §4.2" },
-			{ id: "CLM-021", statement: "The October cutover is a hard program constraint", confidence: 0.92, fingerprint: "sha256 · 77aa19", influences: ["Build order", "CMP-REL-05"], excerpt: "“No financial posting changes may land inside the October cutover window.” — Program charter, delivery constraints" },
-			{ id: "CLM-042", statement: "Cost centers are mastered in Workday, not ServiceNow", confidence: 0.94, fingerprint: "sha256 · 3d90b4", influences: ["FIELD MAPPING", "MULE-202"], excerpt: "“Workday is the system of record for the cost-center hierarchy.” — Finance data standards §2" },
-		],
-	},
-	{
-		name: "ServiceNow", coverage: "19 contracts", usedBy: "Flow 02", detail: "Schema + event samples",
-		claims: [
-			{ id: "CLM-058", statement: "Approved changes can emit a signed outbound REST event from Flow Designer", confidence: 0.97, fingerprint: "sha256 · 41be07", influences: ["INT-01", "SNOW-101"], excerpt: "Instance metadata: Flow Designer + outbound REST message with OAuth 2.0 profile available on u_financial_change." },
-			{ id: "CLM-061", statement: "u_cost_center values are free-text and drift from the Workday hierarchy", confidence: 0.88, fingerprint: "sha256 · c2d914", influences: ["FIELD MAPPING", "Question Q-02"], excerpt: "Sample export: 7 of 200 records carry cost-center labels with no Workday reference match." },
-		],
-	},
-	{
-		name: "SAP and QuickBooks", coverage: "31 observations", usedBy: "Flows 03–05", detail: "Provider capability snapshots",
-		claims: [
-			{ id: "CLM-077", statement: "Provider reads are paged and rate-limited; full scans need durable cursors", confidence: 0.93, fingerprint: "sha256 · 5e88af", influences: ["REC-02", "INT-201"], excerpt: "Capability snapshot: 500-record pages, 40 req/min ceiling, cursor tokens expire after 15 minutes." },
-			{ id: "CLM-081", statement: "Neither provider exposes a native idempotency key on journal writes", confidence: 0.95, fingerprint: "sha256 · 19d3c6", influences: ["CMP-SEC-04", "SEC-201"], excerpt: "API review: duplicate posting protection must be enforced on the MAXION side of the boundary." },
-		],
-	},
-	{
-		name: "Policy library", coverage: "14 controls", usedBy: "Flows 01, 04, 05", detail: "Authority + retention rules",
-		claims: [
-			{ id: "CLM-102", statement: "Architecture changes to financial integrations require AP-19 approval", confidence: 0.98, fingerprint: "sha256 · b04e71", influences: ["Approval routing", "Priya Shah"], excerpt: "“Material changes to financial integration architecture require Enterprise Architecture approval.” — AP-19 §1" },
-			{ id: "CLM-108", statement: "Replay and idempotency controls fall under SEC-44 ownership", confidence: 0.97, fingerprint: "sha256 · f6a2d8", influences: ["CMP-SEC-04", "Elena Ortiz"], excerpt: "Control registry: SEC-44 — duplicate-effect prevention, owner: Security Controls Lead." },
-		],
-	},
-	{
-		name: "Project workspace", coverage: "8 decisions", usedBy: "All 5 flows", detail: "Goals, owners, and constraints",
-		claims: [
-			{ id: "CLM-115", statement: "Decision D-14 grants Plan the authority to propose bounded build missions", confidence: 0.99, fingerprint: "sha256 · 2c9b53", influences: ["CMP-AUTH-01", "Approval routing"], excerpt: "Project decision D-14: MAX may propose missions; effect authority requires a named approver." },
-			{ id: "CLM-118", statement: "MuleSoft is the approved integration vendor for this program", confidence: 0.95, fingerprint: "sha256 · 9a71e0", influences: ["CMP-INT-02", "Integration pattern"], excerpt: "Approved-vendor register: MuleSoft Anypoint (integration), reviewed this fiscal year." },
-		],
-	},
-]
-
 function PlanEvidenceView() {
 	const [openSource, setOpenSource] = useState<string | null>(PLAN_EVIDENCE_SOURCES[0].name)
 	return (
 		<section className="apn-ledger-section apn-evidence-view">
-			<header className="apn-view-heading"><div><span>Evidence and provenance</span><h1>Every recommendation can explain itself.</h1><p>MAX retains the source, fingerprint, confidence, and exact plan artifacts influenced by every material claim. Open a source to read the claims themselves.</p></div><div><strong>100%</strong><small>material claims traced</small></div></header>
+			<header className="apn-view-heading apn-ledger-toolbar"><div><span>Evidence and provenance</span><h1>Every recommendation can explain itself.</h1></div><div><strong>100%</strong><small>material claims traced</small></div></header>
 			<section className="apn-evidence-summary"><div><MaxionSpiralMark /><span><strong>Evidence graph is healthy</strong><p>No stale sources, unresolved contradictions, or ungrounded implementation decisions.</p></span></div><span><CheckCircle size={14} weight="fill" />Verified</span></section>
 			<section className="apn-evidence-list">
 				<header><span>Source</span><span>Coverage</span><span>Used by</span><span>State</span></header>
@@ -1397,18 +1577,22 @@ function PlanDecisionsSection({ resolved, approved, onResolve, onApprove, onOpen
 	const requests = planApprovalRequests(approved)
 	return (
 		<section className="apn-ledger-section apn-questions-view">
-			<header className="apn-view-heading"><div><span>Decisions</span><h1>MAX asks only when the context cannot decide safely.</h1><p>It resolves factual gaps from evidence, asks domain owners for system knowledge, and escalates only consequential choices that require business authority. Every answer updates the affected diagrams, contracts, tests, and approvals.</p></div><div><strong>{Number(!resolved) + Number(!approved)}</strong><small>waiting for you</small></div></header>
-			<section className="apn-question-autonomy" aria-label="Clarification work completed by MAX"><div><MaxionSpiralMark /><span><small>Before asking you</small><strong>MAX read 124 claims, reconciled three conflicts, and contacted two domain owners.</strong><p>Three questions were resolved without interrupting the plan owner. One policy decision remains because it changes the financial outcome.</p></span></div><span><CheckCircle size={14} weight="fill" />3 handled autonomously</span></section>
-			<div className="apn-questions-layout">
-				<PlanDecisionCard resolved={resolved} onResolve={onResolve} onOpenContract={onOpenContract} />
-				<aside className="apn-resolved-questions" aria-label="Questions MAX resolved autonomously"><header><small>Handled without you</small><strong>Resolved questions</strong></header>{resolvedItems.map(([title, detail, source]) => <article key={title}><span><Check size={12} /></span><div><strong>{title}</strong><p>{detail}</p><small>{source}</small></div></article>)}</aside>
+			<header className="apn-view-heading apn-ledger-toolbar"><div><span>Decisions</span><h1>MAX asks only when the context cannot decide safely.</h1></div><div><strong>{Number(!resolved) + Number(!approved)}</strong><small>waiting for you</small></div></header>
+			<div className="apn-decisions-grid">
+				<div className="apn-decisions-main">
+					<PlanDecisionCard resolved={resolved} onResolve={onResolve} onOpenContract={onOpenContract} />
+					<div className="apn-approval-block">
+						<header className="apn-ledger-subheading"><div><span>Approval routing</span><h2>MAX found the approvers and sent the work.</h2></div><div><strong>{approved ? "3 / 3" : "2 / 3"}</strong><small>{approved ? "approvals complete" : "acknowledged"}</small></div></header>
+						<section className="apn-approval-requests" aria-label="Approval requests">{requests.map((request) => <article key={request.id} className={request.status === "Decision needed" ? "is-pending" : ""}><header><span className="apn-approval-avatar">{request.initials}</span><div><strong>{request.name}</strong><small>{request.role}</small></div><i className={request.status === "Approved" ? "is-approved" : "is-pending"}>{request.status === "Approved" ? <CheckCircle size={13} weight="fill" /> : <ShieldCheck size={13} />}{request.status}</i></header><dl><div><dt>Approval requested</dt><dd>{request.scope}</dd></div><div><dt>Why this approver</dt><dd>{request.basis}</dd></div></dl><div className="apn-approval-message"><ChatCircleText size={16} /><p><strong>MAXION approval request</strong> — approve this bounded implementation scope. The message includes the L2 boundary, L3 contracts, L4 sequence, test gates, evidence, and rollback instructions.</p></div><footer><span>{request.channel}</span>{request.status === "Decision needed" ? <button type="button" onClick={onApprove}><ShieldCheck size={14} />Approve implementation boundary</button> : <span><CheckCircle size={13} weight="fill" />Decision recorded</span>}</footer></article>)}</section>
+					</div>
+				</div>
+				<aside className="apn-decisions-rail" aria-label="Decision context" tabIndex={0}>
+					<section className="apn-question-autonomy" aria-label="Clarification work completed by MAX"><div><MaxionSpiralMark /><span><small>Before asking you</small><strong>MAX read 124 claims, reconciled three conflicts, and contacted two domain owners.</strong><p>Three questions were resolved without interrupting the plan owner. One policy decision remains because it changes the financial outcome.</p></span></div><span><CheckCircle size={14} weight="fill" />3 handled autonomously</span></section>
+					<section className="apn-approval-summary"><div><MaxionSpiralMark /><span><strong>Approval messages are routed</strong><p>MAX used the decision-rights graph to avoid sending a blanket owner approval. The delivery record and response are retained with the plan.</p></span></div><span><CheckCircle size={14} weight="fill" />3 messages delivered</span></section>
+					<aside className="apn-resolved-questions" aria-label="Questions MAX resolved autonomously"><header><small>Handled without you</small><strong>Resolved questions</strong></header>{resolvedItems.map(([title, detail, source]) => <article key={title}><span><Check size={12} /></span><div><strong>{title}</strong><p>{detail}</p><small>{source}</small></div></article>)}</aside>
+					<section className="apn-scope-note apn-ledger-scope"><ShieldCheck size={14} /><p><strong>Authority stays bounded</strong><small>Build authority only · no provider writes · no deployment approval</small></p></section>
+				</aside>
 			</div>
-			<div className="apn-approval-block">
-				<header className="apn-ledger-subheading"><div><span>Approval routing</span><h2>MAX found the approvers and sent the work.</h2><p>Each request is matched to the project RACI and policy owner, then sent with the exact scope, architecture artifacts, evidence, and rollback boundary that person needs to decide.</p></div><div><strong>{approved ? "3 / 3" : "2 / 3"}</strong><small>{approved ? "approvals complete" : "acknowledged"}</small></div></header>
-				<section className="apn-approval-summary"><div><MaxionSpiralMark /><span><strong>Approval messages are routed</strong><p>MAX used the decision-rights graph to avoid sending a blanket owner approval. The delivery record and response are retained with the plan.</p></span></div><span><CheckCircle size={14} weight="fill" />3 messages delivered</span></section>
-				<section className="apn-approval-requests" aria-label="Approval requests">{requests.map((request) => <article key={request.id} className={request.status === "Decision needed" ? "is-pending" : ""}><header><span className="apn-approval-avatar">{request.initials}</span><div><strong>{request.name}</strong><small>{request.role}</small></div><i className={request.status === "Approved" ? "is-approved" : "is-pending"}>{request.status === "Approved" ? <CheckCircle size={13} weight="fill" /> : <ShieldCheck size={13} />}{request.status}</i></header><dl><div><dt>Approval requested</dt><dd>{request.scope}</dd></div><div><dt>Why this approver</dt><dd>{request.basis}</dd></div></dl><div className="apn-approval-message"><ChatCircleText size={16} /><p><strong>MAXION approval request</strong> — approve this bounded implementation scope. The message includes the L2 boundary, L3 contracts, L4 sequence, test gates, evidence, and rollback instructions.</p></div><footer><span>{request.channel}</span>{request.status === "Decision needed" ? <button type="button" onClick={onApprove}><ShieldCheck size={14} />Approve implementation boundary</button> : <span><CheckCircle size={13} weight="fill" />Decision recorded</span>}</footer></article>)}</section>
-			</div>
-			<section className="apn-scope-note apn-ledger-scope"><ShieldCheck size={14} /><p><strong>Authority stays bounded</strong><small>Build authority only · no provider writes · no deployment approval</small></p></section>
 		</section>
 	)
 }
