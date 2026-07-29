@@ -2086,3 +2086,103 @@
 @media (min-width: 1400px) {
 	.apn-shell .apn-rail > nav button > span { transform: none; }
 }
+
+/* ————————————————————————————————————————————————————————————————
+   Plan workspace v7 — three jobs, three tabs, one chrome layer.
+   The rail is gone: Plan / Design / Ledger live as text tabs under the
+   topbar, decisions come to the home canvas, readiness lives on the
+   action it gates, and receipts consolidate under Ledger.
+   ———————————————————————————————————————————————————————————————— */
+
+.apn-shell,
+.apn-shell:has(.apn-architecture-view) { grid-template-columns: minmax(0, 1fr); }
+.apn-workspace { grid-row: 1; grid-column: 1; grid-template-rows: auto auto minmax(0, 1fr) auto; }
+
+/* The tab strip — quiet text tabs, one underline, one badge. */
+.apn-tabs { display: flex; gap: 2px; padding: 0 clamp(16px, 3vw, 32px); border-bottom: 1px solid var(--apn-line); background: rgba(250, 250, 247, .96); }
+.apn-tabs button { position: relative; display: inline-flex; align-items: center; gap: 6px; min-height: 40px; padding: 0 12px; border: 0; background: transparent; color: var(--apn-muted); font-size: 11px; font-weight: 600; cursor: pointer; }
+.apn-tabs button:hover:not(:disabled) { color: var(--apn-ink); }
+.apn-tabs button.is-active { color: var(--apn-ink); box-shadow: inset 0 -2px 0 var(--apn-ink); }
+.apn-tabs button:disabled { cursor: not-allowed; opacity: .38; }
+.apn-tabs button small { min-width: 17px; padding: 2px 5px; border-radius: 9px; background: var(--apn-amber-soft); color: var(--apn-amber-ink); font-size: 8.5px; font-weight: 700; text-align: center; }
+.apn-tabs button:focus-visible { outline: 2px solid var(--apn-accent-deep); outline-offset: -2px; }
+
+/* Home canvas */
+.apn-home { padding: 34px clamp(22px, 4vw, 58px) 66px; }
+.apn-home-meta { display: block; margin-top: 12px; color: var(--apn-subtle); font-size: 9.5px; }
+.apn-home .apn-primary-question { margin: 0 0 22px; }
+.apn-home-prompt { display: flex; align-items: center; justify-content: space-between; gap: 14px; margin-bottom: 22px; padding: 14px 16px; border: 1px solid var(--apn-amber-line); border-radius: 11px; background: var(--apn-amber-soft); }
+.apn-home-prompt > div { display: flex; align-items: center; gap: 10px; color: var(--apn-amber-ink); }
+.apn-home-prompt span { display: flex; min-width: 0; flex-direction: column; gap: 2px; }
+.apn-home-prompt strong { font-size: 11px; }
+.apn-home-prompt small { color: #7a5d28; font-size: 9.5px; }
+.apn-home-prompt button { display: inline-flex; flex: 0 0 auto; align-items: center; gap: 6px; min-height: 32px; padding: 0 12px; border: 1px solid var(--apn-amber-ink); border-radius: 7px; background: #fff; color: var(--apn-amber-ink); font-size: 10px; font-weight: 650; cursor: pointer; }
+.apn-home-prompt button:hover { background: #fdf6e9; }
+.apn-home-prompt.is-ready { border-color: #b9d8d3; background: #eef6f4; }
+.apn-home-prompt.is-ready > div { color: var(--apn-accent-deep); }
+.apn-home-prompt.is-ready small { color: #37746e; }
+.apn-home-blueprint { margin-bottom: 22px; overflow: hidden; border: 1px solid #dae2df; border-radius: 11px; background: #fff; }
+.apn-home-blueprint > header { display: flex; align-items: flex-start; justify-content: space-between; gap: 14px; padding: 14px 16px 4px; }
+.apn-home-blueprint > header span { display: block; margin-bottom: 5px; color: #7c8177; font-size: 8.5px; font-weight: 720; letter-spacing: .06em; text-transform: uppercase; }
+.apn-home-blueprint > header strong { color: #34413d; font-size: 11px; font-weight: 560; line-height: 1.5; }
+.apn-home-blueprint > header button { display: inline-flex; flex: 0 0 auto; align-items: center; gap: 6px; min-height: 31px; padding: 0 11px; border: 1px solid #c6d5d1; border-radius: 7px; background: #fff; color: #286d68; font-size: 9.5px; font-weight: 650; cursor: pointer; white-space: nowrap; }
+.apn-home-blueprint > header button:hover { border-color: #75aaa4; background: #f2faf8; }
+.apn-home-blueprint .apn-diagram-viewport { margin: 12px 16px; }
+.apn-home-blueprint > footer { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 10px 16px; border-top: 1px solid var(--apn-line); background: #fafbf8; color: var(--apn-subtle); font-size: 8.5px; }
+.apn-home-blueprint .apn-build-strip-waiting { margin: 4px 16px 16px; }
+
+/* Blueprint nodes assemble with a stagger while the pass designs. */
+.apn-blueprint.is-assembling .apn-blueprint-node { animation: apn-enter 340ms cubic-bezier(0, 0, .2, 1) backwards; }
+.apn-blueprint.is-assembling .apn-blueprint-node:nth-child(2) { animation-delay: .5s; }
+.apn-blueprint.is-assembling .apn-blueprint-node:nth-child(3) { animation-delay: 1s; }
+.apn-blueprint.is-assembling .apn-blueprint-node:nth-child(4) { animation-delay: 1.5s; }
+.apn-blueprint.is-assembling .apn-blueprint-node:nth-child(5) { animation-delay: 2s; }
+.apn-blueprint.is-assembling .apn-blueprint-node:nth-child(6) { animation-delay: 2.5s; }
+
+/* Ledger */
+.apn-ledger { padding-bottom: 40px; }
+.apn-ledger-segments { position: sticky; top: 0; z-index: 5; display: flex; gap: 6px; padding: 12px clamp(20px, 3.4vw, 44px) 12px; border-bottom: 1px solid var(--apn-line); background: rgba(248, 248, 245, .96); backdrop-filter: blur(10px); }
+.apn-ledger-segments button { display: inline-flex; align-items: center; gap: 6px; min-height: 31px; padding: 0 13px; border: 1px solid var(--apn-line-strong); border-radius: 999px; background: #fff; color: #53564f; font-size: 10px; font-weight: 620; cursor: pointer; }
+.apn-ledger-segments button:hover { border-color: #b9bcb2; background: #f6f6f2; }
+.apn-ledger-segments button.is-active { border-color: #20221f; background: #20221f; color: #fff; }
+.apn-ledger-segments button small { min-width: 16px; padding: 1px 5px; border-radius: 8px; background: var(--apn-amber-soft); color: var(--apn-amber-ink); font-size: 8.5px; font-weight: 700; text-align: center; }
+.apn-ledger-section { display: block; }
+.apn-ledger-subheading { display: flex; align-items: flex-end; justify-content: space-between; gap: 18px; margin: 34px clamp(20px, 3.4vw, 44px) 0; padding-top: 26px; border-top: 1px solid var(--apn-line); }
+.apn-ledger-subheading span { display: block; margin-bottom: 6px; color: var(--apn-subtle); font-size: 8.5px; font-weight: 720; letter-spacing: .06em; text-transform: uppercase; }
+.apn-ledger-subheading h2 { margin: 0 0 6px; font-size: 19px; font-weight: 560; letter-spacing: -.02em; }
+.apn-ledger-subheading p { max-width: 560px; margin: 0; color: var(--apn-muted); font-size: 10.5px; line-height: 1.55; }
+.apn-ledger-subheading > div:last-child { flex: 0 0 auto; text-align: right; }
+.apn-ledger-subheading > div:last-child strong { display: block; font-size: 18px; font-weight: 540; }
+.apn-ledger-subheading > div:last-child small { color: var(--apn-subtle); font-size: 8.5px; }
+.apn-ledger-scope { display: flex; align-items: center; gap: 8px; margin: 26px clamp(20px, 3.4vw, 44px) 8px; padding: 12px 14px; border: 1px solid #b9d8d3; border-radius: 10px; background: #eef6f4; color: var(--apn-accent-deep); }
+.apn-ledger-scope p { display: flex; flex-direction: column; gap: 2px; margin: 0; }
+.apn-ledger-scope small { color: #37746e; font-size: 9px; }
+
+/* Execute gate popover — readiness lives on the action it gates. */
+.apn-execute-wrap { position: relative; }
+.apn-gate-scrim { position: fixed; inset: 0; z-index: 40; border: 0; background: transparent; cursor: default; }
+.apn-gate-popover { position: absolute; top: calc(100% + 8px); right: 0; z-index: 41; width: 300px; overflow: hidden; border: 1px solid var(--apn-line-strong); border-radius: 11px; background: #fff; box-shadow: 0 22px 48px rgba(24, 26, 22, .16), 0 4px 12px rgba(24, 26, 22, .08); animation: apn-enter 200ms cubic-bezier(0, 0, .2, 1); }
+.apn-gate-popover > header { display: flex; flex-direction: column; gap: 2px; padding: 12px 14px 10px; border-bottom: 1px solid var(--apn-line); background: #fafbf8; }
+.apn-gate-popover > header span { color: var(--apn-subtle); font-size: 8.5px; font-weight: 720; letter-spacing: .06em; text-transform: uppercase; }
+.apn-gate-popover > header strong { font-size: 12px; font-weight: 620; }
+.apn-gate-popover ul { display: grid; margin: 0; padding: 6px 0; list-style: none; }
+.apn-gate-popover li { display: grid; grid-template-columns: 16px minmax(0, 1fr) auto; align-items: center; gap: 8px; padding: 6px 14px; font-size: 10px; }
+.apn-gate-popover li.is-done { color: var(--apn-accent-deep); }
+.apn-gate-popover li.is-open { color: var(--apn-amber-ink); font-weight: 620; }
+.apn-gate-popover li small { color: var(--apn-subtle); font-size: 8.5px; }
+.apn-gate-popover li.is-open small { color: var(--apn-amber-ink); }
+.apn-gate-next { display: flex; width: calc(100% - 24px); align-items: center; justify-content: center; gap: 6px; margin: 6px 12px 12px; min-height: 33px; border: 0; border-radius: 8px; background: #20221f; color: #fff; font-size: 10px; font-weight: 650; cursor: pointer; }
+.apn-gate-next:hover { background: #30332d; }
+
+@media (max-width: 720px) {
+	.apn-tabs { padding: 0 10px; overflow-x: auto; }
+	.apn-home { padding: 24px 16px 46px; }
+	.apn-home-prompt { flex-direction: column; align-items: stretch; }
+	.apn-gate-popover { right: -8px; width: min(300px, calc(100vw - 24px)); }
+	.apn-ledger-subheading { flex-direction: column; align-items: flex-start; }
+}
+
+/* Mobile: the shell hamburger is fixed at top-left (10px + 38px) — clear it. */
+@media (max-width: 720px) {
+	.apn-topbar { padding-left: 58px; }
+}

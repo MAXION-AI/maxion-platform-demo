@@ -30,7 +30,8 @@ import { MaxionSpiralMark } from "./PortalChrome"
 import { PlanLibraryModule } from "./PortalReplicaModules"
 import { type MaxionModuleId, type PortalProject } from "./model"
 
-type PlanView = "run" | "architecture" | "backlog" | "roadmap" | "questions" | "evidence" | "approvals" | "revisions"
+type PlanView = "plan" | "design" | "ledger"
+type PlanLedgerSection = "decisions" | "history" | "sources"
 type PlanArchitectureLevel = "L2" | "L3" | "L4"
 
 type PlanDiagramLane = { x: number; width: number; label: string }
@@ -633,18 +634,19 @@ export function PlanModule({
 }
 
 function PlanWorkspaceModule({ live, onBack, onCommand, onSendToExecute }: { live: boolean; onBack: () => void; onCommand: () => void; onSendToExecute: (snapshot: string) => void }) {
-	const [view, setView] = useState<PlanView>("run")
+	const [view, setView] = useState<PlanView>("plan")
 	const [stage, setStage] = useState(live ? 0 : PLAN_RUN_STAGES.length)
 	const [approved, setApproved] = useState(false)
 	const [clarificationResolved, setClarificationResolved] = useState(false)
 	const [selectedFlowId, setSelectedFlowId] = useState("adapter")
 	const [level, setLevel] = useState<PlanArchitectureLevel>("L2")
+	const [ledgerSection, setLedgerSection] = useState<PlanLedgerSection>("decisions")
 	const [steer, setSteer] = useState("")
 	const [steeringTarget, setSteeringTarget] = useState<string | null>(null)
 	const [steerFocusTick, setSteerFocusTick] = useState(0)
 	const [thread, setThread] = useState<PlanThreadEntry[]>([])
 	const [revisions, setRevisions] = useState<readonly PlanRevision[]>(PLAN_REVISION_HISTORY)
-	const [readinessOpen, setReadinessOpen] = useState(false)
+	const [gatesOpen, setGatesOpen] = useState(false)
 	const [dismissedReceiptId, setDismissedReceiptId] = useState(0)
 	const entryIdRef = useRef(0)
 	const impactTimerRef = useRef(0)
@@ -652,19 +654,14 @@ function PlanWorkspaceModule({ live, onBack, onCommand, onSendToExecute }: { liv
 
 	const complete = stage >= PLAN_RUN_STAGES.length
 	const selectedFlow = PLAN_FLOWS.find((flow) => flow.id === selectedFlowId)
-	const selectedBrief = selectedFlow ? PLAN_EXECUTION_BRIEFS[selectedFlow.id] : undefined
 	const snapshot = revisions[0].version
 	const passCount = revisions[0].pass
 	const unresolvedCount = Number(!clarificationResolved) + Number(!approved)
+	const readyForExecute = complete && approved && clarificationResolved
 	const defaultSteeringTarget: Record<PlanView, string> = {
-		run: "Entire implementation plan",
-		architecture: selectedFlow ? `${level} · ${selectedFlow.title}` : `${level} architecture`,
-		backlog: "Implementation packages",
-		roadmap: "Dependency model",
-		questions: "Current design decision",
-		evidence: "Evidence and provenance",
-		approvals: "Approval routing",
-		revisions: `Snapshot ${snapshot}`,
+		plan: "Entire implementation plan",
+		design: selectedFlowId === "packages" ? "Implementation packages" : selectedFlowId === "system" ? "System blueprint" : selectedFlow ? `${level} · ${selectedFlow.title}` : `${level} architecture`,
+		ledger: ledgerSection === "history" ? `Snapshot ${snapshot}` : ledgerSection === "sources" ? "Evidence and provenance" : "Current decisions",
 	}
 	const activeSteeringTarget = steeringTarget ?? defaultSteeringTarget[view]
 	const latestSteeringEntry = [...thread].reverse().find((entry): entry is Exclude<PlanThreadEntry, { kind: "user" }> => entry.kind !== "user")
@@ -680,7 +677,7 @@ function PlanWorkspaceModule({ live, onBack, onCommand, onSendToExecute }: { liv
 
 	useEffect(() => () => { window.clearTimeout(impactTimerRef.current); window.clearTimeout(queueFlushTimerRef.current) }, [])
 
-	useEffect(() => setSteeringTarget(null), [view, selectedFlowId, level])
+	useEffect(() => setSteeringTarget(null), [view, selectedFlowId, level, ledgerSection])
 
 	// Directions queued mid-run are folded in as soon as the pass lands.
 	useEffect(() => {
@@ -715,10 +712,15 @@ function PlanWorkspaceModule({ live, onBack, onCommand, onSendToExecute }: { liv
 		setRevisions((current) => [{ version: `v${Number(current[0].version.slice(1)) + 1}`, pass: current[0].pass + 1, time: "Just now", trigger, title, detail, changes }, ...current])
 	}
 
-	const openArchitecture = (flowId = selectedFlowId, nextLevel: PlanArchitectureLevel = level) => {
+	const openFlow = (flowId = selectedFlowId, nextLevel: PlanArchitectureLevel = level) => {
 		setSelectedFlowId(flowId)
 		setLevel(nextLevel)
-		setView("architecture")
+		setView("design")
+	}
+
+	const openLedger = (section: PlanLedgerSection) => {
+		setLedgerSection(section)
+		setView("ledger")
 	}
 
 	const resolveClarification = () => {
@@ -777,52 +779,60 @@ function PlanWorkspaceModule({ live, onBack, onCommand, onSendToExecute }: { liv
 		setSteerFocusTick((tick) => tick + 1)
 	}
 
-	const navigation = [
-		["run", Sparkle, "Agent run", ""],
-		["architecture", CirclesThree, "Architecture", complete || stage > 3 ? String(PLAN_VIEW_COUNT) : ""],
-		["backlog", ListChecks, "Implementation", complete || stage > 3 ? String(PLAN_PACKAGE_COUNT) : ""],
-		["roadmap", Clock, "Dependencies", complete || stage > 3 ? "5" : ""],
-		["questions", ChatCircleText, "Questions", complete && !clarificationResolved ? "1" : ""],
-		["approvals", ShieldCheck, "Approvals", complete && !approved ? "1" : ""],
-		["revisions", ClockCounterClockwise, "Revisions", complete ? String(revisions.length) : ""],
-		["evidence", LinkSimple, "Evidence", stage > 0 ? "124" : ""],
+	const tabs = [
+		["plan", "Plan"],
+		["design", "Design"],
+		["ledger", "Ledger"],
 	] as const
 
 	return (
 		<div className="apn-shell">
-			<aside className="apn-rail">
-				<nav aria-label="Plan workspace">{navigation.map(([id, Icon, label, count]) => <button key={id} type="button" className={view === id ? "is-active" : ""} disabled={!complete && id !== "run" && id !== "evidence"} title={!complete && id !== "run" && id !== "evidence" ? "Available when this pass lands" : undefined} onClick={(event) => { event.currentTarget.blur(); setView(id) }}><Icon size={16} /><span>{label}</span>{count ? <small>{count}</small> : null}</button>)}</nav>
-			</aside>
-
 			<section className="apn-workspace">
 				<header className="apn-topbar">
-					<div><button type="button" className="apn-back" onClick={onBack}><ArrowLeft size={15} /><span>All plans</span></button><button type="button" className="apn-mobile-back" onClick={onBack}><ArrowLeft size={14} />Plans</button><div className="apn-topbar-title"><span>ERP modernization delivery plan</span><button type="button" className="apn-snapshot" onClick={() => { if (complete) setView("revisions") }}>Verified Discovery · snapshot {snapshot}</button></div></div>
+					<div><button type="button" className="apn-back" onClick={onBack}><ArrowLeft size={15} /><span>All plans</span></button><button type="button" className="apn-mobile-back" onClick={onBack}><ArrowLeft size={14} />Plans</button><div className="apn-topbar-title"><span>ERP modernization delivery plan</span><button type="button" className="apn-snapshot" onClick={() => { if (complete) openLedger("history") }}>Verified Discovery · snapshot {snapshot}</button></div></div>
 					<div>
 						<button type="button" className="apn-search-btn" aria-label="Search plan" title="Search the plan" onClick={onCommand}><MagnifyingGlass size={15} /></button>
 						<span className={`apn-autonomy${!complete ? " is-working" : ""}`}><i />{complete ? "MAX maintaining this plan" : `MAX working · ${PLAN_RUN_STAGES[stage].live.toLowerCase()}`}</span>
-						<span className="apn-run-meta">{complete ? `${passCount} passes · 18m · 3 conflicts resolved` : `pass 1 · ${PLAN_LIVE_TIMES[Math.min(stage, PLAN_LIVE_TIMES.length - 1)]} elapsed`}</span>
 						<button
 							type="button"
 							className={`apn-attention-route${complete && unresolvedCount === 0 ? " is-ready" : ""}`}
 							disabled={!complete}
 							aria-label={!complete ? "MAX is preparing decisions" : unresolvedCount ? `${unresolvedCount} decision${unresolvedCount === 1 ? " needs" : "s need"} you` : "Plan ready"}
-							onClick={() => { if (!clarificationResolved) setView("questions"); else if (!approved) setView("approvals"); else setReadinessOpen(true) }}>
+							onClick={() => openLedger("decisions")}>
 							{complete && unresolvedCount === 0 ? <CheckCircle size={15} weight="fill" /> : <ChatCircleText size={15} />}
 							<span>{!complete ? "Preparing decisions" : unresolvedCount ? `${unresolvedCount} need${unresolvedCount === 1 ? "s" : ""} you` : "Plan ready"}</span>
-							<small>{5 + Number(clarificationResolved) + Number(approved)}/7</small>
 						</button>
-						<button type="button" className="apn-execute" disabled={!complete || !approved || !clarificationResolved} title={!complete ? "The first pass has not finished" : !clarificationResolved ? "One design decision must be resolved before Execute handoff" : approved ? "Send approved L3 and L4 artifacts to Execute" : "Approval routing is still waiting on one decision"} onClick={() => onSendToExecute(snapshot)}>Send to Execute<ArrowRight size={14} /></button>
+						<div className="apn-execute-wrap">
+							<button type="button" className="apn-execute" disabled={!complete} aria-expanded={!readyForExecute && gatesOpen} title={!complete ? "The first pass has not finished" : readyForExecute ? "Send approved L3 and L4 artifacts to Execute" : "Review the remaining gates"} onClick={() => { if (readyForExecute) onSendToExecute(snapshot); else setGatesOpen((open) => !open) }}>Send to Execute{readyForExecute || !complete ? <ArrowRight size={14} /> : <CaretDown size={14} />}</button>
+							{gatesOpen && complete && !readyForExecute ? (
+								<>
+									<button type="button" className="apn-gate-scrim" aria-label="Close gate summary" onClick={() => setGatesOpen(false)} />
+									<div className="apn-gate-popover" role="dialog" aria-label="Execute readiness gates">
+										<header><span>Before Execute</span><strong>{unresolvedCount} gate{unresolvedCount === 1 ? "" : "s"} open</strong></header>
+										<ul>
+											{[["Evidence grounded", "124 claims", true], ["Architecture complete", `${PLAN_VIEW_COUNT} views`, true], ["Implementation ready", `${PLAN_PACKAGE_COUNT} packages`, true], ["Critics passed", "3 repaired", true], ["Design decision", clarificationResolved ? "Resolved" : "Needs you", clarificationResolved], ["Boundary approval", approved ? "Recorded" : "Needs you", approved]].map(([label, value, done]) => (
+												<li key={String(label)} className={done ? "is-done" : "is-open"}>{done ? <CheckCircle size={13} weight="fill" /> : <ChatCircleText size={13} />}<span>{label}</span><small>{value}</small></li>
+											))}
+										</ul>
+										<button type="button" className="apn-gate-next" onClick={() => { setGatesOpen(false); openLedger("decisions") }}>Resolve in Ledger<ArrowRight size={13} /></button>
+									</div>
+								</>
+							) : null}
+						</div>
 					</div>
 				</header>
+				<nav className="apn-tabs" aria-label="Plan workspace">
+					{tabs.map(([id, label]) => (
+						<button key={id} type="button" className={view === id ? "is-active" : ""} disabled={!complete && id !== "plan"} title={!complete && id !== "plan" ? "Available when this pass lands" : undefined} onClick={(event) => { event.currentTarget.blur(); setView(id) }}>
+							{label}
+							{id === "ledger" && complete && unresolvedCount > 0 ? <small>{unresolvedCount}</small> : null}
+						</button>
+					))}
+				</nav>
 
-				{view === "run" ? <PlanAgentRun live={live} stage={stage} complete={complete} onSkip={() => setStage(PLAN_RUN_STAGES.length)} clarificationResolved={clarificationResolved} thread={thread} onApplyImpact={applyImpact} onDiscardImpact={discardImpact} onOpenArchitecture={() => openArchitecture("adapter", "L2")} onOpenBlueprint={() => openArchitecture("system", "L2")} onOpenImplementation={() => setView("backlog")} onOpenQuestions={() => setView("questions")} onOpenRevisions={() => setView("revisions")} /> : null}
-				{view === "architecture" ? <PlanArchitectureView selectedFlowId={selectedFlowId} level={level} onLevelChange={setLevel} onSelectFlow={setSelectedFlowId} onOpenImplementation={() => setView("backlog")} onSteerNode={steerOnNode} /> : null}
-				{view === "backlog" ? <PlanImplementationView onOpenArchitecture={openArchitecture} /> : null}
-				{view === "roadmap" ? <PlanDependencyView onOpenArchitecture={openArchitecture} /> : null}
-				{view === "questions" ? <PlanQuestionsView resolved={clarificationResolved} onResolve={resolveClarification} onOpenArchitecture={() => openArchitecture("adapter", "L3")} /> : null}
-				{view === "approvals" ? <PlanApprovalView approved={approved} onApprove={() => setApproved(true)} /> : null}
-				{view === "revisions" ? <PlanRevisionsView revisions={revisions} onOpenArchitecture={() => openArchitecture("adapter", "L3")} /> : null}
-				{view === "evidence" ? <PlanEvidenceView /> : null}
+				{view === "plan" ? <PlanHomeView live={live} stage={stage} complete={complete} passCount={passCount} onSkip={() => setStage(PLAN_RUN_STAGES.length)} clarificationResolved={clarificationResolved} approved={approved} onResolve={resolveClarification} thread={thread} onOpenFlow={(flowId) => openFlow(flowId, "L2")} onOpenDesign={() => openFlow("adapter", "L2")} onOpenDecisions={() => openLedger("decisions")} onOpenRevisions={() => openLedger("history")} onOpenContract={() => openFlow("adapter", "L3")} /> : null}
+				{view === "design" ? <PlanDesignView selectedFlowId={selectedFlowId} level={level} onLevelChange={setLevel} onSelectFlow={setSelectedFlowId} onSteerNode={steerOnNode} /> : null}
+				{view === "ledger" ? <PlanLedgerView section={ledgerSection} onSectionChange={setLedgerSection} revisions={revisions} clarificationResolved={clarificationResolved} approved={approved} onResolve={resolveClarification} onApprove={() => setApproved(true)} onOpenContract={() => openFlow("adapter", "L3")} /> : null}
 				<PlanSteeringDock
 					view={view}
 					target={activeSteeringTarget}
@@ -836,79 +846,56 @@ function PlanWorkspaceModule({ live, onBack, onCommand, onSendToExecute }: { liv
 					onApply={applyImpact}
 					onDiscard={discardImpact}
 					onDismiss={(entryId) => setDismissedReceiptId(entryId)}
-					onOpenRevisions={() => setView("revisions")}
+					onOpenRevisions={() => openLedger("history")}
 				/>
 			</section>
-
-			<aside className="apn-inspector" aria-label="Plan inspector">
-				<header><span>{view === "architecture" && selectedFlow ? `${selectedFlow.number} · ${level}` : "Plan readiness"}</span><button type="button" aria-label="Plan options"><DotsThree size={17} /></button></header>
-				{view === "architecture" && selectedFlow && selectedBrief ? <><section className="apn-inspector-intro"><span>{selectedFlow.key}</span><h2>{selectedFlow.title}</h2><p>{selectedFlow.summary}</p></section><dl className="apn-inspector-facts"><div><dt>Lead architect</dt><dd>{selectedFlow.owner}</dd></div><div><dt>Delivery teams</dt><dd>{selectedBrief.teams.length}</dd></div><div><dt>Interfaces</dt><dd>{selectedBrief.contracts.length}</dd></div><div><dt>L4 items</dt><dd>{selectedFlow.items} ready</dd></div></dl><section className="apn-contract"><header><ShieldCheck size={15} /><strong>{level} handoff contract</strong></header><p>{PLAN_LEVEL_QUESTIONS[level].output}. L3 and L4 remain the runnable source artifacts for Execute.</p><span><CheckCircle size={13} weight="fill" />Traceability complete</span></section><section className="apn-inspector-guidance"><span>Review question</span><strong>{PLAN_LEVEL_QUESTIONS[level].question}</strong><p><Users size={12} />{PLAN_LEVEL_QUESTIONS[level].audience}</p>{selectedFlow.levels[level].guidance.map((item) => <p key={item}><Check size={12} />{item}</p>)}</section></> : <PlanReadiness complete={complete} approved={approved} clarificationResolved={clarificationResolved} onOpenApprovals={() => setView("approvals")} onOpenQuestions={() => setView("questions")} onOpenArchitecture={() => openArchitecture("adapter", "L2")} />}
-			</aside>
-
-			{readinessOpen ? (
-				<div className="apn-readiness-layer">
-					<button type="button" className="apn-readiness-scrim" aria-label="Close plan readiness" onClick={() => setReadinessOpen(false)} />
-					<aside role="dialog" aria-label="Plan readiness" className="apn-readiness-drawer" onKeyDown={(event) => { if (event.key === "Escape") setReadinessOpen(false) }}>
-						<header><span>Plan readiness</span><button type="button" autoFocus aria-label="Close plan readiness" onClick={() => setReadinessOpen(false)}><X size={16} /></button></header>
-						<div className="apn-readiness-drawer-body">
-							<PlanReadiness complete={complete} approved={approved} clarificationResolved={clarificationResolved} onOpenApprovals={() => { setReadinessOpen(false); setView("approvals") }} onOpenQuestions={() => { setReadinessOpen(false); setView("questions") }} onOpenArchitecture={() => { setReadinessOpen(false); openArchitecture("adapter", "L2") }} />
-						</div>
-					</aside>
-				</div>
-			) : null}
 		</div>
 	)
 }
 
-function PlanBuildStrip({ stage, complete, onOpenBlueprint }: { stage: number; complete: boolean; onOpenBlueprint: () => void }) {
-	const designing = stage === 3
-	if (!complete && stage < 3) {
-		return (
-			<section className="apn-build-strip is-pending" aria-label="What this plan builds">
-				<header><span>What this plan builds</span></header>
-				<p className="apn-build-strip-waiting"><SpinnerGap className="apn-spin" size={14} />Decomposing the verified context into implementation flows…</p>
-			</section>
-		)
-	}
+function PlanDecisionCard({ resolved, onResolve, onOpenContract }: { resolved: boolean; onResolve: () => void; onOpenContract: () => void }) {
+	const [answer, setAnswer] = useState("")
 	return (
-		<section className={`apn-build-strip${designing ? " is-assembling" : ""}`} aria-label="What this plan builds">
-			<header><span>What this plan builds</span><button type="button" onClick={onOpenBlueprint}><TreeStructure size={14} />System blueprint<ArrowRight size={13} /></button></header>
-			<p>{PLAN_EXECUTION_BRIEFS.adapter.outcome}</p>
-			<div className="apn-build-strip-flows">
-				{PLAN_FLOWS.map((flow, index) => (
-					<div key={flow.id} className="apn-build-strip-flow" style={{ "--apn-stagger": `${index * 0.55}s` } as CSSProperties}>
-						<i>{flow.number}</i>
-						<span><strong>{flow.title}</strong><small>{flow.key} · {PLAN_EXECUTION_BRIEFS[flow.id].workPackages.length} packages</small></span>
-						{designing && !prefersReducedMotion() ? <SpinnerGap className="apn-spin" size={13} /> : <CheckCircle size={13} weight="fill" />}
-					</div>
-				))}
-			</div>
-			<footer><span>ServiceNow · MuleSoft · Workday · SAP · QuickBooks</span><span>5 flows · {PLAN_VIEW_COUNT} views · {PLAN_PACKAGE_COUNT} packages · 124 claims</span></footer>
+		<section className={`apn-primary-question${resolved ? " is-resolved" : ""}`} aria-label="Current Plan decision">
+			<header><div><span>{resolved ? <CheckCircle size={17} weight="fill" /> : <ChatCircleText size={17} />}</span><div><small>{resolved ? "Decision recorded" : "Business authority required"}</small><h2>Should a Workday journal batch fail atomically or allow partial posting?</h2></div></div><i>{resolved ? "Resolved" : "Blocks INT-02"}</i></header>
+			<p>ServiceNow approves the financial change as one business transaction, while Workday can return line-level errors. The knowledge base does not define whether valid lines may post when another line fails.</p>
+			<section className="apn-evidence-conflict"><article><small>ServiceNow evidence</small><strong>Approval applies to the complete requested journal.</strong><span>Change policy FIN-18 · confidence 0.96</span></article><i>conflicts with</i><article><small>Workday capability</small><strong>The API can classify errors at individual journal-line level.</strong><span>Tenant metadata · confidence 0.99</span></article></section>
+			<section className="apn-agent-recommendation"><span><Sparkle size={16} weight="fill" /></span><div><small>MAX recommends</small><strong>Fail the batch atomically before posting any journal line.</strong><p>This preserves the ServiceNow approval boundary, avoids unapproved partial financial effects, and produces one replay-safe result. MAX will classify the error, return it to ServiceNow, and require a corrected approval before retry.</p><div><code>INT-02</code><code>MULE-202</code><code>WDAY-301</code><code>6 acceptance tests</code></div></div></section>
+			{resolved ? <footer className="apn-question-decision"><span><CheckCircle size={15} weight="fill" />Atomic posting approved · affected artifacts re-checked</span><button type="button" onClick={onOpenContract}>Review updated L3 contract<ArrowRight size={14} /></button></footer> : <><form onSubmit={(event) => { event.preventDefault(); if (answer.trim()) onResolve() }}><label htmlFor="plan-clarification-answer">Use another decision</label><textarea id="plan-clarification-answer" value={answer} onChange={(event) => setAnswer(event.target.value)} placeholder="Explain the required posting behavior or constraint…" rows={3} /><span>MAX will show which contracts and tests change before final handoff.</span><div><button type="button" onClick={onOpenContract}>Inspect affected contract</button><button type="submit" disabled={!answer.trim()}>Apply my decision</button></div></form><footer><span>Recommended path</span><button type="button" onClick={onResolve}><Check size={14} />Accept atomic posting</button></footer></>}
 		</section>
 	)
 }
 
-function PlanAgentRun({ live, stage, complete, onSkip, clarificationResolved, thread, onApplyImpact, onDiscardImpact, onOpenArchitecture, onOpenBlueprint, onOpenImplementation, onOpenQuestions, onOpenRevisions }: { live: boolean; stage: number; complete: boolean; onSkip: () => void; clarificationResolved: boolean; thread: PlanThreadEntry[]; onApplyImpact: (entryId: number) => void; onDiscardImpact: (entryId: number) => void; onOpenArchitecture: () => void; onOpenBlueprint: () => void; onOpenImplementation: () => void; onOpenQuestions: () => void; onOpenRevisions: () => void }) {
-	const claims = useCountUp(124, stage >= 0, live && stage === 0)
-	const conflicts = useCountUp(3, stage >= 1, live && stage === 1, 900)
-	const owners = useCountUp(2, stage >= 2, live && stage === 2, 900)
+function PlanHomeView({ live, stage, complete, passCount, onSkip, clarificationResolved, approved, onResolve, thread, onOpenFlow, onOpenDesign, onOpenDecisions, onOpenRevisions, onOpenContract }: { live: boolean; stage: number; complete: boolean; passCount: number; onSkip: () => void; clarificationResolved: boolean; approved: boolean; onResolve: () => void; thread: PlanThreadEntry[]; onOpenFlow: (flowId: string) => void; onOpenDesign: () => void; onOpenDecisions: () => void; onOpenRevisions: () => void; onOpenContract: () => void }) {
+	const blueprintReady = complete || stage > 3
 	return (
-		<main className="apn-main apn-run">
+		<main className="apn-main apn-home">
 			<div className="apn-run-column">
 				<section className={`apn-run-hero${!complete ? " is-live" : ""}`}>
 					<span><i />{complete ? "MAX is maintaining this plan" : "MAX is running pass 1"}</span>
 					<h1>{complete ? "MAX built the implementation plan." : "MAX is building the implementation plan."}</h1>
-					<p>{complete ? "The architecture is executable, the team boundaries are explicit, and every contract traces back to evidence. MAX handled the research and coordination itself; it interrupts you only where a consequential decision cannot be inferred safely." : "MAX is reading the verified context, reconciling conflicts, and decomposing the work. It will interrupt you only where a consequential decision cannot be inferred safely."}</p>
+					<p>{complete ? "The architecture is executable, the team boundaries are explicit, and every contract traces back to evidence. MAX interrupts you only where a consequential decision cannot be inferred safely." : "MAX is reading the verified context, reconciling conflicts, and decomposing the work. It will interrupt you only where a consequential decision cannot be inferred safely."}</p>
+					{complete ? <small className="apn-home-meta">{passCount} passes · 18m · 124 claims · 3 conflicts resolved · 2 owners interviewed</small> : null}
 					{!complete ? <button type="button" className="apn-skip-run" onClick={onSkip}>Skip to the finished plan<ArrowRight size={13} /></button> : null}
 				</section>
-				<section className="apn-autonomy-ledger" aria-label="Work MAX handled autonomously">
-					<header><span>Autonomy ledger</span><strong>What MAX handled without you</strong></header>
-					<div><article><strong>{claims}</strong><span>claims read</span></article><article><strong>{conflicts}</strong><span>conflicts resolved</span></article><article><strong>{owners}</strong><span>owners interviewed</span></article><article className={!complete ? "" : clarificationResolved ? "is-clear" : "is-attention"}><strong>{!complete ? "—" : clarificationResolved ? "0" : "1"}</strong><span>{complete && clarificationResolved ? "questions open" : "decision for you"}</span></article></div>
+
+				{complete && !clarificationResolved ? <PlanDecisionCard resolved={false} onResolve={onResolve} onOpenContract={onOpenContract} /> : null}
+				{complete && clarificationResolved && !approved ? (
+					<section className="apn-home-prompt" aria-label="Next step">
+						<div><ShieldCheck size={16} /><span><strong>Your approval is the last gate.</strong><small>Grant Execute the approved L3 and L4 scope — build authority only, no production effect.</small></span></div>
+						<button type="button" onClick={onOpenDecisions}>Review and approve<ArrowRight size={14} /></button>
+					</section>
+				) : null}
+				{readyStrip(complete, clarificationResolved, approved)}
+
+				<section className="apn-home-blueprint" aria-label="What this plan builds">
+					<header><div><span>What this plan builds</span><strong>{PLAN_EXECUTION_BRIEFS.adapter.outcome}</strong></div>{blueprintReady ? <button type="button" onClick={onOpenDesign}>Open the drafting table<ArrowRight size={13} /></button> : null}</header>
+					{blueprintReady ? <PlanSystemBlueprint assembling={live && stage === 3} onOpenFlow={onOpenFlow} /> : <p className="apn-build-strip-waiting"><SpinnerGap className="apn-spin" size={14} />Decomposing the verified context into implementation flows…</p>}
+					{blueprintReady ? <footer><span>ServiceNow · MuleSoft · Workday · SAP · QuickBooks</span><span>5 flows · {PLAN_VIEW_COUNT} views · {PLAN_PACKAGE_COUNT} packages · 124 claims</span></footer> : null}
 				</section>
-				{complete ? <section className={`apn-agent-question${clarificationResolved ? " is-resolved" : ""}`} aria-label="Plan clarification status"><div><span>{clarificationResolved ? <CheckCircle size={16} weight="fill" /> : <ChatCircleText size={16} />}</span><div><small>{clarificationResolved ? "Decision incorporated" : "Your input is needed"}</small><strong>{clarificationResolved ? "Atomic journal posting is now the approved contract." : "Should a journal batch fail atomically or allow partial posting?"}</strong><p>{clarificationResolved ? "MAX updated INT-02, MULE-202, WDAY-301, the error taxonomy, and the affected acceptance tests." : "ServiceNow approval intent and Workday line-level behavior conflict. MAX prepared a recommendation and limited the question to this one policy choice."}</p></div></div><button type="button" onClick={onOpenQuestions}>{clarificationResolved ? "Review decision" : "Review recommendation"}<ArrowRight size={14} /></button></section> : null}
-				<PlanBuildStrip stage={stage} complete={complete} onOpenBlueprint={onOpenBlueprint} />
+
 				<details className="apn-agent-thread" aria-label="Autonomous Plan activity" aria-live="polite" open={!complete || thread.length > 0}>
-					<summary><span>Agent work log</span><small>{complete ? "5 stages · 3 conflicts resolved · 2 owners interviewed" : PLAN_RUN_STAGES[stage].live}</small><CaretDown size={14} /></summary>
+					<summary><span>Agent work log</span><small>{complete ? "5 stages · 124 claims · 3 conflicts · 2 owners interviewed" : PLAN_RUN_STAGES[stage].live}</small><CaretDown size={14} /></summary>
 					<div className="apn-agent-message"><MaxionSpiralMark /><div><strong>MAX</strong><p>{complete ? "I compared the verified Discovery package with connected-system metadata and project governance. I used the safest reversible assumption where the evidence agreed, contacted domain owners where they held the answer, and isolated one remaining decision that changes financial posting behavior." : "I'm comparing the verified Discovery package with connected-system metadata and project governance. Where the evidence agrees I take the safest reversible assumption; where a domain owner holds the answer I ask them directly."}</p></div></div>
 					<ol>
 						{PLAN_RUN_STAGES.map((step, index) => {
@@ -937,11 +924,20 @@ function PlanAgentRun({ live, stage, complete, onSkip, clarificationResolved, th
 						)
 					})}
 				</details>
-				{complete ? <section className="apn-output"><header><div><span>Implementation package</span><strong>{clarificationResolved ? "Ready for final approval" : "One decision before final approval"}</strong></div><CheckCircle size={19} weight="fill" /></header><div><button type="button" onClick={onOpenArchitecture}><CirclesThree size={17} /><span><strong>{PLAN_VIEW_COUNT} visual architecture diagrams</strong><small>L2 solution · L3 technical · L4 build</small></span><ArrowRight size={14} /></button><button type="button" onClick={onOpenImplementation}><ListChecks size={17} /><span><strong>{PLAN_PACKAGE_COUNT} implementation packages</strong><small>Team ownership, dependencies, tests, and done conditions</small></span><ArrowRight size={14} /></button></div></section> : null}
 			</div>
 		</main>
 	)
 }
+
+function readyStrip(complete: boolean, clarificationResolved: boolean, approved: boolean) {
+	if (!complete || !clarificationResolved || !approved) return null
+	return (
+		<section className="apn-home-prompt is-ready" aria-label="Plan status">
+			<div><CheckCircle size={16} weight="fill" /><span><strong>Plan is ready for Execute.</strong><small>All decisions are recorded and approvals routed — use Send to Execute above.</small></span></div>
+		</section>
+	)
+}
+
 
 function PlanSteeringAnswer({ entry, onDismiss }: { entry: Extract<PlanThreadEntry, { kind: "answer" }>; onDismiss: () => void }) {
 	const streamed = useStreamedText(entry.text, true)
@@ -955,10 +951,10 @@ function PlanSteeringAnswer({ entry, onDismiss }: { entry: Extract<PlanThreadEnt
 
 function PlanSteeringDock({ view, target, complete, value, focusTick, entry, onChange, onPrime, onSubmit, onApply, onDiscard, onDismiss, onOpenRevisions }: { view: PlanView; target: string; complete: boolean; value: string; focusTick: number; entry?: Exclude<PlanThreadEntry, { kind: "user" }>; onChange: (value: string) => void; onPrime: (value: string) => void; onSubmit: () => void; onApply: (entryId: number) => void; onDiscard: (entryId: number) => void; onDismiss: (entryId: number) => void; onOpenRevisions: () => void }) {
 	const composerRef = useRef<HTMLTextAreaElement>(null)
-	const quickPrompts = view === "architecture"
+	const quickPrompts = view === "design"
 		? ["Explain this architecture", "Challenge this assumption", "Add a technical constraint"]
-		: view === "backlog"
-			? ["Re-sequence this work", "Challenge a done condition", "Add a delivery constraint"]
+		: view === "ledger"
+			? ["Explain this decision", "Challenge the recommendation", "Add a constraint"]
 			: ["Explain the current plan", "Challenge an assumption", "Add a constraint"]
 
 	useEffect(() => {
@@ -1112,10 +1108,10 @@ const PLAN_SYSTEM_NODES = [
 	{ flowId: "evidence", x: 57, y: 62, tone: "effect" as const, note: "Turns proof into a release decision" },
 ]
 
-function PlanSystemBlueprint({ onOpenFlow }: { onOpenFlow: (flowId: string) => void }) {
+function PlanSystemBlueprint({ onOpenFlow, assembling = false }: { onOpenFlow: (flowId: string) => void; assembling?: boolean }) {
 	return (
 		<div className="apn-diagram-viewport">
-			<div className="apn-architecture-diagram apn-blueprint" role="group" aria-label="System blueprint for the five implementation flows">
+			<div className={`apn-architecture-diagram apn-blueprint${assembling ? " is-assembling" : ""}`} role="group" aria-label="System blueprint for the five implementation flows">
 				<svg viewBox="0 0 1000 420" preserveAspectRatio="none" aria-hidden="true">
 					<defs>
 						<marker id="apn-blueprint-arrow" markerWidth="8" markerHeight="8" refX="6.4" refY="3.6" orient="auto"><path d="M0,0 L7,3.6 L0,7.2 Z" /></marker>
@@ -1153,8 +1149,30 @@ function PlanSystemBlueprint({ onOpenFlow }: { onOpenFlow: (flowId: string) => v
 	)
 }
 
-function PlanArchitectureView({ selectedFlowId, level, onLevelChange, onSelectFlow, onOpenImplementation, onSteerNode }: { selectedFlowId: string; level: PlanArchitectureLevel; onLevelChange: (level: PlanArchitectureLevel) => void; onSelectFlow: (flowId: string) => void; onOpenImplementation: () => void; onSteerNode: (context: string) => void }) {
+function PlanPackagesPanel({ onOpenFlow }: { onOpenFlow: (flowId: string, level: PlanArchitectureLevel) => void }) {
+	const [teamFilter, setTeamFilter] = useState("All teams")
+	const packages = PLAN_FLOWS.flatMap((flow) => PLAN_EXECUTION_BRIEFS[flow.id].workPackages.map((item) => ({ ...item, flow })))
+	const teams = ["All teams", ...Array.from(new Set(packages.map((item) => item.team)))]
+	const visiblePackages = teamFilter === "All teams" ? packages : packages.filter((item) => item.team === teamFilter)
+	return (
+		<section className="apn-diagram-panel apn-packages-panel">
+			<header><div><span>ALL FLOWS</span><h2>Owned work packages</h2></div></header>
+			<section className="apn-level-question"><div><small>This view answers</small><strong>Can each delivery team start building and prove completion?</strong></div><span><Users size={13} />Engineering leads · developers · QA and release</span></section>
+			<section className="apn-implementation-intro" aria-label="Implementation starting point"><div><span>01</span><div><small>Start here</small><strong>Baseline the shared contracts before teams build in parallel.</strong><p>INT-01, INT-02, field mappings, and the error taxonomy are the only cross-team prerequisites. MAX will keep downstream packages visibly blocked until those contracts are accepted.</p></div></div><button type="button" onClick={() => onOpenFlow("adapter", "L3")}>Review shared contracts<ArrowRight size={14} /></button></section>
+			<section className="apn-implementation-toolbar"><div><small>Show work for</small><div role="group" aria-label="Filter implementation packages by team">{teams.map((team) => <button type="button" key={team} aria-pressed={teamFilter === team} onClick={() => setTeamFilter(team)}>{team.replace(" integration", "")}</button>)}</div></div><span><CheckCircle size={14} weight="fill" />{visiblePackages.length} owned packages shown</span></section>
+			<section className="apn-package-cockpit" aria-label="Implementation packages">
+				{visiblePackages.map((item) => {
+					const queued = item.dependsOn.includes(" + ") || item.dependsOn === "All flow gates"
+					return <button key={`${item.flow.id}-${item.id}`} type="button" onClick={() => onOpenFlow(item.flow.id, "L4")}><header><code>{item.id}</code><span>{item.team}</span><i className={queued ? "is-queued" : "is-ready"}>{queued ? <Clock size={12} /> : <CheckCircle size={12} weight="fill" />}{queued ? "Sequenced" : "Ready"}</i></header><h2>{item.title}</h2><p>{item.flow.title}</p><dl><div><dt>Create</dt><dd>{item.artifact}</dd></div><div><dt>Starts after</dt><dd>{item.dependsOn}</dd></div><div><dt>Done when</dt><dd>{item.doneWhen}</dd></div></dl><footer><span>Open L4 package</span><ArrowRight size={14} /></footer></button>
+				})}
+			</section>
+		</section>
+	)
+}
+
+function PlanDesignView({ selectedFlowId, level, onLevelChange, onSelectFlow, onSteerNode }: { selectedFlowId: string; level: PlanArchitectureLevel; onLevelChange: (level: PlanArchitectureLevel) => void; onSelectFlow: (flowId: string) => void; onSteerNode: (context: string) => void }) {
 	const isSystem = selectedFlowId === "system"
+	const isPackages = selectedFlowId === "packages"
 	const selectedFlow = PLAN_FLOWS.find((flow) => flow.id === selectedFlowId) ?? PLAN_FLOWS[0]
 	const diagram = selectedFlow.levels[level]
 	const brief = PLAN_EXECUTION_BRIEFS[selectedFlow.id]
@@ -1164,14 +1182,17 @@ function PlanArchitectureView({ selectedFlowId, level, onLevelChange, onSelectFl
 	const selectedNode = diagram.nodes[nodeIndex] ?? diagram.nodes[0]
 	return (
 		<main className="apn-main apn-architecture-view">
-			<header className="apn-view-heading"><div><span>Executable architecture</span><h1>See the system. Select a node. Know what to build.</h1><p>The diagram is the primary workspace. Start from the system blueprint, follow each flow left to right, select any node for its owner and contract, then move from L2 solution intent to L3 technical interfaces and L4 build packages without losing context.</p></div><div><strong>{PLAN_VIEW_COUNT} / {PLAN_VIEW_COUNT}</strong><small>traceable architecture views</small></div></header>
+			<header className="apn-view-heading"><div><span>Design</span><h1>See the system. Select a node. Know what to build.</h1><p>The diagram is the primary workspace. Start from the system blueprint, follow each flow left to right, select any node for its owner and contract, then move from L2 solution intent to L3 technical interfaces and L4 build packages without losing context.</p></div><div><strong>{PLAN_VIEW_COUNT} / {PLAN_VIEW_COUNT}</strong><small>traceable architecture views</small></div></header>
 			<div className="apn-architecture-layout">
 				<nav aria-label="Architecture flows">
 					<span>Implementation flows</span>
 					<button type="button" className={`apn-flow-system${isSystem ? " is-active" : ""}`} onClick={() => onSelectFlow("system")}><i><TreeStructure size={14} /></i><span><strong>System blueprint</strong><small>How the five flows compose</small></span><CaretRight size={14} /></button>
-					{PLAN_FLOWS.map((flow) => <button key={flow.id} type="button" className={!isSystem && selectedFlow.id === flow.id ? "is-active" : ""} onClick={() => onSelectFlow(flow.id)}><i>{flow.number}</i><span><strong>{flow.title}</strong><small>{flow.key} · {PLAN_EXECUTION_BRIEFS[flow.id].teams.length} teams · {PLAN_EXECUTION_BRIEFS[flow.id].workPackages.length} build items</small></span><CheckCircle size={14} weight="fill" /></button>)}
+					{PLAN_FLOWS.map((flow) => <button key={flow.id} type="button" className={!isSystem && !isPackages && selectedFlow.id === flow.id ? "is-active" : ""} onClick={() => onSelectFlow(flow.id)}><i>{flow.number}</i><span><strong>{flow.title}</strong><small>{flow.key} · {PLAN_EXECUTION_BRIEFS[flow.id].teams.length} teams · {PLAN_EXECUTION_BRIEFS[flow.id].workPackages.length} build items</small></span><CheckCircle size={14} weight="fill" /></button>)}
+					<button type="button" className={`apn-flow-system${isPackages ? " is-active" : ""}`} onClick={() => onSelectFlow("packages")} aria-label="All work packages"><i><ListChecks size={14} /></i><span><strong>All packages</strong><small>{PLAN_PACKAGE_COUNT} owned build items</small></span><CaretRight size={14} /></button>
 				</nav>
-				{isSystem ? (
+				{isPackages ? (
+					<PlanPackagesPanel onOpenFlow={(flowId, nextLevel) => { onSelectFlow(flowId); onLevelChange(nextLevel) }} />
+				) : isSystem ? (
 					<section className="apn-diagram-panel">
 						<header><div><span>ERP-SYS</span><h2>System blueprint</h2></div></header>
 						<section className="apn-level-question"><div><small>This view answers</small><strong>Does the delivery system hang together end to end?</strong></div><span><Users size={13} />Solution architect · program owners</span></section>
@@ -1186,7 +1207,7 @@ function PlanArchitectureView({ selectedFlowId, level, onLevelChange, onSelectFl
 						<div className="apn-diagram-meta"><span>{diagram.name}</span><p>{diagram.focus}</p><i><CheckCircle size={12} weight="fill" />Generated, traced, and critic-checked</i></div>
 						<p className="apn-diagram-instruction"><Lightning size={14} weight="fill" />Select a node to see its owner, interface, build artifact, dependency, and completion condition.</p>
 						<PlanArchitectureDiagram level={level} flow={selectedFlow} brief={brief} selectedNodeTitle={selectedNodeTitle} onSelectNode={setSelectedNodeTitle} />
-						{selectedNode ? <PlanNodeBrief level={level} flow={selectedFlow} node={selectedNode} nodeIndex={nodeIndex} brief={brief} onLevelChange={onLevelChange} onOpenImplementation={onOpenImplementation} onSteerNode={onSteerNode} /> : null}
+						{selectedNode ? <PlanNodeBrief level={level} flow={selectedFlow} node={selectedNode} nodeIndex={nodeIndex} brief={brief} onLevelChange={onLevelChange} onOpenImplementation={() => onSelectFlow("packages")} onSteerNode={onSteerNode} /> : null}
 						<footer><span>Architecture decisions shown in this view</span><div>{diagram.guidance.map((item) => <p key={item}><Check size={12} />{item}</p>)}</div></footer>
 						<PlanExecutableHandoff key={`${selectedFlow.id}-${level}`} level={level} flow={selectedFlow} brief={brief} />
 					</section>
@@ -1196,33 +1217,10 @@ function PlanArchitectureView({ selectedFlowId, level, onLevelChange, onSelectFl
 	)
 }
 
-function PlanImplementationView({ onOpenArchitecture }: { onOpenArchitecture: (flowId: string, level: PlanArchitectureLevel) => void }) {
-	const [teamFilter, setTeamFilter] = useState("All teams")
-	const packages = PLAN_FLOWS.flatMap((flow) => PLAN_EXECUTION_BRIEFS[flow.id].workPackages.map((item) => ({ ...item, flow })))
-	const teams = ["All teams", ...Array.from(new Set(packages.map((item) => item.team)))]
-	const visiblePackages = teamFilter === "All teams" ? packages : packages.filter((item) => item.team === teamFilter)
-	return (
-		<main className="apn-main apn-implementation-view">
-			<header className="apn-view-heading"><div><span>Implementation cockpit</span><h1>Start with your team. Keep the whole system in view.</h1><p>MAX converted the architecture into owned work packages. Each card tells an engineer what to create, which contract must exist first, and what evidence proves the work is done.</p></div><div><strong>{PLAN_PACKAGE_COUNT}</strong><small>owned work packages</small></div></header>
-			<section className="apn-implementation-intro" aria-label="Implementation starting point"><div><span>01</span><div><small>Start here</small><strong>Baseline the shared contracts before teams build in parallel.</strong><p>INT-01, INT-02, field mappings, and the error taxonomy are the only cross-team prerequisites. MAX will keep downstream packages visibly blocked until those contracts are accepted.</p></div></div><button type="button" onClick={() => onOpenArchitecture("adapter", "L3")}>Review shared contracts<ArrowRight size={14} /></button></section>
-			<section className="apn-implementation-toolbar"><div><small>Show work for</small><div role="group" aria-label="Filter implementation packages by team">{teams.map((team) => <button type="button" key={team} aria-pressed={teamFilter === team} onClick={() => setTeamFilter(team)}>{team.replace(" integration", "")}</button>)}</div></div><span><CheckCircle size={14} weight="fill" />{visiblePackages.length} owned packages shown</span></section>
-			<section className="apn-package-cockpit" aria-label="Implementation packages">
-				{visiblePackages.map((item) => {
-					const queued = item.dependsOn.includes(" + ") || item.dependsOn === "All flow gates"
-					return <button key={`${item.flow.id}-${item.id}`} type="button" onClick={() => onOpenArchitecture(item.flow.id, "L4")}><header><code>{item.id}</code><span>{item.team}</span><i className={queued ? "is-queued" : "is-ready"}>{queued ? <Clock size={12} /> : <CheckCircle size={12} weight="fill" />}{queued ? "Sequenced" : "Ready"}</i></header><h2>{item.title}</h2><p>{item.flow.title}</p><dl><div><dt>Create</dt><dd>{item.artifact}</dd></div><div><dt>Starts after</dt><dd>{item.dependsOn}</dd></div><div><dt>Done when</dt><dd>{item.doneWhen}</dd></div></dl><footer><span>Open L4 package</span><ArrowRight size={14} /></footer></button>
-				})}
-			</section>
-		</main>
-	)
-}
-
-function PlanDependencyView({ onOpenArchitecture }: { onOpenArchitecture: (flowId: string, level: PlanArchitectureLevel) => void }) {
-	return <main className="apn-main apn-dependency-view"><header className="apn-view-heading"><div><span>Dependency model</span><h1>MAX sequenced the work around risk.</h1><p>Authority and replay protection land before provider effects. Release evidence is assembled only from verified workspace outputs.</p></div><div><strong>0</strong><small>circular dependencies</small></div></header><section className="apn-dependency-map">{PLAN_FLOWS.map((flow, index) => <div key={flow.id} className="apn-dependency-row"><span>{flow.number}</span><button type="button" onClick={() => onOpenArchitecture(flow.id, "L3")}><div><small>{flow.key}</small><strong>{flow.title}</strong><p>{flow.summary}</p></div><span><small>Depends on</small><strong>{flow.dependsOn}</strong></span><i><CheckCircle size={13} weight="fill" />Ready</i><CaretRight size={14} /></button>{index < PLAN_FLOWS.length - 1 ? <div className="apn-dependency-line" /> : null}</div>)}</section></main>
-}
 
 function PlanRevisionsView({ revisions, onOpenArchitecture }: { revisions: readonly PlanRevision[]; onOpenArchitecture: () => void }) {
 	return (
-		<main className="apn-main apn-revisions-view">
+		<section className="apn-ledger-section apn-revisions-view">
 			<header className="apn-view-heading"><div><span>Revisions</span><h1>Every pass is recorded. Nothing changes silently.</h1><p>Each revision names what triggered it, what changed, and which artifacts re-derived. Steering you apply lands here with the same receipts as MAX's own passes.</p></div><div><strong>{revisions[0].version}</strong><small>current snapshot</small></div></header>
 			<section className="apn-revision-timeline" aria-label="Plan revision history">
 				{revisions.map((revision, index) => (
@@ -1238,7 +1236,7 @@ function PlanRevisionsView({ revisions, onOpenArchitecture }: { revisions: reado
 				))}
 			</section>
 			<footer className="apn-revision-footer"><span><ShieldCheck size={14} />The revision log is immutable and travels with the Execute handoff.</span><button type="button" onClick={onOpenArchitecture}>Review current architecture<ArrowRight size={13} /></button></footer>
-		</main>
+		</section>
 	)
 }
 
@@ -1286,7 +1284,7 @@ const PLAN_EVIDENCE_SOURCES: ReadonlyArray<{ name: string; coverage: string; use
 function PlanEvidenceView() {
 	const [openSource, setOpenSource] = useState<string | null>(PLAN_EVIDENCE_SOURCES[0].name)
 	return (
-		<main className="apn-main apn-evidence-view">
+		<section className="apn-ledger-section apn-evidence-view">
 			<header className="apn-view-heading"><div><span>Evidence and provenance</span><h1>Every recommendation can explain itself.</h1><p>MAX retains the source, fingerprint, confidence, and exact plan artifacts influenced by every material claim. Open a source to read the claims themselves.</p></div><div><strong>100%</strong><small>material claims traced</small></div></header>
 			<section className="apn-evidence-summary"><div><MaxionSpiralMark /><span><strong>Evidence graph is healthy</strong><p>No stale sources, unresolved contradictions, or ungrounded implementation decisions.</p></span></div><span><CheckCircle size={14} weight="fill" />Verified</span></section>
 			<section className="apn-evidence-list">
@@ -1318,47 +1316,53 @@ function PlanEvidenceView() {
 					)
 				})}
 			</section>
-		</main>
+		</section>
 	)
 }
 
-function PlanQuestionsView({ resolved, onResolve, onOpenArchitecture }: { resolved: boolean; onResolve: () => void; onOpenArchitecture: () => void }) {
-	const [answer, setAnswer] = useState("")
+function PlanDecisionsSection({ resolved, approved, onResolve, onApprove, onOpenContract }: { resolved: boolean; approved: boolean; onResolve: () => void; onApprove: () => void; onOpenContract: () => void }) {
 	const resolvedItems = [
 		["Which system owns the cost-center reference?", "MAX compared ServiceNow samples with Workday metadata and selected the Workday reference ID as canonical.", "Resolved from evidence"],
 		["Who owns the journal-status callback?", "MAX reconciled the project RACI with the integration catalogue and assigned the callback contract to MuleSoft.", "Resolved from governance"],
 		["How should closed accounting periods fail?", "MAX asked Marcus Lee, Workday owner, then added a classified non-retryable response to INT-02.", "Owner answered · 14:11"],
 	] as const
-	return (
-		<main className="apn-main apn-questions-view">
-			<header className="apn-view-heading"><div><span>Clarifications and decisions</span><h1>MAX asks only when the context cannot decide safely.</h1><p>It resolves factual gaps from evidence, asks domain owners for system knowledge, and escalates only consequential choices that require business authority. Every answer updates the affected diagrams, contracts, tests, and approvals.</p></div><div><strong>{resolved ? "0" : "1"}</strong><small>decision waiting for you</small></div></header>
-			<section className="apn-question-autonomy" aria-label="Clarification work completed by MAX"><div><MaxionSpiralMark /><span><small>Before asking you</small><strong>MAX read 124 claims, reconciled three conflicts, and contacted two domain owners.</strong><p>Three questions were resolved without interrupting the plan owner. One policy decision remains because it changes the financial outcome.</p></span></div><span><CheckCircle size={14} weight="fill" />3 handled autonomously</span></section>
-			<div className="apn-questions-layout">
-				<section className={`apn-primary-question${resolved ? " is-resolved" : ""}`} aria-label="Current Plan decision">
-					<header><div><span>{resolved ? <CheckCircle size={17} weight="fill" /> : <ChatCircleText size={17} />}</span><div><small>{resolved ? "Decision recorded" : "Business authority required"}</small><h2>Should a Workday journal batch fail atomically or allow partial posting?</h2></div></div><i>{resolved ? "Resolved" : "Blocks INT-02"}</i></header>
-					<p>ServiceNow approves the financial change as one business transaction, while Workday can return line-level errors. The knowledge base does not define whether valid lines may post when another line fails.</p>
-					<section className="apn-evidence-conflict"><article><small>ServiceNow evidence</small><strong>Approval applies to the complete requested journal.</strong><span>Change policy FIN-18 · confidence 0.96</span></article><i>conflicts with</i><article><small>Workday capability</small><strong>The API can classify errors at individual journal-line level.</strong><span>Tenant metadata · confidence 0.99</span></article></section>
-					<section className="apn-agent-recommendation"><span><Sparkle size={16} weight="fill" /></span><div><small>MAX recommends</small><strong>Fail the batch atomically before posting any journal line.</strong><p>This preserves the ServiceNow approval boundary, avoids unapproved partial financial effects, and produces one replay-safe result. MAX will classify the error, return it to ServiceNow, and require a corrected approval before retry.</p><div><code>INT-02</code><code>MULE-202</code><code>WDAY-301</code><code>6 acceptance tests</code></div></div></section>
-					{resolved ? <footer className="apn-question-decision"><span><CheckCircle size={15} weight="fill" />Atomic posting approved · affected artifacts re-checked</span><button type="button" onClick={onOpenArchitecture}>Review updated L3 contract<ArrowRight size={14} /></button></footer> : <><form onSubmit={(event) => { event.preventDefault(); if (answer.trim()) onResolve() }}><label htmlFor="plan-clarification-answer">Use another decision</label><textarea id="plan-clarification-answer" value={answer} onChange={(event) => setAnswer(event.target.value)} placeholder="Explain the required posting behavior or constraint…" rows={3} /><span>MAX will show which contracts and tests change before final handoff.</span><div><button type="button" onClick={onOpenArchitecture}>Inspect affected contract</button><button type="submit" disabled={!answer.trim()}>Apply my decision</button></div></form><footer><span>Recommended path</span><button type="button" onClick={onResolve}><Check size={14} />Accept atomic posting</button></footer></>}
-				</section>
-				<aside className="apn-resolved-questions" aria-label="Questions MAX resolved autonomously"><header><small>Handled without you</small><strong>Resolved questions</strong></header>{resolvedItems.map(([title, detail, source]) => <article key={title}><span><Check size={12} /></span><div><strong>{title}</strong><p>{detail}</p><small>{source}</small></div></article>)}</aside>
-			</div>
-		</main>
-	)
-}
-
-function PlanApprovalView({ approved, onApprove }: { approved: boolean; onApprove: () => void }) {
 	const requests = [
 		{ id: "architecture", initials: "PS", name: "Priya Shah", role: "Director, Enterprise Architecture", scope: "L3 service contracts and the Execute build boundary", basis: "Project RACI · Architecture policy AP-19", channel: "Teams + email · delivered 14:19", status: "Approved" },
 		{ id: "security", initials: "EO", name: "Elena Ortiz", role: "Security Controls Lead", scope: "Tenant isolation, replay protection, and evidence retention", basis: "Control owner registry · SEC-44", channel: "Teams + email · delivered 14:20", status: "Approved" },
 		{ id: "program", initials: "RA", name: "Root Admin", role: "Program owner", scope: "Authorize Execute to build the approved L3 and L4 scope", basis: "Mission authority record · D-14", channel: "Teams + email · delivered 14:21", status: approved ? "Approved" : "Decision needed" },
 	] as const
-	return <main className="apn-main apn-approval-view"><header className="apn-view-heading"><div><span>Approval routing</span><h1>MAX found the approvers and sent the work.</h1><p>Each request is matched to the project RACI and policy owner, then sent with the exact scope, architecture artifacts, evidence, and rollback boundary that person needs to decide.</p></div><div><strong>{approved ? "3 / 3" : "2 / 3"}</strong><small>{approved ? "approvals complete" : "acknowledged"}</small></div></header><section className="apn-approval-summary"><div><MaxionSpiralMark /><span><strong>Approval messages are routed</strong><p>MAX used the decision-rights graph to avoid sending a blanket owner approval. The delivery record and response are retained with the plan.</p></span></div><span><CheckCircle size={14} weight="fill" />3 messages delivered</span></section><section className="apn-approval-requests" aria-label="Approval requests">{requests.map((request) => <article key={request.id} className={request.status === "Decision needed" ? "is-pending" : ""}><header><span className="apn-approval-avatar">{request.initials}</span><div><strong>{request.name}</strong><small>{request.role}</small></div><i className={request.status === "Approved" ? "is-approved" : "is-pending"}>{request.status === "Approved" ? <CheckCircle size={13} weight="fill" /> : <ShieldCheck size={13} />}{request.status}</i></header><dl><div><dt>Approval requested</dt><dd>{request.scope}</dd></div><div><dt>Why this approver</dt><dd>{request.basis}</dd></div></dl><div className="apn-approval-message"><ChatCircleText size={16} /><p><strong>MAXION approval request</strong> — approve this bounded implementation scope. The message includes the L2 boundary, L3 contracts, L4 sequence, test gates, evidence, and rollback instructions.</p></div><footer><span>{request.channel}</span>{request.status === "Decision needed" ? <button type="button" onClick={onApprove}><ShieldCheck size={14} />Approve implementation boundary</button> : <span><CheckCircle size={13} weight="fill" />Decision recorded</span>}</footer></article>)}</section></main>
+	return (
+		<section className="apn-ledger-section apn-questions-view">
+			<header className="apn-view-heading"><div><span>Decisions</span><h1>MAX asks only when the context cannot decide safely.</h1><p>It resolves factual gaps from evidence, asks domain owners for system knowledge, and escalates only consequential choices that require business authority. Every answer updates the affected diagrams, contracts, tests, and approvals.</p></div><div><strong>{Number(!resolved) + Number(!approved)}</strong><small>waiting for you</small></div></header>
+			<section className="apn-question-autonomy" aria-label="Clarification work completed by MAX"><div><MaxionSpiralMark /><span><small>Before asking you</small><strong>MAX read 124 claims, reconciled three conflicts, and contacted two domain owners.</strong><p>Three questions were resolved without interrupting the plan owner. One policy decision remains because it changes the financial outcome.</p></span></div><span><CheckCircle size={14} weight="fill" />3 handled autonomously</span></section>
+			<div className="apn-questions-layout">
+				<PlanDecisionCard resolved={resolved} onResolve={onResolve} onOpenContract={onOpenContract} />
+				<aside className="apn-resolved-questions" aria-label="Questions MAX resolved autonomously"><header><small>Handled without you</small><strong>Resolved questions</strong></header>{resolvedItems.map(([title, detail, source]) => <article key={title}><span><Check size={12} /></span><div><strong>{title}</strong><p>{detail}</p><small>{source}</small></div></article>)}</aside>
+			</div>
+			<div className="apn-approval-block">
+				<header className="apn-ledger-subheading"><div><span>Approval routing</span><h2>MAX found the approvers and sent the work.</h2><p>Each request is matched to the project RACI and policy owner, then sent with the exact scope, architecture artifacts, evidence, and rollback boundary that person needs to decide.</p></div><div><strong>{approved ? "3 / 3" : "2 / 3"}</strong><small>{approved ? "approvals complete" : "acknowledged"}</small></div></header>
+				<section className="apn-approval-summary"><div><MaxionSpiralMark /><span><strong>Approval messages are routed</strong><p>MAX used the decision-rights graph to avoid sending a blanket owner approval. The delivery record and response are retained with the plan.</p></span></div><span><CheckCircle size={14} weight="fill" />3 messages delivered</span></section>
+				<section className="apn-approval-requests" aria-label="Approval requests">{requests.map((request) => <article key={request.id} className={request.status === "Decision needed" ? "is-pending" : ""}><header><span className="apn-approval-avatar">{request.initials}</span><div><strong>{request.name}</strong><small>{request.role}</small></div><i className={request.status === "Approved" ? "is-approved" : "is-pending"}>{request.status === "Approved" ? <CheckCircle size={13} weight="fill" /> : <ShieldCheck size={13} />}{request.status}</i></header><dl><div><dt>Approval requested</dt><dd>{request.scope}</dd></div><div><dt>Why this approver</dt><dd>{request.basis}</dd></div></dl><div className="apn-approval-message"><ChatCircleText size={16} /><p><strong>MAXION approval request</strong> — approve this bounded implementation scope. The message includes the L2 boundary, L3 contracts, L4 sequence, test gates, evidence, and rollback instructions.</p></div><footer><span>{request.channel}</span>{request.status === "Decision needed" ? <button type="button" onClick={onApprove}><ShieldCheck size={14} />Approve implementation boundary</button> : <span><CheckCircle size={13} weight="fill" />Decision recorded</span>}</footer></article>)}</section>
+			</div>
+			<section className="apn-scope-note apn-ledger-scope"><ShieldCheck size={14} /><p><strong>Authority stays bounded</strong><small>Build authority only · no provider writes · no deployment approval</small></p></section>
+		</section>
+	)
 }
 
-function PlanReadiness({ complete, approved, clarificationResolved, onOpenApprovals, onOpenQuestions, onOpenArchitecture }: { complete: boolean; approved: boolean; clarificationResolved: boolean; onOpenApprovals: () => void; onOpenQuestions: () => void; onOpenArchitecture: () => void }) {
-	const completed = complete ? 5 + Number(clarificationResolved) + Number(approved) : 1
-	const nextTitle = !complete ? "MAX is completing pass 1" : !clarificationResolved ? "Resolve one design decision" : !approved ? "Review your approval request" : "Plan is ready for Execute"
-	const nextCopy = !complete ? "The first pass is still running. MAX will surface the exact decisions it needs when the pass lands." : !clarificationResolved ? "MAX resolved every factual gap it could. Atomic versus partial journal posting still requires business authority because it changes the financial effect." : !approved ? "MAX already notified architecture and security. Your decision grants Execute access to the approved L3 and L4 scope, not production authority." : "All implementation questions and routed approvals are recorded."
-	return <><section className="apn-readiness"><div><span>Completion floor</span><strong>{completed} / 7</strong></div><i style={{ "--apn-progress": `${Math.round((completed / 7) * 100)}%` } as CSSProperties} /><p>{complete && approved && clarificationResolved ? "The Plan can now be imported directly into Execute." : "MAX keeps the plan moving and pauses only at the remaining authority boundaries."}</p></section><section className="apn-gates"><span>Autonomous quality gates</span>{[["Evidence grounded", "124 claims"], ["Architecture complete", `${PLAN_VIEW_COUNT} diagrams`], ["Implementation ready", `${PLAN_PACKAGE_COUNT} packages`], ["Clarifications", clarificationResolved ? "4 resolved" : "3 resolved · 1 needed"], ["Approval routing", approved ? "3 recorded" : "3 delivered · 1 needed"], ["Critics passed", "3 repaired"]].map(([label, value]) => <p key={label}><CheckCircle size={13} weight="fill" /><span><strong>{label}</strong><small>{value}</small></span></p>)}</section><section className="apn-only-ask"><span>Next exact action</span><strong>{nextTitle}</strong><p>{nextCopy}</p>{complete ? (!clarificationResolved ? <button type="button" onClick={onOpenQuestions}><ChatCircleText size={14} />Review MAX's recommendation</button> : !approved ? <button type="button" onClick={onOpenApprovals}><ShieldCheck size={14} />Review approval routing</button> : <button type="button" onClick={onOpenArchitecture}>Review architecture<ArrowRight size={13} /></button>) : null}</section><section className="apn-scope-note"><ShieldCheck size={14} /><p><strong>Authority stays bounded</strong><small>Build authority only · no provider writes · no deployment approval</small></p></section></>
+function PlanLedgerView({ section, onSectionChange, revisions, clarificationResolved, approved, onResolve, onApprove, onOpenContract }: { section: PlanLedgerSection; onSectionChange: (section: PlanLedgerSection) => void; revisions: readonly PlanRevision[]; clarificationResolved: boolean; approved: boolean; onResolve: () => void; onApprove: () => void; onOpenContract: () => void }) {
+	const segments = [
+		["decisions", "Decisions"],
+		["history", "History"],
+		["sources", "Sources"],
+	] as const
+	return (
+		<main className="apn-main apn-ledger">
+			<nav className="apn-ledger-segments" aria-label="Ledger sections">
+				{segments.map(([id, label]) => <button key={id} type="button" aria-pressed={section === id} className={section === id ? "is-active" : ""} onClick={() => onSectionChange(id)}>{label}{id === "decisions" && (Number(!clarificationResolved) + Number(!approved)) > 0 ? <small>{Number(!clarificationResolved) + Number(!approved)}</small> : null}</button>)}
+			</nav>
+			{section === "decisions" ? <PlanDecisionsSection resolved={clarificationResolved} approved={approved} onResolve={onResolve} onApprove={onApprove} onOpenContract={onOpenContract} /> : null}
+			{section === "history" ? <PlanRevisionsView revisions={revisions} onOpenArchitecture={onOpenContract} /> : null}
+			{section === "sources" ? <PlanEvidenceView /> : null}
+		</main>
+	)
 }
