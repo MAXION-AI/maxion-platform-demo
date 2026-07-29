@@ -555,10 +555,10 @@ function ConsultModule({ onCommand, onNavigate }: { onCommand: () => void; onNav
 	return <div className="mxp-consult mxp-module-with-rail"><ContextRail title="Consult MAX" kicker="Cross-platform intelligence" footer={<div className="mxp-rail-user"><span>RA</span><div><strong>Root Admin</strong><small>Authorized tenant context</small></div></div>}><button type="button" className="mxp-rail-primary"><Plus size={14} />New conversation</button><div className="mxp-rail-label">Recent</div><button type="button" className="is-active"><ChatCircleText size={15} /><span><strong>What needs my attention?</strong><small>Just now</small></span></button><button type="button"><ChatCircleText size={15} /><span><strong>ERP decision history</strong><small>Yesterday</small></span></button><div className="mxp-rail-label">Scope</div><button type="button"><Database size={15} /><span>All MAXION context</span><i className="mxp-success-dot" /></button></ContextRail><div className="mxp-module-area"><ModuleHeader label="Consult MAX" title="Cross-platform conversation" detail="Answers preserve source, ownership, and authority" onCommand={onCommand} /><main className="mxp-consult-main"><header><MaxionMark size={34} /><span>Consult MAX</span><h1>Ask across the work, not around it.</h1><p>Consult MAX explains the current truth across modules. It can route you to work, but it cannot silently approve or execute it.</p></header><div className="mxp-consult-thread">{messages.map((message, index) => <article key={`${message.actor}-${index}`} className={message.actor === "You" ? "is-user" : "is-max"}>{message.actor === "MAX" ? <MaxionMark size={27} /> : <span className="mxp-user-avatar">RA</span>}<div><span>{message.actor}<time>Now</time></span><p>{message.text}</p>{message.actor === "MAX" && index > 0 ? <div className="mxp-answer-actions"><button type="button" onClick={() => onNavigate("agentix")}><Pulse size={13} />Open Agentix approval</button><button type="button" onClick={() => onNavigate("discovery")}><MagnifyingGlass size={13} />Open Discovery boundary</button></div> : null}</div></article>)}</div></main><div className="mxp-consult-composer"><div><textarea aria-label="Message Consult MAX" value={input} onChange={(event) => setInput(event.target.value)} onKeyDown={(event) => { if (event.key === "Enter" && !event.shiftKey) { event.preventDefault(); submit() } }} placeholder="Ask what changed, what needs attention, or why a decision was made…" rows={1} /><div><span><button type="button" aria-label="Attach context"><Paperclip size={15} /></button><small><Database size={13} />All authorized MAXION context</small></span><button type="button" aria-label="Send to Consult MAX" disabled={!input.trim()} onClick={submit}><ArrowRight size={15} /></button></div></div></div></div></div>
 }
 
-function CommandMenu({ open, active, onClose, onNavigate }: { open: boolean; active: MaxionModuleId; onClose: () => void; onNavigate: (module: MaxionModuleId) => void }) {
+function CommandMenu({ open, active, onClose, onNavigate, onStartDiscovery }: { open: boolean; active: MaxionModuleId; onClose: () => void; onNavigate: (module: MaxionModuleId) => void; onStartDiscovery: () => void }) {
 	if (!open) return null
 	const items = [...PRIMARY_NAVIGATION, { id: "integrations" as const, label: "Integrations", icon: Plug }]
-	return <div className="mxp-command-layer" onMouseDown={(event) => { if (event.currentTarget === event.target) onClose() }}><motion.section role="dialog" aria-modal="true" aria-label="MAXION command menu" initial={{ opacity: 0, scale: 0.98, y: -6 }} animate={{ opacity: 1, scale: 1, y: 0 }}><div className="mxp-command-search"><MagnifyingGlass size={16} /><input autoFocus aria-label="Search MAXION commands" placeholder="Search modules, work, and actions…" /><kbd>Esc</kbd></div><div className="mxp-command-label">Go to</div>{items.map((item) => { const Icon = item.icon; return <button type="button" key={item.id} onClick={() => onNavigate(item.id)}>{"spiral" in item && item.spiral ? <MaxionSpiralMark className="mxp-command-spiral" /> : Icon ? <Icon size={16} /> : null}<span><strong>{item.label}</strong><small>{item.id === active ? "Current module" : item.id === "consult" ? "Ask across MAXION" : `Open ${item.label}`}</small></span>{item.id === active ? <Check size={14} /> : <CaretRight size={13} />}</button> })}<div className="mxp-command-label">Quick actions</div><button type="button" onClick={() => onNavigate("discovery")}><Plus size={16} /><span><strong>Start a Discovery</strong><small>Autonomous research and interviews</small></span><CaretRight size={13} /></button><button type="button" onClick={() => onNavigate("agentix")}><Lightning size={16} /><span><strong>Create an operational Agent</strong><small>Activate bounded autonomous work</small></span><CaretRight size={13} /></button></motion.section></div>
+	return <div className="mxp-command-layer" onMouseDown={(event) => { if (event.currentTarget === event.target) onClose() }}><motion.section role="dialog" aria-modal="true" aria-label="MAXION command menu" initial={{ opacity: 0, scale: 0.98, y: -6 }} animate={{ opacity: 1, scale: 1, y: 0 }}><div className="mxp-command-search"><MagnifyingGlass size={16} /><input autoFocus aria-label="Search MAXION commands" placeholder="Search modules, work, and actions…" /><kbd>Esc</kbd></div><div className="mxp-command-label">Go to</div>{items.map((item) => { const Icon = item.icon; return <button type="button" key={item.id} onClick={() => onNavigate(item.id)}>{"spiral" in item && item.spiral ? <MaxionSpiralMark className="mxp-command-spiral" /> : Icon ? <Icon size={16} /> : null}<span><strong>{item.label}</strong><small>{item.id === active ? "Current module" : item.id === "consult" ? "Ask across MAXION" : `Open ${item.label}`}</small></span>{item.id === active ? <Check size={14} /> : <CaretRight size={13} />}</button> })}<div className="mxp-command-label">Quick actions</div><button type="button" onClick={onStartDiscovery}><Plus size={16} /><span><strong>Start a Discovery</strong><small>Autonomous research and interviews</small></span><CaretRight size={13} /></button><button type="button" onClick={() => onNavigate("agentix")}><Lightning size={16} /><span><strong>Create an operational Agent</strong><small>Activate bounded autonomous work</small></span><CaretRight size={13} /></button></motion.section></div>
 }
 
 export function MaxionPlatformPrototypePage() {
@@ -571,6 +571,7 @@ export function MaxionPlatformPrototypePage() {
 	const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
 	const [projects, setProjects] = useState(INITIAL_PROJECTS)
 	const [discoveryReady, setDiscoveryReady] = useState(false)
+	const [discoverySetupSignal, setDiscoverySetupSignal] = useState(0)
 	const [planSent, setPlanSent] = useState(false)
 	const [planSnapshot, setPlanSnapshot] = useState("v12")
 	const [executeVerified, setExecuteVerified] = useState(false)
@@ -594,6 +595,12 @@ export function MaxionPlatformPrototypePage() {
 		setCommandOpen(false)
 		setMobileNavOpen(false)
 	}
+	const startDiscoverySetup = () => {
+		// Signal Discovery to open its setup screen instead of dropping the user
+		// wherever the module last was.
+		setDiscoverySetupSignal((current) => current + 1)
+		navigate("discovery")
+	}
 	const currentLabel = PRIMARY_NAVIGATION.find((item) => item.id === activeModule)?.label ??
 		({ settings: "Settings", integrations: "Integrations", approvals: "My approvals", usage: "Usage", help: "Help" } as const)[activeModule as "settings" | "integrations" | "approvals" | "usage" | "help"] ??
 		"MAXION"
@@ -604,7 +611,7 @@ export function MaxionPlatformPrototypePage() {
 			<div className="mxp-stage" aria-label={`${currentLabel} module`}>
 				<div className="mxp-stage-view" hidden={activeModule !== "dashboard"}><DashboardModule projects={projects} onNavigate={navigate} discoveryReady={discoveryReady} planSent={planSent} executeVerified={executeVerified} /></div>
 				<div className="mxp-stage-view" hidden={activeModule !== "projects"}><ProjectsModule projects={projects} onProjectsChange={setProjects} onNavigate={navigate} /></div>
-				<div className="mxp-stage-view mxp-stage-view--discovery" hidden={activeModule !== "discovery"}><DiscoveryAutonomousPrototypePage embedded onPackageReady={() => setDiscoveryReady(true)} /></div>
+				<div className="mxp-stage-view mxp-stage-view--discovery" hidden={activeModule !== "discovery"}><DiscoveryAutonomousPrototypePage embedded setupSignal={discoverySetupSignal} onPackageReady={() => setDiscoveryReady(true)} /></div>
 				<div className="mxp-stage-view" hidden={activeModule !== "plan"}><PlanModule projects={projects} onNavigate={navigate} onCommand={() => setCommandOpen(true)} onSendToExecute={(snapshot) => { setPlanSent(true); setPlanSnapshot(snapshot); navigate("execute") }} /></div>
 				<div className="mxp-stage-view" hidden={activeModule !== "execute"}><ExecuteModule onNavigate={navigate} onCommand={() => setCommandOpen(true)} planHandoff={planSent} planSnapshot={planSnapshot} onVerified={() => setExecuteVerified(true)} /></div>
 				<div className="mxp-stage-view" hidden={activeModule !== "agentix"}><AgentixPrototypePage embedded /></div>
@@ -612,7 +619,7 @@ export function MaxionPlatformPrototypePage() {
 				<div className="mxp-stage-view" hidden={activeModule !== "integrations"}><IntegrationsModule /></div>
 				{(["settings", "approvals", "usage", "help"] as const).map((module) => <div key={module} className="mxp-stage-view" hidden={activeModule !== module}><AccountUtilityModule module={module} onNavigate={navigate} /></div>)}
 			</div>
-			<AnimatePresence>{commandOpen ? <CommandMenu open={commandOpen} active={activeModule} onClose={() => setCommandOpen(false)} onNavigate={navigate} /> : null}</AnimatePresence>
+			<AnimatePresence>{commandOpen ? <CommandMenu open={commandOpen} active={activeModule} onClose={() => setCommandOpen(false)} onNavigate={navigate} onStartDiscovery={startDiscoverySetup} /> : null}</AnimatePresence>
 		</div>
 	)
 }

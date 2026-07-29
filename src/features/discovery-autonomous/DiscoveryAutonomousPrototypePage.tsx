@@ -1,4 +1,4 @@
-import React, { FormEvent, useEffect, useRef, useState } from "react"
+import React, { FormEvent, useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { animate } from "animejs"
 import { AnimatePresence, motion, useReducedMotion } from "motion/react"
 import {
@@ -6,11 +6,12 @@ import {
 	ArrowRight,
 	CaretDown,
 	CaretRight,
+	ChatCircleText,
 	Check,
 	CheckCircle,
 	CircleNotch,
 	Clock,
-	Command,
+	Compass,
 	Database,
 	DownloadSimple,
 	EnvelopeSimple,
@@ -28,7 +29,6 @@ import {
 	Rows,
 	ShieldCheck,
 	SpeakerHigh,
-	Sparkle,
 	Sun,
 	UsersThree,
 	Waveform,
@@ -295,8 +295,103 @@ function getSpeechRecognitionConstructor() {
 	return voiceWindow.SpeechRecognition ?? voiceWindow.webkitSpeechRecognition
 }
 
+// jsdom has no matchMedia — treat that environment like reduced motion so
+// tests and unsupported browsers always get the instant path.
+function prefersInstantMotion() {
+	return typeof window === "undefined" || typeof window.matchMedia !== "function" || window.matchMedia("(prefers-reduced-motion: reduce)").matches
+}
+
+function useStreamedText(text: string, active: boolean) {
+	const [count, setCount] = useState(active && !prefersInstantMotion() ? 0 : Number.MAX_SAFE_INTEGER)
+	useEffect(() => {
+		if (!active || prefersInstantMotion()) { setCount(Number.MAX_SAFE_INTEGER); return }
+		setCount(0)
+		const total = text.split(" ").length
+		const timer = window.setInterval(() => {
+			setCount((current) => {
+				if (current >= total) { window.clearInterval(timer); return current }
+				return current + 1
+			})
+		}, 26)
+		return () => window.clearInterval(timer)
+	}, [text, active])
+	if (!active) return text
+	const words = text.split(" ")
+	return count >= words.length ? text : words.slice(0, count).join(" ")
+}
+
+// Ticks from the previous value to the next one whenever the target changes;
+// mounts (resume, view switches) render the final value instantly.
+function useCountUp(target: number) {
+	const [value, setValue] = useState(target)
+	const previousRef = useRef(target)
+	useEffect(() => {
+		const from = previousRef.current
+		previousRef.current = target
+		if (from === target) return
+		if (prefersInstantMotion()) { setValue(target); return }
+		const startedAt = performance.now()
+		let frame = 0
+		const tick = (now: number) => {
+			const progress = Math.min(1, (now - startedAt) / 700)
+			setValue(Math.round(from + (target - from) * (1 - Math.pow(1 - progress, 3))))
+			if (progress < 1) frame = requestAnimationFrame(tick)
+		}
+		frame = requestAnimationFrame(tick)
+		return () => cancelAnimationFrame(frame)
+	}, [target])
+	return value
+}
+
+function AnimatedStat({ value }: { value: number | null }) {
+	const display = useCountUp(value ?? 0)
+	if (value === null) return <>—</>
+	return <>{display.toLocaleString()}</>
+}
+
+// Messages created during this session stream once; anything loaded from a
+// saved record or replayed on a later mount renders instantly.
+const STREAMABLE_MESSAGE_IDS = new Set<string>()
+const STREAMED_MESSAGE_IDS = new Set<string>()
+
+function registerStreamableMessages(messages: ChatMessage[]) {
+	for (const message of messages) if (message.actor === "max") STREAMABLE_MESSAGE_IDS.add(message.id)
+}
+
+type MentionTarget = "people" | "sources" | "package"
+
+function escapeMentionToken(value: string) {
+	return value.replace(/[-\/\\^$*+?.()|[\]{}]/g, "\\$&")
+}
+
+function buildMentionTargets(scenarioKey: ScenarioKey, people: Person[]) {
+	const scenario = SCENARIOS[scenarioKey]
+	const targets = new Map<string, MentionTarget>()
+	for (const source of scenario.sources) {
+		targets.set(source.name, "sources")
+		targets.set(source.system, "sources")
+	}
+	for (const person of people) targets.set(person.name, "people")
+	targets.set("decision package", "package")
+	targets.set("package", "package")
+	return targets
+}
+
+function linkifyMentions(text: string, targets: Map<string, MentionTarget>, onJump: (target: MentionTarget) => void): React.ReactNode {
+	if (targets.size === 0) return text
+	const pattern = new RegExp(`\\b(${[...targets.keys()].sort((left, right) => right.length - left.length).map(escapeMentionToken).join("|")})\\b`, "g")
+	const parts = text.split(pattern)
+	if (parts.length === 1) return text
+	return parts.map((part, index) => {
+		const target = targets.get(part)
+		return target
+			? <button type="button" key={`${part}-${index}`} className="dsc-mention-chip" onClick={() => onJump(target)}>{part}</button>
+			: <React.Fragment key={index}>{part}</React.Fragment>
+	})
+}
+
 const viewMeta: Array<{ id: View; label: string; icon: React.ElementType }> = [
-	{ id: "thread", label: "Thread", icon: Command },
+	{ id: "thread", label: "Thread", icon: ChatCircleText },
 	{ id: "overview", label: "Autonomy", icon: Rows },
 	{ id: "package", label: "Package", icon: Package },
 ]
@@ -307,18 +402,129 @@ function joinNames(people: Person[]) {
 	return `${people.slice(0, -1).map((person) => person.name).join(", ")}, and ${people.at(-1)?.name}`
 }
 
+type Screen = "index" | "setup" | "preparing" | "workspace"
+
+const DISCOVERY_STATUS_LABEL: Record<DiscoveryStatus, string> = {
+	"needs-input": "Needs your input",
+	active: "Working autonomously",
+	completed: "Completed",
+}
+
+type DiscoveryPaletteAction =
+	| { type: "view"; view: View }
+	| { type: "record"; recordId: string }
+	| { type: "new" }
+	| { type: "pause" }
+	| { type: "decision" }
+	| { type: "drawer"; drawer: Exclude<Drawer, null> }
+
+type DiscoveryPaletteItem = { id: string; group: string; label: string; hint: string; keywords: string; action: DiscoveryPaletteAction }
+
+function buildDiscoveryPaletteItems({
+	records,
+	screen,
+	phase,
+	paused,
+	needsDecision,
+	complete,
+	activeRecordId,
+}: {
+	records: DiscoveryRecord[]
+	screen: Screen
+	phase: number
+	paused: boolean
+	needsDecision: boolean
+	complete: boolean
+	activeRecordId: string | null
+}): DiscoveryPaletteItem[] {
+	const items: DiscoveryPaletteItem[] = []
+	const inWorkspace = screen === "workspace"
+	if (inWorkspace && needsDecision) items.push({ id: "jump-decision", group: "Decisions", label: "Jump to decision", hint: "One bounded decision is waiting for you", keywords: "decision approve authority exception boundary review", action: { type: "decision" } })
+	if (inWorkspace) {
+		items.push({ id: "view-thread", group: "Go to", label: "Thread", hint: "Owner conversation with MAX", keywords: "chat conversation messages owner interview thread", action: { type: "view", view: "thread" } })
+		items.push({ id: "view-overview", group: "Go to", label: "Autonomy", hint: "Live autonomous work, ledger, and coordination", keywords: "autonomy overview workstreams ledger progress supervision", action: { type: "view", view: "overview" } })
+		items.push({ id: "view-package", group: "Go to", label: "Package", hint: phase >= 6 ? "Deliverables and routing" : "Unlocks at synthesis · MAX is preparing the evidence", keywords: "package deliverables outputs decision reader", action: { type: "view", view: "package" } })
+		if (!complete) items.push({ id: "toggle-pause", group: "Actions", label: paused ? "Resume the run" : "Pause the run", hint: paused ? "Continue from the last verified checkpoint" : "Stop new autonomous work at a safe checkpoint", keywords: "pause resume checkpoint stop continue run", action: { type: "pause" } })
+		items.push({ id: "open-people", group: "Open", label: "People", hint: "Stakeholder program drawer", keywords: "people stakeholders roster interviews program", action: { type: "drawer", drawer: "people" } })
+		items.push({ id: "open-sources", group: "Open", label: "Sources", hint: "Connected evidence drawer", keywords: "sources evidence systems connected scopes", action: { type: "drawer", drawer: "sources" } })
+		items.push({ id: "open-manifest", group: "Open", label: "Package manifest", hint: "Deliverable manifest drawer", keywords: "manifest deliverables manage package outputs", action: { type: "drawer", drawer: "package" } })
+	}
+	items.push({ id: "new-discovery", group: "Actions", label: "New discovery", hint: "Describe a new outcome for MAX", keywords: "new create start discovery brief mission", action: { type: "new" } })
+	for (const record of records) items.push({ id: `record-${record.id}`, group: "Discoveries", label: record.title, hint: record.id === activeRecordId ? "Currently open" : DISCOVERY_STATUS_LABEL[discoveryStatus(record)], keywords: `resume open ${record.brief} ${SCENARIOS[record.scenarioKey].kicker}`, action: { type: "record", recordId: record.id } })
+	return items
+}
+
+function DiscoveryCommandPalette({
+	records,
+	screen,
+	phase,
+	paused,
+	needsDecision,
+	complete,
+	activeRecordId,
+	onRun,
+	onDismiss,
+}: {
+	records: DiscoveryRecord[]
+	screen: Screen
+	phase: number
+	paused: boolean
+	needsDecision: boolean
+	complete: boolean
+	activeRecordId: string | null
+	onRun: (action: DiscoveryPaletteAction) => void
+	onDismiss: () => void
+}) {
+	const [query, setQuery] = useState("")
+	const [active, setActive] = useState(0)
+	const items = buildDiscoveryPaletteItems({ records, screen, phase, paused, needsDecision, complete, activeRecordId })
+	const q = query.trim().toLowerCase()
+	const filtered = q ? items.filter((item) => `${item.label} ${item.hint} ${item.keywords}`.toLowerCase().includes(q)).slice(0, 9) : items.slice(0, 9)
+	const activeIndex = Math.min(active, Math.max(0, filtered.length - 1))
+	return (
+		<div className="dsc-palette-layer">
+			<button type="button" className="dsc-palette-scrim" aria-label="Close command menu" onClick={onDismiss} />
+			<div role="dialog" aria-label="Discovery command menu" className="dsc-palette">
+				<input
+					autoFocus
+					value={query}
+					placeholder="Jump to a discovery, view, drawer, or action…"
+					aria-label="Search Discovery"
+					onChange={(event) => { setQuery(event.target.value); setActive(0) }}
+					onKeyDown={(event) => {
+						if (event.key === "ArrowDown") { event.preventDefault(); setActive((current) => Math.min(current + 1, filtered.length - 1)) }
+						if (event.key === "ArrowUp") { event.preventDefault(); setActive((current) => Math.max(current - 1, 0)) }
+						if (event.key === "Enter" && filtered[activeIndex]) { event.preventDefault(); onRun(filtered[activeIndex].action) }
+						if (event.key === "Escape") { event.preventDefault(); onDismiss() }
+					}}
+				/>
+				<div className="dsc-palette-list">
+					{filtered.map((item, index) => (
+						<button type="button" key={item.id} className={index === activeIndex ? "is-active" : ""} onMouseEnter={() => setActive(index)} onClick={() => onRun(item.action)}>
+							<i>{item.group}</i><span>{item.label}</span><small>{item.hint}</small>
+						</button>
+					))}
+					{filtered.length === 0 ? <p className="dsc-palette-empty">Nothing in Discovery matches “{query}”.</p> : null}
+				</div>
+				<footer><span><kbd>↑↓</kbd> navigate</span><span><kbd>↵</kbd> open</span><span><kbd>esc</kbd> close</span><span><kbd>1 2 3</kbd> views</span><span><kbd>/</kbd> composer</span></footer>
+			</div>
+		</div>
+	)
+}
+
 interface DiscoveryAutonomousPrototypePageProps {
 	embedded?: boolean
+	setupSignal?: number
 	onPackageReady?: () => void
 }
 
-export function DiscoveryAutonomousPrototypePage({ embedded = false, onPackageReady }: DiscoveryAutonomousPrototypePageProps = {}) {
+export function DiscoveryAutonomousPrototypePage({ embedded = false, setupSignal = 0, onPackageReady }: DiscoveryAutonomousPrototypePageProps = {}) {
 	const reducedMotion = Boolean(useReducedMotion())
 	const [records, setRecords] = useState<DiscoveryRecord[]>(readDiscoveryRecords)
 	const [activeRecordId, setActiveRecordId] = useState<string | null>(null)
 	const [scenarioKey, setScenarioKey] = useState<ScenarioKey>("tprm")
 	const [missionBrief, setMissionBrief] = useState("")
-	const [screen, setScreen] = useState<"index" | "setup" | "preparing" | "workspace">("index")
+	const [screen, setScreen] = useState<Screen>("index")
 	const [view, setView] = useState<View>("thread")
 	const [drawer, setDrawer] = useState<Drawer>(null)
 	const [phase, setPhase] = useState(0)
@@ -336,6 +542,12 @@ export function DiscoveryAutonomousPrototypePage({ embedded = false, onPackageRe
 	const [toast, setToast] = useState<string | null>(null)
 	const [packageSelection, setPackageSelection] = useState(0)
 	const [invitesSent, setInvitesSent] = useState(false)
+	const [paletteOpen, setPaletteOpen] = useState(false)
+	const [composerFocusTick, setComposerFocusTick] = useState(0)
+	const rootRef = useRef<HTMLDivElement>(null)
+	const paletteTriggerRef = useRef<HTMLElement | null>(null)
+	const drawerTriggerRef = useRef<HTMLElement | null>(null)
+	const preparingTimerRef = useRef(0)
 	const scenario = SCENARIOS[scenarioKey]
 	const activeRecord = records.find((record) => record.id === activeRecordId)
 	const currentMissionTitle = activeRecord?.title ?? missionTitle(missionBrief)
@@ -390,6 +602,8 @@ export function DiscoveryAutonomousPrototypePage({ embedded = false, onPackageRe
 		return () => window.clearTimeout(timer)
 	}, [toast])
 
+	useEffect(() => () => window.clearTimeout(preparingTimerRef.current), [])
+
 	const start = () => {
 		if (!missionBrief.trim()) return
 		const recordId = createRecordId()
@@ -427,10 +641,18 @@ export function DiscoveryAutonomousPrototypePage({ embedded = false, onPackageRe
 		setPeople(SCENARIOS[scenarioKey].people)
 		setMessages(startingMessages)
 		setInvitesSent(false)
-		window.setTimeout(() => setScreen("workspace"), reducedMotion ? 700 : 2400)
+		registerStreamableMessages(startingMessages)
+		window.clearTimeout(preparingTimerRef.current)
+		preparingTimerRef.current = window.setTimeout(() => setScreen("workspace"), reducedMotion ? 700 : 2400)
+	}
+
+	const enterWorkspaceNow = () => {
+		window.clearTimeout(preparingTimerRef.current)
+		setScreen("workspace")
 	}
 
 	const openNewDiscovery = () => {
+		window.clearTimeout(preparingTimerRef.current)
 		setActiveRecordId(null)
 		setScenarioKey("tprm")
 		setScreen("setup")
@@ -451,6 +673,7 @@ export function DiscoveryAutonomousPrototypePage({ embedded = false, onPackageRe
 	}
 
 	const openDiscoveryIndex = () => {
+		window.clearTimeout(preparingTimerRef.current)
 		setScreen("index")
 		setDrawer(null)
 		setPendingPerson(null)
@@ -478,25 +701,127 @@ export function DiscoveryAutonomousPrototypePage({ embedded = false, onPackageRe
 		setScreen("workspace")
 	}
 
+	const openDrawer = (next: Exclude<Drawer, null>, trigger?: HTMLElement | null) => {
+		drawerTriggerRef.current = trigger !== undefined ? trigger : document.activeElement instanceof HTMLElement ? document.activeElement : null
+		setDrawer(next)
+	}
+
+	const closeDrawer = () => {
+		setDrawer(null)
+		const trigger = drawerTriggerRef.current
+		drawerTriggerRef.current = null
+		window.requestAnimationFrame(() => trigger?.focus({ preventScroll: true }))
+	}
+
+	const openPalette = () => {
+		paletteTriggerRef.current = document.activeElement instanceof HTMLElement ? document.activeElement : null
+		setPaletteOpen(true)
+	}
+
+	const dismissPalette = () => {
+		setPaletteOpen(false)
+		const trigger = paletteTriggerRef.current
+		paletteTriggerRef.current = null
+		window.requestAnimationFrame(() => trigger?.focus({ preventScroll: true }))
+	}
+
+	const requestView = (next: View) => {
+		if (next === "package" && phase < 6) {
+			setToast("Package unlocks at synthesis · MAX is still preparing the evidence")
+			return
+		}
+		setView(next)
+	}
+
+	const jumpToDecision = () => {
+		setView("thread")
+		window.setTimeout(() => {
+			// Scroll the log itself rather than scrollIntoView — the page is also
+			// embedded inside the portal and must not scroll ancestor containers.
+			const log = rootRef.current?.querySelector<HTMLElement>(".message-log")
+			const card = rootRef.current?.querySelector<HTMLElement>(".decision-event")
+			if (!log || !card) return
+			const top = card.getBoundingClientRect().top - log.getBoundingClientRect().top + log.scrollTop - Math.max(0, (log.clientHeight - card.clientHeight) / 2)
+			log.scrollTo({ top: Math.max(0, top), behavior: reducedMotion ? "auto" : "smooth" })
+		}, 90)
+	}
+
+	const runPaletteAction = (action: DiscoveryPaletteAction) => {
+		setPaletteOpen(false)
+		if (action.type === "record") {
+			const record = records.find((item) => item.id === action.recordId)
+			if (record) resumeDiscovery(record)
+			return
+		}
+		if (action.type === "new") { openNewDiscovery(); return }
+		if (action.type === "view") { requestView(action.view); return }
+		if (action.type === "pause") { setPaused((current) => !current); return }
+		if (action.type === "decision") { jumpToDecision(); return }
+		openDrawer(action.drawer, paletteTriggerRef.current)
+	}
+
+	// The shell ⌘K quick action asks Discovery to open a fresh setup screen.
+	const openNewDiscoveryRef = useRef<() => void>(() => undefined)
+	openNewDiscoveryRef.current = openNewDiscovery
+
+	useEffect(() => {
+		if (!setupSignal) return
+		openNewDiscoveryRef.current()
+	}, [setupSignal])
+
+	useEffect(() => {
+		const onKeyDown = (event: KeyboardEvent) => {
+			// The portal keeps every module stage mounted behind `hidden` — only
+			// the visible Discovery stage may own the keyboard.
+			if (!rootRef.current?.offsetParent) return
+			const target = event.target instanceof HTMLElement ? event.target : null
+			const typing = !!target && (target.tagName === "INPUT" || target.tagName === "TEXTAREA" || target.isContentEditable)
+			if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "k") {
+				event.preventDefault()
+				event.stopPropagation()
+				if (paletteOpen) dismissPalette()
+				else openPalette()
+				return
+			}
+			if (event.key === "Escape") {
+				if (paletteOpen) { event.stopPropagation(); dismissPalette(); return }
+				if (drawer) { event.stopPropagation(); closeDrawer(); return }
+				return
+			}
+			if (typing) return
+			if (event.key === "/" && screen === "workspace") {
+				event.preventDefault()
+				setView("thread")
+				setComposerFocusTick((tick) => tick + 1)
+				return
+			}
+			if (screen === "workspace" && ["1", "2", "3"].includes(event.key)) {
+				requestView((["thread", "overview", "package"] as const)[Number(event.key) - 1])
+			}
+		}
+		window.addEventListener("keydown", onKeyDown, { capture: true })
+		return () => window.removeEventListener("keydown", onKeyDown, { capture: true })
+	}, [drawer, paletteOpen, phase, reducedMotion, screen])
+
 	const resolveDecision = (next: Exclude<DecisionState, "pending">) => {
 		const exception = scenario.exception
 		setDecision(next)
-		setMessages((current) => [
-			...current,
-			{
-				id: `decision-${Date.now()}`,
-				actor: "max",
-				text: next === "approved" ? exception.approvedConfirmation : exception.alternativeConfirmation,
-				trace:
-					next === "approved"
-						? ["Recorded the exact bounded authority", "Opened only the approved action", "Verified the action and resumed the affected branch"]
-						: ["Recorded the alternative direction", "Preserved the evidence and authority boundary", "Resumed the affected branch with the limitation visible"],
-			},
-		])
+		addMessage({
+			id: `decision-${Date.now()}`,
+			actor: "max",
+			text: next === "approved" ? exception.approvedConfirmation : exception.alternativeConfirmation,
+			trace:
+				next === "approved"
+					? ["Recorded the exact bounded authority", "Opened only the approved action", "Verified the action and resumed the affected branch"]
+					: ["Recorded the alternative direction", "Preserved the evidence and authority boundary", "Resumed the affected branch with the limitation visible"],
+		})
 		setToast("Decision recorded · affected work resumed")
 	}
 
-	const addMessage = (message: ChatMessage) => setMessages((current) => [...current, message])
+	const addMessage = (message: ChatMessage) => {
+		registerStreamableMessages([message])
+		setMessages((current) => [...current, message])
+	}
 
 	const addPersonFromCommand = (text: string, retained: Partial<Person> | null) => {
 		const email = text.match(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/i)?.[0]
@@ -669,7 +994,7 @@ export function DiscoveryAutonomousPrototypePage({ embedded = false, onPackageRe
 	}
 
 	return (
-		<div className={`prototype${dark ? " dark" : ""}${embedded ? " embedded" : ""}`}>
+		<div ref={rootRef} className={`prototype${dark ? " dark" : ""}${embedded ? " embedded" : ""}`}>
 			{screen === "index" ? (
 				<DiscoveryIndex
 					records={records}
@@ -678,6 +1003,7 @@ export function DiscoveryAutonomousPrototypePage({ embedded = false, onPackageRe
 					onToggleDark={() => setDark((current) => !current)}
 					onNew={openNewDiscovery}
 					onResume={resumeDiscovery}
+					onReviewDecision={(record) => resumeDiscovery({ ...record, view: "thread" })}
 				/>
 			) : screen === "setup" ? (
 					<SetupScreen
@@ -687,9 +1013,10 @@ export function DiscoveryAutonomousPrototypePage({ embedded = false, onPackageRe
 						embedded={embedded}
 						dark={dark}
 					onToggleDark={() => setDark((current) => !current)}
+					onPreview={(target) => openDrawer(target)}
 				/>
 			) : screen === "preparing" ? (
-				<PreparingScreen missionTitle={currentMissionTitle} />
+				<PreparingScreen missionTitle={currentMissionTitle} onEnter={enterWorkspaceNow} />
 			) : (
 					<WorkspaceShell
 						scenarioKey={scenarioKey}
@@ -699,11 +1026,11 @@ export function DiscoveryAutonomousPrototypePage({ embedded = false, onPackageRe
 					onViewChange={setView}
 					phase={phase}
 					paused={paused}
-					interviewIndex={interviewIndex}
 					interviewClosed={interviewClosed}
 						onTogglePause={() => setPaused((current) => !current)}
 						onOpenIndex={openDiscoveryIndex}
 						onNewDiscovery={openNewDiscovery}
+						onJumpToDecision={jumpToDecision}
 					dark={dark}
 					onToggleDark={() => setDark((current) => !current)}>
 					{view === "overview" ? (
@@ -719,7 +1046,7 @@ export function DiscoveryAutonomousPrototypePage({ embedded = false, onPackageRe
 							traceOpen={traceOpen}
 							onToggleTrace={() => setTraceOpen((current) => !current)}
 							onResolveDecision={resolveDecision}
-							onOpenDrawer={setDrawer}
+							onOpenDrawer={openDrawer}
 							onOpenThread={() => setView("thread")}
 						/>
 					) : view === "thread" ? (
@@ -733,12 +1060,14 @@ export function DiscoveryAutonomousPrototypePage({ embedded = false, onPackageRe
 							interviewClosed={interviewClosed}
 							messages={messages}
 							commandText={commandText}
+							composerFocusTick={composerFocusTick}
 							onCommandTextChange={setCommandText}
 							onSend={sendCommand}
 							onVoiceSubmit={submitCommand}
 							onResolveDecision={resolveDecision}
-							onOpenPeople={() => setDrawer("people")}
-							onOpenSources={() => setDrawer("sources")}
+							onJumpToDecision={jumpToDecision}
+							onOpenPeople={() => openDrawer("people")}
+							onOpenSources={() => openDrawer("sources")}
 							onOpenPackage={() => setView("package")}
 							onOpenAutonomy={() => setView("overview")}
 						/>
@@ -748,12 +1077,25 @@ export function DiscoveryAutonomousPrototypePage({ embedded = false, onPackageRe
 							phase={phase}
 							selected={packageSelection}
 							onSelect={setPackageSelection}
-							onManage={() => setDrawer("package")}
+							onManage={() => openDrawer("package")}
 						/>
 					)}
 				</WorkspaceShell>
 			)}
 
+			{paletteOpen ? (
+				<DiscoveryCommandPalette
+					records={records}
+					screen={screen}
+					phase={phase}
+					paused={paused}
+					needsDecision={needsDecision}
+					complete={complete}
+					activeRecordId={activeRecordId}
+					onRun={runPaletteAction}
+					onDismiss={dismissPalette}
+				/>
+			) : null}
 			<AnimatePresence>
 				{drawer ? (
 					<DrawerPanel
@@ -761,7 +1103,7 @@ export function DiscoveryAutonomousPrototypePage({ embedded = false, onPackageRe
 						scenarioKey={scenarioKey}
 						people={people}
 						onPeopleChange={setPeople}
-						onClose={() => setDrawer(null)}
+						onClose={closeDrawer}
 					/>
 				) : null}
 			</AnimatePresence>
@@ -809,6 +1151,7 @@ function DiscoveryIndex({
 	onToggleDark,
 	onNew,
 	onResume,
+	onReviewDecision,
 }: {
 	records: DiscoveryRecord[]
 	embedded: boolean
@@ -816,6 +1159,7 @@ function DiscoveryIndex({
 	onToggleDark: () => void
 	onNew: () => void
 	onResume: (record: DiscoveryRecord) => void
+	onReviewDecision: (record: DiscoveryRecord) => void
 }) {
 	const [filter, setFilter] = useState<"all" | DiscoveryStatus>("all")
 	const [query, setQuery] = useState("")
@@ -868,19 +1212,17 @@ function DiscoveryIndex({
 					<div>
 						<p className="eyebrow">Autonomous Discovery</p>
 						<h1>Continue where MAX left off.</h1>
-						<p>Every inquiry keeps its conversation, evidence, stakeholders, decisions, and package together.</p>
 					</div>
+					<section className="discovery-index-summary" aria-label="Discovery workload summary">
+						<div className="is-attention"><span>Needs your input</span><strong>{countFor("needs-input")}</strong></div>
+						<div><span>Working autonomously</span><strong>{countFor("active")}</strong></div>
+						<div><span>Packages ready</span><strong>{countFor("completed")}</strong></div>
+					</section>
 					<div className="discovery-index-actions">
 						{!embedded ? <IconButton label={dark ? "Use light theme" : "Use dark theme"} onClick={onToggleDark}>{dark ? <Sun size={18} /> : <Moon size={18} />}</IconButton> : null}
 						<button className="primary-button discovery-new-button" type="button" onClick={onNew}><Plus size={16} weight="bold" /> New Discovery</button>
 					</div>
 				</header>
-
-				<section className="discovery-index-summary" aria-label="Discovery workload summary">
-					<div className="is-attention"><span>Needs your input</span><strong>{countFor("needs-input")}</strong><small>Only bounded decisions</small></div>
-					<div><span>Working autonomously</span><strong>{countFor("active")}</strong><small>No action needed</small></div>
-					<div><span>Packages ready</span><strong>{countFor("completed")}</strong><small>Verified and routed</small></div>
-				</section>
 
 				<div className="discovery-index-toolbar">
 					<label className="discovery-search">
@@ -917,6 +1259,14 @@ function DiscoveryIndex({
 											<strong className="discovery-record-title">{record.title}</strong>
 											<span className="discovery-record-context">{SCENARIOS[record.scenarioKey].kicker}</span>
 											<span className="discovery-record-activity">{discoveryActivity(record)}</span>
+											{status === "needs-input" ? (
+												<span
+													className="discovery-record-review"
+													title={record.interviewClosed ? SCENARIOS[record.scenarioKey].exception.title : "MAX is waiting on your next interview answer"}
+													onClick={(event) => { event.stopPropagation(); onReviewDecision(record) }}>
+													{record.interviewClosed ? "Review decision" : "Continue interview"} <ArrowRight size={12} weight="bold" />
+												</span>
+											) : null}
 											<span className="discovery-record-progress" aria-label={`${progress}% complete`}><i><b style={{ width: `${progress}%` }} /></i><em>{progress}%</em></span>
 											<span className="discovery-record-meta"><span>{record.phase + 1} of {OPERATIONS.length} stages</span><span>{record.people.length} stakeholders</span><span>{SCENARIOS[record.scenarioKey].sources.length} sources</span></span>
 											<span className="discovery-record-resume">Resume workspace <ArrowRight size={15} weight="bold" /></span>
@@ -946,6 +1296,7 @@ function SetupScreen({
 	embedded,
 	dark,
 	onToggleDark,
+	onPreview,
 }: {
 	missionBrief: string
 	onMissionBriefChange: (value: string) => void
@@ -953,9 +1304,18 @@ function SetupScreen({
 	embedded: boolean
 	dark: boolean
 	onToggleDark: () => void
+	onPreview: (target: Exclude<Drawer, null>) => void
 }) {
 	const hasMission = Boolean(missionBrief.trim())
 	const [briefFocusedByPointer, setBriefFocusedByPointer] = useState(false)
+	const briefRef = useRef<HTMLTextAreaElement>(null)
+	useEffect(() => {
+		// Focus the brief so typing can begin immediately — but never steal
+		// focus while the Discovery stage is hidden inside the portal.
+		const brief = briefRef.current
+		if (!brief?.offsetParent) return
+		brief.focus({ preventScroll: true })
+	}, [])
 	return (
 		<div className="setup-shell">
 			<aside className="setup-header" hidden={embedded}>
@@ -992,7 +1352,7 @@ function SetupScreen({
 							</div>
 							<span className="draft-status">Saved when started</span>
 						</div>
-						<textarea value={missionBrief} onChange={(event) => onMissionBriefChange(event.target.value)} onPointerDown={() => setBriefFocusedByPointer(true)} onBlur={() => setBriefFocusedByPointer(false)} aria-label="Discovery brief" placeholder="Describe the decision, outcome, or problem. MAX will form the investigation, bind relevant evidence, and return with a decision package." />
+						<textarea ref={briefRef} value={missionBrief} onChange={(event) => onMissionBriefChange(event.target.value)} onPointerDown={() => setBriefFocusedByPointer(true)} onBlur={() => setBriefFocusedByPointer(false)} aria-label="Discovery brief" placeholder="Describe the decision, outcome, or problem. MAX will form the investigation, bind relevant evidence, and return with a decision package." />
 						<div className="brief-context">
 							<div><span>Decision</span><strong>{hasMission ? "MAX will establish the decision boundary from your brief." : "MAX will identify the decision boundary."}</strong></div>
 							<div><span>Decision horizon</span><strong>MAX will confirm the right horizon from the evidence.</strong></div>
@@ -1011,7 +1371,7 @@ function SetupScreen({
 								<p className="eyebrow">Proposed operating brief</p>
 								<h2>MAX will take it from here</h2>
 							</div>
-							<Sparkle size={18} weight="fill" />
+							<Compass size={18} weight="fill" />
 						</div>
 						<div className="preview-row">
 							<span>Objective</span>
@@ -1022,13 +1382,13 @@ function SetupScreen({
 							<p>A decision package with cited evidence, accountable owners, and a clear next action.</p>
 						</div>
 						<div className="preview-metrics">
-							<button type="button" aria-label="Review connected sources">
+							<button type="button" aria-label="Review connected sources" onClick={() => onPreview("sources")}>
 								<Database size={17} /><span><strong>Relevant</strong> sources auto-bound</span>
 							</button>
-							<button type="button" aria-label="Review proposed stakeholder roles">
+							<button type="button" aria-label="Review proposed stakeholder roles" onClick={() => onPreview("people")}>
 								<UsersThree size={17} /><span><strong>Right</strong> roles identified</span>
 							</button>
-							<button type="button" aria-label="Review deliverable plan">
+							<button type="button" aria-label="Review deliverable plan" onClick={() => onPreview("package")}>
 								<Package size={17} /><span><strong>{DELIVERABLES.length}</strong> outputs planned</span>
 							</button>
 						</div>
@@ -1047,24 +1407,29 @@ function SetupScreen({
 	)
 }
 
-function PreparingScreen({ missionTitle }: { missionTitle: string }) {
+const PREPARING_STEPS = [
+	{ label: "Mission boundary established", detail: "Objective, completion condition, and authority envelope normalized" },
+	{ label: "Governed sources bound", detail: "Permitted scopes verified · record-level provenance retained" },
+	{ label: "Stakeholder graph mapped", detail: "Accountable roles matched to the open evidence gaps" },
+	{ label: "First work graph created", detail: "Inquiry plan sequenced · routine work pre-authorized" },
+] as const
+
+function PreparingScreen({ missionTitle, onEnter }: { missionTitle: string; onEnter: () => void }) {
 	const orbitRef = useRef<HTMLDivElement>(null)
-	const stepsRef = useRef<HTMLDivElement>(null)
 	const reducedMotion = Boolean(useReducedMotion())
+	const [landed, setLanded] = useState(reducedMotion ? PREPARING_STEPS.length : 1)
 
 	useEffect(() => {
-		if (reducedMotion || !orbitRef.current || !stepsRef.current) return
+		if (reducedMotion || landed >= PREPARING_STEPS.length) return
+		const timer = window.setTimeout(() => setLanded((current) => current + 1), 520)
+		return () => window.clearTimeout(timer)
+	}, [landed, reducedMotion])
+
+	useEffect(() => {
+		if (reducedMotion || !orbitRef.current) return
 		const orbitAnimation = animate(orbitRef.current, { rotate: 360, duration: 2200, loop: true, ease: "linear" })
-		const stepAnimation = animate(stepsRef.current.children, {
-			opacity: [0.24, 1],
-			translateY: [4, 0],
-			delay: (_target: unknown, index = 0) => index * 420,
-			duration: 520,
-			ease: "out(3)",
-		})
 		return () => {
 			orbitAnimation.cancel()
-			stepAnimation.cancel()
 		}
 	}, [reducedMotion])
 
@@ -1078,12 +1443,21 @@ function PreparingScreen({ missionTitle }: { missionTitle: string }) {
 				<img src={publicAsset("maxion-logo-gradient.svg")} alt="" className="preparing-mark" />
 				<p className="eyebrow">Establishing the mission</p>
 				<h1>{missionTitle}</h1>
-				<div className="preparing-steps" ref={stepsRef}>
-					<div><Check size={14} /> Normalizing the objective and authority envelope</div>
-					<div><Check size={14} /> Binding permitted sources and evidence scopes</div>
-					<div><CircleNotch size={14} className="spin" /> Creating the first work graph</div>
+				<div className="preparing-receipts">
+					{PREPARING_STEPS.slice(0, landed).map((step, index) => {
+						const working = index === landed - 1 && landed < PREPARING_STEPS.length
+						return (
+							<div key={step.label} className={working ? "preparing-receipt is-working" : "preparing-receipt"}>
+								<span>{working ? <CircleNotch size={13} className="spin" /> : <Check size={13} weight="bold" />}</span>
+								<div><strong>{step.label}</strong><small>{step.detail}</small></div>
+							</div>
+						)
+					})}
 				</div>
-				<p className="preparing-footnote">You can leave this screen. MAX will continue from the persisted mission state.</p>
+				<div className="preparing-actions">
+					<button className="quiet-button preparing-enter" type="button" onClick={onEnter}>Enter workspace now <ArrowRight size={14} weight="bold" /></button>
+					<p className="preparing-footnote">You can leave this screen. MAX will continue from the persisted mission state.</p>
+				</div>
 			</div>
 		</div>
 	)
@@ -1097,11 +1471,11 @@ function WorkspaceShell({
 	onViewChange,
 	phase,
 	paused,
-	interviewIndex,
 	interviewClosed,
 	onTogglePause,
 	onOpenIndex,
 	onNewDiscovery,
+	onJumpToDecision,
 	dark,
 	onToggleDark,
 	children,
@@ -1113,18 +1487,18 @@ function WorkspaceShell({
 	onViewChange: (view: View) => void
 	phase: number
 	paused: boolean
-	interviewIndex: number
 	interviewClosed: boolean
 	onTogglePause: () => void
 	onOpenIndex: () => void
 	onNewDiscovery: () => void
+	onJumpToDecision: () => void
 	dark: boolean
 	onToggleDark: () => void
 	children: React.ReactNode
 }) {
 	const scenario = SCENARIOS[scenarioKey]
 	const businessStatus = !interviewClosed
-		? `Owner interview · question ${interviewIndex + 1} of ${scenario.ownerInterview.length}`
+		? "Owner interview underway"
 		: paused
 		? "Paused at a verified checkpoint"
 		: phase <= 2
@@ -1183,7 +1557,7 @@ function WorkspaceShell({
 						{viewMeta.map((item) => {
 							const Icon = item.icon
 							return (
-								<button key={item.id} type="button" className={view === item.id ? "active" : ""} onClick={() => onViewChange(item.id)} disabled={item.id === "package" && phase < 6}>
+								<button key={item.id} type="button" className={view === item.id ? "active" : ""} onClick={() => onViewChange(item.id)} disabled={item.id === "package" && phase < 6} title={item.id === "package" && phase < 6 ? "Unlocks at synthesis · MAX is preparing the evidence" : undefined}>
 									<Icon size={15} weight={view === item.id ? "fill" : "regular"} />
 									{item.label}
 									{item.id === "overview" && interviewClosed && phase < 7 ? <span className="autonomy-tab-pulse" aria-hidden="true" /> : null}
@@ -1192,11 +1566,11 @@ function WorkspaceShell({
 							)
 						})}
 					</nav>
-					<div className="business-status" role="status" aria-label="Discovery status">
+					<button type="button" className="business-status" aria-label="Discovery status" title={phase === 4 && interviewClosed ? "Jump to the decision" : "Open the owner thread"} onClick={onJumpToDecision}>
 							<span className={phase === 4 && interviewClosed ? "attention" : phase >= 7 ? "complete" : "working"} />
 							<strong>{businessStatus}</strong>
-							<small>{!interviewClosed ? scenario.ownerInterview[interviewIndex].topic : phase === 4 ? "1 decision needs you" : phase >= 7 ? "5 deliverables ready" : "MAX is continuing autonomously"}</small>
-					</div>
+							<small>{!interviewClosed ? "MAX asks only for judgment the records can’t supply" : phase === 4 ? "1 decision needs you" : phase >= 7 ? "5 deliverables ready" : "MAX is continuing autonomously"}</small>
+					</button>
 				</div>
 
 				<main className="workspace-content">{children}</main>
@@ -1286,7 +1660,7 @@ function Overview({
 	traceOpen: boolean
 	onToggleTrace: () => void
 	onResolveDecision: (decision: Exclude<DecisionState, "pending">) => void
-	onOpenDrawer: (drawer: Drawer) => void
+	onOpenDrawer: (drawer: Exclude<Drawer, null>) => void
 	onOpenThread: () => void
 }) {
 	const scenario = SCENARIOS[scenarioKey]
@@ -1370,7 +1744,7 @@ function Overview({
 
 	return (
 		<div className="overview-workspace">
-			<section className="overview-main">
+			<section className="overview-main" aria-label="Autonomy overview" tabIndex={0}>
 				<header className="autonomy-hero">
 					<div>
 						<p className="eyebrow"><span className={paused ? "autonomy-live-dot paused" : "autonomy-live-dot"} />Autonomy run</p>
@@ -1381,9 +1755,9 @@ function Overview({
 				</header>
 
 				<section className="autonomy-value-strip" aria-label="Work handled by MAX">
-					<div><strong>{autonomousActions}</strong><span>Verified actions</span><small>completed without prompting</small></div>
-					<div><strong>{phase >= 2 ? sourceRecords.toLocaleString() : "—"}</strong><span>Records screened</span><small>across {scenario.sources.length} governed sources</small></div>
-					<div><strong>{interviewed} + {followUps}</strong><span>Interviews + follow-ups</span><small>{people.length} stakeholder threads managed</small></div>
+					<div><strong><AnimatedStat value={autonomousActions} /></strong><span>Verified actions</span><small>completed without prompting</small></div>
+					<div><strong><AnimatedStat value={phase >= 2 ? sourceRecords : null} /></strong><span>Records screened</span><small>across {scenario.sources.length} governed sources</small></div>
+					<div><strong><AnimatedStat value={interviewed} /> + <AnimatedStat value={followUps} /></strong><span>Interviews + follow-ups</span><small>{people.length} stakeholder threads managed</small></div>
 					<div><strong>{decisionPending ? "1" : "0"}</strong><span>Owner interruptions</span><small>unaffected branches kept moving</small></div>
 				</section>
 
@@ -1443,14 +1817,14 @@ function Overview({
 				<div className="autonomy-detail-grid">
 					<section className="autonomy-coordination" aria-labelledby="stakeholder-coordination-heading">
 						<div className="section-heading-row compact"><div><p className="eyebrow">Stakeholder coordination</p><h2 id="stakeholder-coordination-heading">Conversations MAX is managing</h2></div><span>{interviewed + followUps} exchanges handled</span></div>
-						<div>
+						<div tabIndex={0}>
 							{coordinationThreads.map((thread) => <article key={thread.title} className={`is-${thread.state}`}><header><span className="autonomy-avatar-stack">{thread.people.map((person) => <i key={person.id} title={person.name}>{person.initials}</i>)}</span><strong>{thread.title}</strong><em>{thread.state === "resolved" ? "Resolved" : thread.state === "attention" ? "Owner decision" : thread.state === "active" ? "Working" : "Queued"}</em></header><p>{thread.detail}</p><footer><EnvelopeSimple size={13} /><span>{thread.meta}</span></footer></article>)}
 						</div>
 					</section>
 
 					<section className="autonomy-ledger" aria-labelledby="autonomy-ledger-heading">
 						<div className="section-heading-row compact"><div><p className="eyebrow">Autonomy ledger</p><h2 id="autonomy-ledger-heading">What MAX did and why</h2></div><button className="text-button" type="button" onClick={onOpenThread}>Owner thread <ArrowRight size={14} /></button></div>
-						<ol>{ledger.map((event) => <li key={event.title} className={event.phase === phase && phase < 7 ? "is-current" : "is-complete"}><span>{event.phase === phase && phase < 7 ? <CircleNotch size={13} className={paused ? "" : "spin"} /> : <Check size={12} weight="bold" />}</span><div><strong>{event.title}</strong><p>{event.detail}</p></div><time>{event.time}</time></li>)}</ol>
+						<ol tabIndex={0}>{ledger.map((event) => <li key={event.title} className={event.phase === phase && phase < 7 ? "is-current" : "is-complete"}><span>{event.phase === phase && phase < 7 ? <CircleNotch size={13} className={paused ? "" : "spin"} /> : <Check size={12} weight="bold" />}</span><div><strong>{event.title}</strong><p>{event.detail}</p></div><time>{event.time}</time></li>)}</ol>
 					</section>
 					</div>
 			</section>
@@ -1467,7 +1841,7 @@ function Overview({
 				<section className="authority-summary">
 					<div><ShieldCheck size={17} weight="fill" /><strong>Authority envelope</strong></div>
 					<p>Internal outreach · approved source scopes · two follow-ups per stakeholder · $45 model budget</p>
-					<button className="text-button" type="button">Review policy</button>
+					<span className="authority-summary-note">Material exceptions come back to you as bounded decisions</span>
 				</section>
 				<button className="overview-steer primary-button" type="button" onClick={onOpenThread}>Steer MAX <ArrowRight size={15} /></button>
 			</aside>
@@ -1489,10 +1863,12 @@ function Thread({
 	interviewClosed,
 	messages,
 	commandText,
+	composerFocusTick,
 	onCommandTextChange,
 	onSend,
 	onVoiceSubmit,
 	onResolveDecision,
+	onJumpToDecision,
 	onOpenPeople,
 	onOpenSources,
 	onOpenPackage,
@@ -1507,10 +1883,12 @@ function Thread({
 	interviewClosed: boolean
 	messages: ChatMessage[]
 	commandText: string
+	composerFocusTick: number
 	onCommandTextChange: (value: string) => void
 	onSend: (event: FormEvent) => void
 	onVoiceSubmit: (text: string) => void
 	onResolveDecision: (decision: Exclude<DecisionState, "pending">) => void
+	onJumpToDecision: () => void
 	onOpenPeople: () => void
 	onOpenSources: () => void
 	onOpenPackage: () => void
@@ -1526,11 +1904,61 @@ function Thread({
 	const currentInterviewPrompt = scenario.ownerInterview[Math.min(interviewIndex, scenario.ownerInterview.length - 1)]
 	const scrollRef = useRef<HTMLDivElement>(null)
 	const voiceButtonRef = useRef<HTMLButtonElement>(null)
+	const composerRef = useRef<HTMLTextAreaElement>(null)
+	const mountScrolledRef = useRef(false)
 	const [voiceOpen, setVoiceOpen] = useState(false)
+	const [decisionInView, setDecisionInView] = useState(true)
 	const lastMaxMessage = messages.slice().reverse().find((message) => message.actor === "max")
+	const mentionTargets = useMemo(() => buildMentionTargets(scenarioKey, people), [scenarioKey, people])
+	const jumpFromMention = useCallback((target: MentionTarget) => {
+		if (target === "people") onOpenPeople()
+		else if (target === "sources") onOpenSources()
+		else onOpenPackage()
+	}, [onOpenPeople, onOpenSources, onOpenPackage])
+	const markStreamed = useCallback((id: string) => { STREAMED_MESSAGE_IDS.add(id) }, [])
+	const followStream = useCallback(() => {
+		const log = scrollRef.current
+		if (!log) return
+		if (log.scrollHeight - log.scrollTop - log.clientHeight < 180) log.scrollTo({ top: log.scrollHeight })
+	}, [])
 	useEffect(() => {
-		scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: "smooth" })
-	}, [messages, phase])
+		const log = scrollRef.current
+		if (!log) return
+		if (!mountScrolledRef.current) {
+			// On mount — including resume — land instantly, and land ON the
+			// decision when one is waiting instead of past it.
+			mountScrolledRef.current = true
+			const card = log.querySelector<HTMLElement>(".decision-event")
+			if (card && decisionPending) {
+				const top = card.getBoundingClientRect().top - log.getBoundingClientRect().top + log.scrollTop - Math.max(0, (log.clientHeight - card.clientHeight) / 2)
+				log.scrollTo({ top: Math.max(0, top), behavior: "auto" })
+				return
+			}
+			log.scrollTo({ top: log.scrollHeight, behavior: "auto" })
+			return
+		}
+		// While a decision is waiting, later updates must not steal the scroll
+		// away from the gate — the jump chip handles wayfinding instead.
+		if (decisionPending) return
+		log.scrollTo({ top: log.scrollHeight, behavior: prefersInstantMotion() ? "auto" : "smooth" })
+	}, [messages, phase, decisionPending])
+	useEffect(() => {
+		if (!decisionPending) { setDecisionInView(true); return }
+		if (typeof IntersectionObserver === "undefined") return
+		const log = scrollRef.current
+		const card = log?.querySelector(".decision-event")
+		if (!log || !card) return
+		const observer = new IntersectionObserver(([entry]) => setDecisionInView(entry.isIntersecting), { root: log, threshold: 0.25 })
+		observer.observe(card)
+		return () => observer.disconnect()
+	}, [decisionPending])
+	useEffect(() => {
+		// Autofocus only when the Discovery stage is actually visible — the
+		// portal keeps hidden module stages mounted.
+		const composer = composerRef.current
+		if (!composer?.offsetParent) return
+		composer.focus({ preventScroll: true })
+	}, [composerFocusTick])
 
 	return (
 		<div className="thread-layout">
@@ -1544,12 +1972,13 @@ function Thread({
 					{messages.map((message) => (
 						<div key={message.id} className={message.actor === "user" ? "message user-message" : "message max-message"}>
 							{message.actor === "max" ? <img src={publicAsset("maxion-logo-gradient.svg")} alt="" /> : null}
-							<div className="message-body">
-								{message.actor === "max" ? <span className="message-author">MAX</span> : null}
-								{message.question ? <span className="interview-question-label">{message.question.topic} · {message.question.current} of {message.question.total}</span> : null}
-								<p>{message.text}</p>
-								{message.trace ? <MessageTrace steps={message.trace} /> : null}
-							</div>
+							{message.actor === "max" ? (
+								<MaxMessageBody message={message} fresh={STREAMABLE_MESSAGE_IDS.has(message.id) && !STREAMED_MESSAGE_IDS.has(message.id)} onSettle={markStreamed} targets={mentionTargets} onJump={jumpFromMention} onGrow={followStream} />
+							) : (
+								<div className="message-body">
+									<p>{message.text}</p>
+								</div>
+							)}
 						</div>
 					))}
 					{!interviewing ? (
@@ -1557,7 +1986,7 @@ function Thread({
 							<header><span><i />Autonomy live</span><button type="button" onClick={onOpenAutonomy}>Open autonomy <ArrowRight size={13} /></button></header>
 							<h2>MAX is handling the Discovery in parallel.</h2>
 							<p>Source checks, stakeholder interviews, follow-ups, conflict resolution, risk ownership, and approval preparation stay visible while they run.</p>
-							<div className="autonomy-thread-metrics"><span><strong>{autonomousActions}</strong> verified actions</span><span><strong>{phase >= 2 ? sourceRecords.toLocaleString() : "—"}</strong> records screened</span><span><strong>{stakeholderInterviews}</strong> interviews managed</span><span><strong>{decisionPending ? "1" : "0"}</strong> owner interruptions</span></div>
+							<div className="autonomy-thread-metrics"><span><strong><AnimatedStat value={autonomousActions} /></strong> verified actions</span><span><strong><AnimatedStat value={phase >= 2 ? sourceRecords : null} /></strong> records screened</span><span><strong><AnimatedStat value={stakeholderInterviews} /></strong> interviews managed</span><span><strong>{decisionPending ? "1" : "0"}</strong> owner interruptions</span></div>
 							<footer><span className="work-status-pulse" /><div><strong>{phase >= 7 ? "Autonomous run complete" : OPERATIONS[phase].label}</strong><small>{decisionPending ? "One bounded decision is waiting; every unaffected branch is still moving." : OPERATIONS[phase].detail}</small></div></footer>
 						</section>
 					) : null}
@@ -1588,9 +2017,15 @@ function Thread({
 							<div><strong>{interviewing ? "Listening and building the inquiry map" : OPERATIONS[phase].label}</strong><p>{OPERATIONS[phase].detail}</p></div>
 						</div>
 					) : null}
+					{decisionPending && !decisionInView ? (
+						<button type="button" className="decision-jump-chip" onClick={onJumpToDecision}>
+							<ShieldCheck size={14} weight="fill" /> 1 decision needs you <span>Jump <ArrowRight size={12} weight="bold" /></span>
+						</button>
+					) : null}
 				</div>
 				<form className="command-composer" onSubmit={onSend}>
 					<textarea
+						ref={composerRef}
 						value={commandText}
 						onChange={(event) => onCommandTextChange(event.target.value)}
 						onKeyDown={(event) => {
@@ -1604,7 +2039,6 @@ function Thread({
 					/>
 					<div className="composer-footer">
 						<div>
-							<button type="button"><Plus size={16} /> Attach</button>
 							<button ref={voiceButtonRef} className="voice-launch-button" type="button" onClick={() => setVoiceOpen(true)}><Microphone size={16} /> Voice</button>
 							<span>MAX can read and act within the mission authority</span>
 						</div>
@@ -1640,6 +2074,38 @@ function Thread({
 				questionNumber={interviewIndex + 1}
 				questionTotal={scenario.ownerInterview.length}
 			/>
+		</div>
+	)
+}
+
+function MaxMessageBody({
+	message,
+	fresh,
+	onSettle,
+	targets,
+	onJump,
+	onGrow,
+}: {
+	message: ChatMessage
+	fresh: boolean
+	onSettle: (id: string) => void
+	targets: Map<string, MentionTarget>
+	onJump: (target: MentionTarget) => void
+	onGrow: () => void
+}) {
+	// Capture freshness once — the message must stream exactly once, and a
+	// parent re-render mid-stream must not snap it to the full text.
+	const freshRef = useRef(fresh)
+	useEffect(() => { onSettle(message.id) }, [message.id, onSettle])
+	const streamed = useStreamedText(message.text, freshRef.current)
+	const done = streamed === message.text
+	useEffect(() => { if (!done) onGrow() }, [streamed, done, onGrow])
+	return (
+		<div className="message-body">
+			<span className="message-author">MAX</span>
+			{message.question ? <span className="interview-question-label">{message.question.topic} · {message.question.current} of {message.question.total}</span> : null}
+			<p>{done ? linkifyMentions(message.text, targets, onJump) : <>{streamed}<i className="stream-caret" aria-hidden="true" /></>}</p>
+			{message.trace && done ? <MessageTrace steps={message.trace} /> : null}
 		</div>
 	)
 }
@@ -1889,7 +2355,7 @@ function Deliverables({ scenarioKey, phase, selected, onSelect, onManage }: { sc
 				</nav>
 
 				<section className="deliverable-reader">
-					<div className="reader-heading"><div><p className="eyebrow">{DELIVERABLES[selected].audience}</p><h2>{DELIVERABLES[selected].name}</h2></div>{ready ? <button className="quiet-button" type="button">Open reader <ArrowRight size={14} /></button> : null}</div>
+					<div className="reader-heading"><div><p className="eyebrow">{DELIVERABLES[selected].audience}</p><h2>{DELIVERABLES[selected].name}</h2></div>{ready ? <span className="reader-verified-tag"><CheckCircle size={14} weight="fill" /> Evidence bound</span> : null}</div>
 					{ready ? (
 						<div className="reader-content">
 							<h3>Decision summary</h3>
@@ -1915,7 +2381,33 @@ function DrawerPanel({ type, scenarioKey, people, onPeopleChange, onClose }: { t
 	const scenario = SCENARIOS[scenarioKey]
 	const [adding, setAdding] = useState(false)
 	const [form, setForm] = useState({ name: "", email: "", role: "", department: "", influence: "Medium", focus: "" })
+	const panelRef = useRef<HTMLElement | null>(null)
 	const title = type === "people" ? "Stakeholder program" : type === "sources" ? "Connected sources" : "Deliverable manifest"
+
+	// The drawer is a modal dialog: it takes initial focus and keeps Tab inside.
+	useEffect(() => {
+		const panel = panelRef.current
+		if (!panel) return
+		const first = panel.querySelector<HTMLElement>("button:not(:disabled), [href], input:not(:disabled), select:not(:disabled), textarea:not(:disabled)")
+		;(first ?? panel).focus({ preventScroll: true })
+	}, [])
+
+	const trapTab = (event: React.KeyboardEvent) => {
+		if (event.key !== "Tab") return
+		const panel = panelRef.current
+		if (!panel) return
+		const focusable = Array.from(panel.querySelectorAll<HTMLElement>("button:not(:disabled), [href], input:not(:disabled), select:not(:disabled), textarea:not(:disabled)")).filter((element) => element.offsetParent !== null)
+		if (!focusable.length) return
+		const first = focusable[0]
+		const last = focusable[focusable.length - 1]
+		if (event.shiftKey && (document.activeElement === first || document.activeElement === panel)) {
+			event.preventDefault()
+			last.focus()
+		} else if (!event.shiftKey && document.activeElement === last) {
+			event.preventDefault()
+			first.focus()
+		}
+	}
 
 	const submitPerson = (event: FormEvent) => {
 		event.preventDefault()
@@ -1938,18 +2430,18 @@ function DrawerPanel({ type, scenarioKey, people, onPeopleChange, onClose }: { t
 	return (
 		<>
 			<motion.button className="drawer-backdrop" type="button" aria-label="Close panel" onClick={onClose} initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} />
-			<motion.aside className="drawer" role="dialog" aria-modal="true" aria-label={title} initial={{ x: "100%" }} animate={{ x: 0 }} exit={{ x: "100%" }} transition={{ duration: 0.28, ease: [0.16, 1, 0.3, 1] }}>
+			<motion.aside ref={panelRef} className="drawer" role="dialog" aria-modal="true" aria-label={title} tabIndex={-1} onKeyDown={trapTab} initial={{ x: "100%" }} animate={{ x: 0 }} exit={{ x: "100%" }} transition={{ duration: 0.28, ease: [0.16, 1, 0.3, 1] }}>
 				<header><div><p className="eyebrow">Discovery setup</p><h2>{title}</h2></div><IconButton label="Close panel" onClick={onClose}><X size={18} /></IconButton></header>
 				{type === "people" ? (
-					<div className="drawer-content people-drawer">
+					<div className="drawer-content people-drawer" tabIndex={0}>
 						<div className="drawer-intro"><p>MAX identified these roles from the mission and source gaps. Interview focus and channel remain editable.</p><button className="quiet-button" type="button" onClick={() => setAdding((current) => !current)}><Plus size={16} /> Add stakeholder</button></div>
 						<AnimatePresence initial={false}>{adding ? <motion.form className="add-person-form" onSubmit={submitPerson} initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: "auto" }} exit={{ opacity: 0, height: 0 }}><label><span>Name</span><input value={form.name} onChange={(event) => setForm({ ...form, name: event.target.value })} required /></label><label><span>Email</span><input type="email" value={form.email} onChange={(event) => setForm({ ...form, email: event.target.value })} required /></label><label><span>Role</span><input value={form.role} onChange={(event) => setForm({ ...form, role: event.target.value })} required /></label><label><span>Department</span><input value={form.department} onChange={(event) => setForm({ ...form, department: event.target.value })} /></label><label><span>Influence</span><select value={form.influence} onChange={(event) => setForm({ ...form, influence: event.target.value })}><option>High</option><option>Medium</option></select></label><label className="full"><span>Interview focus</span><textarea value={form.focus} onChange={(event) => setForm({ ...form, focus: event.target.value })} /></label><div className="form-actions"><button className="quiet-button" type="button" onClick={() => setAdding(false)}>Cancel</button><button className="primary-button" type="submit">Add to program</button></div></motion.form> : null}</AnimatePresence>
-						<div className="person-list">{people.map((person) => <div className="person-row" key={person.id}><div className="person-avatar">{person.initials}</div><div className="person-main"><strong>{person.name}</strong><p>{person.role} · {person.department}</p><span>{person.email}</span><div className="person-focus"><em>Interview focus</em>{person.focus}</div></div><div className="person-meta"><span>{person.influence} influence</span><strong>{person.channel}</strong><button type="button" aria-label={`Edit ${person.name}`}><GearSix size={15} /></button></div></div>)}</div>
+						<div className="person-list">{people.map((person) => <div className="person-row" key={person.id}><div className="person-avatar">{person.initials}</div><div className="person-main"><strong>{person.name}</strong><p>{person.role} · {person.department}</p><span>{person.email}</span><div className="person-focus"><em>Interview focus</em>{person.focus}</div></div><div className="person-meta"><span>{person.influence} influence</span><strong>{person.channel}</strong></div></div>)}</div>
 					</div>
 				) : type === "sources" ? (
-					<div className="drawer-content"><div className="drawer-intro"><p>Available integrations are bound automatically when the mission is created. MAX reads only the scopes shown below.</p><span className="verified-label"><CheckCircle size={15} weight="fill" /> All healthy</span></div><div className="source-drawer-list">{scenario.sources.map((source) => <div key={source.name}><span className="source-icon"><Database size={18} /></span><div><strong>{source.name}</strong><p>{source.system} · {source.scope}</p><span>{source.records} · indexed incrementally</span></div><button className="text-button" type="button">Review scope</button></div>)}</div></div>
+					<div className="drawer-content" tabIndex={0}><div className="drawer-intro"><p>Available integrations are bound automatically when the mission is created. MAX reads only the scopes shown below.</p><span className="verified-label"><CheckCircle size={15} weight="fill" /> All healthy</span></div><div className="source-drawer-list">{scenario.sources.map((source) => <div key={source.name}><span className="source-icon"><Database size={18} /></span><div><strong>{source.name}</strong><p>{source.system} · {source.scope}</p><span>{source.records} · indexed incrementally</span></div><span className="scope-fact"><CheckCircle size={14} weight="fill" /> Scope verified</span></div>)}</div></div>
 				) : (
-					<div className="drawer-content"><div className="drawer-intro"><p>The manifest is internal operating state, not another artifact to generate. It refines with evidence and freezes at readiness.</p><span className="verified-label"><CheckCircle size={15} weight="fill" /> Auto-managed</span></div><div className="manifest-list">{DELIVERABLES.map((deliverable) => <label key={deliverable.name}><input type="checkbox" defaultChecked /><span><strong>{deliverable.name}</strong><p>{deliverable.audience} · {deliverable.rationale}</p></span></label>)}</div><div className="manifest-policy"><ShieldCheck size={18} weight="fill" /><div><strong>Material changes interrupt</strong><p>Removing a required output, expanding external distribution, or replacing an approved artifact creates an exception. Routine refinements apply automatically.</p></div></div></div>
+					<div className="drawer-content" tabIndex={0}><div className="drawer-intro"><p>The manifest is internal operating state, not another artifact to generate. It refines with evidence and freezes at readiness.</p><span className="verified-label"><CheckCircle size={15} weight="fill" /> Auto-managed</span></div><div className="manifest-list">{DELIVERABLES.map((deliverable) => <label key={deliverable.name}><input type="checkbox" defaultChecked /><span><strong>{deliverable.name}</strong><p>{deliverable.audience} · {deliverable.rationale}</p></span></label>)}</div><div className="manifest-policy"><ShieldCheck size={18} weight="fill" /><div><strong>Material changes interrupt</strong><p>Removing a required output, expanding external distribution, or replacing an approved artifact creates an exception. Routine refinements apply automatically.</p></div></div></div>
 				)}
 			</motion.aside>
 		</>
