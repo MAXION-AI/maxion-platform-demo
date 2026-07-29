@@ -159,7 +159,7 @@
 
 .maxion-platform-prototype .apn-rail > nav button.is-active {
 	background: var(--mxp-dark-raised);
-	box-shadow: inset 2px 0 0 var(--mxp-accent);
+	/* Marker geometry is owned by plan-agentic.css — the rail knows which edge it sits on. */
 }
 
 .maxion-platform-prototype .apn-live-dot,

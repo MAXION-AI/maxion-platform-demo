@@ -791,15 +791,14 @@ function PlanWorkspaceModule({ live, onBack, onCommand, onSendToExecute }: { liv
 	return (
 		<div className="apn-shell">
 			<aside className="apn-rail">
-				<header><button type="button" aria-label="All plans" onClick={onBack}><ArrowLeft size={15} /><span>All plans</span></button><div><MaxionSpiralMark /><span><small>PLAN</small><strong>ERP modernization</strong></span></div></header>
-				<nav aria-label="Plan workspace">{navigation.map(([id, Icon, label, count]) => <button key={id} type="button" className={view === id ? "is-active" : ""} disabled={!complete && id !== "run" && id !== "evidence"} title={!complete && id !== "run" && id !== "evidence" ? "Available when this pass lands" : undefined} onClick={() => setView(id)}><Icon size={16} /><span>{label}</span>{count ? <small>{count}</small> : null}</button>)}</nav>
-				<footer><div><span className={`apn-live-dot${!complete ? " is-working" : ""}`} /><p><strong>{complete ? "MAX is maintaining this plan" : "MAX is working"}</strong><small>{complete ? "Watching evidence drift" : PLAN_RUN_STAGES[stage].live}</small></p></div><button type="button" aria-label="Search plan" onClick={onCommand}><MagnifyingGlass size={15} /></button></footer>
+				<nav aria-label="Plan workspace">{navigation.map(([id, Icon, label, count]) => <button key={id} type="button" className={view === id ? "is-active" : ""} disabled={!complete && id !== "run" && id !== "evidence"} title={!complete && id !== "run" && id !== "evidence" ? "Available when this pass lands" : undefined} onClick={(event) => { event.currentTarget.blur(); setView(id) }}><Icon size={16} /><span>{label}</span>{count ? <small>{count}</small> : null}</button>)}</nav>
 			</aside>
 
 			<section className="apn-workspace">
 				<header className="apn-topbar">
-					<div><button type="button" className="apn-mobile-back" onClick={onBack}><ArrowLeft size={14} />Plans</button><span>ERP modernization delivery plan</span><button type="button" className="apn-snapshot" onClick={() => { if (complete) setView("revisions") }}>Verified Discovery · snapshot {snapshot}</button></div>
+					<div><button type="button" className="apn-back" onClick={onBack}><ArrowLeft size={15} /><span>All plans</span></button><button type="button" className="apn-mobile-back" onClick={onBack}><ArrowLeft size={14} />Plans</button><div className="apn-topbar-title"><span>ERP modernization delivery plan</span><button type="button" className="apn-snapshot" onClick={() => { if (complete) setView("revisions") }}>Verified Discovery · snapshot {snapshot}</button></div></div>
 					<div>
+						<button type="button" className="apn-search-btn" aria-label="Search plan" title="Search the plan" onClick={onCommand}><MagnifyingGlass size={15} /></button>
 						<span className={`apn-autonomy${!complete ? " is-working" : ""}`}><i />{complete ? "MAX maintaining this plan" : `MAX working · ${PLAN_RUN_STAGES[stage].live.toLowerCase()}`}</span>
 						<span className="apn-run-meta">{complete ? `${passCount} passes · 18m · 3 conflicts resolved` : `pass 1 · ${PLAN_LIVE_TIMES[Math.min(stage, PLAN_LIVE_TIMES.length - 1)]} elapsed`}</span>
 						<button

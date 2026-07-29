@@ -1157,7 +1157,7 @@
 .apn-rail > nav button:focus-visible,
 .apn-rail > header > button:focus-visible,
 .apn-rail > footer button:focus-visible {
-	outline: 2px solid #9edbda;
+	outline: 2px solid rgba(255, 255, 255, .55);
 	outline-offset: 2px;
 }
 
@@ -2041,17 +2041,7 @@
 	.apn-shell:has(.apn-architecture-view) { grid-template-columns: minmax(0, 1fr) 196px; }
 }
 
-/* Desktop right-side rail: active marker and tooltip flyouts mirror. */
-@media (min-width: 721px) {
-	.apn-rail > nav button.is-active { box-shadow: inset -2px 0 0 var(--apn-accent); }
-	.apn-rail > nav button > span {
-		right: calc(100% + 11px);
-		left: auto;
-		transform: translate(4px, -50%);
-	}
-	.apn-rail > nav button:hover > span,
-	.apn-rail > nav button:focus-visible > span { transform: translate(0, -50%); }
-}
+/* Right-side rail mirroring lives in the v6 correction block at end of file. */
 
 /* Below 721px the rail is a horizontal bar again — restore stacking. */
 @media (max-width: 720px) {
@@ -2059,4 +2049,52 @@
 	.apn-shell:has(.apn-architecture-view) { grid-template-columns: 1fr; }
 	.apn-rail { grid-row: 1; grid-column: 1; }
 	.apn-workspace { grid-row: 2; grid-column: 1; }
+}
+
+/* ————————————————————————————————————————————————————————————————
+   Plan workspace v6 — the rail earns its keep. Back navigation moves
+   to the workspace's top-left, search becomes a labeled topbar control,
+   the orphaned brand mark and status dot are gone, and the rail's warm
+   olive palette is neutralized to the MAXION panel's cool dark so the
+   two panels read as one system.
+   ———————————————————————————————————————————————————————————————— */
+
+.apn-shell { --apn-sidebar: #0d1213; --apn-sidebar-panel: #141b1c; }
+.apn-rail { background: var(--apn-sidebar); }
+.apn-rail > nav { align-content: start; padding-top: 14px; }
+.apn-rail > nav button { color: #9aa5a4; }
+.apn-rail > nav button:hover { background: rgba(255, 255, 255, .05); color: #e9efee; }
+.apn-rail > nav button.is-active { background: var(--apn-sidebar-panel); color: #fff; }
+.apn-rail > nav button small { background: rgba(255, 255, 255, .09); color: #b7c1c0; }
+.apn-rail > nav button:disabled { opacity: .34; }
+.apn-rail > nav button > span { border-color: rgba(255, 255, 255, .09); background: #121a1b; color: #e9efee; }
+
+/* Back where backs live: top-left of the workspace. */
+.apn-topbar > div:first-child { flex-direction: row; align-items: center; gap: 6px; }
+.apn-topbar .apn-back { display: inline-flex; align-items: center; gap: 7px; min-height: 31px; padding: 0 10px 0 7px; border: 0; border-radius: 7px; background: transparent; color: var(--apn-muted); font-size: 10px; font-weight: 600; cursor: pointer; }
+.apn-topbar .apn-back:hover { background: #eef1ef; color: var(--apn-ink); }
+.apn-topbar .apn-back:focus-visible { outline: 2px solid var(--apn-accent-deep); outline-offset: 2px; }
+.apn-topbar-title { display: flex; min-width: 0; flex-direction: column; align-items: flex-start; gap: 1px; padding-left: 6px; border-left: 1px solid var(--apn-line); }
+
+/* Search is a labeled control, not a mystery glyph. */
+.apn-topbar .apn-search-btn { display: grid; width: 31px; height: 31px; place-items: center; padding: 0; border: 1px solid var(--apn-line-strong); border-radius: 7px; background: #fff; color: #53564f; cursor: pointer; }
+.apn-topbar .apn-search-btn:hover { border-color: #b9bcb2; background: #f6f6f2; }
+
+@media (max-width: 720px) {
+	.apn-topbar .apn-back { display: none; }
+	.apn-topbar-title { display: none; }
+	.apn-rail > nav { padding-top: 7px; }
+}
+
+/* v6.1 — right-rail mirroring, consolidated with specificity that wins. */
+@media (min-width: 721px) {
+	.apn-shell .apn-rail > nav button.is-active { box-shadow: inset -2px 0 0 var(--apn-accent); }
+}
+@media (min-width: 721px) and (max-width: 1399px) {
+	.apn-shell .apn-rail > nav button > span { right: calc(100% + 11px); left: auto; transform: translate(4px, -50%); }
+	.apn-shell .apn-rail > nav button:hover > span,
+	.apn-shell .apn-rail > nav button:focus-visible > span { transform: translate(0, -50%); }
+}
+@media (min-width: 1400px) {
+	.apn-shell .apn-rail > nav button > span { transform: none; }
 }
