@@ -871,70 +871,75 @@ function PlanHomeView({ live, stage, complete, passCount, onSkip, clarificationR
 	return (
 		<main className="apn-main apn-home">
 			<div className="apn-run-column">
-				<section className={`apn-run-hero${!complete ? " is-live" : ""}`}>
-					<span><i />{complete ? "MAX is maintaining this plan" : "MAX is running pass 1"}</span>
+				<section className={`apn-home-status${!complete ? " is-live" : ""}`} aria-label="Plan status">
+					<span className="apn-home-badge"><i />{complete ? "MAX is maintaining this plan" : "MAX is running pass 1"}</span>
 					<h1>{complete ? "MAX built the implementation plan." : "MAX is building the implementation plan."}</h1>
-					<p>{complete ? "The architecture is executable, the team boundaries are explicit, and every contract traces back to evidence. MAX interrupts you only where a consequential decision cannot be inferred safely." : "MAX is reading the verified context, reconciling conflicts, and decomposing the work. It will interrupt you only where a consequential decision cannot be inferred safely."}</p>
-					{complete ? <small className="apn-home-meta">{passCount} passes · 18m · 124 claims · 3 conflicts resolved · 2 owners interviewed</small> : null}
+					{complete ? <small className="apn-home-meta">{passCount} passes · 18m · 124 claims · 3 conflicts resolved · 2 owners interviewed</small> : <small className="apn-home-meta">Reading the verified context, reconciling conflicts, and decomposing the work.</small>}
 					{!complete ? <button type="button" className="apn-skip-run" onClick={onSkip}>Skip to the finished plan<ArrowRight size={13} /></button> : null}
 				</section>
 
-				{complete && !clarificationResolved ? <PlanDecisionCard resolved={false} onResolve={onResolve} onOpenContract={onOpenContract} /> : null}
-				{complete && clarificationResolved && !approved ? (
-					<section className="apn-home-prompt" aria-label="Next step">
-						<div><ShieldCheck size={16} /><span><strong>Your approval is the last gate.</strong><small>Grant Execute the approved L3 and L4 scope — build authority only, no production effect.</small></span></div>
-						<button type="button" onClick={onOpenDecisions}>Review and approve<ArrowRight size={14} /></button>
+				{complete ? (
+					<section className="apn-needs-you" aria-label="Work that needs you">
+						<header><span>{clarificationResolved && approved ? "Nothing needs you" : "Needs you first"}</span>{!clarificationResolved || !approved ? <small>{Number(!clarificationResolved) + Number(!approved)} open</small> : null}</header>
+						{!clarificationResolved ? <PlanDecisionCard resolved={false} onResolve={onResolve} onOpenContract={onOpenContract} /> : null}
+						{clarificationResolved && !approved ? (
+							<div className="apn-home-prompt">
+								<div><ShieldCheck size={16} /><span><strong>Your approval is the last gate.</strong><small>Grant Execute the approved L3 and L4 scope — build authority only, no production effect.</small></span></div>
+								<button type="button" onClick={onOpenDecisions}>Review and approve<ArrowRight size={14} /></button>
+							</div>
+						) : null}
+						{clarificationResolved && approved ? (
+							<div className="apn-home-prompt is-ready">
+								<div><CheckCircle size={16} weight="fill" /><span><strong>Plan is ready for Execute.</strong><small>All decisions are recorded and approvals routed — use Send to Execute above.</small></span></div>
+							</div>
+						) : null}
 					</section>
 				) : null}
-				{readyStrip(complete, clarificationResolved, approved)}
+
+				<section className="apn-convo" aria-label="Conversation with MAX">
+					<header><span>Conversation with MAX</span><small>{complete ? "Every direction is previewed before it changes the plan" : PLAN_RUN_STAGES[stage].live}</small></header>
+					<div className="apn-agent-message"><MaxionSpiralMark /><div><strong>MAX</strong><p>{complete ? "I compared the verified Discovery package with connected-system metadata and project governance. I used the safest reversible assumption where the evidence agreed, contacted domain owners where they held the answer, and isolated one remaining decision that changes financial posting behavior." : "I'm comparing the verified Discovery package with connected-system metadata and project governance. Where the evidence agrees I take the safest reversible assumption; where a domain owner holds the answer I ask them directly."}</p></div></div>
+					<details className="apn-agent-thread apn-convo-passes" open={!complete}>
+						<summary><span>How this pass ran</span><small>{complete ? "5 stages · 3 conflicts reconciled · 2 owners interviewed" : PLAN_RUN_STAGES[stage].live}</small><CaretDown size={14} /></summary>
+						<ol>
+							{PLAN_RUN_STAGES.map((step, index) => {
+								if (live && index > stage) return null
+								const working = live && index === stage && !complete
+								return (
+									<li key={step.key} className={working ? "is-working" : "apn-step-entered"}>
+										<span>{working ? <SpinnerGap className="apn-spin" size={12} /> : <Check size={12} />}</span>
+										<div><strong>{working ? step.live : step.done}</strong>{working ? null : <p>{step.detail}</p>}</div>
+										<time>{live ? PLAN_LIVE_TIMES[index] : PLAN_STAGE_TIMES[index]}</time>
+									</li>
+								)
+							})}
+						</ol>
+					</details>
+					<div className="apn-convo-thread" aria-live="polite">
+						{thread.map((entry) => {
+							if (entry.kind === "user") return <div className="apn-user-message" key={entry.id}><span>You · {entry.target ?? "Plan"}</span><p>{entry.text}</p></div>
+							if (entry.kind === "working") return <div className="apn-agent-message is-working" key={entry.id}><MaxionSpiralMark /><div><strong>MAX</strong><p className="apn-working-line"><SpinnerGap className="apn-spin" size={13} />Reading the active context and checking contracts, diagrams, tests, and approvals…</p></div></div>
+							if (entry.kind === "queued") return <div className="apn-thread-outcome is-queued" key={entry.id}><Clock size={13} /><span><strong>Queued for this pass</strong> · {entry.target}</span></div>
+							if (entry.kind === "answer") return <div className="apn-agent-message is-response" key={entry.id}><MaxionSpiralMark /><div><strong>MAX · {entry.target}</strong><p>{entry.text}</p></div></div>
+							return (
+								<div className={`apn-thread-outcome is-${entry.status}`} key={entry.id}>
+									{entry.status === "applied" ? <CheckCircle size={13} weight="fill" /> : entry.status === "discarded" ? <X size={13} /> : <Lightning size={13} weight="fill" />}
+									<span><strong>{entry.status === "applied" ? `Impact applied · snapshot ${entry.revision}` : entry.status === "discarded" ? "Impact discarded" : "Impact preview awaiting your decision"}</strong> · {entry.impact.headline}</span>
+									{entry.status === "applied" ? <button type="button" onClick={onOpenRevisions}>Open revisions<ArrowRight size={12} /></button> : null}
+								</div>
+							)
+						})}
+						{complete && thread.length === 0 ? <p className="apn-convo-empty"><Sparkle size={13} />Steer MAX below — ask it to explain, challenge, or change any part of the plan. Every direction is answered here.</p> : null}
+					</div>
+				</section>
 
 				<section className="apn-home-blueprint" aria-label="What this plan builds">
 					<header><div><span>What this plan builds</span><strong>{PLAN_EXECUTION_BRIEFS.adapter.outcome}</strong></div>{blueprintReady ? <button type="button" onClick={onOpenDesign}>Open the drafting table<ArrowRight size={13} /></button> : null}</header>
 					{blueprintReady ? <PlanSystemBlueprint assembling={live && stage === 3} onOpenFlow={onOpenFlow} /> : <p className="apn-build-strip-waiting"><SpinnerGap className="apn-spin" size={14} />Decomposing the verified context into implementation flows…</p>}
 					{blueprintReady ? <footer><span>ServiceNow · MuleSoft · Workday · SAP · QuickBooks</span><span>5 flows · {PLAN_VIEW_COUNT} views · {PLAN_PACKAGE_COUNT} packages · 124 claims</span></footer> : null}
 				</section>
-
-				<details className="apn-agent-thread" aria-label="Autonomous Plan activity" aria-live="polite" open={!complete || thread.length > 0}>
-					<summary><span>Agent work log</span><small>{complete ? "5 stages · 124 claims · 3 conflicts · 2 owners interviewed" : PLAN_RUN_STAGES[stage].live}</small><CaretDown size={14} /></summary>
-					<div className="apn-agent-message"><MaxionSpiralMark /><div><strong>MAX</strong><p>{complete ? "I compared the verified Discovery package with connected-system metadata and project governance. I used the safest reversible assumption where the evidence agreed, contacted domain owners where they held the answer, and isolated one remaining decision that changes financial posting behavior." : "I'm comparing the verified Discovery package with connected-system metadata and project governance. Where the evidence agrees I take the safest reversible assumption; where a domain owner holds the answer I ask them directly."}</p></div></div>
-					<ol>
-						{PLAN_RUN_STAGES.map((step, index) => {
-							if (live && index > stage) return null
-							const working = live && index === stage && !complete
-							return (
-								<li key={step.key} className={working ? "is-working" : "apn-step-entered"}>
-									<span>{working ? <SpinnerGap className="apn-spin" size={12} /> : <Check size={12} />}</span>
-									<div><strong>{working ? step.live : step.done}</strong>{working ? null : <p>{step.detail}</p>}</div>
-									<time>{live ? PLAN_LIVE_TIMES[index] : PLAN_STAGE_TIMES[index]}</time>
-								</li>
-							)
-						})}
-					</ol>
-					{thread.map((entry) => {
-						if (entry.kind === "user") return <div className="apn-user-message" key={entry.id}><span>You · {entry.target ?? "Plan"}</span><p>{entry.text}</p></div>
-						if (entry.kind === "working") return <div className="apn-agent-message is-working" key={entry.id}><MaxionSpiralMark /><div><strong>MAX</strong><p className="apn-working-line"><SpinnerGap className="apn-spin" size={13} />Reading the active context and checking contracts, diagrams, tests, and approvals…</p></div></div>
-						if (entry.kind === "queued") return <div className="apn-thread-outcome is-queued" key={entry.id}><Clock size={13} /><span><strong>Queued for this pass</strong> · {entry.target}</span></div>
-						if (entry.kind === "answer") return <div className="apn-thread-outcome is-answer" key={entry.id}><Sparkle size={13} weight="fill" /><span><strong>Answered in context</strong> · {entry.target}</span></div>
-						return (
-							<div className={`apn-thread-outcome is-${entry.status}`} key={entry.id}>
-								{entry.status === "applied" ? <CheckCircle size={13} weight="fill" /> : entry.status === "discarded" ? <X size={13} /> : <Lightning size={13} weight="fill" />}
-								<span><strong>{entry.status === "applied" ? `Impact applied · snapshot ${entry.revision}` : entry.status === "discarded" ? "Impact discarded" : "Impact preview awaiting your decision"}</strong> · {entry.impact.headline}</span>
-								{entry.status === "applied" ? <button type="button" onClick={onOpenRevisions}>Open revisions<ArrowRight size={12} /></button> : null}
-							</div>
-						)
-					})}
-				</details>
 			</div>
 		</main>
-	)
-}
-
-function readyStrip(complete: boolean, clarificationResolved: boolean, approved: boolean) {
-	if (!complete || !clarificationResolved || !approved) return null
-	return (
-		<section className="apn-home-prompt is-ready" aria-label="Plan status">
-			<div><CheckCircle size={16} weight="fill" /><span><strong>Plan is ready for Execute.</strong><small>All decisions are recorded and approvals routed — use Send to Execute above.</small></span></div>
-		</section>
 	)
 }
 

@@ -2186,3 +2186,50 @@
 @media (max-width: 720px) {
 	.apn-topbar { padding-left: 58px; }
 }
+
+/* ————————————————————————————————————————————————————————————————
+   Plan home v7.1 — priority first, conversation second.
+   The editorial hero compresses into a status band so the open
+   decision is the first content on landing, and the dialogue with MAX
+   becomes a visible conversation the steering dock feeds.
+   ———————————————————————————————————————————————————————————————— */
+
+.apn-home-status { margin-bottom: 20px; }
+.apn-home-badge { display: inline-flex; align-items: center; gap: 7px; color: var(--apn-accent-deep); font-size: 9px; font-weight: 680; }
+.apn-home-badge i { width: 7px; height: 7px; border-radius: 50%; background: var(--apn-accent); box-shadow: 0 0 0 4px rgba(23,127,124,.11); }
+.apn-home-status.is-live .apn-home-badge { color: var(--apn-amber-ink); }
+.apn-home-status.is-live .apn-home-badge i { background: #d9a13c; box-shadow: 0 0 0 4px rgba(217,161,60,.14); }
+.apn-home-status h1 { margin: 9px 0 4px; font-size: 21px; font-weight: 560; letter-spacing: -.028em; line-height: 1.1; }
+.apn-home-status .apn-home-meta { margin-top: 0; }
+
+.apn-needs-you { margin-bottom: 22px; }
+.apn-needs-you > header { display: flex; align-items: center; gap: 8px; margin-bottom: 10px; }
+.apn-needs-you > header span { color: var(--apn-subtle); font-size: 8.5px; font-weight: 720; letter-spacing: .07em; text-transform: uppercase; }
+.apn-needs-you > header small { min-width: 17px; padding: 2px 6px; border-radius: 9px; background: var(--apn-amber-soft); color: var(--apn-amber-ink); font-size: 8.5px; font-weight: 700; text-align: center; }
+.apn-needs-you .apn-primary-question { margin: 0; }
+.apn-needs-you .apn-home-prompt { margin-bottom: 0; }
+
+.apn-convo { margin-bottom: 22px; overflow: hidden; border: 1px solid #dae2df; border-radius: 11px; background: #fff; }
+.apn-convo > header { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; padding: 13px 16px 10px; border-bottom: 1px solid var(--apn-line); }
+.apn-convo > header span { color: #7c8177; font-size: 8.5px; font-weight: 720; letter-spacing: .06em; text-transform: uppercase; }
+.apn-convo > header small { color: var(--apn-subtle); font-size: 8.5px; }
+.apn-convo > .apn-agent-message { padding: 14px 16px 6px; }
+.apn-convo-passes { margin: 0 16px 6px; border: 1px solid var(--apn-line); border-radius: 9px; background: #fbfcfa; }
+.apn-convo-passes summary { display: flex; align-items: center; gap: 9px; min-height: 36px; padding: 0 12px; color: var(--apn-muted); cursor: pointer; list-style: none; }
+.apn-convo-passes summary::-webkit-details-marker { display: none; }
+.apn-convo-passes summary span { font-size: 9.5px; font-weight: 650; color: #454842; }
+.apn-convo-passes summary small { overflow: hidden; color: var(--apn-subtle); font-size: 8.5px; text-overflow: ellipsis; white-space: nowrap; }
+.apn-convo-passes summary svg:last-child { margin-left: auto; transition: transform 180ms ease; }
+.apn-convo-passes[open] summary svg:last-child { transform: rotate(180deg); }
+.apn-convo-passes ol { margin: 0 12px 10px 22px; }
+.apn-convo-thread { padding: 4px 16px 14px; }
+.apn-convo-thread .apn-user-message { margin-left: 39px; }
+.apn-convo-thread .apn-thread-outcome { margin-left: 39px; }
+.apn-convo-empty { display: flex; align-items: center; gap: 8px; margin: 6px 0 4px 39px; color: var(--apn-subtle); font-size: 10px; }
+.apn-convo-empty svg { color: var(--apn-accent-deep); }
+
+@media (max-width: 720px) {
+	.apn-convo-thread .apn-user-message,
+	.apn-convo-thread .apn-thread-outcome,
+	.apn-convo-empty { margin-left: 0; }
+}
