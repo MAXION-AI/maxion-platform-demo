@@ -36,7 +36,7 @@ test("keeps the canonical MAXION shell functional across core modules", async ({
 	await expect(page.getByRole("heading", { name: "From evidence to implementation-ready" })).toBeVisible()
 	await page.getByRole("button", { name: "Resume plan" }).click()
 	await expect(page.getByRole("heading", { name: "MAX built the implementation plan." })).toBeVisible()
-	await expect(page.getByRole("group", { name: "System blueprint for the five implementation flows" })).toBeVisible()
+	await expect(page.getByRole("region", { name: "Conversation with MAX" })).toBeVisible()
 	await expect(page.getByText(/3 conflicts resolved · 2 owners interviewed/)).toBeVisible()
 	const planComposer = page.getByRole("textbox", { name: "Steer the Plan agent" })
 	await planComposer.fill("Keep the ServiceNow adapter behind the existing gateway.")

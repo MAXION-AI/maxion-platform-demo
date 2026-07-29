@@ -133,7 +133,8 @@ describe("MaxionPlatformPrototypePage", () => {
 		fireEvent.click(screen.getByRole("button", { name: "Resume plan" }))
 
 		expect(screen.getAllByText("MAX is maintaining this plan").length).toBeGreaterThan(0)
-		expect(screen.getByRole("group", { name: "System blueprint for the five implementation flows" })).toBeInTheDocument()
+		expect(screen.getByText("Conversation with MAX")).toBeInTheDocument()
+		expect(screen.getByText("Needs you first")).toBeInTheDocument()
 		expect(screen.getByText(/124 claims · 3 conflicts resolved/)).toBeInTheDocument()
 		const planComposer = screen.getByRole("textbox", { name: "Steer the Plan agent" })
 		fireEvent.change(planComposer, { target: { value: "Keep the ServiceNow adapter behind the existing gateway." } })

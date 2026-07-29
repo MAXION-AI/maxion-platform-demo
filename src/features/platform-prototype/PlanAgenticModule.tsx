@@ -830,7 +830,7 @@ function PlanWorkspaceModule({ live, onBack, onCommand, onSendToExecute }: { liv
 					))}
 				</nav>
 
-				{view === "plan" ? <PlanHomeView live={live} stage={stage} complete={complete} passCount={passCount} onSkip={() => setStage(PLAN_RUN_STAGES.length)} clarificationResolved={clarificationResolved} approved={approved} onResolve={resolveClarification} onApprove={() => setApproved(true)} thread={thread} onOpenFlow={(flowId) => openFlow(flowId, "L2")} onOpenDesign={() => openFlow("adapter", "L2")} onOpenDecisions={() => openLedger("decisions")} onOpenRevisions={() => openLedger("history")} onOpenContract={() => openFlow("adapter", "L3")} /> : null}
+				{view === "plan" ? <PlanHomeView live={live} stage={stage} complete={complete} passCount={passCount} onSkip={() => setStage(PLAN_RUN_STAGES.length)} clarificationResolved={clarificationResolved} approved={approved} onResolve={resolveClarification} onApprove={() => setApproved(true)} thread={thread} onOpenDesign={() => openFlow("system", "L2")} onOpenDecisions={() => openLedger("decisions")} onOpenRevisions={() => openLedger("history")} onOpenContract={() => openFlow("adapter", "L3")} /> : null}
 				{view === "design" ? <PlanDesignView selectedFlowId={selectedFlowId} level={level} onLevelChange={setLevel} onSelectFlow={setSelectedFlowId} onSteerNode={steerOnNode} /> : null}
 				{view === "ledger" ? <PlanLedgerView section={ledgerSection} onSectionChange={setLedgerSection} revisions={revisions} clarificationResolved={clarificationResolved} approved={approved} onResolve={resolveClarification} onApprove={() => setApproved(true)} onOpenContract={() => openFlow("adapter", "L3")} /> : null}
 				<PlanSteeringDock
@@ -871,11 +871,15 @@ function PlanSpineApproval({ request, onApprove, onOpenDecisions }: { request: P
 				<div><small>{request.youOwn ? "Your approval" : `Waiting on ${request.name}`}</small><strong>{request.scope}</strong></div>
 				<i><ShieldCheck size={13} />Decision needed</i>
 			</header>
-			<dl>
-				<div><dt>Approver</dt><dd>{request.name} · {request.role}</dd></div>
-				<div><dt>Why this approver</dt><dd>{request.basis}</dd></div>
-			</dl>
-			<p className="apn-spine-approval-scope"><ShieldCheck size={13} />Grants build authority only — no provider writes, no deployment approval. The L2 boundary, L3 contracts, L4 sequence, tests, evidence, and rollback travel with the request.</p>
+			<p className="apn-spine-approval-line"><strong>{request.name}</strong> · {request.role} — grants build authority only, no provider writes or deployment approval.</p>
+			<details className="apn-spine-decision-more">
+				<summary><CaretDown size={13} />Show why this approver and what travels with the request</summary>
+				<dl>
+					<div><dt>Why this approver</dt><dd>{request.basis}</dd></div>
+					<div><dt>Delivered</dt><dd>{request.channel}</dd></div>
+				</dl>
+				<p className="apn-spine-approval-scope"><ShieldCheck size={13} />The L2 boundary, L3 contracts, L4 sequence, test gates, evidence, and rollback instructions travel with this request.</p>
+			</details>
 			<footer>
 				<button type="button" onClick={onOpenDecisions}>Open full request</button>
 				{request.youOwn ? <button type="button" className="apn-spine-approve" onClick={onApprove}><ShieldCheck size={14} />Approve implementation boundary</button> : <span className="apn-spine-waiting"><Clock size={13} />{request.channel}</span>}
@@ -897,56 +901,91 @@ function PlanDecisionCard({ resolved, onResolve, onOpenContract }: { resolved: b
 	)
 }
 
-function PlanHomeView({ live, stage, complete, passCount, onSkip, clarificationResolved, approved, onResolve, onApprove, thread, onOpenFlow, onOpenDesign, onOpenDecisions, onOpenRevisions, onOpenContract }: { live: boolean; stage: number; complete: boolean; passCount: number; onSkip: () => void; clarificationResolved: boolean; approved: boolean; onResolve: () => void; onApprove: () => void; thread: PlanThreadEntry[]; onOpenFlow: (flowId: string) => void; onOpenDesign: () => void; onOpenDecisions: () => void; onOpenRevisions: () => void; onOpenContract: () => void }) {
-	const blueprintReady = complete || stage > 3
+function PlanSpineDecision({ onResolve, onOpenContract, onOpenDecisions }: { onResolve: () => void; onOpenContract: () => void; onOpenDecisions: () => void }) {
+	const [answer, setAnswer] = useState("")
+	return (
+		<article className="apn-spine-decision" aria-label="Open design decision">
+			<header>
+				<span><ChatCircleText size={15} /></span>
+				<div><small>Business authority required</small><strong>Should a Workday journal batch fail atomically or allow partial posting?</strong></div>
+				<i>Blocks INT-02</i>
+			</header>
+			<div className="apn-spine-decision-rec">
+				<MaxionSpiralMark variant="current" className="apn-inline-mark" />
+				<div><small>MAX recommends</small><strong>Fail the batch atomically before posting any journal line.</strong><p>Preserves the ServiceNow approval boundary, avoids unapproved partial financial effects, and produces one replay-safe result.</p><div><code>INT-02</code><code>MULE-202</code><code>WDAY-301</code><code>6 acceptance tests</code></div></div>
+			</div>
+			<details className="apn-spine-decision-more">
+				<summary><CaretDown size={13} />Show the evidence conflict and alternatives</summary>
+				<section className="apn-evidence-conflict"><article><small>ServiceNow evidence</small><strong>Approval applies to the complete requested journal.</strong><span>Change policy FIN-18 · confidence 0.96</span></article><i>conflicts with</i><article><small>Workday capability</small><strong>The API can classify errors at individual journal-line level.</strong><span>Tenant metadata · confidence 0.99</span></article></section>
+				<form onSubmit={(event) => { event.preventDefault(); if (answer.trim()) onResolve() }}>
+					<label htmlFor="plan-spine-answer">Use another decision</label>
+					<textarea id="plan-spine-answer" value={answer} onChange={(event) => setAnswer(event.target.value)} placeholder="Explain the required posting behavior or constraint…" rows={2} />
+					<div><button type="button" onClick={onOpenContract}>Inspect affected contract</button><button type="submit" disabled={!answer.trim()}>Apply my decision</button></div>
+				</form>
+			</details>
+			<footer>
+				<button type="button" onClick={onOpenDecisions}>Open full decision</button>
+				<button type="button" className="apn-spine-approve" onClick={onResolve}><Check size={14} />Accept atomic posting</button>
+			</footer>
+		</article>
+	)
+}
+
+function PlanHomeView({ live, stage, complete, passCount, onSkip, clarificationResolved, approved, onResolve, onApprove, thread, onOpenDesign, onOpenDecisions, onOpenRevisions, onOpenContract }: { live: boolean; stage: number; complete: boolean; passCount: number; onSkip: () => void; clarificationResolved: boolean; approved: boolean; onResolve: () => void; onApprove: () => void; thread: PlanThreadEntry[]; onOpenDesign: () => void; onOpenDecisions: () => void; onOpenRevisions: () => void; onOpenContract: () => void }) {
 	const approvals = planApprovalRequests(approved)
 	const pendingApprovals = approvals.filter((request) => request.status === "Decision needed")
 	const recordedApprovals = approvals.filter((request) => request.status === "Approved")
 	const openCount = Number(!clarificationResolved) + pendingApprovals.length
 	return (
 		<main className="apn-main apn-home">
-			<div className="apn-run-column">
-				<section className={`apn-home-status${!complete ? " is-live" : ""}`} aria-label="Plan status">
+			<section className={`apn-home-status${!complete ? " is-live" : ""}`} aria-label="Plan status">
+				<div>
 					<span className="apn-home-badge"><i />{complete ? "MAX is maintaining this plan" : "MAX is running pass 1"}</span>
 					<h1>{complete ? "MAX built the implementation plan." : "MAX is building the implementation plan."}</h1>
-					{complete ? <small className="apn-home-meta">{passCount} passes · 18m · 124 claims · 3 conflicts resolved · 2 owners interviewed</small> : <small className="apn-home-meta">Reading the verified context, reconciling conflicts, and decomposing the work.</small>}
+					<small className="apn-home-meta">{complete ? `${passCount} passes · 18m · 124 claims · 3 conflicts resolved · 2 owners interviewed` : "Reading the verified context, reconciling conflicts, and decomposing the work."}</small>
+				</div>
+				<div className="apn-home-status-actions">
 					{!complete ? <button type="button" className="apn-skip-run" onClick={onSkip}>Skip to the finished plan<ArrowRight size={13} /></button> : null}
-				</section>
+					{complete ? <button type="button" className="apn-home-design-link" onClick={onOpenDesign}><TreeStructure size={14} />5 flows · {PLAN_VIEW_COUNT} views · {PLAN_PACKAGE_COUNT} packages<ArrowRight size={13} /></button> : null}
+				</div>
+			</section>
 
-				{complete ? (
-					<section className="apn-needs-you" aria-label="Work that needs you">
-						<header><span>{openCount === 0 ? "Nothing needs you" : "Needs you first"}</span>{openCount ? <small>{openCount} open</small> : null}</header>
-						{!clarificationResolved ? <PlanDecisionCard resolved={false} onResolve={onResolve} onOpenContract={onOpenContract} /> : null}
-						{pendingApprovals.map((request) => <PlanSpineApproval key={request.id} request={request} onApprove={onApprove} onOpenDecisions={onOpenDecisions} />)}
-						{recordedApprovals.length ? <button type="button" className="apn-spine-recorded" onClick={onOpenDecisions}><CheckCircle size={13} weight="fill" />{recordedApprovals.length} approval{recordedApprovals.length === 1 ? "" : "s"} already recorded · {recordedApprovals.map((request) => request.name).join(" · ")}<ArrowRight size={12} /></button> : null}
-						{openCount === 0 ? (
+			<div className="apn-home-grid">
+				<section className="apn-home-col apn-needs-you" aria-label="Work that needs you">
+					<header><span>{openCount === 0 ? "Nothing needs you" : "Needs you first"}</span>{openCount ? <small>{openCount} open</small> : null}</header>
+					<div className="apn-home-col-body">
+						{!complete ? <p className="apn-build-strip-waiting"><SpinnerGap className="apn-spin" size={14} />MAX will surface the exact decisions it needs when this pass lands.</p> : null}
+						{complete && !clarificationResolved ? <PlanSpineDecision onResolve={onResolve} onOpenContract={onOpenContract} onOpenDecisions={onOpenDecisions} /> : null}
+						{complete ? pendingApprovals.map((request) => <PlanSpineApproval key={request.id} request={request} onApprove={onApprove} onOpenDecisions={onOpenDecisions} />) : null}
+						{complete && openCount === 0 ? (
 							<div className="apn-home-prompt is-ready">
 								<div><CheckCircle size={16} weight="fill" /><span><strong>Plan is ready for Execute.</strong><small>All decisions are recorded and approvals routed — use Send to Execute above.</small></span></div>
 							</div>
 						) : null}
-					</section>
-				) : null}
+						{complete && recordedApprovals.length ? <button type="button" className="apn-spine-recorded" onClick={onOpenDecisions}><CheckCircle size={13} weight="fill" />{recordedApprovals.length} approval{recordedApprovals.length === 1 ? "" : "s"} recorded · {recordedApprovals.map((request) => request.name).join(" · ")}<ArrowRight size={12} /></button> : null}
+					</div>
+				</section>
 
-				<section className="apn-convo" aria-label="Conversation with MAX">
-					<header><span>Conversation with MAX</span><small>{complete ? "Every direction is previewed before it changes the plan" : PLAN_RUN_STAGES[stage].live}</small></header>
-					<div className="apn-agent-message"><MaxionSpiralMark /><div><strong>MAX</strong><p>{complete ? "I compared the verified Discovery package with connected-system metadata and project governance. I used the safest reversible assumption where the evidence agreed, contacted domain owners where they held the answer, and isolated one remaining decision that changes financial posting behavior." : "I'm comparing the verified Discovery package with connected-system metadata and project governance. Where the evidence agrees I take the safest reversible assumption; where a domain owner holds the answer I ask them directly."}</p></div></div>
-					<details className="apn-agent-thread apn-convo-passes" open={!complete}>
-						<summary><span>How this pass ran</span><small>{complete ? "5 stages · 3 conflicts reconciled · 2 owners interviewed" : PLAN_RUN_STAGES[stage].live}</small><CaretDown size={14} /></summary>
-						<ol>
-							{PLAN_RUN_STAGES.map((step, index) => {
-								if (live && index > stage) return null
-								const working = live && index === stage && !complete
-								return (
-									<li key={step.key} className={working ? "is-working" : "apn-step-entered"}>
-										<span>{working ? <SpinnerGap className="apn-spin" size={12} /> : <Check size={12} />}</span>
-										<div><strong>{working ? step.live : step.done}</strong>{working ? null : <p>{step.detail}</p>}</div>
-										<time>{live ? PLAN_LIVE_TIMES[index] : PLAN_STAGE_TIMES[index]}</time>
-									</li>
-								)
-							})}
-						</ol>
-					</details>
-					<div className="apn-convo-thread" aria-live="polite">
+				<section className="apn-home-col apn-convo" aria-label="Conversation with MAX">
+					<header><span>Conversation with MAX</span><small>{complete ? "Every direction is previewed first" : PLAN_RUN_STAGES[stage].live}</small></header>
+					<div className="apn-home-col-body apn-convo-thread" aria-live="polite">
+						<div className="apn-agent-message"><MaxionSpiralMark /><div><strong>MAX</strong><p>{complete ? "I compared the verified Discovery package with connected-system metadata and project governance. I used the safest reversible assumption where the evidence agreed, contacted domain owners where they held the answer, and isolated one remaining decision that changes financial posting behavior." : "I'm comparing the verified Discovery package with connected-system metadata and project governance. Where the evidence agrees I take the safest reversible assumption; where a domain owner holds the answer I ask them directly."}</p></div></div>
+						<details className="apn-agent-thread apn-convo-passes" open={!complete}>
+							<summary><span>How this pass ran</span><small>{complete ? "5 stages" : PLAN_RUN_STAGES[stage].live}</small><CaretDown size={14} /></summary>
+							<ol>
+								{PLAN_RUN_STAGES.map((step, index) => {
+									if (live && index > stage) return null
+									const working = live && index === stage && !complete
+									return (
+										<li key={step.key} className={working ? "is-working" : "apn-step-entered"}>
+											<span>{working ? <SpinnerGap className="apn-spin" size={12} /> : <Check size={12} />}</span>
+											<div><strong>{working ? step.live : step.done}</strong>{working ? null : <p>{step.detail}</p>}</div>
+											<time>{live ? PLAN_LIVE_TIMES[index] : PLAN_STAGE_TIMES[index]}</time>
+										</li>
+									)
+								})}
+							</ol>
+						</details>
 						{thread.map((entry) => {
 							if (entry.kind === "user") return <div className="apn-user-message" key={entry.id}><span>You · {entry.target ?? "Plan"}</span><p>{entry.text}</p></div>
 							if (entry.kind === "working") return <div className="apn-agent-message is-working" key={entry.id}><MaxionSpiralMark /><div><strong>MAX</strong><p className="apn-working-line"><SpinnerGap className="apn-spin" size={13} />Reading the active context and checking contracts, diagrams, tests, and approvals…</p></div></div>
@@ -960,20 +999,13 @@ function PlanHomeView({ live, stage, complete, passCount, onSkip, clarificationR
 								</div>
 							)
 						})}
-						{complete && thread.length === 0 ? <p className="apn-convo-empty"><ChatCircleText size={13} />Steer MAX below — ask it to explain, challenge, or change any part of the plan. Every direction is answered here.</p> : null}
+						{complete && thread.length === 0 ? <p className="apn-convo-empty"><ChatCircleText size={13} />Steer MAX below — ask it to explain, challenge, or change any part of the plan.</p> : null}
 					</div>
-				</section>
-
-				<section className="apn-home-blueprint" aria-label="What this plan builds">
-					<header><div><span>What this plan builds</span><strong>{PLAN_EXECUTION_BRIEFS.adapter.outcome}</strong></div>{blueprintReady ? <button type="button" onClick={onOpenDesign}>Open the drafting table<ArrowRight size={13} /></button> : null}</header>
-					{blueprintReady ? <PlanSystemBlueprint assembling={live && stage === 3} onOpenFlow={onOpenFlow} /> : <p className="apn-build-strip-waiting"><SpinnerGap className="apn-spin" size={14} />Decomposing the verified context into implementation flows…</p>}
-					{blueprintReady ? <footer><span>ServiceNow · MuleSoft · Workday · SAP · QuickBooks</span><span>5 flows · {PLAN_VIEW_COUNT} views · {PLAN_PACKAGE_COUNT} packages · 124 claims</span></footer> : null}
 				</section>
 			</div>
 		</main>
 	)
 }
-
 
 function PlanSteeringAnswer({ entry, onDismiss }: { entry: Extract<PlanThreadEntry, { kind: "answer" }>; onDismiss: () => void }) {
 	const streamed = useStreamedText(entry.text, true)
