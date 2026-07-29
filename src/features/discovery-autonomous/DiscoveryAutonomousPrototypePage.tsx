@@ -2,7 +2,7 @@ import React, { FormEvent, useEffect, useRef, useState } from "react"
 import { animate } from "animejs"
 import { AnimatePresence, motion, useReducedMotion } from "motion/react"
 import {
-	ArrowClockwise,
+	ArrowLeft,
 	ArrowRight,
 	CaretDown,
 	CaretRight,
@@ -73,6 +73,168 @@ type ChatMessage = {
 		current: number
 		total: number
 		topic: string
+	}
+}
+
+type DiscoveryStatus = "needs-input" | "active" | "completed"
+
+type DiscoveryRecord = {
+	id: string
+	title: string
+	brief: string
+	scenarioKey: ScenarioKey
+	view: View
+	phase: number
+	paused: boolean
+	decision: DecisionState
+	people: Person[]
+	messages: ChatMessage[]
+	interviewIndex: number
+	interviewClosed: boolean
+	clarificationPending: boolean
+	packageSelection: number
+	invitesSent: boolean
+	createdAt: string
+	updatedAt: string
+}
+
+const DISCOVERY_STORAGE_KEY = "maxion.prototype.discovery-records.v1"
+const MAX_SAVED_DISCOVERIES = 50
+
+function discoveryStatus(record: DiscoveryRecord): DiscoveryStatus {
+	if (record.phase >= OPERATIONS.length - 1) return "completed"
+	if (!record.interviewClosed || record.phase === 4 && record.decision === "pending") return "needs-input"
+	return "active"
+}
+
+function createRecordId() {
+	if (typeof crypto !== "undefined" && "randomUUID" in crypto) return crypto.randomUUID()
+	return `discovery-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
+}
+
+function minutesAgo(minutes: number) {
+	return new Date(Date.now() - minutes * 60_000).toISOString()
+}
+
+function seededMessages(scenarioKey: ScenarioKey, state: "attention" | "active" | "complete"): ChatMessage[] {
+	const scenario = SCENARIOS[scenarioKey]
+	const stateMessage = state === "attention"
+		? `I completed the evidence review and stakeholder reconciliation. ${scenario.exception.title}. I kept every unaffected branch moving and need only your bounded decision.`
+		: state === "complete"
+			? `The Discovery is complete. I verified the evidence set, recorded the decisions, generated all ${DELIVERABLES.length} deliverables, and routed the package to the approved recipients.`
+			: `I’m coordinating the inquiry program across ${scenario.people.length} stakeholders. Source review is complete; follow-ups are running against the remaining evidence gaps.`
+	return [
+		{
+			id: `seed-${scenarioKey}-context`,
+			actor: "max",
+			text: `I framed the mission, bound ${scenario.sources.length} governed sources, and mapped the accountable stakeholders. Routine work is proceeding without interruption.`,
+			trace: ["Established the mission boundary", "Verified source access", "Created the stakeholder work graph"],
+		},
+		{
+			id: `seed-${scenarioKey}-${state}`,
+			actor: "max",
+			text: stateMessage,
+			trace: state === "complete"
+				? ["Froze readiness snapshot v7", "Generated manifest v4", "Verified package routing"]
+				: ["Compared stakeholder positions", "Checked claims against source evidence", "Updated the autonomous work graph"],
+		},
+	]
+}
+
+function createSeedDiscoveryRecords(): DiscoveryRecord[] {
+	return [
+		{
+			id: "seed-tprm-control-redesign",
+			title: "Third-party onboarding control redesign",
+			brief: SCENARIOS.tprm.brief,
+			scenarioKey: "tprm",
+			view: "overview",
+			phase: 4,
+			paused: false,
+			decision: "pending",
+			people: SCENARIOS.tprm.people,
+			messages: seededMessages("tprm", "attention"),
+			interviewIndex: SCENARIOS.tprm.ownerInterview.length - 1,
+			interviewClosed: true,
+			clarificationPending: false,
+			packageSelection: 0,
+			invitesSent: true,
+			createdAt: minutesAgo(188),
+			updatedAt: minutesAgo(12),
+		},
+		{
+			id: "seed-financial-integration",
+			title: "ServiceNow financial-control integration",
+			brief: SCENARIOS.enterprise.brief,
+			scenarioKey: "enterprise",
+			view: "overview",
+			phase: 3,
+			paused: false,
+			decision: "pending",
+			people: SCENARIOS.enterprise.people,
+			messages: seededMessages("enterprise", "active"),
+			interviewIndex: SCENARIOS.enterprise.ownerInterview.length - 1,
+			interviewClosed: true,
+			clarificationPending: false,
+			packageSelection: 0,
+			invitesSent: true,
+			createdAt: minutesAgo(320),
+			updatedAt: minutesAgo(47),
+		},
+		{
+			id: "seed-northbridge-diligence",
+			title: "NorthBridge acquisition diligence",
+			brief: SCENARIOS.diligence.brief,
+			scenarioKey: "diligence",
+			view: "package",
+			phase: OPERATIONS.length - 1,
+			paused: false,
+			decision: "approved",
+			people: SCENARIOS.diligence.people,
+			messages: seededMessages("diligence", "complete"),
+			interviewIndex: SCENARIOS.diligence.ownerInterview.length - 1,
+			interviewClosed: true,
+			clarificationPending: false,
+			packageSelection: 0,
+			invitesSent: true,
+			createdAt: minutesAgo(2_760),
+			updatedAt: minutesAgo(1_465),
+		},
+	]
+}
+
+function readDiscoveryRecords(): DiscoveryRecord[] {
+	if (typeof window === "undefined") return createSeedDiscoveryRecords()
+	try {
+		const stored = window.localStorage.getItem(DISCOVERY_STORAGE_KEY)
+		if (!stored) return createSeedDiscoveryRecords()
+		const parsed: unknown = JSON.parse(stored)
+		if (!Array.isArray(parsed)) return createSeedDiscoveryRecords()
+		const records = parsed.filter((candidate): candidate is DiscoveryRecord => {
+			if (!candidate || typeof candidate !== "object") return false
+			const record = candidate as Partial<DiscoveryRecord>
+			return typeof record.id === "string"
+				&& typeof record.title === "string"
+				&& typeof record.brief === "string"
+				&& typeof record.scenarioKey === "string"
+				&& Object.prototype.hasOwnProperty.call(SCENARIOS, record.scenarioKey)
+				&& (record.view === "thread" || record.view === "overview" || record.view === "package")
+				&& typeof record.phase === "number" && Number.isFinite(record.phase)
+				&& typeof record.paused === "boolean"
+				&& (record.decision === "pending" || record.decision === "approved" || record.decision === "modified")
+				&& Array.isArray(record.people)
+				&& Array.isArray(record.messages)
+				&& typeof record.interviewIndex === "number" && Number.isFinite(record.interviewIndex)
+				&& typeof record.interviewClosed === "boolean"
+				&& typeof record.clarificationPending === "boolean"
+				&& typeof record.packageSelection === "number" && Number.isFinite(record.packageSelection)
+				&& typeof record.invitesSent === "boolean"
+				&& typeof record.createdAt === "string" && Number.isFinite(new Date(record.createdAt).getTime())
+				&& typeof record.updatedAt === "string" && Number.isFinite(new Date(record.updatedAt).getTime())
+		})
+		return records.length ? records.slice(0, MAX_SAVED_DISCOVERIES) : createSeedDiscoveryRecords()
+	} catch {
+		return createSeedDiscoveryRecords()
 	}
 }
 
@@ -152,9 +314,11 @@ interface DiscoveryAutonomousPrototypePageProps {
 
 export function DiscoveryAutonomousPrototypePage({ embedded = false, onPackageReady }: DiscoveryAutonomousPrototypePageProps = {}) {
 	const reducedMotion = Boolean(useReducedMotion())
+	const [records, setRecords] = useState<DiscoveryRecord[]>(readDiscoveryRecords)
+	const [activeRecordId, setActiveRecordId] = useState<string | null>(null)
 	const [scenarioKey, setScenarioKey] = useState<ScenarioKey>("tprm")
 	const [missionBrief, setMissionBrief] = useState("")
-	const [screen, setScreen] = useState<"setup" | "preparing" | "workspace">("setup")
+	const [screen, setScreen] = useState<"index" | "setup" | "preparing" | "workspace">("index")
 	const [view, setView] = useState<View>("thread")
 	const [drawer, setDrawer] = useState<Drawer>(null)
 	const [phase, setPhase] = useState(0)
@@ -173,13 +337,40 @@ export function DiscoveryAutonomousPrototypePage({ embedded = false, onPackageRe
 	const [packageSelection, setPackageSelection] = useState(0)
 	const [invitesSent, setInvitesSent] = useState(false)
 	const scenario = SCENARIOS[scenarioKey]
-	const currentMissionTitle = missionTitle(missionBrief)
+	const activeRecord = records.find((record) => record.id === activeRecordId)
+	const currentMissionTitle = activeRecord?.title ?? missionTitle(missionBrief)
 	const needsDecision = screen === "workspace" && phase === 4 && decision === "pending"
 	const complete = phase >= OPERATIONS.length - 1
 
 	useEffect(() => {
-		setPeople(scenario.people)
-	}, [scenario])
+		try {
+			window.localStorage.setItem(DISCOVERY_STORAGE_KEY, JSON.stringify(records))
+		} catch {
+			// The work remains available for this session when browser storage is unavailable.
+		}
+	}, [records])
+
+	useEffect(() => {
+		if (!activeRecordId || screen !== "workspace") return
+		setRecords((current) => current.map((record) => record.id === activeRecordId ? {
+			...record,
+			title: currentMissionTitle,
+			brief: missionBrief,
+			scenarioKey,
+			view,
+			phase,
+			paused,
+			decision,
+			people,
+			messages,
+			interviewIndex,
+			interviewClosed,
+			clarificationPending,
+			packageSelection,
+			invitesSent,
+			updatedAt: new Date().toISOString(),
+		} : record))
+	}, [activeRecordId, clarificationPending, currentMissionTitle, decision, interviewClosed, interviewIndex, invitesSent, messages, missionBrief, packageSelection, paused, people, phase, scenarioKey, screen, view])
 
 	useEffect(() => {
 		if (screen !== "workspace" || !interviewClosed || paused || needsDecision || complete) return
@@ -201,6 +392,30 @@ export function DiscoveryAutonomousPrototypePage({ embedded = false, onPackageRe
 
 	const start = () => {
 		if (!missionBrief.trim()) return
+		const recordId = createRecordId()
+		const startedAt = new Date().toISOString()
+		const startingMessages = initialInterviewMessages(scenarioKey, missionBrief)
+		const newRecord: DiscoveryRecord = {
+			id: recordId,
+			title: missionTitle(missionBrief),
+			brief: missionBrief,
+			scenarioKey,
+			view: "thread",
+			phase: 0,
+			paused: false,
+			decision: "pending",
+			people: SCENARIOS[scenarioKey].people,
+			messages: startingMessages,
+			interviewIndex: 0,
+			interviewClosed: false,
+			clarificationPending: false,
+			packageSelection: 0,
+			invitesSent: false,
+			createdAt: startedAt,
+			updatedAt: startedAt,
+		}
+		setActiveRecordId(recordId)
+		setRecords((current) => [newRecord, ...current].slice(0, MAX_SAVED_DISCOVERIES))
 		setScreen("preparing")
 		setView("thread")
 		setPhase(0)
@@ -209,12 +424,15 @@ export function DiscoveryAutonomousPrototypePage({ embedded = false, onPackageRe
 		setInterviewIndex(0)
 		setInterviewClosed(false)
 		setClarificationPending(false)
-		setMessages(initialInterviewMessages(scenarioKey, missionBrief))
+		setPeople(SCENARIOS[scenarioKey].people)
+		setMessages(startingMessages)
 		setInvitesSent(false)
 		window.setTimeout(() => setScreen("workspace"), reducedMotion ? 700 : 2400)
 	}
 
-	const restart = () => {
+	const openNewDiscovery = () => {
+		setActiveRecordId(null)
+		setScenarioKey("tprm")
 		setScreen("setup")
 		setMissionBrief("")
 		setView("thread")
@@ -225,30 +443,57 @@ export function DiscoveryAutonomousPrototypePage({ embedded = false, onPackageRe
 		setInterviewIndex(0)
 		setInterviewClosed(false)
 		setClarificationPending(false)
-		setMessages(initialInterviewMessages(scenarioKey))
+		setPeople(SCENARIOS.tprm.people)
+		setMessages(initialInterviewMessages("tprm"))
 		setPendingPerson(null)
 		setPackageSelection(0)
 		setInvitesSent(false)
 	}
 
+	const openDiscoveryIndex = () => {
+		setScreen("index")
+		setDrawer(null)
+		setPendingPerson(null)
+	}
+
+	const resumeDiscovery = (record: DiscoveryRecord) => {
+		setActiveRecordId(record.id)
+		setScenarioKey(record.scenarioKey)
+		setMissionBrief(record.brief)
+		setView(record.view)
+		setDrawer(null)
+		setPhase(record.phase)
+		setPaused(record.paused)
+		setDecision(record.decision)
+		setPeople(record.people)
+		setMessages(record.messages)
+		setCommandText("")
+		setPendingPerson(null)
+		setInterviewIndex(record.interviewIndex)
+		setInterviewClosed(record.interviewClosed)
+		setClarificationPending(record.clarificationPending)
+		setTraceOpen(false)
+		setPackageSelection(record.packageSelection)
+		setInvitesSent(record.invitesSent)
+		setScreen("workspace")
+	}
+
 	const resolveDecision = (next: Exclude<DecisionState, "pending">) => {
+		const exception = scenario.exception
 		setDecision(next)
 		setMessages((current) => [
 			...current,
 			{
 				id: `decision-${Date.now()}`,
 				actor: "max",
-				text:
-					next === "approved"
-						? "Approved. I sent the scoped invitation without attaching internal evidence and resumed the resolution case."
-						: "I kept the resolution internal and updated the case plan. The rest of the Discovery is continuing.",
+				text: next === "approved" ? exception.approvedConfirmation : exception.alternativeConfirmation,
 				trace:
 					next === "approved"
-						? ["Validated the recipient against the approved exception", "Created one idempotent invitation", "Verified delivery and resumed the work graph"]
-						: ["Changed the resolution channel", "Preserved the evidence boundary", "Resumed unaffected work"],
+						? ["Recorded the exact bounded authority", "Opened only the approved action", "Verified the action and resumed the affected branch"]
+						: ["Recorded the alternative direction", "Preserved the evidence and authority boundary", "Resumed the affected branch with the limitation visible"],
 			},
 		])
-		setToast(next === "approved" ? "Exception approved · outreach verified" : "Resolution kept internal")
+		setToast("Decision recorded · affected work resumed")
 	}
 
 	const addMessage = (message: ChatMessage) => setMessages((current) => [...current, message])
@@ -425,7 +670,16 @@ export function DiscoveryAutonomousPrototypePage({ embedded = false, onPackageRe
 
 	return (
 		<div className={`prototype${dark ? " dark" : ""}${embedded ? " embedded" : ""}`}>
-			{screen === "setup" ? (
+			{screen === "index" ? (
+				<DiscoveryIndex
+					records={records}
+					embedded={embedded}
+					dark={dark}
+					onToggleDark={() => setDark((current) => !current)}
+					onNew={openNewDiscovery}
+					onResume={resumeDiscovery}
+				/>
+			) : screen === "setup" ? (
 					<SetupScreen
 						missionBrief={missionBrief}
 						onMissionBriefChange={setMissionBrief}
@@ -447,8 +701,9 @@ export function DiscoveryAutonomousPrototypePage({ embedded = false, onPackageRe
 					paused={paused}
 					interviewIndex={interviewIndex}
 					interviewClosed={interviewClosed}
-					onTogglePause={() => setPaused((current) => !current)}
-					onRestart={restart}
+						onTogglePause={() => setPaused((current) => !current)}
+						onOpenIndex={openDiscoveryIndex}
+						onNewDiscovery={openNewDiscovery}
 					dark={dark}
 					onToggleDark={() => setDark((current) => !current)}>
 					{view === "overview" ? (
@@ -528,6 +783,162 @@ export function DiscoveryAutonomousPrototypePage({ embedded = false, onPackageRe
 	)
 }
 
+function relativeDiscoveryTime(timestamp: string) {
+	const elapsedMinutes = Math.max(0, Math.round((Date.now() - new Date(timestamp).getTime()) / 60_000))
+	if (elapsedMinutes < 1) return "Updated just now"
+	if (elapsedMinutes < 60) return `Updated ${elapsedMinutes} min ago`
+	const elapsedHours = Math.round(elapsedMinutes / 60)
+	if (elapsedHours < 24) return `Updated ${elapsedHours} hr${elapsedHours === 1 ? "" : "s"} ago`
+	const elapsedDays = Math.round(elapsedHours / 24)
+	return `Updated ${elapsedDays} day${elapsedDays === 1 ? "" : "s"} ago`
+}
+
+function discoveryActivity(record: DiscoveryRecord) {
+	const scenario = SCENARIOS[record.scenarioKey]
+	if (record.phase >= OPERATIONS.length - 1) return `MAX verified ${DELIVERABLES.length} deliverables and routed the decision package.`
+	if (!record.interviewClosed) return `MAX is ready for your judgment · ${scenario.ownerInterview[record.interviewIndex].topic}`
+	if (record.phase === 4 && record.decision === "pending") return `MAX isolated one authority boundary · ${scenario.exception.title}`
+	if (record.paused) return "MAX preserved the last verified checkpoint. Resume when you’re ready."
+	return `MAX is handling ${OPERATIONS[record.phase].label.toLowerCase()} · routine work is continuing autonomously.`
+}
+
+function DiscoveryIndex({
+	records,
+	embedded,
+	dark,
+	onToggleDark,
+	onNew,
+	onResume,
+}: {
+	records: DiscoveryRecord[]
+	embedded: boolean
+	dark: boolean
+	onToggleDark: () => void
+	onNew: () => void
+	onResume: (record: DiscoveryRecord) => void
+}) {
+	const [filter, setFilter] = useState<"all" | DiscoveryStatus>("all")
+	const [query, setQuery] = useState("")
+	const statusMeta: Record<DiscoveryStatus, { label: string; description: string }> = {
+		"needs-input": {
+			label: "Needs your input",
+			description: "MAX has isolated the judgment or authority it cannot safely infer.",
+		},
+		active: {
+			label: "Working autonomously",
+			description: "Evidence, interviews, follow-ups, and synthesis are moving without your attention.",
+		},
+		completed: {
+			label: "Completed",
+			description: "Verified packages are ready to review, share, or hand into Plan.",
+		},
+	}
+	const countFor = (status: DiscoveryStatus) => records.filter((record) => discoveryStatus(record) === status).length
+	const normalizedQuery = query.trim().toLowerCase()
+	const filtered = [...records].filter((record) => {
+		const matchesFilter = filter === "all" || discoveryStatus(record) === filter
+		const matchesQuery = !normalizedQuery || `${record.title} ${record.brief} ${SCENARIOS[record.scenarioKey].kicker}`.toLowerCase().includes(normalizedQuery)
+		return matchesFilter && matchesQuery
+	}).sort((left, right) => new Date(right.updatedAt).getTime() - new Date(left.updatedAt).getTime())
+	const sections = (["needs-input", "active", "completed"] as DiscoveryStatus[])
+		.map((status) => ({ status, records: filtered.filter((record) => discoveryStatus(record) === status) }))
+		.filter((section) => section.records.length > 0)
+
+	return (
+		<div className="discovery-index-shell">
+			<aside className="discovery-index-rail" aria-label="Discovery navigation" hidden={embedded}>
+				<div>
+					<div className="rail-brand"><img src={publicAsset("maxion-logo-gradient.svg")} alt="" /><strong>MAXION</strong></div>
+					<button className="rail-new" type="button" onClick={onNew}><Plus size={16} /> New discovery</button>
+					<nav className="rail-primary">
+						<button type="button"><House size={17} /><span>Home</span></button>
+						<button type="button" className="active" aria-current="page"><MagnifyingGlass size={17} weight="bold" /><span>Discover</span></button>
+						<button type="button"><ListChecks size={17} /><span>Plan</span></button>
+						<button type="button"><Lightning size={17} /><span>Execute</span></button>
+					</nav>
+				</div>
+				<div className="rail-bottom">
+					<button type="button"><GearSix size={17} /><span>Settings</span></button>
+					<div className="rail-profile"><div className="avatar" aria-label="Root Admin">RA</div><div><strong>Root Admin</strong><span>Admin workspace</span></div></div>
+				</div>
+			</aside>
+
+			<main className="discovery-index-main">
+				<header className="discovery-index-header">
+					<div>
+						<p className="eyebrow">Autonomous Discovery</p>
+						<h1>Continue where MAX left off.</h1>
+						<p>Every inquiry keeps its conversation, evidence, stakeholders, decisions, and package together.</p>
+					</div>
+					<div className="discovery-index-actions">
+						{!embedded ? <IconButton label={dark ? "Use light theme" : "Use dark theme"} onClick={onToggleDark}>{dark ? <Sun size={18} /> : <Moon size={18} />}</IconButton> : null}
+						<button className="primary-button discovery-new-button" type="button" onClick={onNew}><Plus size={16} weight="bold" /> New Discovery</button>
+					</div>
+				</header>
+
+				<section className="discovery-index-summary" aria-label="Discovery workload summary">
+					<div className="is-attention"><span>Needs your input</span><strong>{countFor("needs-input")}</strong><small>Only bounded decisions</small></div>
+					<div><span>Working autonomously</span><strong>{countFor("active")}</strong><small>No action needed</small></div>
+					<div><span>Packages ready</span><strong>{countFor("completed")}</strong><small>Verified and routed</small></div>
+				</section>
+
+				<div className="discovery-index-toolbar">
+					<label className="discovery-search">
+						<MagnifyingGlass size={16} aria-hidden="true" />
+						<input value={query} onChange={(event) => setQuery(event.target.value)} aria-label="Search discoveries" placeholder="Search discoveries" />
+					</label>
+					<div className="discovery-filters" role="group" aria-label="Filter discoveries">
+						{([
+							["all", "All", records.length],
+							["needs-input", "Needs input", countFor("needs-input")],
+							["active", "Active", countFor("active")],
+							["completed", "Completed", countFor("completed")],
+						] as const).map(([value, label, count]) => (
+							<button key={value} type="button" aria-pressed={filter === value} onClick={() => setFilter(value)}>{label}<span>{count}</span></button>
+						))}
+					</div>
+				</div>
+
+				<div className="discovery-index-results" aria-live="polite">
+					{sections.length ? sections.map((section) => (
+						<section key={section.status} className={`discovery-record-section is-${section.status}`} aria-labelledby={`discovery-${section.status}-heading`}>
+							<div className="discovery-record-section-heading">
+								<div><h2 id={`discovery-${section.status}-heading`}>{statusMeta[section.status].label}</h2><p>{statusMeta[section.status].description}</p></div>
+								<span>{section.records.length}</span>
+							</div>
+							<div className="discovery-record-list">
+								{section.records.map((record) => {
+									const progress = Math.round(((record.phase + 1) / OPERATIONS.length) * 100)
+									const status = discoveryStatus(record)
+									return (
+										<button key={record.id} type="button" className={`discovery-record-card is-${status}`} onClick={() => onResume(record)} aria-label={`Resume ${record.title}, ${statusMeta[status].label}`}>
+											<span className="discovery-record-status"><i aria-hidden="true">{status === "completed" ? <Check size={10} weight="bold" /> : status === "needs-input" ? "!" : <CircleNotch size={10} />}</i>{statusMeta[status].label}</span>
+											<time dateTime={record.updatedAt}>{relativeDiscoveryTime(record.updatedAt)}</time>
+											<strong className="discovery-record-title">{record.title}</strong>
+											<span className="discovery-record-context">{SCENARIOS[record.scenarioKey].kicker}</span>
+											<span className="discovery-record-activity">{discoveryActivity(record)}</span>
+											<span className="discovery-record-progress" aria-label={`${progress}% complete`}><i><b style={{ width: `${progress}%` }} /></i><em>{progress}%</em></span>
+											<span className="discovery-record-meta"><span>{record.phase + 1} of {OPERATIONS.length} stages</span><span>{record.people.length} stakeholders</span><span>{SCENARIOS[record.scenarioKey].sources.length} sources</span></span>
+											<span className="discovery-record-resume">Resume workspace <ArrowRight size={15} weight="bold" /></span>
+										</button>
+									)
+								})}
+							</div>
+						</section>
+					)) : (
+						<section className="discovery-empty-state">
+							<MagnifyingGlass size={20} />
+							<h2>No discoveries match that search.</h2>
+							<p>Clear the search or choose a different status.</p>
+							<button className="quiet-button" type="button" onClick={() => { setQuery(""); setFilter("all") }}>Show all discoveries</button>
+						</section>
+					)}
+				</div>
+			</main>
+		</div>
+	)
+}
+
 function SetupScreen({
 	missionBrief,
 	onMissionBriefChange,
@@ -579,7 +990,7 @@ function SetupScreen({
 								<p className="eyebrow">Mission brief</p>
 								<h2 id="brief-heading">Describe the outcome</h2>
 							</div>
-							<span className="draft-status">Draft saved</span>
+							<span className="draft-status">Saved when started</span>
 						</div>
 						<textarea value={missionBrief} onChange={(event) => onMissionBriefChange(event.target.value)} onPointerDown={() => setBriefFocusedByPointer(true)} onBlur={() => setBriefFocusedByPointer(false)} aria-label="Discovery brief" placeholder="Describe the decision, outcome, or problem. MAX will form the investigation, bind relevant evidence, and return with a decision package." />
 						<div className="brief-context">
@@ -689,7 +1100,8 @@ function WorkspaceShell({
 	interviewIndex,
 	interviewClosed,
 	onTogglePause,
-	onRestart,
+	onOpenIndex,
+	onNewDiscovery,
 	dark,
 	onToggleDark,
 	children,
@@ -704,7 +1116,8 @@ function WorkspaceShell({
 	interviewIndex: number
 	interviewClosed: boolean
 	onTogglePause: () => void
-	onRestart: () => void
+	onOpenIndex: () => void
+	onNewDiscovery: () => void
 	dark: boolean
 	onToggleDark: () => void
 	children: React.ReactNode
@@ -725,19 +1138,17 @@ function WorkspaceShell({
 		<div className="workspace-shell">
 			<aside className="product-rail" aria-label="Product navigation" hidden={embedded}>
 				<div className="rail-brand"><img src={publicAsset("maxion-logo-gradient.svg")} alt="" /><strong>MAXION</strong></div>
-				<button className="rail-new" type="button" onClick={onRestart}><Plus size={16} /> New discovery</button>
+				<button className="rail-new" type="button" onClick={onNewDiscovery}><Plus size={16} /> New discovery</button>
 				<nav className="rail-primary">
-					<button type="button"><House size={17} /><span>Home</span></button>
-					<button type="button" className="active"><MagnifyingGlass size={17} weight="bold" /><span>Discover</span></button>
+					<button type="button" onClick={onOpenIndex}><House size={17} /><span>Home</span></button>
+					<button type="button" className="active" onClick={onOpenIndex}><MagnifyingGlass size={17} weight="bold" /><span>Discover</span></button>
 					<button type="button"><ListChecks size={17} /><span>Plan</span></button>
 					<button type="button"><Lightning size={17} /><span>Execute</span></button>
 				</nav>
 				<div className="rail-recents">
 					<span>Current task</span>
 					<button type="button" className="active" onClick={() => onViewChange(phase >= 7 ? "package" : "thread")}><i /><div><strong>{missionTitle}</strong><small>{phase >= 7 ? "Complete" : paused ? "Paused" : "Running"}</small></div></button>
-					<span>Recent</span>
-					<button type="button"><div><strong>AI governance operating model</strong><small>Package ready</small></div></button>
-					<button type="button"><div><strong>ERP upgrade evaluation</strong><small>Waiting on people</small></div></button>
+					<button type="button" className="rail-all-discoveries" onClick={onOpenIndex}><div><strong>All discoveries</strong><small>Resume saved work</small></div></button>
 				</div>
 				<div className="rail-bottom">
 					<button type="button"><GearSix size={17} /><span>Settings</span></button>
@@ -747,6 +1158,7 @@ function WorkspaceShell({
 
 			<div className="workspace-body">
 				<header className="workspace-header">
+					<button className="workspace-back-button" type="button" onClick={onOpenIndex} aria-label="All discoveries"><ArrowLeft size={17} /><span>Discoveries</span></button>
 					<div className="workspace-title">
 						<div className={paused ? "live-indicator paused" : "live-indicator"} aria-hidden="true" />
 						<div>
@@ -762,7 +1174,7 @@ function WorkspaceShell({
 						<IconButton label={dark ? "Use light theme" : "Use dark theme"} onClick={onToggleDark}>
 							{dark ? <Sun size={18} /> : <Moon size={18} />}
 						</IconButton>
-						<IconButton label="Restart prototype" onClick={onRestart}><ArrowClockwise size={18} /></IconButton>
+						<IconButton label="New Discovery" onClick={onNewDiscovery}><Plus size={18} /></IconButton>
 					</div>
 				</header>
 
@@ -795,6 +1207,57 @@ function WorkspaceShell({
 
 function peopleCountForPhase(phase: number) {
 	return Math.min(4, Math.max(0, phase - 2))
+}
+
+function DecisionBoundary({
+	scenarioKey,
+	compact = false,
+	headingId,
+	onResolve,
+}: {
+	scenarioKey: ScenarioKey
+	compact?: boolean
+	headingId?: string
+	onResolve: (decision: Exclude<DecisionState, "pending">) => void
+}) {
+	const exception = SCENARIOS[scenarioKey].exception
+	const boundaryCopy: Record<ScenarioKey, { title: string; detail: string }> = {
+		tprm: {
+			title: "Discovery is internal by default",
+			detail: "MAX stopped before contacting anyone outside the approved northstar.com workspace.",
+		},
+		diligence: {
+			title: "MAX stopped before changing the investment conclusion",
+			detail: "The evidence conflict requires an explicit direction before this branch can influence the committee package.",
+		},
+		enterprise: {
+			title: "MAX stopped before weakening a financial control",
+			detail: "The current design cannot move forward with an unapproved segregation-of-duties exception.",
+		},
+	}
+	const boundary = boundaryCopy[scenarioKey]
+
+	return (
+		<div className={`decision-boundary${compact ? " is-compact" : ""}`}>
+			<div className="decision-boundary-scope">
+				<ShieldCheck size={17} weight="fill" />
+				<div><strong>{boundary.title}</strong><span>{boundary.detail}</span></div>
+			</div>
+			<h2 id={headingId}>{exception.title}</h2>
+			<div className="decision-boundary-reasoning">
+				<div><span>Why this surfaced</span><p>{exception.trigger}</p></div>
+				<div><span>What MAX already checked</span><p>{exception.evidenceGap}</p></div>
+			</div>
+			<div className="decision-boundary-outcomes">
+				<div><strong>If allowed</strong><span>{exception.consequence}</span></div>
+				<div><strong>If kept within the current boundary</strong><span>{exception.alternative}</span></div>
+			</div>
+			<div className="exception-actions">
+				<button className="primary-button" type="button" onClick={() => onResolve("approved")}>{exception.approveLabel}</button>
+				<button className="quiet-button" type="button" onClick={() => onResolve("modified")}>{exception.alternativeLabel}</button>
+			</div>
+		</div>
+	)
 }
 
 function Overview({
@@ -924,7 +1387,7 @@ function Overview({
 					<div><strong>{decisionPending ? "1" : "0"}</strong><span>Owner interruptions</span><small>unaffected branches kept moving</small></div>
 				</section>
 
-				<div className="overview-priority-grid">
+				<div className={`overview-priority-grid${decisionPending ? " has-decision" : ""}`}>
 					<section className="overview-current autonomy-current" aria-labelledby="current-operation" aria-live="polite">
 						<div className="operation-heading">
 							<div>
@@ -962,14 +1425,7 @@ function Overview({
 							{decisionPending ? <span className="attention-count">1</span> : <CheckCircle size={20} weight="fill" />}
 						</div>
 						{decisionPending ? (
-							<div className="exception-block compact-exception">
-								<strong>{scenario.exception.title}</strong>
-								<p>{scenario.exception.detail}</p>
-								<div className="exception-actions">
-									<button className="primary-button" type="button" onClick={() => onResolveDecision("approved")}>Approve once</button>
-									<button className="quiet-button" type="button" onClick={() => onResolveDecision("modified")}>Keep internal</button>
-								</div>
-							</div>
+							<DecisionBoundary scenarioKey={scenarioKey} compact onResolve={onResolveDecision} />
 						) : <p className="attention-clear-copy">MAX is continuing inside the authority you granted. Stakeholder follow-ups, source checks, and routine conflict resolution do not need your attention.</p>}
 					</section>
 				</div>
@@ -1108,13 +1564,7 @@ function Thread({
 					{decisionPending ? (
 						<section className="thread-event decision-event" aria-labelledby="thread-decision-title">
 							<div className="thread-event-kicker"><span /> Decision needed to continue one branch</div>
-							<h2 id="thread-decision-title">{scenario.exception.title}</h2>
-							<p>{scenario.exception.detail}</p>
-							<div className="event-consequence"><strong>Effect</strong><span>{scenario.exception.consequence}</span></div>
-							<div className="exception-actions">
-								<button className="primary-button" type="button" onClick={() => onResolveDecision("approved")}>Approve once</button>
-								<button className="quiet-button" type="button" onClick={() => onResolveDecision("modified")}>Keep internal</button>
-							</div>
+							<DecisionBoundary scenarioKey={scenarioKey} headingId="thread-decision-title" onResolve={onResolveDecision} />
 						</section>
 					) : null}
 					{phase === 6 ? (

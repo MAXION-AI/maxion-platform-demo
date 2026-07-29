@@ -57,6 +57,8 @@ describe("MaxionPlatformPrototypePage", () => {
 	it("runs the autonomous Discovery interview through a verified package", async () => {
 		renderPrototype()
 		fireEvent.click(screen.getByRole("button", { name: "Discover" }))
+		expect(await screen.findByRole("heading", { name: "Continue where MAX left off." })).toBeInTheDocument()
+		fireEvent.click(screen.getByRole("button", { name: "New Discovery" }))
 		const discoveryBrief = await screen.findByRole("textbox", { name: "Discovery brief" })
 		fireEvent.change(discoveryBrief, { target: { value: "Reduce finance-close exceptions with a decision-ready control redesign." } })
 		expect(discoveryBrief).toHaveValue("Reduce finance-close exceptions with a decision-ready control redesign.")
@@ -69,8 +71,10 @@ describe("MaxionPlatformPrototypePage", () => {
 		fireEvent.keyDown(discoveryComposer, { key: "Enter", code: "Enter" })
 		expect(await screen.findByRole("region", { name: "Autonomous work summary" }, { timeout: 20_000 })).toBeInTheDocument()
 		expect(screen.getByRole("button", { name: "Open autonomy" })).toBeInTheDocument()
-		expect(await screen.findByRole("heading", { name: "External counsel is outside the authority envelope" }, { timeout: 25_000 })).toBeInTheDocument()
-		fireEvent.click(screen.getByRole("button", { name: "Approve once" }))
+		expect(await screen.findByRole("heading", { name: "One external interview needs your approval" }, { timeout: 25_000 })).toBeInTheDocument()
+		expect(screen.getByText("Discovery is internal by default")).toBeInTheDocument()
+		expect(screen.getByText(/Neither source contains the vendor’s retention commitment/)).toBeInTheDocument()
+		fireEvent.click(screen.getByRole("button", { name: "Allow one external interview" }))
 
 		expect(await screen.findByRole("heading", { name: "Final plan and recommendations" }, { timeout: 30_000 })).toBeInTheDocument()
 		fireEvent.click(screen.getByRole("button", { name: /Open package/ }))
@@ -80,6 +84,26 @@ describe("MaxionPlatformPrototypePage", () => {
 		fireEvent.click(screen.getByRole("button", { name: "Discover" }))
 		expect(screen.getByRole("heading", { name: "Final plan and recommendations" })).toBeInTheDocument()
 	}, 120_000)
+
+	it("opens previous Discoveries at their saved point of work", async () => {
+		renderPrototype()
+		fireEvent.click(screen.getByRole("button", { name: "Discover" }))
+
+		expect(await screen.findByRole("region", { name: "Discovery workload summary" })).toHaveTextContent("Needs your input1")
+		expect(screen.getByRole("button", { name: "Resume Third-party onboarding control redesign, Needs your input" })).toBeInTheDocument()
+		expect(screen.getByRole("button", { name: "Resume ServiceNow financial-control integration, Working autonomously" })).toBeInTheDocument()
+		expect(screen.getByRole("button", { name: "Resume NorthBridge acquisition diligence, Completed" })).toBeInTheDocument()
+
+		fireEvent.click(screen.getByRole("button", { name: "Resume Third-party onboarding control redesign, Needs your input" }))
+		expect(screen.getByText("One external interview needs your approval")).toBeInTheDocument()
+		fireEvent.click(screen.getByRole("button", { name: "Continue with internal evidence" }))
+		expect(screen.getByText("Nothing right now")).toBeInTheDocument()
+		fireEvent.click(screen.getByRole("button", { name: "Thread" }))
+		expect(screen.getByText(/kept all outreach inside the workspace/)).toBeInTheDocument()
+		fireEvent.click(screen.getByRole("button", { name: "All discoveries" }))
+		fireEvent.click(screen.getByRole("button", { name: "Resume NorthBridge acquisition diligence, Completed" }))
+		expect(screen.getByRole("heading", { name: "Final plan and recommendations" })).toBeInTheDocument()
+	})
 
 	it("preserves the Plan handoff in development-only Execute and verifies the agent run", async () => {
 		renderPrototype()

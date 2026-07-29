@@ -35,8 +35,14 @@ export type Scenario = {
 	inquiries: string[]
 	exception: {
 		title: string
-		detail: string
+		trigger: string
+		evidenceGap: string
 		consequence: string
+		alternative: string
+		approveLabel: string
+		alternativeLabel: string
+		approvedConfirmation: string
+		alternativeConfirmation: string
 	}
 	summary: string
 }
@@ -102,9 +108,15 @@ export const SCENARIOS: Record<ScenarioKey, Scenario> = {
 		],
 		inquiries: ["Risk segmentation", "Security evidence", "Privacy and data use", "Decision rights", "Exception handling", "Operating SLAs"],
 		exception: {
-			title: "External counsel is outside the authority envelope",
-			detail: "Priya recommends a 30-minute validation with the vendor's privacy counsel. That recipient is outside the approved northstar.com domain.",
-			consequence: "Approving sends one scoped invitation with the Discovery disclosure and no internal evidence attached.",
+			title: "One external interview needs your approval",
+			trigger: "Priya Shah recommended validating the vendor-specific retention terms with the vendor’s privacy counsel.",
+			evidenceGap: "MAX checked the TPRM policy library and contract approvals. Neither source contains the vendor’s retention commitment, so MAX cannot infer it safely from internal evidence.",
+			consequence: "Allowing this sends one 30-minute interview invitation with the Discovery disclosure. No internal evidence or attachments leave the workspace.",
+			alternative: "Continuing internally records the missing vendor confirmation as an explicit limitation in the final recommendation.",
+			approveLabel: "Allow one external interview",
+			alternativeLabel: "Continue with internal evidence",
+			approvedConfirmation: "Approved. I sent one scoped interview invitation without internal evidence and resumed the affected branch.",
+			alternativeConfirmation: "Understood. I kept all outreach inside the workspace, recorded the missing vendor confirmation as an explicit limitation, and resumed the affected branch.",
 		},
 		summary:
 			"The proposed TPRM model moves control depth to a risk-tiered intake, establishes Risk as the accountable gate owner, and requires Security and Privacy evidence before contract approval. It replaces serial reviews with a shared evidence record and a time-bound exception path.",
@@ -144,8 +156,14 @@ export const SCENARIOS: Record<ScenarioKey, Scenario> = {
 		inquiries: ["Revenue quality", "Customer concentration", "Operating leverage", "Technology debt", "Management capacity", "100-day value creation"],
 		exception: {
 			title: "Management claim conflicts with booked revenue",
-			detail: "The CFO cites 94% recurring revenue, while the finance extract classifies 17% of the same contracts as implementation services.",
-			consequence: "Approving opens a resolution workshop with Finance and the deal team before the IC package is frozen.",
+			trigger: "The CFO cites 94% recurring revenue, while the finance extract classifies 17% of the same contracts as implementation services.",
+			evidenceGap: "MAX reconciled the data room, pipeline, and ledger extracts. The remaining discrepancy is a management classification decision, not a missing calculation.",
+			consequence: "Opening the workshop brings Finance and the deal team together before the investment committee package is frozen.",
+			alternative: "Continuing without the workshop preserves the discrepancy as a disclosed pricing and diligence risk.",
+			approveLabel: "Open evidence workshop",
+			alternativeLabel: "Disclose conflict and continue",
+			approvedConfirmation: "I opened the evidence workshop with Finance and the deal team and resumed every unaffected diligence branch.",
+			alternativeConfirmation: "I preserved the revenue discrepancy as a disclosed investment risk and continued the package with no unsupported conclusion.",
 		},
 		summary:
 			"NorthBridge has a credible growth engine, but recurring revenue quality is overstated and the 100-day plan must absorb platform modernization earlier than assumed. The revised thesis remains investable if the purchase agreement and integration budget reflect those two risks.",
@@ -185,8 +203,14 @@ export const SCENARIOS: Record<ScenarioKey, Scenario> = {
 		inquiries: ["System ownership", "Financial control intent", "Integration events", "Evidence lineage", "Failure recovery", "Adoption and support"],
 		exception: {
 			title: "Proposed ownership violates segregation of duties",
-			detail: "The current design lets the same ServiceNow role request and attest a high-risk finance change when the controls API is unavailable.",
-			consequence: "Approving opens a design resolution case and pauses only the affected integration decision.",
+			trigger: "The current design lets the same ServiceNow role request and attest a high-risk finance change when the controls API is unavailable.",
+			evidenceGap: "MAX checked the SOX catalog, incident history, and role model. None permits this fallback without an independent attestor.",
+			consequence: "Opening a design resolution case pauses only the affected integration decision while the remaining architecture work continues.",
+			alternative: "Keeping the fail-closed boundary blocks high-risk changes during an outage and records the operational trade-off for council review.",
+			approveLabel: "Open design resolution",
+			alternativeLabel: "Keep the fail-closed boundary",
+			approvedConfirmation: "I opened the design resolution case, preserved the segregation-of-duties constraint, and continued every unaffected architecture branch.",
+			alternativeConfirmation: "I kept the fail-closed boundary, recorded the outage trade-off, and continued the architecture without weakening the control.",
 		},
 		summary:
 			"ServiceNow should orchestrate workflow while the financial controls platform remains the authority for control definitions, evidence, and attestation. An event-driven boundary with durable reconciliation removes duplicate approvals and preserves a fail-closed path for high-risk changes.",

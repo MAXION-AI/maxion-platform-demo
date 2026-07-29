@@ -27,6 +27,8 @@ test("keeps the canonical MAXION shell functional across core modules", async ({
 	await expect(page.getByRole("region", { name: "Projects" })).toBeVisible()
 
 	await navigation.getByRole("button", { name: "Discover" }).click()
+	await expect(page.getByRole("heading", { name: "Continue where MAX left off." })).toBeVisible()
+	await page.getByRole("button", { name: "New Discovery" }).click()
 	const discoveryBrief = page.getByRole("textbox", { name: "Discovery brief" })
 	await discoveryBrief.click()
 	expect(await discoveryBrief.evaluate((element) => getComputedStyle(element).outlineStyle)).toBe("none")

@@ -9,6 +9,14 @@ test("runs an autonomous Discovery from brief to verified package", async ({ pag
 	page.on("pageerror", (error) => runtimeErrors.push(error.message))
 
 	await page.goto("/discovery-prototype")
+	await expect(page.getByRole("heading", { name: "Continue where MAX left off." })).toBeVisible()
+	await expect(page.getByRole("button", { name: "Resume Third-party onboarding control redesign, Needs your input" })).toBeVisible()
+	await expect(page.getByRole("button", { name: "Resume ServiceNow financial-control integration, Working autonomously" })).toBeVisible()
+	await expect(page.getByRole("button", { name: "Resume NorthBridge acquisition diligence, Completed" })).toBeVisible()
+
+	const indexAccessibility = await new AxeBuilder({ page }).analyze()
+	expect(indexAccessibility.violations.filter((violation) => violation.impact === "critical" || violation.impact === "serious")).toEqual([])
+	await page.getByRole("button", { name: "New Discovery", exact: true }).click()
 	await expect(page.getByRole("heading", { name: "What should MAX accomplish?" })).toBeVisible()
 	await expect(page.getByText("Describe the decision and the outcome. MAX will work out the investigation.")).toBeVisible()
 
@@ -62,7 +70,10 @@ test("runs an autonomous Discovery from brief to verified package", async ({ pag
 	await expect(page.getByRole("button", { name: "Open autonomy" })).toBeVisible()
 
 	await expect(page.getByRole("heading", { name: SCENARIO_EXCEPTION_TITLE })).toBeVisible({ timeout: 15_000 })
-	await page.getByRole("button", { name: "Approve once" }).click()
+	await expect(page.getByText("Discovery is internal by default")).toBeVisible()
+	await expect(page.getByText(/Neither source contains the vendor’s retention commitment/)).toBeVisible()
+	await expect(page.getByText(/No internal evidence or attachments leave the workspace/)).toBeVisible()
+	await page.getByRole("button", { name: "Allow one external interview" }).click()
 	await expect(page.getByRole("heading", { name: "Final plan and recommendations" })).toBeVisible({ timeout: 12_000 })
 	await expect(page.getByRole("button", { name: "Thread" })).toHaveClass(/active/)
 	await page.getByRole("button", { name: /Open package/ }).first().click()
@@ -81,6 +92,11 @@ test("runs an autonomous Discovery from brief to verified package", async ({ pag
 
 	await page.getByRole("button", { name: "Manage package" }).click()
 	await expect(page.getByRole("dialog", { name: "Deliverable manifest" })).toBeVisible()
+	await page.getByTitle("Close panel").click()
+	await page.getByRole("button", { name: "All discoveries", exact: true }).click()
+	await expect(page.getByRole("button", { name: /Resume Redesign third-party onboarding controls so MAX can return a defensible decision package\., Completed/ })).toBeVisible()
+	await page.reload()
+	await expect(page.getByRole("button", { name: /Resume Redesign third-party onboarding controls so MAX can return a defensible decision package\., Completed/ })).toBeVisible()
 
 	const terminalAccessibility = await new AxeBuilder({ page }).analyze()
 	expect(terminalAccessibility.violations.filter((violation) => violation.impact === "critical" || violation.impact === "serious")).toEqual([])
@@ -89,6 +105,7 @@ test("runs an autonomous Discovery from brief to verified package", async ({ pag
 
 test("uses the written brief as the mission context without preset scenarios", async ({ page }) => {
 	await page.goto("/discovery-prototype")
+	await page.getByRole("button", { name: "New Discovery", exact: true }).click()
 	const brief = "Decide whether the finance controls operating model can safely automate month-end reconciliation."
 	const missionBrief = page.getByRole("textbox", { name: "Discovery brief" })
 	await missionBrief.fill(brief)
@@ -101,6 +118,7 @@ test("uses the written brief as the mission context without preset scenarios", a
 
 test("continues the owner interview through the voice agent", async ({ page }) => {
 	await page.goto("/discovery-prototype")
+	await page.getByRole("button", { name: "New Discovery", exact: true }).click()
 	await page.getByRole("textbox", { name: "Discovery brief" }).fill("Resolve the highest-risk vendor onboarding decision with evidence.")
 	await page.getByRole("button", { name: "Start autonomous Discovery" }).click()
 	await expect(page.getByRole("button", { name: "Voice" })).toBeVisible({ timeout: 8_000 })
@@ -131,6 +149,8 @@ test("keeps the launch experience usable at a mobile viewport", async ({ page })
 	await page.setViewportSize({ width: 390, height: 844 })
 	await page.goto("/discovery-prototype")
 	await expect(page.getByRole("tab", { name: "TPRM" })).toHaveCount(0)
+	await expect(page.getByRole("heading", { name: "Continue where MAX left off." })).toBeVisible()
+	await page.getByRole("button", { name: "New Discovery", exact: true }).click()
 	await expect(page.getByRole("button", { name: "Start autonomous Discovery" })).toBeVisible()
 	await page.getByRole("textbox", { name: "Discovery brief" }).fill("Investigate the operating decision and return the safest next action.")
 
@@ -165,7 +185,7 @@ test("keeps the launch experience usable at a mobile viewport", async ({ page })
 	expect(voiceDimensions.scrollHeight).toBeLessThanOrEqual(voiceDimensions.clientHeight)
 })
 
-const SCENARIO_EXCEPTION_TITLE = "External counsel is outside the authority envelope"
+const SCENARIO_EXCEPTION_TITLE = "One external interview needs your approval"
 
 test("preserves readable contrast in dark mode", async ({ page }) => {
 	await page.goto("/discovery-prototype")

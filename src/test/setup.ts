@@ -15,4 +15,7 @@ Object.defineProperty(HTMLElement.prototype, "scrollTo", {
   writable: true,
 })
 
-afterEach(() => cleanup())
+afterEach(() => {
+  cleanup()
+  window.localStorage.clear()
+})
