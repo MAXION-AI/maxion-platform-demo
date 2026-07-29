@@ -28,7 +28,8 @@ import {
 	Plus,
 	Question,
 	ShieldCheck,
-	Sparkle,
+	PencilSimpleLine,
+	Pulse,
 	Stack,
 	TerminalWindow,
 	Users,
@@ -123,7 +124,7 @@ export function DashboardModule({
 		},
 		{
 			module: "agentix" as const,
-			icon: Sparkle,
+			icon: Pulse,
 			title: "July close agent needs one exact approval",
 			detail: "164 validated effects · QuickBooks and SAP",
 			time: "1h",
@@ -337,7 +338,7 @@ export function PlanLibraryModule({ projects, onOpenPlan, onStartPlan, onNavigat
 		{ id: "documents", label: "Documents", detail: "Upload briefs, specs, or policies", icon: FileText },
 		{ id: "integrations", label: "Connected systems", detail: "Jira, ServiceNow, SharePoint", icon: Plug },
 		{ id: "project", label: "Project context", detail: "Use goals, members, and activity", icon: Stack },
-		{ id: "manual", label: "Describe it", detail: "Start from a short objective", icon: Sparkle },
+		{ id: "manual", label: "Describe it", detail: "Start from a short objective", icon: PencilSimpleLine },
 	] as const
 	return (
 		<div className="mxp-portal-page mxp-plan-library">
@@ -349,7 +350,7 @@ export function PlanLibraryModule({ projects, onOpenPlan, onStartPlan, onNavigat
 				<div className="mxp-dialog-layer" onMouseDown={(event) => { if (event.currentTarget === event.target) setCreateOpen(false) }}>
 					<section role="dialog" aria-modal="true" aria-labelledby="create-plan-title" className="mxp-portal-dialog mxp-plan-create-dialog">
 						<header className="mxp-plan-create-header">
-							<div><span className="mxp-dialog-icon"><Sparkle size={18} /></span><div><small>Autonomous plan</small><h2 id="create-plan-title">Start a plan with MAX</h2><p>Choose the strongest context. MAX builds the implementation map from there.</p></div></div>
+							<div><span className="mxp-dialog-icon"><MaxionSpiralMark variant="current" className="mxp-dialog-mark" /></span><div><small>Autonomous plan</small><h2 id="create-plan-title">Start a plan with MAX</h2><p>Choose the strongest context. MAX builds the implementation map from there.</p></div></div>
 							<button type="button" aria-label="Close create plan dialog" onClick={() => setCreateOpen(false)}><X size={17} /></button>
 						</header>
 						<form onSubmit={startPlan}>
@@ -448,7 +449,7 @@ export function ExecuteHubModule({
 						<form className="aex-prompt" onSubmit={launchEngagement}>
 							{source === "prompt" ? <textarea ref={composerRef} autoFocus aria-label="What should Execute deliver?" value={prompt} onChange={(event) => setPrompt(event.target.value)} rows={4} placeholder="Build the approved mission-authority boundary, preserve the public API, and return when the release gate is clean." /> : <fieldset className="aex-plan-picker"><legend>Choose an approved Plan</legend>{availablePlans.map((plan) => <button key={plan.id} type="button" aria-pressed={selectedPlanId === plan.id} onClick={() => setSelectedPlanId(plan.id)}><FlowArrow size={15} /><span><strong>{plan.name}</strong><small>{plan.project} · {plan.detail}</small></span>{selectedPlanId === plan.id ? <Check size={14} /> : null}</button>)}</fieldset>}
 							<footer>
-								<div className="aex-prompt-tools" role="group" aria-label="Engagement source"><button type="button" aria-pressed={source === "prompt"} onClick={() => { setSource("prompt"); window.setTimeout(() => composerRef.current?.focus(), 0) }}><Sparkle size={15} />Prompt</button><button type="button" aria-pressed={source === "plan"} onClick={() => setSource("plan")}><FlowArrow size={15} />Import from Plan</button><span><Code size={14} />max-ai-platform</span></div>
+								<div className="aex-prompt-tools" role="group" aria-label="Engagement source"><button type="button" aria-pressed={source === "prompt"} onClick={() => { setSource("prompt"); window.setTimeout(() => composerRef.current?.focus(), 0) }}><PencilSimpleLine size={15} />Prompt</button><button type="button" aria-pressed={source === "plan"} onClick={() => setSource("plan")}><FlowArrow size={15} />Import from Plan</button><span><Code size={14} />max-ai-platform</span></div>
 								<button type="submit" className="aex-send" aria-label="Start engagement" disabled={source === "prompt" ? !prompt.trim() : !selectedPlan}><ArrowRight size={17} /></button>
 							</footer>
 						</form>
@@ -531,7 +532,7 @@ function LegacyExecuteHubModule({
 						</div>
 						<form className="mxp-execute-composer" onSubmit={launchEngagement}>
 							<div className="mxp-execute-source-switch" role="group" aria-label="Engagement source">
-								<button type="button" aria-pressed={source === "prompt"} onClick={() => { setSource("prompt"); window.setTimeout(() => composerRef.current?.focus(), 0) }}><Sparkle size={15} />Prompt</button>
+								<button type="button" aria-pressed={source === "prompt"} onClick={() => { setSource("prompt"); window.setTimeout(() => composerRef.current?.focus(), 0) }}><PencilSimpleLine size={15} />Prompt</button>
 								<button type="button" aria-pressed={source === "plan"} onClick={() => setSource("plan")}><FlowArrow size={15} />Import from Plan</button>
 							</div>
 							{source === "prompt" ? (

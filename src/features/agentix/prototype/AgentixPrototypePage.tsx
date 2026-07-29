@@ -23,7 +23,7 @@ import {
 	Plus,
 	ShieldCheck,
 	SidebarSimple,
-	Sparkle,
+	Pulse,
 	SpinnerGap,
 	Stop,
 	Tray,
@@ -49,7 +49,7 @@ const PLATFORM_NAV = [
 	{ label: "Discovery", icon: MagnifyingGlass },
 	{ label: "Plan", icon: ListChecks },
 	{ label: "Execute", icon: Briefcase },
-	{ label: "Agentix", icon: Sparkle, active: true },
+	{ label: "Agentix", icon: Pulse, active: true },
 	{ label: "Consult Max", icon: CirclesThree },
 ]
 

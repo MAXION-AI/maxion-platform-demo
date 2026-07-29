@@ -2233,3 +2233,9 @@
 	.apn-convo-thread .apn-thread-outcome,
 	.apn-convo-empty { margin-left: 0; }
 }
+
+/* Inline brand mark — MAX's identity replaces the sparkle cliché. */
+.apn-inline-mark { width: 16px; height: 16px; }
+.apn-inline-mark.is-answer { width: 15px; height: 15px; color: var(--apn-accent-deep); }
+.apn-agent-recommendation > span .apn-inline-mark { color: var(--apn-accent-deep); }
+.mxp-dialog-mark { width: 18px; height: 18px; color: var(--portal-brand); }

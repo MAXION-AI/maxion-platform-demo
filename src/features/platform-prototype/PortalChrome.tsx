@@ -12,7 +12,7 @@ import {
 	Question,
 	ShieldCheck,
 	SignOut,
-	Sparkle,
+	Pulse,
 	SquaresFour,
 	Stack,
 	X,
@@ -77,7 +77,7 @@ export const PRIMARY_NAVIGATION: NavigationItem[] = [
 	{ id: "discovery", label: "Discover", icon: Compass },
 	{ id: "plan", label: "Plan", icon: FlowArrow },
 	{ id: "execute", label: "Execute", icon: Cube, badge: 1 },
-	{ id: "agentix", label: "Agentix", icon: Sparkle, badge: 2 },
+	{ id: "agentix", label: "Agentix", icon: Pulse, badge: 2 },
 	{ id: "consult", label: "Consult Max", spiral: true },
 ]
 

@@ -17,7 +17,7 @@ import {
 	ListChecks,
 	MagnifyingGlass,
 	ShieldCheck,
-	Sparkle,
+	Crosshair,
 	SpinnerGap,
 	TreeStructure,
 	Users,
@@ -860,7 +860,7 @@ function PlanDecisionCard({ resolved, onResolve, onOpenContract }: { resolved: b
 			<header><div><span>{resolved ? <CheckCircle size={17} weight="fill" /> : <ChatCircleText size={17} />}</span><div><small>{resolved ? "Decision recorded" : "Business authority required"}</small><h2>Should a Workday journal batch fail atomically or allow partial posting?</h2></div></div><i>{resolved ? "Resolved" : "Blocks INT-02"}</i></header>
 			<p>ServiceNow approves the financial change as one business transaction, while Workday can return line-level errors. The knowledge base does not define whether valid lines may post when another line fails.</p>
 			<section className="apn-evidence-conflict"><article><small>ServiceNow evidence</small><strong>Approval applies to the complete requested journal.</strong><span>Change policy FIN-18 · confidence 0.96</span></article><i>conflicts with</i><article><small>Workday capability</small><strong>The API can classify errors at individual journal-line level.</strong><span>Tenant metadata · confidence 0.99</span></article></section>
-			<section className="apn-agent-recommendation"><span><Sparkle size={16} weight="fill" /></span><div><small>MAX recommends</small><strong>Fail the batch atomically before posting any journal line.</strong><p>This preserves the ServiceNow approval boundary, avoids unapproved partial financial effects, and produces one replay-safe result. MAX will classify the error, return it to ServiceNow, and require a corrected approval before retry.</p><div><code>INT-02</code><code>MULE-202</code><code>WDAY-301</code><code>6 acceptance tests</code></div></div></section>
+			<section className="apn-agent-recommendation"><span><MaxionSpiralMark variant="current" className="apn-inline-mark" /></span><div><small>MAX recommends</small><strong>Fail the batch atomically before posting any journal line.</strong><p>This preserves the ServiceNow approval boundary, avoids unapproved partial financial effects, and produces one replay-safe result. MAX will classify the error, return it to ServiceNow, and require a corrected approval before retry.</p><div><code>INT-02</code><code>MULE-202</code><code>WDAY-301</code><code>6 acceptance tests</code></div></div></section>
 			{resolved ? <footer className="apn-question-decision"><span><CheckCircle size={15} weight="fill" />Atomic posting approved · affected artifacts re-checked</span><button type="button" onClick={onOpenContract}>Review updated L3 contract<ArrowRight size={14} /></button></footer> : <><form onSubmit={(event) => { event.preventDefault(); if (answer.trim()) onResolve() }}><label htmlFor="plan-clarification-answer">Use another decision</label><textarea id="plan-clarification-answer" value={answer} onChange={(event) => setAnswer(event.target.value)} placeholder="Explain the required posting behavior or constraint…" rows={3} /><span>MAX will show which contracts and tests change before final handoff.</span><div><button type="button" onClick={onOpenContract}>Inspect affected contract</button><button type="submit" disabled={!answer.trim()}>Apply my decision</button></div></form><footer><span>Recommended path</span><button type="button" onClick={onResolve}><Check size={14} />Accept atomic posting</button></footer></>}
 		</section>
 	)
@@ -929,7 +929,7 @@ function PlanHomeView({ live, stage, complete, passCount, onSkip, clarificationR
 								</div>
 							)
 						})}
-						{complete && thread.length === 0 ? <p className="apn-convo-empty"><Sparkle size={13} />Steer MAX below — ask it to explain, challenge, or change any part of the plan. Every direction is answered here.</p> : null}
+						{complete && thread.length === 0 ? <p className="apn-convo-empty"><ChatCircleText size={13} />Steer MAX below — ask it to explain, challenge, or change any part of the plan. Every direction is answered here.</p> : null}
 					</div>
 				</section>
 
@@ -948,7 +948,7 @@ function PlanSteeringAnswer({ entry, onDismiss }: { entry: Extract<PlanThreadEnt
 	const streamed = useStreamedText(entry.text, true)
 	return (
 		<div className="apn-steering-receipt is-answer" role="status" aria-live="polite">
-			<header><Sparkle size={14} weight="fill" /><span><strong>MAX answered in context</strong><small>{entry.target}</small></span><button type="button" aria-label="Dismiss answer" onClick={onDismiss}><X size={14} /></button></header>
+			<header><MaxionSpiralMark variant="current" className="apn-inline-mark is-answer" /><span><strong>MAX answered in context</strong><small>{entry.target}</small></span><button type="button" aria-label="Dismiss answer" onClick={onDismiss}><X size={14} /></button></header>
 			<p className="apn-steering-answer">{streamed}</p>
 		</div>
 	)
@@ -990,7 +990,7 @@ function PlanSteeringDock({ view, target, complete, value, focusTick, entry, onC
 				</div>
 			) : null}
 			<form onSubmit={(event) => { event.preventDefault(); onSubmit() }}>
-				<div className="apn-steering-target"><Sparkle size={14} weight="fill" /><span><small>Steering</small><strong>{target}</strong></span></div>
+				<div className="apn-steering-target"><Crosshair size={14} /><span><small>Steering</small><strong>{target}</strong></span></div>
 				<textarea ref={composerRef} aria-label="Steer the Plan agent" value={value} onChange={(event) => onChange(event.target.value)} onKeyDown={(event) => { if (event.key === "Enter" && !event.shiftKey) { event.preventDefault(); onSubmit() } }} placeholder={complete ? "Tell MAX what to explain, challenge, or change…" : "Add direction while MAX works — MAX folds it into this pass before it lands…"} rows={1} />
 				<button type="submit" disabled={!value.trim()} aria-label="Send Plan direction"><ArrowRight size={16} /></button>
 			</form>
@@ -1076,7 +1076,7 @@ function PlanNodeBrief({ level, flow, node, nodeIndex, brief, onLevelChange, onO
 				<article><small>{level === "L4" ? "Starts after" : "Interface contract"}</small><strong>{level === "L4" ? workPackage?.dependsOn : relatedContract ? `${relatedContract.id} · ${relatedContract.transport}` : "Internal contract"}</strong></article>
 				<article className="is-next"><small>{level === "L4" ? "Done when" : "What happens next"}</small><strong>{nextAction}</strong></article>
 			</div>
-			<footer><span><CheckCircle size={14} weight="fill" />Evidence and rationale are attached</span><div><button type="button" className="apn-node-steer" onClick={() => onSteerNode(`${flow.key} · ${level} · ${node.title}`)}><Sparkle size={13} />Steer MAX on this node</button>{level === "L2" ? <button type="button" onClick={() => onLevelChange("L3")}>Open technical contract<ArrowRight size={14} /></button> : level === "L3" ? <button type="button" onClick={() => onLevelChange("L4")}>Open build package<ArrowRight size={14} /></button> : <button type="button" onClick={onOpenImplementation}>Open implementation queue<ArrowRight size={14} /></button>}</div></footer>
+			<footer><span><CheckCircle size={14} weight="fill" />Evidence and rationale are attached</span><div><button type="button" className="apn-node-steer" onClick={() => onSteerNode(`${flow.key} · ${level} · ${node.title}`)}><Crosshair size={13} />Steer MAX on this node</button>{level === "L2" ? <button type="button" onClick={() => onLevelChange("L3")}>Open technical contract<ArrowRight size={14} /></button> : level === "L3" ? <button type="button" onClick={() => onLevelChange("L4")}>Open build package<ArrowRight size={14} /></button> : <button type="button" onClick={onOpenImplementation}>Open implementation queue<ArrowRight size={14} /></button>}</div></footer>
 		</section>
 	)
 }
