@@ -37,7 +37,18 @@ import {
 
 import { publicAsset } from "@/lib/publicAsset"
 
-import { DELIVERABLES, OPERATIONS, SCENARIOS, type OwnerInterviewQuestion, type Person, type ScenarioKey } from "./model"
+import {
+	DELIVERABLES,
+	DELIVERABLE_CONTENT,
+	OPERATIONS,
+	OPERATION_ACTIVITY,
+	OPERATION_ELAPSED_MINUTES,
+	SCENARIOS,
+	nowActions,
+	type OwnerInterviewQuestion,
+	type Person,
+	type ScenarioKey,
+} from "./model"
 import "./styles.css"
 import "./frontier.css"
 
@@ -69,6 +80,9 @@ type ChatMessage = {
 	actor: "max" | "user"
 	text: string
 	trace?: string[]
+	// The bare question inside the message, without MAX's acknowledgement
+	// preamble — the voice surface reads and shows this, not the paragraph.
+	prompt?: string
 	question?: {
 		current: number
 		total: number
@@ -245,6 +259,7 @@ function interviewMessage(scenarioKey: ScenarioKey, index: number, prefix?: stri
 		id: `interview-${index}-${Date.now()}`,
 		actor: "max",
 		text: `${prefix ? `${prefix} ` : ""}${prompt.question}`,
+		prompt: prompt.question,
 		question: { current: index + 1, total: scenario.ownerInterview.length, topic: prompt.topic },
 	}
 }
@@ -265,9 +280,15 @@ function isUncertainAnswer(text: string) {
 	return /^(not sure|i(?:'|’)m not sure|i do not know|i don(?:'|’)t know|don(?:'|’)t know|no idea|unsure|idk)\b/i.test(text.trim()) || text.trim().split(/\s+/).length < 3
 }
 
-function conciseAnswer(text: string) {
+// Echoes of what the owner wrote must never cut a word in half — trim back to
+// the last word boundary before appending the ellipsis.
+function conciseAnswer(text: string, limit = 120) {
 	const sentence = text.trim().split(/[.!?]\s/)[0]
-	return sentence.length > 120 ? `${sentence.slice(0, 117).trim()}…` : sentence
+	if (sentence.length <= limit) return sentence
+	const clipped = sentence.slice(0, limit - 3)
+	const lastBreak = clipped.lastIndexOf(" ")
+	const stem = (lastBreak > limit * 0.5 ? clipped.slice(0, lastBreak) : clipped).replace(/[\s,;:—-]+$/, "")
+	return `${stem}…`
 }
 
 function missionTitle(brief: string) {
@@ -280,6 +301,13 @@ function referencedSource(text: string, scenarioKey: ScenarioKey) {
 	const scenario = SCENARIOS[scenarioKey]
 	return scenario.sources.find((source) => normalized.includes(source.system.toLowerCase()) || normalized.includes(source.name.toLowerCase()))
 		?? (/\b(check|look|verify|source|records?|documents?)\b/i.test(text) ? scenario.sources[0] : undefined)
+}
+
+// What MAX shows while it is composing the reply — topic-aware during the owner
+// interview, operation-aware afterwards. Never a bare spinner.
+function thinkingLine(topic: string | null, phase: number) {
+	if (topic) return `MAX is weighing that against the evidence on ${topic.toLowerCase()}…`
+	return `MAX is folding that into ${OPERATION_ACTIVITY[Math.min(Math.max(phase, 0), OPERATION_ACTIVITY.length - 1)]}…`
 }
 
 function isInterviewCloseIntent(text: string) {
@@ -301,30 +329,39 @@ function prefersInstantMotion() {
 	return typeof window === "undefined" || typeof window.matchMedia !== "function" || window.matchMedia("(prefers-reduced-motion: reduce)").matches
 }
 
-function useStreamedText(text: string, active: boolean) {
+// Sentence-aware word cadence: MAX holds a beat at a full stop or a question
+// mark the way a person does, instead of typing on a metronome. `finalize`
+// lands the remaining words instantly so only one message can ever be streaming.
+function useStreamedText(text: string, active: boolean, finalize = false) {
 	const [count, setCount] = useState(active && !prefersInstantMotion() ? 0 : Number.MAX_SAFE_INTEGER)
 	useEffect(() => {
-		if (!active || prefersInstantMotion()) { setCount(Number.MAX_SAFE_INTEGER); return }
+		if (!active || finalize || prefersInstantMotion()) { setCount(Number.MAX_SAFE_INTEGER); return }
+		const words = text.split(" ")
 		setCount(0)
-		const total = text.split(" ").length
-		const timer = window.setInterval(() => {
-			setCount((current) => {
-				if (current >= total) { window.clearInterval(timer); return current }
-				return current + 1
-			})
-		}, 26)
-		return () => window.clearInterval(timer)
-	}, [text, active])
+		let timer = 0
+		let index = 0
+		const step = () => {
+			index += 1
+			setCount(index)
+			if (index >= words.length) return
+			const settled = words[index - 1] ?? ""
+			timer = window.setTimeout(step, /[.?!]["”’)]?$/.test(settled) ? 136 : 26)
+		}
+		timer = window.setTimeout(step, 26)
+		return () => window.clearTimeout(timer)
+	}, [text, active, finalize])
 	if (!active) return text
 	const words = text.split(" ")
 	return count >= words.length ? text : words.slice(0, count).join(" ")
 }
 
 // Ticks from the previous value to the next one whenever the target changes;
-// mounts (resume, view switches) render the final value instantly.
-function useCountUp(target: number) {
-	const [value, setValue] = useState(target)
-	const previousRef = useRef(target)
+// mounts (resume, view switches) render the final value instantly unless the
+// caller asks for a from-zero entrance (the records landing does).
+function useCountUp(target: number, fromZero = false) {
+	const seed = fromZero && !prefersInstantMotion() ? 0 : target
+	const [value, setValue] = useState(seed)
+	const previousRef = useRef(seed)
 	useEffect(() => {
 		const from = previousRef.current
 		previousRef.current = target
@@ -343,8 +380,8 @@ function useCountUp(target: number) {
 	return value
 }
 
-function AnimatedStat({ value }: { value: number | null }) {
-	const display = useCountUp(value ?? 0)
+function AnimatedStat({ value, fromZero = false }: { value: number | null; fromZero?: boolean }) {
+	const display = useCountUp(value ?? 0, fromZero)
 	if (value === null) return <>—</>
 	return <>{display.toLocaleString()}</>
 }
@@ -408,6 +445,19 @@ const DISCOVERY_STATUS_LABEL: Record<DiscoveryStatus, string> = {
 	"needs-input": "Needs your input",
 	active: "Working autonomously",
 	completed: "Completed",
+}
+
+// Cross-module jump registry (shell ⌘K): saved discoveries live in localStorage, so the
+// shell reads them on demand rather than mirroring record state into a prop.
+export type DiscoveryJumpRecord = { id: string; title: string; status: DiscoveryStatus; statusLabel: string; keywords: string }
+export type DiscoveryJump = "resume" | "decision" | "package"
+export type DiscoveryOpenSignal = { tick: number; recordId: string; jump: DiscoveryJump }
+
+export function listDiscoveryJumpRecords(): DiscoveryJumpRecord[] {
+	return readDiscoveryRecords().map((record) => {
+		const status = discoveryStatus(record)
+		return { id: record.id, title: record.title, status, statusLabel: DISCOVERY_STATUS_LABEL[status], keywords: `${record.brief} ${SCENARIOS[record.scenarioKey].kicker}` }
+	})
 }
 
 type DiscoveryPaletteAction =
@@ -515,10 +565,11 @@ function DiscoveryCommandPalette({
 interface DiscoveryAutonomousPrototypePageProps {
 	embedded?: boolean
 	setupSignal?: number
+	openSignal?: DiscoveryOpenSignal | null
 	onPackageReady?: () => void
 }
 
-export function DiscoveryAutonomousPrototypePage({ embedded = false, setupSignal = 0, onPackageReady }: DiscoveryAutonomousPrototypePageProps = {}) {
+export function DiscoveryAutonomousPrototypePage({ embedded = false, setupSignal = 0, openSignal = null, onPackageReady }: DiscoveryAutonomousPrototypePageProps = {}) {
 	const reducedMotion = Boolean(useReducedMotion())
 	const [records, setRecords] = useState<DiscoveryRecord[]>(readDiscoveryRecords)
 	const [activeRecordId, setActiveRecordId] = useState<string | null>(null)
@@ -543,11 +594,13 @@ export function DiscoveryAutonomousPrototypePage({ embedded = false, setupSignal
 	const [packageSelection, setPackageSelection] = useState(0)
 	const [invitesSent, setInvitesSent] = useState(false)
 	const [paletteOpen, setPaletteOpen] = useState(false)
+	const [pendingReply, setPendingReply] = useState<string | null>(null)
 	const [composerFocusTick, setComposerFocusTick] = useState(0)
 	const rootRef = useRef<HTMLDivElement>(null)
 	const paletteTriggerRef = useRef<HTMLElement | null>(null)
 	const drawerTriggerRef = useRef<HTMLElement | null>(null)
 	const preparingTimerRef = useRef(0)
+	const sessionStartedRef = useRef(new Date().toISOString())
 	const scenario = SCENARIOS[scenarioKey]
 	const activeRecord = records.find((record) => record.id === activeRecordId)
 	const currentMissionTitle = activeRecord?.title ?? missionTitle(missionBrief)
@@ -652,6 +705,7 @@ export function DiscoveryAutonomousPrototypePage({ embedded = false, setupSignal
 	}
 
 	const openNewDiscovery = () => {
+		setPendingReply(null)
 		window.clearTimeout(preparingTimerRef.current)
 		setActiveRecordId(null)
 		setScenarioKey("tprm")
@@ -673,6 +727,7 @@ export function DiscoveryAutonomousPrototypePage({ embedded = false, setupSignal
 	}
 
 	const openDiscoveryIndex = () => {
+		setPendingReply(null)
 		window.clearTimeout(preparingTimerRef.current)
 		setScreen("index")
 		setDrawer(null)
@@ -680,6 +735,7 @@ export function DiscoveryAutonomousPrototypePage({ embedded = false, setupSignal
 	}
 
 	const resumeDiscovery = (record: DiscoveryRecord) => {
+		setPendingReply(null)
 		setActiveRecordId(record.id)
 		setScenarioKey(record.scenarioKey)
 		setMissionBrief(record.brief)
@@ -768,6 +824,22 @@ export function DiscoveryAutonomousPrototypePage({ embedded = false, setupSignal
 		if (!setupSignal) return
 		openNewDiscoveryRef.current()
 	}, [setupSignal])
+
+	// The shell's cross-module jump registry opens a saved discovery at its saved point of
+	// work. Live actions arrive through a ref so the one-shot effect never reads stale state.
+	const openJumpRef = useRef<(signal: DiscoveryOpenSignal) => void>(() => undefined)
+	openJumpRef.current = (signal) => {
+		const record = records.find((item) => item.id === signal.recordId)
+		if (!record) return
+		resumeDiscovery(signal.jump === "package" && record.phase >= 6 ? { ...record, view: "package" } : signal.jump === "decision" ? { ...record, view: "thread" } : record)
+		if (signal.jump === "decision") jumpToDecision()
+	}
+	const openSignalTickRef = useRef(0)
+	useEffect(() => {
+		if (!openSignal || openSignal.tick === openSignalTickRef.current) return
+		openSignalTickRef.current = openSignal.tick
+		openJumpRef.current(openSignal)
+	}, [openSignal])
 
 	useEffect(() => {
 		const onKeyDown = (event: KeyboardEvent) => {
@@ -890,6 +962,7 @@ export function DiscoveryAutonomousPrototypePage({ embedded = false, setupSignal
 				id: `interview-clarify-${Date.now()}`,
 				actor: "max",
 				text: `That uncertainty is useful; I’ll keep it as an explicit gap rather than inventing an answer. ${prompt.evidenceHint} For now, who would know or make that call in practice? A role is enough.`,
+				prompt: "For now, who would know or make that call in practice? A role is enough.",
 				question: { current: interviewIndex + 1, total: scenario.ownerInterview.length, topic: `${prompt.topic} · clarification` },
 			})
 			return
@@ -926,8 +999,12 @@ export function DiscoveryAutonomousPrototypePage({ embedded = false, setupSignal
 		setCommandText("")
 		addMessage({ id: `user-${Date.now()}`, actor: "user", text })
 		const normalized = text.toLowerCase()
+		// A turn, not a form submit: MAX visibly considers the answer before it
+		// replies. Reduced motion collapses the gap and skips the pending row.
+		if (!reducedMotion) setPendingReply(thinkingLine(interviewClosed ? null : scenario.ownerInterview[Math.min(interviewIndex, scenario.ownerInterview.length - 1)].topic, phase))
 
 		window.setTimeout(() => {
+			setPendingReply(null)
 			if (pendingPerson || normalized.includes("add") && normalized.includes("stakeholder")) {
 				addPersonFromCommand(text, pendingPerson)
 				return
@@ -985,7 +1062,7 @@ export function DiscoveryAutonomousPrototypePage({ embedded = false, setupSignal
 				actor: "max",
 				text: `I’ve incorporated that direction into the mission. I’m applying it to ${OPERATIONS[phase].label.toLowerCase()} and will show any resulting record change in the work trace.`,
 			})
-		}, reducedMotion ? 50 : 420)
+		}, reducedMotion ? 50 : 720)
 	}
 
 	const sendCommand = (event: FormEvent) => {
@@ -1016,7 +1093,7 @@ export function DiscoveryAutonomousPrototypePage({ embedded = false, setupSignal
 					onPreview={(target) => openDrawer(target)}
 				/>
 			) : screen === "preparing" ? (
-				<PreparingScreen missionTitle={currentMissionTitle} onEnter={enterWorkspaceNow} />
+				<PreparingScreen scenarioKey={scenarioKey} missionTitle={currentMissionTitle} onEnter={enterWorkspaceNow} />
 			) : (
 					<WorkspaceShell
 						scenarioKey={scenarioKey}
@@ -1037,6 +1114,7 @@ export function DiscoveryAutonomousPrototypePage({ embedded = false, setupSignal
 						<Overview
 							scenarioKey={scenarioKey}
 							missionBrief={missionBrief}
+							startedAt={activeRecord?.createdAt ?? sessionStartedRef.current}
 							phase={phase}
 							paused={paused}
 							decision={decision}
@@ -1059,6 +1137,7 @@ export function DiscoveryAutonomousPrototypePage({ embedded = false, setupSignal
 							interviewIndex={interviewIndex}
 							interviewClosed={interviewClosed}
 							messages={messages}
+							pendingReply={pendingReply}
 							commandText={commandText}
 							composerFocusTick={composerFocusTick}
 							onCommandTextChange={setCommandText}
@@ -1135,13 +1214,21 @@ function relativeDiscoveryTime(timestamp: string) {
 	return `Updated ${elapsedDays} day${elapsedDays === 1 ? "" : "s"} ago`
 }
 
+// Ledger entries are stamped from the run's own start time plus the elapsed
+// minutes for that operation, clamped to now so nothing is ever dated ahead.
+function ledgerMoment(startedAt: string, minutes: number) {
+	const started = new Date(startedAt).getTime()
+	const stamp = Number.isFinite(started) ? Math.min(started + minutes * 60_000, Date.now()) : Date.now()
+	return new Date(stamp)
+}
+
 function discoveryActivity(record: DiscoveryRecord) {
 	const scenario = SCENARIOS[record.scenarioKey]
 	if (record.phase >= OPERATIONS.length - 1) return `MAX verified ${DELIVERABLES.length} deliverables and routed the decision package.`
 	if (!record.interviewClosed) return `MAX is ready for your judgment · ${scenario.ownerInterview[record.interviewIndex].topic}`
 	if (record.phase === 4 && record.decision === "pending") return `MAX isolated one authority boundary · ${scenario.exception.title}`
 	if (record.paused) return "MAX preserved the last verified checkpoint. Resume when you’re ready."
-	return `MAX is handling ${OPERATIONS[record.phase].label.toLowerCase()} · routine work is continuing autonomously.`
+	return `MAX is ${OPERATION_ACTIVITY[record.phase] ?? "working the mission"} · routine work is continuing autonomously.`
 }
 
 function DiscoveryIndex({
@@ -1214,9 +1301,9 @@ function DiscoveryIndex({
 						<h1>Continue where MAX left off.</h1>
 					</div>
 					<section className="discovery-index-summary" aria-label="Discovery workload summary">
-						<div className="is-attention"><span>Needs your input</span><strong>{countFor("needs-input")}</strong></div>
-						<div><span>Working autonomously</span><strong>{countFor("active")}</strong></div>
-						<div><span>Packages ready</span><strong>{countFor("completed")}</strong></div>
+						<div className="is-attention"><span>Needs your input</span><strong><AnimatedStat value={countFor("needs-input")} fromZero /></strong></div>
+						<div><span>Working autonomously</span><strong><AnimatedStat value={countFor("active")} fromZero /></strong></div>
+						<div><span>Packages ready</span><strong><AnimatedStat value={countFor("completed")} fromZero /></strong></div>
 					</section>
 					<div className="discovery-index-actions">
 						{!embedded ? <IconButton label={dark ? "Use light theme" : "Use dark theme"} onClick={onToggleDark}>{dark ? <Sun size={18} /> : <Moon size={18} />}</IconButton> : null}
@@ -1254,7 +1341,7 @@ function DiscoveryIndex({
 									const status = discoveryStatus(record)
 									return (
 										<button key={record.id} type="button" className={`discovery-record-card is-${status}`} onClick={() => onResume(record)} aria-label={`Resume ${record.title}, ${statusMeta[status].label}`}>
-											<span className="discovery-record-status"><i aria-hidden="true">{status === "completed" ? <Check size={10} weight="bold" /> : status === "needs-input" ? "!" : <CircleNotch size={10} />}</i>{statusMeta[status].label}</span>
+											<span className="discovery-record-status"><i aria-hidden="true">{status === "completed" ? <Check size={10} weight="bold" /> : status === "needs-input" ? "!" : <CircleNotch size={10} className="spin" />}</i>{statusMeta[status].label}</span>
 											<time dateTime={record.updatedAt}>{relativeDiscoveryTime(record.updatedAt)}</time>
 											<strong className="discovery-record-title">{record.title}</strong>
 											<span className="discovery-record-context">{SCENARIOS[record.scenarioKey].kicker}</span>
@@ -1407,23 +1494,30 @@ function SetupScreen({
 	)
 }
 
-const PREPARING_STEPS = [
-	{ label: "Mission boundary established", detail: "Objective, completion condition, and authority envelope normalized" },
-	{ label: "Governed sources bound", detail: "Permitted scopes verified · record-level provenance retained" },
-	{ label: "Stakeholder graph mapped", detail: "Accountable roles matched to the open evidence gaps" },
-	{ label: "First work graph created", detail: "Inquiry plan sequenced · routine work pre-authorized" },
-] as const
+// Each receipt carries the mission's own numbers and holds for a different beat
+// — real work does not land on a metronome.
+function preparingSteps(scenarioKey: ScenarioKey) {
+	const scenario = SCENARIOS[scenarioKey]
+	const records = scenario.sources.reduce((total, source) => total + Number(source.records.replace(/[^0-9]/g, "")), 0)
+	return [
+		{ label: "Mission boundary established", detail: `Objective, completion condition, and authority envelope normalized · ${scenario.deadline}`, hold: 360 },
+		{ label: "Governed sources bound", detail: `${scenario.sources.length} permitted scopes · ${records.toLocaleString()} records in scope · provenance retained`, hold: 560 },
+		{ label: "Stakeholder graph mapped", detail: `${scenario.people.length} accountable owners matched to the open evidence gaps`, hold: 780 },
+		{ label: "First work graph created", detail: `${scenario.inquiries.length} inquiries sequenced · ${DELIVERABLES.length} outputs planned · routine work pre-authorized`, hold: 520 },
+	]
+}
 
-function PreparingScreen({ missionTitle, onEnter }: { missionTitle: string; onEnter: () => void }) {
+function PreparingScreen({ scenarioKey, missionTitle, onEnter }: { scenarioKey: ScenarioKey; missionTitle: string; onEnter: () => void }) {
 	const orbitRef = useRef<HTMLDivElement>(null)
 	const reducedMotion = Boolean(useReducedMotion())
-	const [landed, setLanded] = useState(reducedMotion ? PREPARING_STEPS.length : 1)
+	const steps = useMemo(() => preparingSteps(scenarioKey), [scenarioKey])
+	const [landed, setLanded] = useState(reducedMotion ? steps.length : 1)
 
 	useEffect(() => {
-		if (reducedMotion || landed >= PREPARING_STEPS.length) return
-		const timer = window.setTimeout(() => setLanded((current) => current + 1), 520)
+		if (reducedMotion || landed >= steps.length) return
+		const timer = window.setTimeout(() => setLanded((current) => current + 1), steps[landed - 1]?.hold ?? 520)
 		return () => window.clearTimeout(timer)
-	}, [landed, reducedMotion])
+	}, [landed, reducedMotion, steps])
 
 	useEffect(() => {
 		if (reducedMotion || !orbitRef.current) return
@@ -1444,8 +1538,8 @@ function PreparingScreen({ missionTitle, onEnter }: { missionTitle: string; onEn
 				<p className="eyebrow">Establishing the mission</p>
 				<h1>{missionTitle}</h1>
 				<div className="preparing-receipts">
-					{PREPARING_STEPS.slice(0, landed).map((step, index) => {
-						const working = index === landed - 1 && landed < PREPARING_STEPS.length
+					{steps.slice(0, landed).map((step, index) => {
+						const working = index === landed - 1 && landed < steps.length
 						return (
 							<div key={step.label} className={working ? "preparing-receipt is-working" : "preparing-receipt"}>
 								<span>{working ? <CircleNotch size={13} className="spin" /> : <Check size={13} weight="bold" />}</span>
@@ -1637,6 +1731,7 @@ function DecisionBoundary({
 function Overview({
 	scenarioKey,
 	missionBrief,
+	startedAt,
 	phase,
 	paused,
 	decision,
@@ -1651,6 +1746,7 @@ function Overview({
 }: {
 	scenarioKey: ScenarioKey
 	missionBrief: string
+	startedAt: string
 	phase: number
 	paused: boolean
 	decision: DecisionState
@@ -1665,11 +1761,25 @@ function Overview({
 }) {
 	const scenario = SCENARIOS[scenarioKey]
 	const decisionPending = phase === 4 && decision === "pending"
+	const complete = phase >= OPERATIONS.length - 1
 	const progress = Math.round(((phase + 1) / OPERATIONS.length) * 100)
 	const interviewed = Math.min(people.length, Math.max(0, phase - 2))
 	const sourceRecords = scenario.sources.reduce((total, source) => total + Number(source.records.replace(/[^0-9]/g, "")), 0)
 	const followUps = phase >= 4 ? 4 : phase >= 3 ? 2 : 0
-	const autonomousActions = (phase + 1) * 6 + interviewed * 3 + (decision !== "pending" ? 4 : 0)
+	// The run keeps working between phase changes: a micro-action rotates under
+	// "Now handling" and each rotation is one more verified action. Reduced
+	// motion never starts the timer, so the surface stays a static, true count.
+	const microActions = nowActions(scenario, phase, people)
+	const [microTick, setMicroTick] = useState(0)
+	const running = interviewClosed && !paused && !complete
+	useEffect(() => { setMicroTick(0) }, [phase])
+	useEffect(() => {
+		if (!running || prefersInstantMotion()) return
+		const timer = window.setInterval(() => setMicroTick((current) => current + 1), 2400)
+		return () => window.clearInterval(timer)
+	}, [running, phase])
+	const microAction = microActions[microTick % microActions.length]
+	const autonomousActions = (phase + 1) * 6 + interviewed * 3 + (decision !== "pending" ? 4 : 0) + microTick
 	const autonomyStateLabel = {
 		complete: "Handled",
 		active: "Working",
@@ -1732,23 +1842,23 @@ function Overview({
 		},
 	] as const
 	const ledger = [
-		{ phase: 0, time: "09:04", title: "Mission and authority established", detail: "Converted the brief into an objective, completion condition, source scope, and interruption boundary." },
-		{ phase: 1, time: "09:07", title: "Source access verified", detail: `Bound ${scenario.sources.length} permitted systems and retained record-level provenance.` },
-		{ phase: 2, time: "09:11", title: "Stakeholder program launched", detail: `Mapped ${people.length} accountable roles and tailored each interview to a different evidence gap.` },
-		{ phase: 3, time: "09:18", title: "Interviews adapted in flight", detail: "Skipped questions already answered by records and sent targeted follow-ups where positions diverged." },
-		{ phase: 4, time: "09:26", title: "Conflict detected and contained", detail: "Reconciled the evidence, isolated the material exception, and kept unaffected work running." },
-		{ phase: 5, time: "09:31", title: "Risk and readiness snapshot frozen", detail: "Bound claims, unresolved tensions, decisions, and accountable owners into one canonical snapshot." },
-		{ phase: 6, time: "09:36", title: "Decision package generated", detail: `Built ${DELIVERABLES.length} linked deliverables from the verified manifest.` },
-		{ phase: 7, time: "09:40", title: "Approvals and handoff routed", detail: "Sent the right artifact and decision scope to each approved recipient." },
-	].filter((event) => event.phase <= phase).slice(-5)
+		{ phase: 0, title: "Mission and authority established", detail: "Converted the brief into an objective, completion condition, source scope, and interruption boundary." },
+		{ phase: 1, title: "Source access verified", detail: `Bound ${scenario.sources.length} permitted systems and retained record-level provenance.` },
+		{ phase: 2, title: "Stakeholder program launched", detail: `Mapped ${people.length} accountable roles and tailored each interview to a different evidence gap.` },
+		{ phase: 3, title: "Interviews adapted in flight", detail: "Skipped questions already answered by records and sent targeted follow-ups where positions diverged." },
+		{ phase: 4, title: "Conflict detected and contained", detail: "Reconciled the evidence, isolated the material exception, and kept unaffected work running." },
+		{ phase: 5, title: "Risk and readiness snapshot frozen", detail: "Bound claims, unresolved tensions, decisions, and accountable owners into one canonical snapshot." },
+		{ phase: 6, title: "Decision package generated", detail: `Built ${DELIVERABLES.length} linked deliverables from the verified manifest.` },
+		{ phase: 7, title: "Approvals and handoff routed", detail: "Sent the right artifact and decision scope to each approved recipient." },
+	].filter((event) => event.phase <= phase).slice(-5).reverse()
 
 	return (
 		<div className="overview-workspace">
-			<section className="overview-main" aria-label="Autonomy overview" tabIndex={0}>
+			<section className={decisionPending ? "overview-main is-gated" : "overview-main"} aria-label="Autonomy overview" tabIndex={0}>
 				<header className="autonomy-hero">
 					<div>
-						<p className="eyebrow"><span className={paused ? "autonomy-live-dot paused" : "autonomy-live-dot"} />Autonomy run</p>
-						<h1>{interviewClosed ? "MAX is running the Discovery." : "MAX is forming the mission with you."}</h1>
+						<p className="eyebrow"><span className={complete ? "autonomy-live-dot complete" : paused ? "autonomy-live-dot paused" : "autonomy-live-dot"} />Autonomy run</p>
+						<h1>{complete ? "MAX ran the Discovery." : interviewClosed ? "MAX is running the Discovery." : "MAX is forming the mission with you."}</h1>
 						<p>{missionBrief || scenario.objective}</p>
 					</div>
 					<div className="autonomy-progress-summary" role="progressbar" aria-label="Autonomous Discovery progress" aria-valuemin={0} aria-valuemax={100} aria-valuenow={progress}><strong>{progress}%</strong><span>{phase >= 7 ? "Complete" : paused ? "Paused" : "Working"}</span><div><motion.span animate={{ width: `${progress}%` }} transition={{ duration: 0.45, ease: [0.16, 1, 0.3, 1] }} /></div></div>
@@ -1771,6 +1881,9 @@ function Overview({
 							</div>
 							<span className={paused ? "autonomy-state paused" : phase >= 7 ? "autonomy-state complete" : "autonomy-state working"}>{paused ? "Paused" : phase >= 7 ? "Verified" : "Running"}</span>
 						</div>
+						{/* Ambient, not announced — the section is already a live region and the
+						    ledger below carries the durable record of the same work. */}
+						{running ? <p className="dsc-now-line" aria-hidden="true"><span className="dsc-now-dot" /><span key={microAction} className="dsc-now-text">{microAction}</span></p> : null}
 						<div className="work-trace compact-trace">
 							<button type="button" onClick={onToggleTrace} aria-expanded={traceOpen}>
 								<span className="trace-active-dot" />
@@ -1810,7 +1923,7 @@ function Overview({
 						<span>{workstreams.filter((item) => item.state === "complete").length} handled · {workstreams.filter((item) => item.state === "active" || item.state === "attention").length} active</span>
 					</div>
 					<div className="autonomy-workstream-grid">
-						{workstreams.map((item) => <article key={item.label} className={`is-${item.state}`}><header><span>{item.icon}</span><div><small>{item.label}</small><strong>{item.title}</strong></div><i>{autonomyStateLabel[item.state]}</i></header><p>{item.detail}</p></article>)}
+						{workstreams.map((item) => <article key={item.label} className={`is-${item.state}`}><header><span>{item.icon}</span><div><small>{item.label}</small><i>{autonomyStateLabel[item.state]}</i></div><strong>{item.title}</strong></header><p>{item.detail}</p></article>)}
 					</div>
 				</section>
 
@@ -1824,7 +1937,10 @@ function Overview({
 
 					<section className="autonomy-ledger" aria-labelledby="autonomy-ledger-heading">
 						<div className="section-heading-row compact"><div><p className="eyebrow">Autonomy ledger</p><h2 id="autonomy-ledger-heading">What MAX did and why</h2></div><button className="text-button" type="button" onClick={onOpenThread}>Owner thread <ArrowRight size={14} /></button></div>
-						<ol tabIndex={0}>{ledger.map((event) => <li key={event.title} className={event.phase === phase && phase < 7 ? "is-current" : "is-complete"}><span>{event.phase === phase && phase < 7 ? <CircleNotch size={13} className={paused ? "" : "spin"} /> : <Check size={12} weight="bold" />}</span><div><strong>{event.title}</strong><p>{event.detail}</p></div><time>{event.time}</time></li>)}</ol>
+						<ol tabIndex={0}>{ledger.map((event) => {
+							const moment = ledgerMoment(startedAt, OPERATION_ELAPSED_MINUTES[event.phase] ?? 0)
+							return <li key={event.title} className={event.phase === phase && !complete ? "is-current" : "is-complete"}><span>{event.phase === phase && !complete ? <CircleNotch size={13} className={paused ? "" : "spin"} /> : <Check size={12} weight="bold" />}</span><div><strong>{event.title}</strong><p>{event.detail}</p></div><time dateTime={moment.toISOString()}>{moment.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}</time></li>
+						})}</ol>
 					</section>
 					</div>
 			</section>
@@ -1862,6 +1978,7 @@ function Thread({
 	interviewIndex,
 	interviewClosed,
 	messages,
+	pendingReply,
 	commandText,
 	composerFocusTick,
 	onCommandTextChange,
@@ -1882,6 +1999,7 @@ function Thread({
 	interviewIndex: number
 	interviewClosed: boolean
 	messages: ChatMessage[]
+	pendingReply: string | null
 	commandText: string
 	composerFocusTick: number
 	onCommandTextChange: (value: string) => void
@@ -1909,6 +2027,9 @@ function Thread({
 	const [voiceOpen, setVoiceOpen] = useState(false)
 	const [decisionInView, setDecisionInView] = useState(true)
 	const lastMaxMessage = messages.slice().reverse().find((message) => message.actor === "max")
+	// Exactly one caret can be live at a time: any MAX message that is no longer
+	// the newest finalizes instantly instead of racing the reply beneath it.
+	const streamingMessageId = pendingReply ? null : lastMaxMessage?.id ?? null
 	const mentionTargets = useMemo(() => buildMentionTargets(scenarioKey, people), [scenarioKey, people])
 	const jumpFromMention = useCallback((target: MentionTarget) => {
 		if (target === "people") onOpenPeople()
@@ -1941,7 +2062,7 @@ function Thread({
 		// away from the gate — the jump chip handles wayfinding instead.
 		if (decisionPending) return
 		log.scrollTo({ top: log.scrollHeight, behavior: prefersInstantMotion() ? "auto" : "smooth" })
-	}, [messages, phase, decisionPending])
+	}, [messages, pendingReply, phase, decisionPending])
 	useEffect(() => {
 		if (!decisionPending) { setDecisionInView(true); return }
 		if (typeof IntersectionObserver === "undefined") return
@@ -1973,7 +2094,7 @@ function Thread({
 						<div key={message.id} className={message.actor === "user" ? "message user-message" : "message max-message"}>
 							{message.actor === "max" ? <img src={publicAsset("maxion-logo-gradient.svg")} alt="" /> : null}
 							{message.actor === "max" ? (
-								<MaxMessageBody message={message} fresh={STREAMABLE_MESSAGE_IDS.has(message.id) && !STREAMED_MESSAGE_IDS.has(message.id)} onSettle={markStreamed} targets={mentionTargets} onJump={jumpFromMention} onGrow={followStream} />
+								<MaxMessageBody message={message} fresh={STREAMABLE_MESSAGE_IDS.has(message.id) && !STREAMED_MESSAGE_IDS.has(message.id)} finalize={message.id !== streamingMessageId} onSettle={markStreamed} targets={mentionTargets} onJump={jumpFromMention} onGrow={followStream} />
 							) : (
 								<div className="message-body">
 									<p>{message.text}</p>
@@ -1981,6 +2102,13 @@ function Thread({
 							)}
 						</div>
 					))}
+					{pendingReply ? (
+						<div className="dsc-thinking-row" role="status">
+							<img src={publicAsset("maxion-logo-gradient.svg")} alt="" />
+							<span className="dsc-thinking-dots" aria-hidden="true"><i /><i /><i /></span>
+							<p>{pendingReply}</p>
+						</div>
+					) : null}
 					{!interviewing ? (
 						<section className="thread-event autonomy-thread-digest" aria-label="Autonomous work summary">
 							<header><span><i />Autonomy live</span><button type="button" onClick={onOpenAutonomy}>Open autonomy <ArrowRight size={13} /></button></header>
@@ -2069,7 +2197,8 @@ function Thread({
 				}}
 				onSubmit={onVoiceSubmit}
 				messages={messages}
-				question={lastMaxMessage?.text ?? currentInterviewPrompt.question}
+				question={lastMaxMessage?.prompt ?? lastMaxMessage?.text ?? currentInterviewPrompt.question}
+				topicLabel={lastMaxMessage?.question ? `${lastMaxMessage.question.topic} · ${lastMaxMessage.question.current} of ${lastMaxMessage.question.total}` : null}
 				interviewing={interviewing}
 				questionNumber={interviewIndex + 1}
 				questionTotal={scenario.ownerInterview.length}
@@ -2081,6 +2210,7 @@ function Thread({
 function MaxMessageBody({
 	message,
 	fresh,
+	finalize,
 	onSettle,
 	targets,
 	onJump,
@@ -2088,6 +2218,7 @@ function MaxMessageBody({
 }: {
 	message: ChatMessage
 	fresh: boolean
+	finalize: boolean
 	onSettle: (id: string) => void
 	targets: Map<string, MentionTarget>
 	onJump: (target: MentionTarget) => void
@@ -2097,7 +2228,7 @@ function MaxMessageBody({
 	// parent re-render mid-stream must not snap it to the full text.
 	const freshRef = useRef(fresh)
 	useEffect(() => { onSettle(message.id) }, [message.id, onSettle])
-	const streamed = useStreamedText(message.text, freshRef.current)
+	const streamed = useStreamedText(message.text, freshRef.current, finalize)
 	const done = streamed === message.text
 	useEffect(() => { if (!done) onGrow() }, [streamed, done, onGrow])
 	return (
@@ -2116,6 +2247,7 @@ function VoiceInterview({
 	onSubmit,
 	messages,
 	question,
+	topicLabel,
 	interviewing,
 	questionNumber,
 	questionTotal,
@@ -2125,6 +2257,7 @@ function VoiceInterview({
 	onSubmit: (text: string) => void
 	messages: ChatMessage[]
 	question: string
+	topicLabel: string | null
 	interviewing: boolean
 	questionNumber: number
 	questionTotal: number
@@ -2133,13 +2266,46 @@ function VoiceInterview({
 	const [transcript, setTranscript] = useState("")
 	const [notice, setNotice] = useState("")
 	const [awaitingFromCount, setAwaitingFromCount] = useState<number | null>(null)
+	// The opening utterance keeps the surface on "Ready when you are" — the label
+	// stays true (you may answer at any moment) while MAX reads the question.
+	const [introSpeaking, setIntroSpeaking] = useState(false)
+	const [spokenChars, setSpokenChars] = useState(0)
 	const recognitionRef = useRef<BrowserSpeechRecognition | null>(null)
 	const transcriptRef = useRef<HTMLTextAreaElement>(null)
+	const introTimerRef = useRef(0)
+
+	const endIntroSpeech = useCallback(() => {
+		window.clearTimeout(introTimerRef.current)
+		setIntroSpeaking(false)
+		setSpokenChars(0)
+	}, [])
 
 	const stopAudio = () => {
 		recognitionRef.current?.abort()
 		recognitionRef.current = null
 		window.speechSynthesis?.cancel()
+		endIntroSpeech()
+	}
+
+	const speakQuestion = (text: string) => {
+		if (typeof window === "undefined" || !("speechSynthesis" in window) || !text.trim()) return
+		try {
+			window.speechSynthesis.cancel()
+			const utterance = new SpeechSynthesisUtterance(text)
+			utterance.rate = 0.96
+			utterance.pitch = 0.98
+			utterance.onboundary = (event) => setSpokenChars(event.charIndex + (event.charLength || 0))
+			utterance.onend = endIntroSpeech
+			utterance.onerror = endIntroSpeech
+			setSpokenChars(0)
+			setIntroSpeaking(true)
+			window.speechSynthesis.speak(utterance)
+			// Some voices never fire onend; the waveform must not run forever.
+			window.clearTimeout(introTimerRef.current)
+			introTimerRef.current = window.setTimeout(endIntroSpeech, 14_000)
+		} catch {
+			endIntroSpeech()
+		}
 	}
 
 	useEffect(() => {
@@ -2186,6 +2352,8 @@ function VoiceInterview({
 
 	const beginListening = () => {
 		setNotice("")
+		window.speechSynthesis?.cancel()
+		endIntroSpeech()
 		const SpeechRecognition = getSpeechRecognitionConstructor()
 		if (!SpeechRecognition) {
 			setState("error")
@@ -2232,6 +2400,7 @@ function VoiceInterview({
 		recognitionRef.current?.stop()
 		recognitionRef.current = null
 		window.speechSynthesis?.cancel()
+		endIntroSpeech()
 		setAwaitingFromCount(messages.length)
 		setState("thinking")
 		setNotice("")
@@ -2274,15 +2443,16 @@ function VoiceInterview({
 							<span><Check size={14} /> Transcript stays visible in the thread</span>
 							<span><Check size={14} /> You can switch back to typing at any time</span>
 						</div>
-						<button className="primary-button voice-consent-button" type="button" onClick={() => setState("ready")}><Microphone size={17} /> Continue with voice</button>
+						<button className="primary-button voice-consent-button" type="button" onClick={() => { setState("ready"); speakQuestion(question) }}><Microphone size={17} /> Continue with voice</button>
 					</div>
 				) : (
 					<>
 						<div className="voice-stage">
-							<div className={`voice-mark ${state === "listening" || state === "speaking" ? "active" : ""}`}><img src={publicAsset("maxion-logo-gradient.svg")} alt="" /></div>
-							<div className={`voice-waveform ${state}`} aria-hidden="true">{Array.from({ length: 13 }, (_, index) => <span key={index} style={{ animationDelay: `${index * 38}ms` }} />)}</div>
+							<div className={`voice-mark ${state === "listening" || state === "speaking" || introSpeaking ? "active" : ""}`}><img src={publicAsset("maxion-logo-gradient.svg")} alt="" /></div>
+							<div className={`voice-waveform ${introSpeaking && state === "ready" ? "speaking" : state}`} aria-hidden="true">{Array.from({ length: 13 }, (_, index) => <span key={index} style={{ animationDelay: `${index * 38}ms` }} />)}</div>
 							<p className="voice-state-label" aria-live="polite">{voiceStatus}</p>
-							<p className="voice-question">{question}</p>
+							{topicLabel ? <span className="voice-question-topic">{topicLabel}</span> : null}
+							<p className="voice-question">{introSpeaking && spokenChars > 0 ? spokenSegments(question, spokenChars).map((segment, index) => <span key={index} className={segment.spoken ? "is-spoken" : undefined}>{segment.text}</span>) : question}</p>
 						</div>
 						<div className="voice-transcript">
 							<label htmlFor="voice-transcript">Your response</label>
@@ -2321,6 +2491,17 @@ function VoiceInterview({
 	)
 }
 
+// Splits the question so the words MAX has already said can be highlighted as
+// it reads. Browsers without utterance boundary events simply never highlight.
+function spokenSegments(text: string, upTo: number) {
+	let offset = 0
+	return text.split(/(\s+)/).map((part) => {
+		const start = offset
+		offset += part.length
+		return { text: part, spoken: start < upTo }
+	})
+}
+
 function MessageTrace({ steps }: { steps: string[] }) {
 	const [open, setOpen] = useState(false)
 	return (
@@ -2336,9 +2517,18 @@ function MessageTrace({ steps }: { steps: string[] }) {
 }
 
 function Deliverables({ scenarioKey, phase, selected, onSelect, onManage }: { scenarioKey: ScenarioKey; phase: number; selected: number; onSelect: (index: number) => void; onManage: () => void }) {
-	const scenario = SCENARIOS[scenarioKey]
 	const ready = phase >= 7
 	const generating = phase >= 6
+	const bodies = DELIVERABLE_CONTENT[scenarioKey]
+	const body = bodies[Math.min(Math.max(selected, 0), bodies.length - 1)]
+	// Deliverables materialize one at a time across the synthesis window instead
+	// of appearing in a single jump. Reduced motion lands the whole set at once.
+	const [materialized, setMaterialized] = useState(() => prefersInstantMotion() ? DELIVERABLES.length : 1)
+	useEffect(() => {
+		if (!generating || ready || prefersInstantMotion() || materialized >= DELIVERABLES.length) return
+		const timer = window.setTimeout(() => setMaterialized((current) => current + 1), 260)
+		return () => window.clearTimeout(timer)
+	}, [generating, ready, materialized])
 	return (
 		<div className="deliverables-view">
 			<header className="deliverables-header">
@@ -2349,7 +2539,7 @@ function Deliverables({ scenarioKey, phase, selected, onSelect, onManage }: { sc
 			<div className="deliverables-layout">
 				<nav className="deliverable-list" aria-label="Deliverable list">
 					{DELIVERABLES.map((deliverable, index) => {
-						const itemReady = ready || generating && index < Math.max(1, phase - 5)
+						const itemReady = ready || generating && index < materialized
 						return <button key={deliverable.name} type="button" className={selected === index ? "selected" : ""} onClick={() => onSelect(index)}><span className={itemReady ? "document-status ready" : "document-status"}>{itemReady ? <Check size={11} weight="bold" /> : index + 1}</span><div><strong>{deliverable.name}</strong><p>{itemReady ? "Current · evidence bound" : generating ? "Queued" : "Waiting for interviews"}</p></div><CaretRight size={14} /></button>
 					})}
 				</nav>
@@ -2357,12 +2547,12 @@ function Deliverables({ scenarioKey, phase, selected, onSelect, onManage }: { sc
 				<section className="deliverable-reader">
 					<div className="reader-heading"><div><p className="eyebrow">{DELIVERABLES[selected].audience}</p><h2>{DELIVERABLES[selected].name}</h2></div>{ready ? <span className="reader-verified-tag"><CheckCircle size={14} weight="fill" /> Evidence bound</span> : null}</div>
 					{ready ? (
-						<div className="reader-content">
-							<h3>Decision summary</h3>
-							<p>{scenario.summary}</p>
-							<div className="key-finding"><span>01</span><div><strong>Operating decision</strong><p>{scenario.decision}</p></div></div>
-							<div className="key-finding"><span>02</span><div><strong>Completion standard</strong><p>{scenario.doneWhen}</p></div></div>
-							<div className="citation-row"><span>[SRC-014]</span><span>[INT-MAYA-08]</span><span>[CASE-003]</span><span>Readiness v7</span></div>
+						<div className="reader-content" key={selected}>
+							<h3>{body.heading}</h3>
+							<p>{body.lede}</p>
+							{body.sections.map((section) => <section className="reader-section" key={section.heading}><h4>{section.heading}</h4><p>{section.body}</p></section>)}
+							{body.findings.map((finding, index) => <div className="key-finding" key={finding.label}><span>{String(index + 1).padStart(2, "0")}</span><div><strong>{finding.label}</strong><p>{finding.detail}</p></div></div>)}
+							<div className="citation-row">{body.citations.map((citation) => <span key={citation}>{citation}</span>)}</div>
 						</div>
 					) : (
 						<div className="reader-waiting">

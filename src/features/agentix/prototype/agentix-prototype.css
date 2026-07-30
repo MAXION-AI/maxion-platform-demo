@@ -529,11 +529,11 @@
    and section gaps run tighter than the session/history surfaces. */
 .ax3-today {
 	padding-top: 24px;
-	padding-bottom: 12px;
+	padding-bottom: 8px;
 }
 
 .ax3-today-lead {
-	padding-bottom: 14px;
+	padding-bottom: 10px;
 }
 
 .ax3-today-lead h1 {
@@ -734,7 +734,7 @@
 }
 
 .ax3-live-work {
-	margin-bottom: 14px;
+	margin-bottom: 8px;
 }
 
 .ax3-workstream {
@@ -1084,7 +1084,7 @@
 
 .ax3-root .ax3-cmd-pop-list button {
 	display: grid;
-	grid-template-columns: 76px 1fr auto;
+	grid-template-columns: 72px minmax(0, 1fr) minmax(0, auto) 16px;
 	align-items: center;
 	gap: 10px;
 	padding: 8px 10px;
@@ -1095,10 +1095,34 @@
 	font-size: 12px;
 	text-align: left;
 	cursor: pointer;
+	transition: background 110ms var(--ax3-ease-out), box-shadow 110ms var(--ax3-ease-out);
 }
 
+/* G3: arrow-key selection has to be visible from across the room. The active row takes an
+   accent rail, a tinted surface, and the ↵ chip — so Enter is never a guess. */
 .ax3-root .ax3-cmd-pop-list button.is-active {
-	background: var(--ax3-surface-muted);
+	background: color-mix(in oklch, var(--ax3-accent) 8%, var(--ax3-surface));
+	box-shadow: inset 2px 0 0 var(--ax3-accent);
+}
+
+.ax3-root .ax3-cmd-pop-list button kbd {
+	display: grid;
+	place-items: center;
+	justify-self: end;
+	width: 16px;
+	height: 16px;
+	border: 1px solid color-mix(in oklch, var(--ax3-accent) 30%, var(--ax3-line));
+	border-radius: 4px;
+	color: var(--ax3-accent);
+	background: var(--ax3-surface);
+	font-family: inherit;
+	font-size: 9px;
+	opacity: 0;
+	transition: opacity 110ms var(--ax3-ease-out);
+}
+
+.ax3-root .ax3-cmd-pop-list button.is-active kbd {
+	opacity: 1;
 }
 
 .ax3-root .ax3-cmd-pop-list button i {
@@ -1118,8 +1142,10 @@
 	white-space: nowrap;
 }
 
+/* The hint carries the digit shortcut and the live run state, so it needs real room. The old
+   `max-width: 46%` resolved against an auto track and collapsed it to ~78px. */
 .ax3-root .ax3-cmd-pop-list button small {
-	max-width: 46%;
+	max-width: 300px;
 	overflow: hidden;
 	justify-self: end;
 	color: var(--ax3-subtle);
@@ -2100,7 +2126,10 @@
 	letter-spacing: 0.06em;
 }
 
-.ax3-history-day > button {
+/* .ax3-history-row is the non-interactive variant: a ledger entry for an Agent that has no
+   seeded session to open. Same geometry, no dead click target. */
+.ax3-history-day > button,
+.ax3-history-day > .ax3-history-row {
 	display: grid;
 	grid-template-columns: 40px 18px 28px minmax(0, 1fr) auto;
 	align-items: center;
@@ -2114,7 +2143,8 @@
 	text-align: left;
 }
 
-.ax3-history-day > button:last-child {
+.ax3-history-day > button:last-child,
+.ax3-history-day > .ax3-history-row:last-child {
 	border-bottom: 1px solid var(--ax3-line);
 }
 
@@ -2137,7 +2167,8 @@
 	background: var(--ax3-success);
 }
 
-.ax3-history-day > button > span:nth-child(4) {
+.ax3-history-day > button > span:nth-child(4),
+.ax3-history-day > .ax3-history-row > span:nth-child(4) {
 	display: flex;
 	min-width: 0;
 	flex-direction: column;
@@ -2157,6 +2188,8 @@
 	white-space: nowrap;
 }
 
+/* G4: the marquee approval needs a stage. The scrim + 2px backdrop blur push the workspace
+   behind the panel so the exact effect set is the only thing in focus. */
 .ax3-drawer-layer {
 	display: flex;
 	position: fixed;
@@ -2164,7 +2197,9 @@
 	inset: 0;
 	align-items: stretch;
 	justify-content: flex-end;
-	background: oklch(0.15 0.01 73 / 0.28);
+	background: oklch(0.15 0.01 73 / 0.42);
+	backdrop-filter: blur(2px);
+	-webkit-backdrop-filter: blur(2px);
 }
 
 .ax3-drawer-layer > aside {
@@ -2735,6 +2770,177 @@
 	font-weight: 590;
 }
 
+/* ————— Wow-to-5: agents that visibly work ————— */
+
+/* G1: the sub-step a standing agent is on right now. The line swaps on the module heartbeat
+   and fades in; under reduced motion the heartbeat never starts, so this renders once and
+   holds. Specificity 0,2,0 — it has to outrank `.ax3-stream-copy small` and friends (0,1,1). */
+.ax3-root .ax3-ambient {
+	display: flex;
+	align-items: center;
+	gap: 6px;
+	margin-top: 2px;
+	color: var(--ax3-subtle);
+	font-size: 9.5px;
+	animation: ax3-ambient-in 200ms var(--ax3-ease-out);
+}
+
+.ax3-root .ax3-ambient > span {
+	min-width: 0;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.ax3-root .ax3-ambient > i {
+	display: block;
+	flex: none;
+	width: 4px;
+	height: 4px;
+	border-radius: 50%;
+	background: color-mix(in oklch, var(--ax3-accent) 60%, transparent);
+	animation: ax3-ambient-pulse 2.6s var(--ax3-ease-standard) infinite;
+}
+
+@keyframes ax3-ambient-in {
+	from { opacity: 0; transform: translateY(2px); }
+}
+
+@keyframes ax3-ambient-pulse {
+	0%, 100% { opacity: 0.3; }
+	50% { opacity: 1; }
+}
+
+/* Today rows carry a second line now — recover the height so the surface still lands inside
+   the ≤1.15-screen budget at 1280×720. */
+.ax3-workstream > button {
+	min-height: 44px;
+	padding: 2px 4px;
+}
+
+/* G1: in-flight work sits above the committed ledger on Activity, fenced off by its own
+   header so a running step can never be mistaken for a committed one. */
+.ax3-live-strip {
+	margin-top: 4px;
+	border: 1px solid var(--ax3-line);
+	border-radius: 12px;
+	background: var(--ax3-surface);
+}
+
+.ax3-live-strip > header {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 10px;
+	padding: 9px 13px;
+	border-bottom: 1px solid var(--ax3-line);
+}
+
+.ax3-live-strip > header > span {
+	display: flex;
+	align-items: center;
+	gap: 7px;
+	color: var(--ax3-accent);
+	font-size: 10px;
+	font-weight: 630;
+}
+
+.ax3-live-strip > header small {
+	color: var(--ax3-subtle);
+	font-size: 9px;
+}
+
+.ax3-root .ax3-live-strip > button {
+	display: grid;
+	grid-template-columns: 28px minmax(0, 1fr) auto;
+	align-items: center;
+	gap: 10px;
+	width: 100%;
+	min-height: 46px;
+	padding: 6px 13px;
+	border: 0;
+	background: transparent;
+	color: var(--ax3-ink);
+	font-size: 12px;
+	text-align: left;
+	transition: background 130ms var(--ax3-ease-out);
+}
+
+.ax3-root .ax3-live-strip > button + button {
+	border-top: 1px solid color-mix(in oklch, var(--ax3-line) 72%, transparent);
+}
+
+.ax3-root .ax3-live-strip > button:hover {
+	background: var(--ax3-surface-muted);
+}
+
+.ax3-live-strip > button > span:nth-child(2) {
+	display: flex;
+	min-width: 0;
+	flex-direction: column;
+	gap: 1px;
+}
+
+.ax3-live-strip strong {
+	font-size: 11px;
+	font-weight: 570;
+}
+
+/* G4: the expiry window is a live clock while the drawer is open. */
+.ax3-drawer-layer .ax3-expiry {
+	font-variant-numeric: tabular-nums;
+}
+
+/* G4: one settle pulse the moment every receipt is reconciled — the aggregate stops moving
+   and says so. Runs once because `is-settled` is only ever added once. */
+.ax3-receipts.is-settled > header {
+	animation: ax3-receipts-settle 620ms var(--ax3-ease-out) 1;
+}
+
+@keyframes ax3-receipts-settle {
+	0% { background: color-mix(in oklch, var(--ax3-accent) 14%, transparent); }
+	100% { background: transparent; }
+}
+
+/* G2: Agentix asks the boundary questions itself instead of a bare radio grid appearing. */
+.ax3-interview-ask {
+	margin: 4px 0 14px;
+}
+
+.ax3-interview-ask p {
+	font-size: 12.5px;
+}
+
+/* G2: the three choices arrive in sequence under the question. The delay is zeroed by the
+   reduced-motion block below — a `both`-filled stagger would otherwise hold rows invisible. */
+.ax3-question-stack > .ax3-question-row {
+	animation: ax3-question-in 260ms var(--ax3-ease-out) both;
+	animation-delay: calc(var(--ax3-stagger, 0) * 110ms);
+}
+
+@keyframes ax3-question-in {
+	from { opacity: 0; transform: translateY(6px); }
+}
+
+/* G2: a derived Agent proves it read the need by quoting it back on the proposal. */
+.ax3-proposal-echo {
+	display: flex;
+	flex-direction: column;
+	gap: 5px;
+	margin: 16px 0 0;
+	padding: 11px 13px;
+	border-left: 2px solid var(--ax3-accent);
+	border-radius: 0 9px 9px 0;
+	background: var(--ax3-surface-muted);
+	font-size: 11px;
+	line-height: 1.5;
+}
+
+.ax3-proposal-echo > span {
+	color: var(--ax3-subtle);
+	font-size: 9px;
+}
+
 @media (prefers-reduced-motion: reduce) {
 	.ax3-root *,
 	.ax3-root *::before,
@@ -2742,6 +2948,8 @@
 		scroll-behavior: auto !important;
 		animation-duration: 0.01ms !important;
 		animation-iteration-count: 1 !important;
+		animation-delay: 0ms !important;
 		transition-duration: 0.01ms !important;
+		transition-delay: 0ms !important;
 	}
 }

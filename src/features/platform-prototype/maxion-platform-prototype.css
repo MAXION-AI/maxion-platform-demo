@@ -135,7 +135,13 @@
 .mxp-stage-view { position: absolute; inset: 0; min-width: 0; min-height: 0; overflow: hidden; }
 .mxp-stage-view--discovery { min-height: 0; overflow: hidden; }
 .mxp-stage-view[hidden] { display: none !important; }
-.mxp-stage-view:not([hidden]) { animation: mxp-enter 180ms var(--mxp-ease) both; }
+/* Module continuity: the shell moves `is-entering` onto the stage that just became visible,
+   so the entrance restarts once per switch while the hidden-not-unmounted architecture (and
+   every module's keyboard gate) stays exactly as it was. */
+.mxp-stage-view.is-entering { animation: mxp-stage-enter 190ms var(--mxp-ease) both; }
+/* Execute is the one light → dark crossing in the platform: a scrim clears off the incoming
+   dark field so it reads as arrived at instead of cut to. */
+.mxp-stage-view--execute.is-entering::before { content: ""; position: absolute; z-index: 60; inset: 0; background: #0f1210; pointer-events: none; animation: mxp-stage-scrim 240ms var(--mxp-ease) both; }
 .mxp-module-with-rail { display: grid; grid-template-columns: 236px minmax(0, 1fr); width: 100%; height: 100%; }
 
 .mxp-context-rail {
@@ -597,23 +603,6 @@
 .mxp-command-result { display: flex; }
 .mxp-command-result > button { min-height: 31px; padding: 0 9px; color: #486e2c; font-size: 8px; }
 
-/* Execute workbench — thread first {
-	--workbench-bg: #fbfbf9;
-	--workbench-panel: #f3f3f0;
-	--workbench-raised: #fffffd;
-	--workbench-line: #e3e3de;
-	--workbench-text: #22231f;
-	--workbench-muted: #65665f;
-	--workbench-accent: #147873;
-	display: grid;
-	width: 100%;
-	height: 100%;
-	min-width: 0;
-	min-height: 0;
-	grid-template-rows: 56px 43px minmax(0, 1fr);
-	background: var(--workbench-bg);
-	color: var(--workbench-text);
-}
 
 /* Consult */
 .mxp-consult-main { min-height: 0; overflow: auto; padding: 44px 28px 150px; }
@@ -661,21 +650,30 @@
 .mxp-consent-note span { display: flex; flex-direction: column; }
 .mxp-consent-note strong { font-size: 9px; }
 .mxp-consent-note small { margin-top: 3px; color: var(--mxp-muted); font-size: 8px; }
-.mxp-command-layer > section { width: min(100%, 510px); max-height: min(650px, calc(100vh - 42px)); padding: 8px; border: 1px solid var(--mxp-line); border-radius: 13px; background: var(--mxp-surface); box-shadow: 0 25px 80px rgba(22, 22, 20, 0.23); overflow: auto; }
+.mxp-command-layer > section { display: flex; width: min(100%, 560px); max-height: min(650px, calc(100vh - 42px)); flex-direction: column; padding: 8px; border: 1px solid var(--mxp-line); border-radius: 13px; background: var(--mxp-surface); box-shadow: 0 25px 80px rgba(22, 22, 20, 0.23); overflow: hidden; }
 .mxp-command-search { display: flex; align-items: center; gap: 9px; padding: 11px 10px; border-bottom: 1px solid var(--mxp-line-soft); color: var(--mxp-muted); }
 .mxp-command-search input { min-width: 0; flex: 1; border: 0; outline: 0; color: var(--mxp-ink); font-size: 12px; }
-.mxp-command-label { padding: 13px 9px 5px; color: var(--mxp-muted-2); font-size: 8px; font-weight: 650; letter-spacing: 0.08em; text-transform: uppercase; }
-.mxp-command-layer > section > button { display: grid; width: 100%; grid-template-columns: 27px minmax(0, 1fr) 16px; align-items: center; gap: 9px; padding: 9px; border: 0; border-radius: 7px; background: transparent; text-align: left; cursor: pointer; }
-.mxp-command-layer > section > button:hover { background: var(--mxp-surface-2); }
+/* Registry list: every module feeds it, so rows carry their own group instead of relying
+   on static section headings that filtering would make dishonest. */
+.mxp-command-list { min-height: 0; flex: 1; padding: 5px 0; overflow-y: auto; scrollbar-width: thin; }
+.mxp-command-list button { display: grid; width: 100%; grid-template-columns: 24px minmax(0, 1fr) auto 15px; align-items: center; gap: 9px; min-height: 40px; padding: 7px 9px; border: 0; border-radius: 7px; background: transparent; color: var(--mxp-ink); text-align: left; cursor: pointer; }
+.mxp-command-list button:hover { background: var(--mxp-surface-2); }
+.mxp-command-list button.is-active { background: var(--mxp-surface-2); box-shadow: inset 2px 0 0 var(--mxp-accent, #177f7c); }
+.mxp-command-list button i { color: var(--mxp-muted-2); font-size: 7.5px; font-style: normal; font-weight: 700; letter-spacing: 0.07em; text-transform: uppercase; white-space: nowrap; }
+.mxp-command-dot { display: block; width: 5px; height: 5px; margin: 0 auto; border-radius: 50%; background: var(--mxp-line); }
+.mxp-command-empty { margin: 0; padding: 18px 12px; color: var(--mxp-muted); font-size: 10px; }
+.mxp-command-footer { display: flex; gap: 13px; padding: 8px 10px 3px; border-top: 1px solid var(--mxp-line-soft); color: var(--mxp-muted); font-size: 8px; }
+.mxp-command-footer kbd { margin-right: 4px; padding: 1px 4px; border: 1px solid var(--mxp-line); border-radius: 4px; background: var(--mxp-surface-2); color: var(--mxp-muted); font: 8px/1.4 "SFMono-Regular", Consolas, monospace; }
 .mxp-command-layer button strong,
-.mxp-command-layer button small { display: block; }
+.mxp-command-layer button small { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .mxp-command-layer button strong { font-size: 10px; }
 .mxp-command-layer button small { margin-top: 2px; color: var(--mxp-muted); font-size: 8px; }
 
 .mxp-spin { animation: mxp-spin 900ms linear infinite; }
 @keyframes mxp-spin { to { transform: rotate(360deg); } }
 @keyframes mxp-pulse { 50% { opacity: 0.3; transform: scale(0.72); } }
-@keyframes mxp-enter { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: translateY(0); } }
+@keyframes mxp-stage-enter { from { opacity: 0; transform: translateY(3px); } to { opacity: 1; transform: translateY(0); } }
+@keyframes mxp-stage-scrim { from { opacity: 0.9; } to { opacity: 0; } }
 
 @media (max-width: 980px) {
 	.mxp-module-with-rail { grid-template-columns: 1fr; grid-template-rows: 58px minmax(0, 1fr); }
@@ -803,6 +801,10 @@
 	.mxp-root *,
 	.mxp-root *::before,
 	.mxp-root *::after { animation-duration: 0.01ms !important; animation-iteration-count: 1 !important; scroll-behavior: auto !important; transition-duration: 0.01ms !important; }
+	/* The stage entrance is theater only. The Execute scrim must be removed outright — a
+	   killed animation would otherwise leave the dark veil painted over the module. */
+	.mxp-stage-view.is-entering { animation: none !important; }
+	.mxp-stage-view--execute.is-entering::before { display: none !important; }
 }
 
 @media (max-width: 1080px) {

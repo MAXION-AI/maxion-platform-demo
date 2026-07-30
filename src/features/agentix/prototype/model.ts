@@ -390,6 +390,196 @@ export const AGENT_SCENARIOS: AgentScenario[] = [
 	},
 ]
 
+// G1 — standing agents must visibly work between decisions. One module-level heartbeat
+// rotates these lines under the live-work rows. Committed-work voice only: reads, drafts,
+// re-checks. Never a provider write, never "thinking", never a claim the ledger can't show.
+export const AGENT_AMBIENT: Record<AgentScenario["id"], string[]> = {
+	tpm: [
+		"Reading Jira for milestone changes · 186 issues in scope",
+		"Re-checking 2 stale dependency dates against the approved plan",
+		"Matching every open action to its current owner",
+		"Watching the approved program library for new versions",
+		"Holding 17 dependencies current in the risk register",
+	],
+	revenue: [
+		"Reading account 7 of 11 · authorized renewal fields only",
+		"Drafting owner email 8 of 11",
+		"Verifying the Salesforce read-back on 14 updated records",
+		"Matching renewals to their current account owners",
+		"Assembling the Revenue Operations summary",
+	],
+	finance: [
+		"Re-checking the journal batch against its source version",
+		"Watching the SAP inventory snapshot for drift",
+		"Keeping the before-state hash current",
+		"Re-running close controls on the validated set",
+	],
+}
+
+// G2 — the create-agent interview must answer the need the owner actually typed. A need
+// resolves either to one of the three seeded scenarios (keyword match) or to a template
+// derived from the owner's own words: name, mission, research details, duties, and the
+// three boundary questions are all built from the need instead of the ERP fiction.
+export interface AgentTemplateQuestion {
+	id: string
+	name: string
+	title: string
+	prompt: string
+	options: [string, string]
+}
+
+export interface AgentTemplateResearchRow {
+	id: string
+	target: number
+	unit: string
+	detail: string
+}
+
+export interface AgentTemplate {
+	scenarioId: AgentScenario["id"] | null
+	name: string
+	shortName: string
+	mission: string
+	// Only derived templates echo — a seeded scenario already names itself honestly.
+	echo: string | null
+	found: string
+	opening: string
+	activation: string
+	research: AgentTemplateResearchRow[]
+	duties: string[]
+	authority: string[]
+	questions: AgentTemplateQuestion[]
+}
+
+const SCENARIO_TEMPLATES: Record<AgentScenario["id"], Omit<AgentTemplate, "scenarioId" | "echo">> = {
+	tpm: {
+		name: "Atlas program lead",
+		shortName: "AP",
+		mission: "Keep the ERP modernization decision-ready and moving without masking delivery risk.",
+		found: "I found a workable operating model using the context and connections you already authorized.",
+		opening: "Three choices materially change how I run the program. Everything else I inferred from the sources you just saw.",
+		activation: "Agent v1 is active. The first run is queued: I will reconcile the approved program sources and prepare the steering brief inside the boundaries you set.",
+		research: [
+			{ id: "sources", target: 5, unit: "approved sources", detail: "Program brief · milestone plan · Jira · ADRs · Teams" },
+			{ id: "memory", target: 21, unit: "memory items", detail: "Tenant memory scoped to this responsibility" },
+			{ id: "connections", target: 4, unit: "connections", detail: "Jira · Teams · Microsoft 365 · SharePoint" },
+		],
+		duties: ["Risk and dependency refresh", "Steering brief", "Overdue action follow-up"],
+		authority: ["Project sources only", "Project-team audience", "Exact approval at threshold"],
+		questions: [
+			{ id: "audience", name: "audience", title: "Routine audience", prompt: "Who may receive follow-ups?", options: ["Project team only", "Include sponsor with approval"] },
+			{ id: "updates", name: "updates", title: "Commitment updates", prompt: "What may Agentix change?", options: ["Draft changes for approval", "Update bounded fields"] },
+			{ id: "cadence", name: "cadence", title: "Operating cadence", prompt: "When should it work?", options: ["Weekdays at 8:00 AM", "On source change"] },
+		],
+	},
+	revenue: {
+		name: "Revenue operations partner",
+		shortName: "RO",
+		mission: "Keep renewal risk current and make sure account owners act before revenue slips.",
+		found: "I found a workable operating model using the renewal context and connections you already authorized.",
+		opening: "Three choices materially change how I watch renewals. Everything else I inferred from the sources you just saw.",
+		activation: "Agent v1 is active. The first run is queued: I will read the renewal candidates and coordinate owner follow-through inside the boundaries you set.",
+		research: [
+			{ id: "sources", target: 3, unit: "approved sources", detail: "Renewal opportunity view · revenue policy · account ownership" },
+			{ id: "memory", target: 14, unit: "memory items", detail: "Renewal memory · scoped to this responsibility" },
+			{ id: "connections", target: 3, unit: "connections", detail: "Salesforce · Teams · Microsoft 365" },
+		],
+		duties: ["Renewal risk watch", "Pipeline hygiene", "Account owner follow-through"],
+		authority: ["Bounded renewal fields only", "Revenue Operations audience", "Exact approval above $100,000"],
+		questions: [
+			{ id: "audience", name: "audience", title: "Routine audience", prompt: "Who hears about at-risk renewals?", options: ["Revenue Operations only", "Include account owners"] },
+			{ id: "updates", name: "updates", title: "Record updates", prompt: "What may Agentix change?", options: ["Update bounded renewal fields", "Draft every change for approval"] },
+			{ id: "cadence", name: "cadence", title: "Operating cadence", prompt: "When should it work?", options: ["Weekdays at 8:00 AM", "On record change"] },
+		],
+	},
+	finance: {
+		name: "Finance close operator",
+		shortName: "FC",
+		mission: "Complete the monthly close with deterministic controls, exact approvals, and reconciled evidence.",
+		found: "I found a workable operating model using the close context and connections you already authorized.",
+		opening: "Three choices materially change how I run the close. Everything else I inferred from the sources you just saw.",
+		activation: "Agent v1 is active. The first run is queued: I will validate the close inputs and hold every provider write for your exact approval.",
+		research: [
+			{ id: "sources", target: 3, unit: "approved sources", detail: "Journal batch · inventory snapshot · close policy" },
+			{ id: "memory", target: 18, unit: "memory items", detail: "Close memory · scoped to this responsibility" },
+			{ id: "connections", target: 3, unit: "connections", detail: "QuickBooks · SAP · Microsoft 365" },
+		],
+		duties: ["Close readiness validation", "Management model build", "Reconciliation evidence"],
+		authority: ["Sandbox journal batch only", "Controller audience", "Exact approval before any post"],
+		questions: [
+			{ id: "audience", name: "audience", title: "Routine audience", prompt: "Who receives close updates?", options: ["Controller only", "Controller and Finance Operations"] },
+			{ id: "updates", name: "updates", title: "Posting authority", prompt: "What may Agentix post?", options: ["Hold every write for approval", "Post inside validated thresholds"] },
+			{ id: "cadence", name: "cadence", title: "Operating cadence", prompt: "When should it work?", options: ["Last business day at 6:00 PM", "On ledger close"] },
+		],
+	},
+}
+
+const TEMPLATE_KEYWORDS: Array<{ id: AgentScenario["id"]; test: RegExp }> = [
+	{ id: "tpm", test: /\berp\b|program|modernization|modernisation|steering|milestone|dependenc|\btpm\b/i },
+	{ id: "revenue", test: /renewal|salesforce|revenue|pipeline|account owner|\barr\b|churn/i },
+	{ id: "finance", test: /month-end|close|quickbooks|finance|financial|journal|ledger|\bgl\b|\bsap\b/i },
+]
+
+const NEED_FILLER = /^(?:please\s+|i(?:'d| would)?\s+(?:want|need|like)\s+(?:you\s+)?to\s+|can\s+you\s+|could\s+you\s+|we\s+need\s+(?:someone\s+to\s+)?|help\s+(?:me\s+)?)/i
+const NEED_VERB = /^(?:own|run|handle|manage|watch|monitor|track|keep|coordinate|maintain|oversee|drive|lead|do|take\s+care\s+of|look\s+after|be\s+responsible\s+for|make\s+sure(?:\s+that)?|act\s+as)\s+/i
+const NEED_ARTICLE = /^(?:the|our|a|an|all|every|my|their|its)\s+/i
+const ROLE_WORDS = ["lead", "partner", "operator", "manager", "owner", "analyst", "coordinator", "agent"]
+
+// The first clause of the need is the identity; the rest is detail. Strip the polite
+// wrapper and the leading verb so "Own vendor onboarding compliance checks and keep
+// procurement moving" becomes "vendor onboarding compliance".
+function needSubject(need: string) {
+	const clause = need.trim().replace(/^[^\p{L}\p{N}]+/u, "").split(/[.,;:!?]|\s+(?:and|then|plus|while|so that)\s+/i)[0] ?? ""
+	const stripped = clause.replace(NEED_FILLER, "").replace(NEED_VERB, "").replace(NEED_ARTICLE, "").trim()
+	return stripped.split(/\s+/).filter(Boolean).slice(0, 3).join(" ").toLowerCase()
+}
+
+function sentenceCase(text: string) {
+	return text ? `${text.charAt(0).toUpperCase()}${text.slice(1)}` : text
+}
+
+export function deriveAgentTemplate(need: string): AgentTemplate {
+	// An empty need means the create surface is still on its empty state and renders no
+	// template at all — resolve to the first scenario rather than deriving from nothing.
+	const trimmed = need.trim()
+	const matched = trimmed ? TEMPLATE_KEYWORDS.find((entry) => entry.test.test(trimmed)) : TEMPLATE_KEYWORDS[0]
+	if (matched) return { ...SCENARIO_TEMPLATES[matched.id], scenarioId: matched.id, echo: null }
+
+	const subject = needSubject(trimmed)
+	const words = subject.split(" ").filter(Boolean)
+	const named = words.length > 0
+	const role = named && ROLE_WORDS.includes(words[words.length - 1]) ? "" : " operator"
+	const name = named ? `${sentenceCase(subject)}${role}` : "Operations partner"
+	const shortName = (named ? (words.length > 1 ? `${words[0][0]}${words[1][0]}` : words[0].slice(0, 2)) : "OP").toUpperCase()
+	const owned = named ? subject : "this responsibility"
+	return {
+		scenarioId: null,
+		name,
+		shortName,
+		mission: `Keep ${owned} current and moving inside activated authority, and bring anything material back to you.`,
+		echo: trimmed,
+		found: `I found a workable operating model for ${owned} using the context and connections you already authorized.`,
+		opening: `Three choices materially change how I handle ${owned}. Everything else I inferred from what you already authorized.`,
+		activation: `Agent v1 is active. The first run is queued: I will keep ${owned} current inside the boundaries you just set and bring anything material back to you.`,
+		research: [
+			{ id: "sources", target: 3, unit: "approved sources", detail: "Tenant policy library · owner directory · approved records" },
+			{ id: "memory", target: 12, unit: "memory items", detail: `${sentenceCase(owned)} memory · scoped to this responsibility` },
+			{ id: "connections", target: 3, unit: "connections", detail: "Microsoft Teams · Microsoft 365 · SharePoint" },
+		],
+		duties: [`Keep ${owned} current`, "Follow up on stale commitments", "Brief you on what materially changed"],
+		authority: ["Approved sources only", "Named recipients only", "Exact approval at threshold"],
+		questions: [
+			{ id: "audience", name: "audience", title: "Routine audience", prompt: "Who may receive updates?", options: ["You only", "You and the working team"] },
+			{ id: "updates", name: "updates", title: "Record updates", prompt: "What may Agentix change?", options: ["Draft changes for approval", "Update bounded fields"] },
+			{ id: "cadence", name: "cadence", title: "Operating cadence", prompt: "When should it work?", options: ["Weekdays at 8:00 AM", "On source change"] },
+		],
+	}
+}
+
+export function templateResearchSummary(template: AgentTemplate) {
+	return template.research.map((row) => `${row.target} ${row.unit}`).join(" · ")
+}
+
 export const WORK_ITEMS = [
 	{ id: "w1", agentId: "revenue", title: "Weekday renewal watch", state: "Working", detail: "14 verified · 4 awaiting approval", time: "Started 8:00 AM" },
 	{ id: "w2", agentId: "finance", title: "July sandbox close", state: "Waiting for approval", detail: "No provider writes dispatched", time: "Started 5:38 PM" },

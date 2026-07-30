@@ -512,13 +512,16 @@ const PLAN_REVISION_HISTORY: readonly PlanRevision[] = [
 	{ version: "v5", pass: 2, time: "14:04", trigger: "Autonomous", title: "Initial decomposition: five flows through behavior and L2–L4", detail: "The verified Discovery package decomposed into five executable behavior flows with full architecture and build coverage.", changes: [{ id: "FLOWS", change: `5 flows · ${PLAN_VIEW_COUNT} traceable design views` }, { id: "PACKAGES", change: `${PLAN_PACKAGE_COUNT} owned work packages` }] },
 ] as const
 
-type PlanImpactArtifact = { id: string; kind: "contract" | "diagram" | "package" | "tests" | "mapping" | "approval"; change: string; diff?: { before: string; after: string } }
+type PlanImpactArtifact = { id: string; kind: "contract" | "diagram" | "package" | "tests" | "mapping" | "approval" | "sequence"; change: string; diff?: { before: string; after: string } }
 type PlanImpact = {
 	scale: "contained" | "structural"
 	headline: string
 	summary: string
 	artifacts: readonly PlanImpactArtifact[]
 	boundaryNote?: string
+	// The claim the derivation leaned on. Rendered as an artifact chip so the preview
+	// can be checked against the evidence graph it came from.
+	evidenceRef?: { id: string; note: string }
 }
 
 function deriveSteeringImpact(rawText: string): PlanImpact {
@@ -551,6 +554,23 @@ function deriveSteeringImpact(rawText: string): PlanImpact {
 				{ id: "MULE-202", kind: "package", change: "Retry and DLQ configuration re-scoped" },
 				{ id: "3 acceptance tests", kind: "tests", change: "Re-derived for the new failure behavior" },
 			],
+		}
+	}
+	// Schedule class. Evaluated after the failure-contract branch so "retry window" stays a
+	// retry change, and honoured before the generic fallback because CLM-021 makes the
+	// October cutover a hard program constraint the deriver already knows about.
+	if (/(cutover|freeze|window|deadline|schedule|sequencing|by (october|q[1-4]))/.test(text)) {
+		return {
+			scale: "contained",
+			headline: "The build order absorbs the schedule constraint",
+			summary: "This moves sequencing, not architecture. Every contract keeps its baseline; the release evidence gate and the joint integration proof are re-timed around the constrained window.",
+			artifacts: [
+				{ id: "BUILD ORDER", kind: "sequence", change: "Cross-team sequence re-derived around the constrained window", diff: { before: "Deploy to connected test tenants → run the failure matrix → release the package to Execute", after: "Contract fixtures and the failure matrix complete before the window; release lands after it" } },
+				{ id: "CMP-REL-05", kind: "diagram", change: "Release evidence and deployment approval re-timed outside the window" },
+				{ id: "INT-401", kind: "package", change: "Joint end-to-end proof pulled ahead of the freeze" },
+				{ id: "2 acceptance tests", kind: "tests", change: "Re-derived against the moved gate dates" },
+			],
+			evidenceRef: { id: "CLM-021", note: "The October cutover is a hard program constraint · influences Build order and CMP-REL-05" },
 		}
 	}
 	if (/(gateway|ingress|endpoint|jwt|mtls|api key|authentication)/.test(text)) {
@@ -675,6 +695,43 @@ function useStreamedText(text: string, active: boolean) {
 	return count >= words.length ? text : words.slice(0, count).join(" ")
 }
 
+// Idle maintenance. A landed plan is not a finished document — MAX keeps re-verifying the
+// evidence graph and watching the connected systems behind it. Every line is seeded from
+// something the plan actually carries (a claim, a contract, an approval), never invented.
+const PLAN_MAINTENANCE_ENTRIES = [
+	"Evidence graph re-verified · 124 claims current",
+	"Watching ServiceNow schema for drift · no change since 14:21",
+	"INT-02 failure contract still consistent with CLM-081",
+	"Workday tenant metadata unchanged · CLM-014 still holds",
+	"Approval routing re-checked · AP-19 authority current",
+	"Replay controls re-read against CLM-108 · CMP-SEC-04 consistent",
+] as const
+
+function usePlanMaintenance(active: boolean) {
+	const [index, setIndex] = useState(0)
+	useEffect(() => {
+		// Reduced motion gets the resting line and no rotation; a background tab is not a
+		// viewer, so the ticker never burns cycles or skips entries behind your back.
+		if (!active || prefersReducedMotion()) return
+		const timer = window.setInterval(() => {
+			if (typeof document !== "undefined" && document.hidden) return
+			setIndex((current) => (current + 1) % PLAN_MAINTENANCE_ENTRIES.length)
+		}, 24000)
+		return () => window.clearInterval(timer)
+	}, [active])
+	return PLAN_MAINTENANCE_ENTRIES[index % PLAN_MAINTENANCE_ENTRIES.length]
+}
+
+function PlanMaintenanceLine({ entry, onJump, variant }: { entry: string; onJump: (id: string) => void; variant: "strip" | "chip" }) {
+	return (
+		<div className={`apn-maintenance is-${variant}`} aria-live="off">
+			<i aria-hidden="true" />
+			<span key={entry}>{linkifyArtifacts(entry, onJump)}</span>
+			{variant === "strip" ? <small>Maintenance · no action needed</small> : null}
+		</div>
+	)
+}
+
 function useCountUp(target: number, started: boolean, animate: boolean, duration = 1400) {
 	const [value, setValue] = useState(started && !animate ? target : 0)
 	useEffect(() => {
@@ -753,6 +810,60 @@ const PLAN_ARTIFACT_TARGETS: ReadonlyMap<string, PlanJumpTarget> = (() => {
 
 const PLAN_ARTIFACT_PATTERN = new RegExp(`\\b(${[...PLAN_ARTIFACT_TARGETS.keys()].filter((key) => /^[A-Z]/.test(key)).sort((a, b) => b.length - a.length).map((key) => key.replace(/[-\/\\^$*+?.()|[\]{}]/g, "\\$&")).join("|")})\\b`, "g")
 
+// Cross-module jump registry (shell ⌘K). Every entry resolves through PLAN_ARTIFACT_TARGETS,
+// so "INT-02" from any module lands on the same contract the in-plan chips open.
+export type PlanJumpEntry = { id: string; label: string; hint: string; keywords: string; artifactId: string }
+export type PlanJumpSignal = { tick: number; artifactId: string }
+
+export const PLAN_JUMP_ENTRIES: readonly PlanJumpEntry[] = (() => {
+	const entries: PlanJumpEntry[] = []
+	for (const flow of PLAN_FLOWS) {
+		entries.push({ id: `plan-flow-${flow.id}`, label: flow.title, hint: `${flow.key} · executable behavior flow`, keywords: `${flow.key} ${flow.summary} plan design behavior flow`, artifactId: flow.key })
+		const brief = PLAN_EXECUTION_BRIEFS[flow.id]
+		for (const contract of brief.contracts) entries.push({ id: `plan-contract-${contract.id}`, label: `${contract.id} · ${contract.from} → ${contract.to}`, hint: `Contract · ${contract.transport}`, keywords: `${flow.key} ${contract.payload} ${contract.security} interface contract l3`, artifactId: contract.id })
+		for (const pkg of brief.workPackages) entries.push({ id: `plan-package-${pkg.id}`, label: `${pkg.id} · ${pkg.title}`, hint: `Build package · ${pkg.team}`, keywords: `${flow.key} ${pkg.artifact} work package build l4`, artifactId: pkg.id })
+	}
+	for (const revision of PLAN_REVISION_HISTORY) entries.push({ id: `plan-revision-${revision.version}`, label: `${revision.version} · ${revision.title}`, hint: `Revision · pass ${revision.pass}`, keywords: `${revision.trigger} ${revision.detail} snapshot history`, artifactId: revision.version })
+	for (const source of PLAN_EVIDENCE_SOURCES) for (const claim of source.claims) entries.push({ id: `plan-claim-${claim.id}`, label: `${claim.id} · ${claim.statement}`, hint: `Claim · ${source.name}`, keywords: `${claim.excerpt} evidence claim provenance`, artifactId: claim.id })
+	entries.push({ id: "plan-decision", label: "Open design decision", hint: "Atomic vs partial journal posting", keywords: "decision question approve journal posting ledger", artifactId: "APPROVALS" })
+	entries.push({ id: "plan-field-mapping", label: "Canonical field mapping", hint: "ServiceNow → Workday field contract", keywords: "field mapping canonical translation l3", artifactId: "FIELD MAPPING" })
+	return entries
+})()
+
+// Applied steering has to be visible where the plan lives, not only in the receipt.
+// Every artifact the impact named is resolved back through the same jump map the chips
+// use, so the ripple can only touch surfaces the change actually reached.
+type PlanRecheck = { artifacts: readonly string[]; revision: string }
+
+function rederivedArtifactIds(impact: PlanImpact): readonly string[] {
+	const ids = new Set<string>()
+	for (const artifact of impact.artifacts) {
+		for (const part of artifact.id.split(" · ")) {
+			const id = part.trim()
+			if (PLAN_ARTIFACT_TARGETS.has(id)) ids.add(id)
+		}
+	}
+	return [...ids]
+}
+
+function rederivedFlowIds(recheck: PlanRecheck | null): ReadonlySet<string> {
+	const flows = new Set<string>()
+	for (const id of recheck?.artifacts ?? []) {
+		const target = PLAN_ARTIFACT_TARGETS.get(id)
+		if (target?.kind === "design") flows.add(target.flowId)
+	}
+	return flows
+}
+
+function rederivedLevels(recheck: PlanRecheck | null, flowId: string): ReadonlySet<PlanArchitectureLevel> {
+	const levels = new Set<PlanArchitectureLevel>()
+	for (const id of recheck?.artifacts ?? []) {
+		const target = PLAN_ARTIFACT_TARGETS.get(id)
+		if (target?.kind === "design" && target.flowId === flowId) levels.add(target.level)
+	}
+	return levels
+}
+
 function linkifyArtifacts(text: string, onJump: (id: string) => void) {
 	const parts = text.split(PLAN_ARTIFACT_PATTERN)
 	return parts.map((part, index) => PLAN_ARTIFACT_TARGETS.has(part)
@@ -760,8 +871,17 @@ function linkifyArtifacts(text: string, onJump: (id: string) => void) {
 		: <span key={index}>{part}</span>)
 }
 
-type PlanPaletteAction = { type: "view"; view: PlanView } | { type: "flow"; flowId: string; level: PlanDesignLayer } | { type: "ledger"; section: PlanLedgerSection } | { type: "send" }
+type PlanPaletteAction = { type: "view"; view: PlanView } | { type: "flow"; flowId: string; level: PlanDesignLayer } | { type: "ledger"; section: PlanLedgerSection } | { type: "send" } | { type: "skip" } | { type: "steer" } | { type: "back" }
 type PlanPaletteItem = { id: string; group: string; label: string; hint: string; keywords: string; action: PlanPaletteAction }
+
+// A running pass owns its own command set: the plan does not exist yet, so the palette
+// offers the only three things that are true mid-run instead of falling through to the
+// shell menu over a live surface.
+const PLAN_RUN_PALETTE_ITEMS: readonly PlanPaletteItem[] = [
+	{ id: "run-skip", group: "This pass", label: "Skip to the finished plan", hint: "Land the pass now", keywords: "skip finish land complete jump end", action: { type: "skip" } },
+	{ id: "run-steer", group: "This pass", label: "Steer this pass", hint: "Direction folds in before it lands", keywords: "steer direction composer add constraint", action: { type: "steer" } },
+	{ id: "run-back", group: "Go to", label: "Back to all plans", hint: "Leave the pass running", keywords: "back plans library leave exit", action: { type: "back" } },
+]
 
 function buildPaletteItems(readyForExecute: boolean): PlanPaletteItem[] {
 	const items: PlanPaletteItem[] = [
@@ -786,10 +906,10 @@ function buildPaletteItems(readyForExecute: boolean): PlanPaletteItem[] {
 	return items
 }
 
-function PlanCommandPalette({ readyForExecute, onRun, onClose }: { readyForExecute: boolean; onRun: (action: PlanPaletteAction) => void; onClose: () => void }) {
+function PlanCommandPalette({ readyForExecute, runMode = false, onRun, onClose }: { readyForExecute: boolean; runMode?: boolean; onRun: (action: PlanPaletteAction) => void; onClose: () => void }) {
 	const [query, setQuery] = useState("")
 	const [active, setActive] = useState(0)
-	const items = buildPaletteItems(readyForExecute)
+	const items = runMode ? [...PLAN_RUN_PALETTE_ITEMS] : buildPaletteItems(readyForExecute)
 	const q = query.trim().toLowerCase()
 	const filtered = q ? items.filter((item) => `${item.label} ${item.hint} ${item.keywords}`.toLowerCase().includes(q)).slice(0, 9) : items.slice(0, 9)
 	const activeIndex = Math.min(active, Math.max(0, filtered.length - 1))
@@ -800,7 +920,7 @@ function PlanCommandPalette({ readyForExecute, onRun, onClose }: { readyForExecu
 				<input
 					autoFocus
 					value={query}
-					placeholder="Jump to a flow, contract, package, claim, or decision…"
+					placeholder={runMode ? "Skip, steer, or leave this pass…" : "Jump to a flow, contract, package, claim, or decision…"}
 					aria-label="Search the plan"
 					onChange={(event) => { setQuery(event.target.value); setActive(0) }}
 					onKeyDown={(event) => {
@@ -816,7 +936,7 @@ function PlanCommandPalette({ readyForExecute, onRun, onClose }: { readyForExecu
 							<i>{item.group}</i><span>{item.label}</span><small>{item.hint}</small>
 						</button>
 					))}
-					{filtered.length === 0 ? <p className="apn-palette-empty">Nothing in this plan matches “{query}”.</p> : null}
+					{filtered.length === 0 ? <p className="apn-palette-empty">Nothing in this {runMode ? "pass" : "plan"} matches “{query}”.</p> : null}
 				</div>
 				<footer><span><kbd>↑↓</kbd> navigate</span><span><kbd>↵</kbd> open</span><span><kbd>esc</kbd> close</span></footer>
 			</div>
@@ -829,20 +949,33 @@ export function PlanModule({
 	onCommand,
 	onSendToExecute,
 	onNavigate,
+	jumpSignal = null,
 }: {
 	projects: PortalProject[]
 	onCommand: () => void
 	onSendToExecute: (snapshot: string) => void
 	onNavigate: (module: MaxionModuleId) => void
+	jumpSignal?: PlanJumpSignal | null
 }) {
 	const [workspace, setWorkspace] = useState<"closed" | "live" | "resume">("closed")
+	// A shell jump opens the plan of record if the library is showing, then hands the
+	// artifact to the workspace. The pending jump is cleared once consumed, so re-opening
+	// the plan later never replays it.
+	const [pendingJump, setPendingJump] = useState<PlanJumpSignal | null>(null)
+	const jumpTickRef = useRef(0)
+	useEffect(() => {
+		if (!jumpSignal || jumpSignal.tick === jumpTickRef.current) return
+		jumpTickRef.current = jumpSignal.tick
+		setPendingJump(jumpSignal)
+		setWorkspace((current) => current === "closed" ? "resume" : current)
+	}, [jumpSignal])
 	if (workspace === "closed") {
 		return <PlanLibraryModule projects={projects} onOpenPlan={() => setWorkspace("resume")} onStartPlan={() => setWorkspace("live")} onNavigate={onNavigate} />
 	}
-	return <PlanWorkspaceModule key={workspace} live={workspace === "live"} onBack={() => setWorkspace("closed")} onCommand={onCommand} onSendToExecute={onSendToExecute} />
+	return <PlanWorkspaceModule key={workspace} live={workspace === "live"} onBack={() => setWorkspace("closed")} onCommand={onCommand} onSendToExecute={onSendToExecute} jump={pendingJump} onJumpConsumed={() => setPendingJump(null)} />
 }
 
-function PlanWorkspaceModule({ live, onBack, onCommand, onSendToExecute }: { live: boolean; onBack: () => void; onCommand: () => void; onSendToExecute: (snapshot: string) => void }) {
+function PlanWorkspaceModule({ live, onBack, onCommand, onSendToExecute, jump = null, onJumpConsumed }: { live: boolean; onBack: () => void; onCommand: () => void; onSendToExecute: (snapshot: string) => void; jump?: PlanJumpSignal | null; onJumpConsumed?: () => void }) {
 	const [view, setView] = useState<PlanView>("plan")
 	const [stage, setStage] = useState(live ? 0 : PLAN_RUN_STAGES.length)
 	const [approved, setApproved] = useState(false)
@@ -858,12 +991,19 @@ function PlanWorkspaceModule({ live, onBack, onCommand, onSendToExecute }: { liv
 	const [gatesOpen, setGatesOpen] = useState(false)
 	const [paletteOpen, setPaletteOpen] = useState(false)
 	const [dismissedReceiptId, setDismissedReceiptId] = useState(0)
+	// The artifacts an applied direction re-derived. It survives the move into Design so the
+	// ripple can be watched where it lands, and clears the moment you navigate on.
+	const [recheck, setRecheck] = useState<PlanRecheck | null>(null)
 	const shellRef = useRef<HTMLDivElement>(null)
 	const entryIdRef = useRef(0)
 	const impactTimerRef = useRef(0)
 	const queueFlushTimerRef = useRef(0)
 
 	const complete = stage >= PLAN_RUN_STAGES.length
+	// Design opens read-only once the pass starts decomposing: the blueprint assembles on
+	// screen instead of hiding behind a disabled tab until the pass lands.
+	const designPreview = !complete && stage >= 3
+	const maintenanceEntry = usePlanMaintenance(complete)
 	const selectedFlow = PLAN_FLOWS.find((flow) => flow.id === selectedFlowId)
 	const snapshot = revisions[0].version
 	const passCount = revisions[0].pass
@@ -889,6 +1029,10 @@ function PlanWorkspaceModule({ live, onBack, onCommand, onSendToExecute }: { liv
 	useEffect(() => () => { window.clearTimeout(impactTimerRef.current); window.clearTimeout(queueFlushTimerRef.current) }, [])
 
 	useEffect(() => setSteeringTarget(null), [view, selectedFlowId, level, ledgerSection])
+
+	// The re-checked chips persist until the next navigation inside Design — applying does
+	// not move the viewer, so the ripple is always seen before it is cleared.
+	useEffect(() => setRecheck(null), [selectedFlowId, level])
 
 	// Directions queued mid-run are folded in as soon as the pass lands.
 	useEffect(() => {
@@ -972,6 +1116,7 @@ function PlanWorkspaceModule({ live, onBack, onCommand, onSendToExecute }: { liv
 		const nextVersion = `v${Number(revisions[0].version.slice(1)) + 1}`
 		setThread((current) => current.map((item) => item.id === entryId && item.kind === "impact" ? { ...item, status: "applied", revision: nextVersion } : item))
 		addRevision("Owner steering", entry.impact.headline, entry.impact.summary, entry.impact.artifacts.map((artifact) => ({ id: artifact.id, change: artifact.change })))
+		setRecheck({ artifacts: rederivedArtifactIds(entry.impact), revision: nextVersion })
 		if (entry.impact.scale === "structural") setApproved(false)
 	}
 
@@ -983,6 +1128,9 @@ function PlanWorkspaceModule({ live, onBack, onCommand, onSendToExecute }: { liv
 		if (action.type === "view") { if (action.view === "design") openFlow(selectedFlowId === "system" || selectedFlowId === "packages" ? "adapter" : selectedFlowId, level); else setView(action.view); return }
 		if (action.type === "flow") { openFlow(action.flowId, action.level); return }
 		if (action.type === "ledger") { openLedger(action.section); return }
+		if (action.type === "skip") { setStage(PLAN_RUN_STAGES.length); return }
+		if (action.type === "steer") { setSteerFocusTick((tick) => tick + 1); return }
+		if (action.type === "back") { onBack(); return }
 		if (action.type === "send" && readyForExecute) onSendToExecute(snapshot)
 	}
 
@@ -993,6 +1141,18 @@ function PlanWorkspaceModule({ live, onBack, onCommand, onSendToExecute }: { liv
 		else openLedger(target.section)
 	}
 
+	// Shell jump arrival. A live pass keeps its surface: the jump waits for the pass to land
+	// rather than dropping the viewer into a half-derived design view.
+	const jumpArrivalRef = useRef(jumpToArtifact)
+	jumpArrivalRef.current = jumpToArtifact
+	useEffect(() => {
+		if (!jump || !complete) return
+		jumpArrivalRef.current(jump.artifactId)
+		onJumpConsumed?.()
+		// One-shot arrival: the handler is read from a ref so it never re-fires on re-render.
+		// eslint-disable-next-line react-hooks/exhaustive-deps
+	}, [jump, complete])
+
 	useEffect(() => {
 		const onKeyDown = (event: KeyboardEvent) => {
 			// The portal keeps every module stage mounted behind `hidden` — only
@@ -1001,7 +1161,7 @@ function PlanWorkspaceModule({ live, onBack, onCommand, onSendToExecute }: { liv
 			const target = event.target as HTMLElement | null
 			const typing = !!target && (target.tagName === "INPUT" || target.tagName === "TEXTAREA" || target.isContentEditable)
 			if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "k") {
-				if (!complete) return
+				// A running pass owns ⌘K too: the shell menu must never open over a live run.
 				event.preventDefault()
 				event.stopPropagation()
 				setPaletteOpen((open) => !open)
@@ -1041,8 +1201,9 @@ function PlanWorkspaceModule({ live, onBack, onCommand, onSendToExecute }: { liv
 				<header className="apn-topbar">
 					<div><button type="button" className="apn-back" onClick={onBack}><ArrowLeft size={15} /><span>All plans</span></button><button type="button" className="apn-mobile-back" onClick={onBack}><ArrowLeft size={14} />Plans</button><div className="apn-topbar-title"><span>ERP modernization delivery plan</span><button type="button" className="apn-snapshot" onClick={() => { if (complete) openLedger("history") }}>Verified Discovery · snapshot {snapshot}</button></div></div>
 					<div>
-						<button type="button" className="apn-search-btn" aria-label="Search plan" title="Search the plan · ⌘K" disabled={!complete} onClick={() => setPaletteOpen(true)}><MagnifyingGlass size={15} /></button>
+						<button type="button" className="apn-search-btn" aria-label="Search plan" title={complete ? "Search the plan · ⌘K" : "Pass commands · ⌘K"} onClick={() => setPaletteOpen(true)}><MagnifyingGlass size={15} /></button>
 						<span className={`apn-autonomy${!complete ? " is-working" : ""}`}><i />{complete ? "MAX maintaining this plan" : `MAX working · ${PLAN_RUN_STAGES[stage].live.toLowerCase()}`}</span>
+						{complete ? <PlanMaintenanceLine entry={maintenanceEntry} onJump={jumpToArtifact} variant="chip" /> : null}
 						<button
 							type="button"
 							className={`apn-attention-route${complete && unresolvedCount === 0 ? " is-ready" : ""}`}
@@ -1072,16 +1233,20 @@ function PlanWorkspaceModule({ live, onBack, onCommand, onSendToExecute }: { liv
 					</div>
 				</header>
 				<nav className="apn-tabs" aria-label="Plan workspace">
-					{tabs.map(([id, label]) => (
-						<button key={id} type="button" className={view === id ? "is-active" : ""} disabled={!complete && id !== "plan"} title={!complete && id !== "plan" ? "Available when this pass lands" : undefined} onClick={(event) => { event.currentTarget.blur(); setView(id) }}>
-							{label}
-							{id === "ledger" && complete && unresolvedCount > 0 ? <small>{unresolvedCount}</small> : null}
-						</button>
-					))}
+					{tabs.map(([id, label]) => {
+						const locked = !complete && !(id === "design" && designPreview) && id !== "plan"
+						return (
+							<button key={id} type="button" className={view === id ? "is-active" : ""} disabled={locked} title={locked ? "Available when this pass lands" : id === "design" && designPreview ? "Assembling — read-only until this pass lands" : undefined} onClick={(event) => { event.currentTarget.blur(); setView(id) }}>
+								{label}
+								{id === "ledger" && complete && unresolvedCount > 0 ? <small>{unresolvedCount}</small> : null}
+								{id === "design" && designPreview ? <i className="apn-tab-live" aria-hidden="true" /> : null}
+							</button>
+						)
+					})}
 				</nav>
 
-				{view === "plan" ? <PlanHomeView live={live} stage={stage} complete={complete} passCount={passCount} onSkip={() => setStage(PLAN_RUN_STAGES.length)} clarificationResolved={clarificationResolved} approved={approved} onResolve={resolveClarification} onApprove={() => setApproved(true)} thread={thread} onJump={jumpToArtifact} onOpenDesign={() => openFlow("system", "L2")} onOpenDecisions={() => openLedger("decisions")} onOpenRevisions={() => openLedger("history")} onOpenContract={() => openFlow("adapter", "L3")} /> : null}
-				{view === "design" ? <PlanDesignView selectedFlowId={selectedFlowId} level={level} onLevelChange={setLevel} onSelectFlow={setSelectedFlowId} onSteerNode={steerOnNode} /> : null}
+				{view === "plan" ? <PlanHomeView live={live} stage={stage} complete={complete} passCount={passCount} onSkip={() => setStage(PLAN_RUN_STAGES.length)} clarificationResolved={clarificationResolved} approved={approved} onResolve={resolveClarification} onApprove={() => setApproved(true)} thread={thread} onJump={jumpToArtifact} maintenanceEntry={maintenanceEntry} onOpenDesign={() => openFlow("system", "L2")} onOpenDecisions={() => openLedger("decisions")} onOpenRevisions={() => openLedger("history")} onOpenContract={() => openFlow("adapter", "L3")} /> : null}
+				{view === "design" ? <PlanDesignView selectedFlowId={selectedFlowId} level={level} preview={designPreview} recheck={recheck} onLevelChange={setLevel} onSelectFlow={setSelectedFlowId} onSteerNode={steerOnNode} /> : null}
 				{view === "ledger" ? <PlanLedgerView section={ledgerSection} onSectionChange={setLedgerSection} revisions={revisions} clarificationResolved={clarificationResolved} approved={approved} onResolve={resolveClarification} onApprove={() => setApproved(true)} onOpenContract={() => openFlow("adapter", "L3")} /> : null}
 				<PlanSteeringDock
 					view={view}
@@ -1100,7 +1265,7 @@ function PlanWorkspaceModule({ live, onBack, onCommand, onSendToExecute }: { liv
 					onJump={jumpToArtifact}
 				/>
 			</section>
-			{paletteOpen && complete ? <PlanCommandPalette readyForExecute={readyForExecute} onRun={runPaletteAction} onClose={() => setPaletteOpen(false)} /> : null}
+			{paletteOpen ? <PlanCommandPalette readyForExecute={readyForExecute} runMode={!complete} onRun={runPaletteAction} onClose={() => setPaletteOpen(false)} /> : null}
 		</div>
 	)
 }
@@ -1218,7 +1383,7 @@ function PlanSpineDecision({ onResolve, onOpenContract, onOpenDecisions, onJump 
 	)
 }
 
-function PlanHomeView({ live, stage, complete, passCount, onSkip, clarificationResolved, approved, onResolve, onApprove, thread, onJump, onOpenDesign, onOpenDecisions, onOpenRevisions, onOpenContract }: { live: boolean; stage: number; complete: boolean; passCount: number; onSkip: () => void; clarificationResolved: boolean; approved: boolean; onResolve: () => void; onApprove: () => void; thread: PlanThreadEntry[]; onJump: (id: string) => void; onOpenDesign: () => void; onOpenDecisions: () => void; onOpenRevisions: () => void; onOpenContract: () => void }) {
+function PlanHomeView({ live, stage, complete, passCount, onSkip, clarificationResolved, approved, onResolve, onApprove, thread, onJump, maintenanceEntry, onOpenDesign, onOpenDecisions, onOpenRevisions, onOpenContract }: { live: boolean; stage: number; complete: boolean; passCount: number; onSkip: () => void; clarificationResolved: boolean; approved: boolean; onResolve: () => void; onApprove: () => void; thread: PlanThreadEntry[]; onJump: (id: string) => void; maintenanceEntry: string; onOpenDesign: () => void; onOpenDecisions: () => void; onOpenRevisions: () => void; onOpenContract: () => void }) {
 	const approvals = planApprovalRequests(approved)
 	const pendingApprovals = approvals.filter((request) => request.status === "Decision needed")
 	const recordedApprovals = approvals.filter((request) => request.status === "Approved")
@@ -1255,6 +1420,7 @@ function PlanHomeView({ live, stage, complete, passCount, onSkip, clarificationR
 
 				<section className="apn-home-col apn-convo" aria-label="Conversation with MAX">
 					<header><span>Conversation with MAX</span><small>{complete ? "Every direction is previewed first" : PLAN_RUN_STAGES[stage].live}</small></header>
+					{complete ? <PlanMaintenanceLine entry={maintenanceEntry} onJump={onJump} variant="strip" /> : null}
 					<div className="apn-home-col-body apn-convo-thread" aria-live="polite">
 						<div className="apn-agent-message"><MaxionSpiralMark /><div><strong>MAX</strong><p>{complete ? "I compared the verified Discovery package with connected-system metadata and project governance. I used the safest reversible assumption where the evidence agreed, contacted domain owners where they held the answer, and isolated one remaining decision that changes financial posting behavior." : "I'm comparing the verified Discovery package with connected-system metadata and project governance. Where the evidence agrees I take the safest reversible assumption; where a domain owner holds the answer I ask them directly."}</p></div></div>
 						<details className="apn-agent-thread apn-convo-passes" open={!complete}>
@@ -1365,12 +1531,13 @@ function PlanImpactCard({ entry, onApply, onDiscard, onDismiss, onOpenRevisions,
 	return (
 		<article className={`apn-impact-card is-${impact.scale} is-${status}`} aria-label="Steering impact preview">
 			<header>
-				<span className="apn-impact-flag">{status === "proposed" ? <><Lightning size={13} weight="fill" />Impact preview · nothing applied yet</> : status === "applied" ? <><CheckCircle size={13} weight="fill" />Applied · snapshot {entry.revision}</> : <><X size={13} />Discarded · nothing changed</>}</span>
+				<span className="apn-impact-flag">{status === "proposed" ? <><Lightning size={13} weight="fill" />Impact preview · {impact.artifacts.length} artifacts · nothing applied yet</> : status === "applied" ? <><CheckCircle size={13} weight="fill" />Applied · snapshot {entry.revision}</> : <><X size={13} />Discarded · nothing changed</>}</span>
 				<span className="apn-impact-header-side"><i className={`apn-impact-scale is-${impact.scale}`}>{impact.scale === "contained" ? "Contained change" : "Structural change"}</i>{onDismiss ? <button type="button" className="apn-impact-dismiss" aria-label="Dismiss receipt" onClick={onDismiss}><X size={13} /></button> : null}</span>
 			</header>
 			<strong>{impact.headline}</strong>
 			<p>{summary}</p>
 			{status !== "discarded" ? <ul>{impact.artifacts.map((artifact) => <li key={artifact.id}>{onJump && PLAN_ARTIFACT_TARGETS.has(artifact.id.split(" · ")[0]) ? <button type="button" className="apn-artifact-chip is-code" onClick={() => onJump(artifact.id.split(" · ")[0])}>{artifact.id}</button> : <code>{artifact.id}</code>}<span>{artifact.kind}</span><div className="apn-impact-cell"><p>{artifact.change}</p>{artifact.diff ? <div className="apn-impact-diff"><del>{artifact.diff.before}</del><ins>{artifact.diff.after}</ins></div> : null}</div></li>)}</ul> : null}
+			{status !== "discarded" && impact.evidenceRef ? <div className="apn-impact-evidence"><Database size={14} /><p><span>Derived from</span>{onJump ? <button type="button" className="apn-artifact-chip is-code" onClick={() => onJump(impact.evidenceRef!.id)}>{impact.evidenceRef.id}</button> : <code>{impact.evidenceRef.id}</code>}<span>{impact.evidenceRef.note}</span></p></div> : null}
 			{status !== "discarded" && impact.boundaryNote ? <div className="apn-impact-boundary"><Warning size={15} weight="fill" /><p>{impact.boundaryNote}</p></div> : null}
 			{status === "proposed" ? <footer><button type="button" onClick={onDiscard}>Discard</button><button type="button" className="apn-impact-apply" onClick={onApply}><Check size={14} />Apply to plan</button></footer> : null}
 			{status === "applied" ? <footer className="is-receipt"><span><CheckCircle size={14} weight="fill" />{impact.artifacts.length} artifacts updated · affected views re-checked{impact.scale === "structural" ? " · approval routing reopened" : ""}</span><button type="button" onClick={onOpenRevisions}>Open revisions<ArrowRight size={13} /></button></footer> : null}
@@ -1378,76 +1545,112 @@ function PlanImpactCard({ entry, onApply, onDiscard, onDismiss, onOpenRevisions,
 	)
 }
 
-function PlanBehaviorFlowView({ flow, brief, onOpenLevel, onSteerStep }: { flow: PlanFlow; brief: PlanExecutionBrief; onOpenLevel: (level: PlanArchitectureLevel) => void; onSteerStep: (context: string) => void }) {
+const PLAN_COMPILE_SEGMENTS = ["FLOW", "→", "L2", "→", "L3", "→", "L4"] as const
+
+function PlanBehaviorFlowView({ flow, brief, recheck, onOpenLevel, onSteerStep }: { flow: PlanFlow; brief: PlanExecutionBrief; recheck: PlanRecheck | null; onOpenLevel: (level: PlanArchitectureLevel) => void; onSteerStep: (context: string) => void }) {
 	const behaviorFlow = PLAN_BEHAVIOR_FLOWS[flow.id]
 	const [selectedStepId, setSelectedStepId] = useState(behaviorFlow.steps[0]?.id ?? "")
-	useEffect(() => setSelectedStepId(behaviorFlow.steps[0]?.id ?? ""), [behaviorFlow])
+	const advanceRef = useRef(0)
+	// The flow executes itself once on entry: selection walks the sequence so the behavior is
+	// watched rather than read. Reduced motion gets the resting first step and no walk, and
+	// any click hands control back for good — MAX never fights the viewer for the selection.
+	useEffect(() => {
+		setSelectedStepId(behaviorFlow.steps[0]?.id ?? "")
+		if (prefersReducedMotion()) return
+		let index = 0
+		advanceRef.current = window.setInterval(() => {
+			index += 1
+			if (index >= behaviorFlow.steps.length) { window.clearInterval(advanceRef.current); advanceRef.current = 0; return }
+			setSelectedStepId(behaviorFlow.steps[index].id)
+		}, 1100)
+		return () => { window.clearInterval(advanceRef.current); advanceRef.current = 0 }
+	}, [behaviorFlow])
+	const selectStep = (stepId: string) => {
+		if (advanceRef.current) { window.clearInterval(advanceRef.current); advanceRef.current = 0 }
+		setSelectedStepId(stepId)
+	}
 	const selectedIndex = Math.max(0, behaviorFlow.steps.findIndex((step) => step.id === selectedStepId))
 	const selectedStep = behaviorFlow.steps[selectedIndex] ?? behaviorFlow.steps[0]
 	const ownedPackages = selectedStep ? brief.workPackages.filter((item) => selectedStep.packageRefs.includes(item.id)) : []
 	const referencedContracts = selectedStep ? brief.contracts.filter((item) => selectedStep.contractRefs.includes(item.id)) : []
+	const rederivedStep = (step: PlanBehaviorStep) => !!recheck && [...step.contractRefs, ...step.packageRefs].some((ref) => recheck.artifacts.includes(ref))
 	if (!selectedStep) return null
 
 	return (
 		<section className="apn-behavior-flow" aria-label={`Executable behavior flow for ${flow.title}`}>
+			<div className="apn-behavior-head">
+				<span>Executable application behavior</span>
+				<p>Ordered actors, triggers, responses, state, failure, and evidence — select a step to see the context its Execute workspace receives.</p>
+				<i><CheckCircle size={12} weight="fill" />Compiled for Execute</i>
+			</div>
+
 			<div className="apn-behavior-boundary">
 				<article><small>Entry condition</small><strong>{behaviorFlow.entryCondition}</strong></article>
 				<ArrowRight size={15} aria-hidden="true" />
 				<article className="is-outcome"><small>Verified terminal outcome</small><strong>{behaviorFlow.terminalOutcome}</strong></article>
 			</div>
 
-			<ol className="apn-behavior-sequence" aria-label="Ordered application behavior" style={{ "--apn-flow-step-count": behaviorFlow.steps.length } as CSSProperties}>
-				{behaviorFlow.steps.map((step, index) => (
-					<li key={step.id}>
-						<button type="button" aria-pressed={selectedStep.id === step.id} onClick={() => setSelectedStepId(step.id)}>
-							<span>{String(index + 1).padStart(2, "0")}</span>
-							<small>{step.actor}</small>
-							<strong>{step.title}</strong>
-							<em>{step.stateTransition}</em>
-							<code>{step.workspaceKey}</code>
-						</button>
-						{index < behaviorFlow.steps.length - 1 ? <ArrowRight size={14} aria-hidden="true" /> : null}
-					</li>
-				))}
-			</ol>
+			<div className="apn-behavior-track" style={{ "--apn-flow-step-count": behaviorFlow.steps.length } as CSSProperties}>
+				<ol className="apn-behavior-sequence" aria-label="Ordered application behavior" style={{ "--apn-flow-step-count": behaviorFlow.steps.length } as CSSProperties}>
+					{behaviorFlow.steps.map((step, index) => {
+						const rederived = rederivedStep(step)
+						return (
+							<li key={step.id} style={{ "--apn-step-index": index } as CSSProperties}>
+								<button type="button" className={rederived ? "is-rederiving" : undefined} aria-pressed={selectedStep.id === step.id} onClick={() => selectStep(step.id)}>
+									<span>{String(index + 1).padStart(2, "0")}</span>
+									<small>{step.actor}</small>
+									<strong>{step.title}</strong>
+									<em>{step.stateTransition}</em>
+									<code>{step.workspaceKey}</code>
+									{rederived && recheck ? <b className="apn-recheck-chip">re-checked · {recheck.revision}</b> : null}
+								</button>
+								{index < behaviorFlow.steps.length - 1 ? <ArrowRight size={14} aria-hidden="true" /> : null}
+							</li>
+						)
+					})}
+				</ol>
+				<i className="apn-behavior-pulse" key={flow.id} aria-hidden="true" />
+			</div>
 
-			<section className="apn-behavior-step-detail" aria-label="Selected behavior step">
-				<header>
-					<div><small>{selectedStep.id} · step {selectedIndex + 1} of {behaviorFlow.steps.length}</small><h3>{selectedStep.title}</h3><p>{selectedStep.behavior}</p></div>
-					<span><CheckCircle size={13} weight="fill" />Workspace scoped</span>
-				</header>
-				<div className="apn-behavior-detail-grid">
-					<article><small>Actor and surface</small><strong>{selectedStep.actor}</strong><p>{selectedStep.surface}</p></article>
-					<article><small>Starts when</small><strong>{selectedStep.trigger}</strong></article>
-					<article><small>State transition</small><strong>{selectedStep.stateTransition}</strong></article>
-					<article className="is-failure"><small>Failure and recovery</small><strong>{selectedStep.failureBehavior}</strong></article>
-					<article className="is-evidence"><small>Proof retained</small><strong>{selectedStep.evidence}</strong></article>
-				</div>
-				<footer>
-					<div><span>Contracts</span>{selectedStep.contractRefs.map((ref) => <code key={ref}>{ref}</code>)}<span>Packages</span>{selectedStep.packageRefs.map((ref) => <code key={ref}>{ref}</code>)}</div>
-					<button type="button" onClick={() => onSteerStep(`${flow.key} · FLOW · ${selectedStep.id} · ${selectedStep.title}`)}><Crosshair size={13} />Steer MAX on this step</button>
-				</footer>
-			</section>
+			<div className="apn-behavior-detail-row">
+				<section className="apn-behavior-step-detail" aria-label="Selected behavior step" key={selectedStep.id}>
+					<header>
+						<div><small>{selectedStep.id} · step {selectedIndex + 1} of {behaviorFlow.steps.length}</small><h3>{selectedStep.title}</h3><p>{selectedStep.behavior}</p></div>
+						<span><CheckCircle size={13} weight="fill" />Workspace scoped</span>
+					</header>
+					<div className="apn-behavior-detail-grid">
+						<article className="is-state"><small>State transition</small><div className="apn-state-tick">{selectedStep.stateTransition.split(" → ").map((part, index) => <span key={part} style={{ "--apn-seg": index } as CSSProperties}>{index > 0 ? <i aria-hidden="true">→</i> : null}<b>{part}</b></span>)}</div></article>
+						<article><small>Actor and surface</small><strong>{selectedStep.actor}</strong><p>{selectedStep.surface}</p></article>
+						<article><small>Starts when</small><strong>{selectedStep.trigger}</strong></article>
+						<article className="is-failure"><small>Failure and recovery</small><strong>{selectedStep.failureBehavior}</strong></article>
+						<article className="is-evidence"><small>Proof retained</small><strong>{selectedStep.evidence}</strong></article>
+					</div>
+					<footer>
+						<div><span>Contracts</span>{selectedStep.contractRefs.map((ref) => <code key={ref}>{ref}</code>)}<span>Packages</span>{selectedStep.packageRefs.map((ref) => <code key={ref}>{ref}</code>)}</div>
+						<button type="button" onClick={() => onSteerStep(`${flow.key} · FLOW · ${selectedStep.id} · ${selectedStep.title}`)}><Crosshair size={13} />Steer MAX on this step</button>
+					</footer>
+				</section>
 
-			<section className="apn-workspace-context" aria-label="Execute workspace context packet">
-				<header><div><span>Execute workspace context</span><h3>{selectedStep.workspaceKey}</h3></div><i>Compiled from FLOW → L2 → L3 → L4</i></header>
-				<div>
-					<article><small>Mission</small><strong>{flow.summary}</strong></article>
-					<article><small>Owned behavior</small><strong>{selectedStep.title}</strong><p>{selectedStep.behavior}</p></article>
-					<article><small>Implementation package</small><strong>{ownedPackages.length > 0 ? ownedPackages.map((item) => `${item.id} · ${item.title}`).join(" · ") : selectedStep.packageRefs.join(" · ")}</strong><p>{ownedPackages.length > 0 ? ownedPackages.map((item) => item.artifact).join(" · ") : "Cross-workspace verification responsibility"}</p></article>
-					<article><small>Dependency gate</small><strong>{ownedPackages.length > 0 ? ownedPackages.map((item) => item.dependsOn).join(" · ") : "Required upstream flow gates"}</strong><p>Execute resolves these keys before the workspace becomes runnable.</p></article>
-					<article><small>Interfaces and policy</small><strong>{referencedContracts.map((item) => `${item.id} · ${item.transport}`).join(" · ")}</strong><p>{referencedContracts.map((item) => item.security).join(" · ")}</p></article>
-					<article><small>Completion and evidence gate</small><strong>{ownedPackages.length > 0 ? ownedPackages.map((item) => item.doneWhen).join(" · ") : selectedStep.evidence}</strong><p>{selectedStep.evidence}</p></article>
-				</div>
-				<footer><span><Check size={12} />Behavior, interfaces, state, failure, evidence, and ownership travel together</span><button type="button" onClick={() => onOpenLevel("L2")}>Open solution boundary<ArrowRight size={13} /></button></footer>
-			</section>
+				<section className="apn-workspace-context" aria-label="Execute workspace context packet">
+					<header><div><span>Execute workspace context</span><h3>{selectedStep.workspaceKey}</h3></div><i className="apn-compile-chip" key={selectedStep.id}><em>Compiled from</em>{PLAN_COMPILE_SEGMENTS.map((part, index) => <b key={`${part}-${index}`} className={part === "→" ? "is-arrow" : undefined} aria-hidden={part === "→" || undefined} style={{ "--apn-seg": index } as CSSProperties}>{part}</b>)}</i></header>
+					<div className="apn-packet-grid" key={selectedStep.id}>
+						<article><small>Mission</small><strong>{flow.summary}</strong></article>
+						<article><small>Owned behavior</small><strong>{selectedStep.title}</strong><p>{selectedStep.behavior}</p></article>
+						<article><small>Implementation package</small><strong>{ownedPackages.length > 0 ? ownedPackages.map((item) => `${item.id} · ${item.title}`).join(" · ") : selectedStep.packageRefs.join(" · ")}</strong><p>{ownedPackages.length > 0 ? ownedPackages.map((item) => item.artifact).join(" · ") : "Cross-workspace verification responsibility"}</p></article>
+						<article><small>Dependency gate</small><strong>{ownedPackages.length > 0 ? ownedPackages.map((item) => item.dependsOn).join(" · ") : "Required upstream flow gates"}</strong><p>Execute resolves these keys before the workspace becomes runnable.</p></article>
+						<article><small>Interfaces and policy</small><strong>{referencedContracts.map((item) => `${item.id} · ${item.transport}`).join(" · ")}</strong><p>{referencedContracts.map((item) => item.security).join(" · ")}</p></article>
+						<article><small>Completion and evidence gate</small><strong>{ownedPackages.length > 0 ? ownedPackages.map((item) => item.doneWhen).join(" · ") : selectedStep.evidence}</strong><p>{selectedStep.evidence}</p></article>
+					</div>
+					<footer><span><Check size={12} />Behavior, interfaces, state, failure, evidence, and ownership travel together</span><button type="button" onClick={() => onOpenLevel("L2")}>Open solution boundary<ArrowRight size={13} /></button></footer>
+				</section>
+			</div>
 		</section>
 	)
 }
 
 type PlanDiagramNode = PlanFlow["levels"][PlanArchitectureLevel]["nodes"][number]
 
-function PlanArchitectureDiagram({ level, flow, brief, selectedNodeTitle, onSelectNode }: { level: PlanArchitectureLevel; flow: PlanFlow; brief: PlanExecutionBrief; selectedNodeTitle: string; onSelectNode: (title: string) => void }) {
+function PlanArchitectureDiagram({ level, flow, brief, selectedNodeTitle, recheck, onSelectNode }: { level: PlanArchitectureLevel; flow: PlanFlow; brief: PlanExecutionBrief; selectedNodeTitle: string; recheck: PlanRecheck | null; onSelectNode: (title: string) => void }) {
 	const diagram = flow.levels[level]
 	const nodes = diagram.nodes
 	const model = level === "L2" ? "Solution and ownership" : level === "L3" ? "Components and contracts" : "Team build packages"
@@ -1482,7 +1685,11 @@ function PlanArchitectureDiagram({ level, flow, brief, selectedNodeTitle, onSele
 					{diagram.returnEdge ? <><path className="apn-diagram-return" d="M 925 286 C 760 318, 250 318, 80 286" markerEnd="url(#apn-arrow)" /><text className="apn-diagram-edge-label" textAnchor="middle" x="500" y="306">{diagram.returnEdge}</text></> : null}
 				</svg>
 				<div className="apn-diagram-model"><span>{level}</span><strong>{model}</strong></div>
-				{positionedNodes.map((node, index) => <button type="button" key={node.title} aria-pressed={selectedNodeTitle === node.title} aria-label={`Inspect ${node.title}`} onClick={() => onSelectNode(node.title)} style={{ left: `${node.x}%`, top: `${node.y}%`, width: `${node.width}%` }} className={`apn-diagram-node is-${node.tone}`}><span>{node.team ?? `${level} · ${String(index + 1).padStart(2, "0")}`}</span><strong>{node.title}</strong><small>{node.detail}</small>{node.artifact ? <em>{node.artifact}</em> : null}</button>)}
+				{positionedNodes.map((node, index) => {
+					// A node only shimmers when the applied direction actually named its package.
+					const rederived = !!recheck && !!node.packageId && recheck.artifacts.includes(node.packageId)
+					return <button type="button" key={node.title} aria-pressed={selectedNodeTitle === node.title} aria-label={`Inspect ${node.title}`} onClick={() => onSelectNode(node.title)} style={{ left: `${node.x}%`, top: `${node.y}%`, width: `${node.width}%`, "--apn-stagger": `${index * 90}ms` } as CSSProperties} className={`apn-diagram-node is-${node.tone}${rederived ? " is-rederiving" : ""}`}><span>{node.team ?? `${level} · ${String(index + 1).padStart(2, "0")}`}</span><strong>{node.title}</strong><small>{node.detail}</small>{node.artifact ? <em>{node.artifact}</em> : null}{rederived && recheck ? <b className="apn-recheck-chip">re-checked · {recheck.revision}</b> : null}</button>
+				})}
 				<div className="apn-diagram-legend" aria-hidden="true"><span className="is-source">Source / request</span><span className="is-core">Integration / control</span><span className="is-store">Durable state / gate</span><span className="is-effect">System of record / effect</span></div>
 			</div>
 		</div>
@@ -1540,7 +1747,7 @@ const PLAN_SYSTEM_NODES = [
 	{ flowId: "evidence", x: 57, y: 62, tone: "effect" as const, note: "Turns proof into a release decision" },
 ]
 
-function PlanSystemBlueprint({ onOpenFlow, assembling = false }: { onOpenFlow: (flowId: string) => void; assembling?: boolean }) {
+function PlanSystemBlueprint({ onOpenFlow, assembling = false, readOnly = false }: { onOpenFlow: (flowId: string) => void; assembling?: boolean; readOnly?: boolean }) {
 	return (
 		<div className="apn-diagram-viewport">
 			<div className={`apn-architecture-diagram apn-blueprint${assembling ? " is-assembling" : ""}`} role="group" aria-label="System blueprint for the five implementation flows">
@@ -1567,7 +1774,7 @@ function PlanSystemBlueprint({ onOpenFlow, assembling = false }: { onOpenFlow: (
 					const flow = PLAN_FLOWS.find((item) => item.id === entry.flowId)
 					if (!flow) return null
 					return (
-						<button type="button" key={flow.id} className={`apn-diagram-node apn-blueprint-node is-${entry.tone}`} style={{ left: `${entry.x}%`, top: `${entry.y}%`, width: "22%" }} onClick={() => onOpenFlow(flow.id)} aria-label={`Open ${flow.title}`}>
+						<button type="button" key={flow.id} className={`apn-diagram-node apn-blueprint-node is-${entry.tone}`} style={{ left: `${entry.x}%`, top: `${entry.y}%`, width: "22%" }} disabled={readOnly} title={readOnly ? "Available when this pass lands" : undefined} onClick={() => onOpenFlow(flow.id)} aria-label={readOnly ? `${flow.title} · available when this pass lands` : `Open ${flow.title}`}>
 							<span>{flow.number} · {flow.key}</span>
 							<strong>{flow.title}</strong>
 							<small>{entry.note}</small>
@@ -1602,19 +1809,36 @@ function PlanPackagesPanel({ onOpenFlow }: { onOpenFlow: (flowId: string, level:
 	)
 }
 
-function PlanDesignView({ selectedFlowId, level, onLevelChange, onSelectFlow, onSteerNode }: { selectedFlowId: string; level: PlanDesignLayer; onLevelChange: (level: PlanDesignLayer) => void; onSelectFlow: (flowId: string) => void; onSteerNode: (context: string) => void }) {
+function PlanDesignView({ selectedFlowId, level, preview = false, recheck = null, onLevelChange, onSelectFlow, onSteerNode }: { selectedFlowId: string; level: PlanDesignLayer; preview?: boolean; recheck?: PlanRecheck | null; onLevelChange: (level: PlanDesignLayer) => void; onSelectFlow: (flowId: string) => void; onSteerNode: (context: string) => void }) {
 	const isSystem = selectedFlowId === "system"
 	const isPackages = selectedFlowId === "packages"
 	const selectedFlow = PLAN_FLOWS.find((flow) => flow.id === selectedFlowId) ?? PLAN_FLOWS[0]
 	const diagram = level === "FLOW" ? null : selectedFlow.levels[level]
 	const brief = PLAN_EXECUTION_BRIEFS[selectedFlow.id]
 	const [selectedNodeIndex, setSelectedNodeIndex] = useState(0)
+	const panelRef = useRef<HTMLElement>(null)
 	useEffect(() => setSelectedNodeIndex(0), [selectedFlowId, level])
+	// Each design layer starts at its own top. Carrying the previous layer's scroll offset
+	// dropped viewers below the diagram they just asked for.
+	useEffect(() => { panelRef.current?.scrollTo?.({ top: 0, behavior: "auto" }) }, [selectedFlowId, level])
 	const nodeIndex = diagram ? Math.min(selectedNodeIndex, Math.max(0, diagram.nodes.length - 1)) : 0
 	const selectedNode = diagram ? diagram.nodes[nodeIndex] ?? diagram.nodes[0] : undefined
 	const selectedNodeTitle = selectedNode?.title ?? ""
 	const setSelectedNodeTitle = (title: string) => {
 		if (diagram) setSelectedNodeIndex(Math.max(0, diagram.nodes.findIndex((node) => node.title === title)))
+	}
+	const rederivedFlows = rederivedFlowIds(recheck)
+	const rederivedLayers = rederivedLevels(recheck, selectedFlow.id)
+	if (preview) {
+		return (
+			<main className="apn-main apn-architecture-view apn-design-shell apn-design-preview">
+				<header className="apn-view-heading apn-design-toolbar"><div><span>Design</span><h1>The delivery system is assembling.</h1></div><div><strong>{PLAN_FLOWS.length}</strong><small>flows composing</small></div></header>
+				<div className="apn-design-preview-body">
+					<div className="apn-design-preview-note"><SpinnerGap className="apn-spin" size={14} /><p><strong>Read-only while this pass runs.</strong>MAX is composing the five flows into one delivery system. Behavior, L2, L3, and L4 open when the pass lands.</p></div>
+					<PlanSystemBlueprint assembling readOnly onOpenFlow={() => undefined} />
+				</div>
+			</main>
+		)
 	}
 	return (
 		<main className="apn-main apn-architecture-view apn-design-shell">
@@ -1623,13 +1847,16 @@ function PlanDesignView({ selectedFlowId, level, onLevelChange, onSelectFlow, on
 				<nav aria-label="Architecture flows">
 					<span>Implementation flows</span>
 					<button type="button" className={`apn-flow-system${isSystem ? " is-active" : ""}`} onClick={() => onSelectFlow("system")}><i><TreeStructure size={14} /></i><span><strong>System blueprint</strong><small>How the five flows compose</small></span><CaretRight size={14} /></button>
-					{PLAN_FLOWS.map((flow) => <button key={flow.id} type="button" className={!isSystem && !isPackages && selectedFlow.id === flow.id ? "is-active" : ""} onClick={() => { onSelectFlow(flow.id); onLevelChange("FLOW") }}><i>{flow.number}</i><span><strong>{flow.title}</strong><small>{flow.key} · {PLAN_BEHAVIOR_FLOWS[flow.id].steps.length} behavior steps · {PLAN_EXECUTION_BRIEFS[flow.id].workPackages.length} build items</small></span><CheckCircle size={14} weight="fill" /></button>)}
+					{PLAN_FLOWS.map((flow, index) => {
+						const rederived = rederivedFlows.has(flow.id)
+						return <button key={flow.id} type="button" style={{ "--apn-stagger": `${index * 90}ms` } as CSSProperties} className={`${!isSystem && !isPackages && selectedFlow.id === flow.id ? "is-active" : ""}${rederived ? " is-rederiving" : ""}`} onClick={() => { onSelectFlow(flow.id); onLevelChange("FLOW") }}><i>{flow.number}</i><span><strong>{flow.title}</strong><small>{flow.key} · {PLAN_BEHAVIOR_FLOWS[flow.id].steps.length} behavior steps · {PLAN_EXECUTION_BRIEFS[flow.id].workPackages.length} build items</small>{rederived && recheck ? <em className="apn-recheck-chip">re-checked · {recheck.revision}</em> : null}</span><CheckCircle size={14} weight="fill" /></button>
+					})}
 					<button type="button" className={`apn-flow-system${isPackages ? " is-active" : ""}`} onClick={() => onSelectFlow("packages")} aria-label="All work packages"><i><ListChecks size={14} /></i><span><strong>All packages</strong><small>{PLAN_PACKAGE_COUNT} owned build items</small></span><CaretRight size={14} /></button>
 				</nav>
 				{isPackages ? (
 					<PlanPackagesPanel onOpenFlow={(flowId, nextLevel) => { onSelectFlow(flowId); onLevelChange(nextLevel) }} />
 				) : isSystem ? (
-					<section className="apn-diagram-panel">
+					<section className="apn-diagram-panel" ref={panelRef}>
 						<header><div><span>ERP-SYS</span><h2>System blueprint</h2></div></header>
 						<section className="apn-level-question"><div><small>This view answers</small><strong>Does the delivery system hang together end to end?</strong></div><span><Users size={13} />Solution architect · program owners</span></section>
 						<div className="apn-diagram-meta"><span>Composed delivery system</span><p>Authority gates the integration; the integration is reconciled, replay-protected, and released only with evidence. Select a flow to open its executable behavior.</p><i><CheckCircle size={12} weight="fill" />Generated, traced, and critic-checked</i></div>
@@ -1637,20 +1864,16 @@ function PlanDesignView({ selectedFlowId, level, onLevelChange, onSelectFlow, on
 						<footer><span>What the composed system guarantees</span><div><p><Check size={12} />No external financial effect without named, bounded authority</p><p><Check size={12} />One approved change produces exactly one posted journal and one receipt</p><p><Check size={12} />Deployment happens only from owner-approved, evidence-backed releases</p></div></footer>
 					</section>
 				) : (
-					<section className="apn-diagram-panel">
-						<header><div><span>{selectedFlow.key}</span><h2>{selectedFlow.title}</h2></div><div role="group" aria-label="Design layer">{(["FLOW", "L2", "L3", "L4"] as const).map((item) => <button key={item} type="button" aria-pressed={level === item} onClick={() => onLevelChange(item)}><strong>{item}</strong><small>{item === "FLOW" ? "Behavior" : item === "L2" ? "Solution" : item === "L3" ? "Technical" : "Build"}</small></button>)}</div></header>
+					<section className={`apn-diagram-panel${level === "FLOW" ? " is-flow-level" : ""}`} ref={panelRef}>
+						<header><div><span>{selectedFlow.key}</span><h2>{selectedFlow.title}</h2></div><div role="group" aria-label="Design layer">{(["FLOW", "L2", "L3", "L4"] as const).map((item) => <button key={item} type="button" className={(item === "FLOW" ? rederivedFlows.has(selectedFlow.id) : rederivedLayers.has(item)) ? "is-rederived" : undefined} aria-pressed={level === item} onClick={() => onLevelChange(item)}><strong>{item}</strong><small>{item === "FLOW" ? "Behavior" : item === "L2" ? "Solution" : item === "L3" ? "Technical" : "Build"}</small></button>)}</div></header>
 						<section className="apn-level-question"><div><small>This view answers</small><strong>{PLAN_LEVEL_QUESTIONS[level].question}</strong></div><span><Users size={13} />{PLAN_LEVEL_QUESTIONS[level].audience}</span></section>
 						{level === "FLOW" ? (
-							<>
-								<div className="apn-diagram-meta"><span>Executable application behavior</span><p>Ordered actors, triggers, system responses, state transitions, failure handling, evidence, and workspace ownership.</p><i><CheckCircle size={12} weight="fill" />Compiled for Execute</i></div>
-								<p className="apn-diagram-instruction"><Lightning size={14} weight="fill" />Select a step to see exactly what the application does and the context its workspace receives.</p>
-								<PlanBehaviorFlowView flow={selectedFlow} brief={brief} onOpenLevel={onLevelChange} onSteerStep={onSteerNode} />
-							</>
+							<PlanBehaviorFlowView flow={selectedFlow} brief={brief} recheck={recheck} onOpenLevel={onLevelChange} onSteerStep={onSteerNode} />
 						) : diagram ? (
 							<>
 								<div className="apn-diagram-meta"><span>{diagram.name}</span><p>{diagram.focus}</p><i><CheckCircle size={12} weight="fill" />Generated, traced, and critic-checked</i></div>
 								<p className="apn-diagram-instruction"><Lightning size={14} weight="fill" />Select a node to see its owner, interface, build artifact, dependency, and completion condition.</p>
-								<PlanArchitectureDiagram level={level} flow={selectedFlow} brief={brief} selectedNodeTitle={selectedNodeTitle} onSelectNode={setSelectedNodeTitle} />
+								<PlanArchitectureDiagram level={level} flow={selectedFlow} brief={brief} selectedNodeTitle={selectedNodeTitle} recheck={recheck} onSelectNode={setSelectedNodeTitle} />
 								{selectedNode ? <PlanNodeBrief level={level} flow={selectedFlow} node={selectedNode} nodeIndex={nodeIndex} brief={brief} onLevelChange={onLevelChange} onOpenImplementation={() => onSelectFlow("packages")} onSteerNode={onSteerNode} /> : null}
 								<footer><span>Architecture decisions shown in this view</span><div>{diagram.guidance.map((item) => <p key={item}><Check size={12} />{item}</p>)}</div></footer>
 								<PlanExecutableHandoff key={`${selectedFlow.id}-${level}`} level={level} flow={selectedFlow} brief={brief} />
@@ -1670,7 +1893,7 @@ function PlanRevisionsView({ revisions, onOpenArchitecture }: { revisions: reado
 			<header className="apn-view-heading apn-ledger-toolbar"><div><span>Revisions</span><h1>Every pass is recorded. Nothing changes silently.</h1></div><div><strong>{revisions[0].version}</strong><small>current snapshot</small></div></header>
 			<section className="apn-revision-timeline" aria-label="Plan revision history">
 				{revisions.map((revision, index) => (
-					<article key={revision.version} className={index === 0 ? "is-current" : ""}>
+					<article key={revision.version} className={`${index === 0 ? "is-current" : ""}${index === 0 && revisions.length > PLAN_REVISION_HISTORY.length ? " is-new" : ""}`}>
 						<div className="apn-revision-marker"><code>{revision.version}</code>{index < revisions.length - 1 ? <i /> : null}</div>
 						<div className="apn-revision-body">
 							<header><i className={`apn-revision-trigger is-${revision.trigger.toLowerCase().replace(/ /g, "-")}`}>{revision.trigger}</i><span>Pass {revision.pass} · {revision.time}</span></header>

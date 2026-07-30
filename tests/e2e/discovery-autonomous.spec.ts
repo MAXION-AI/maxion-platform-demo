@@ -82,7 +82,10 @@ test("runs an autonomous Discovery from brief to verified package", async ({ pag
 	await expect(page.getByRole("button", { name: /Executive decision brief Current/ })).toBeVisible()
 
 	await page.getByRole("button", { name: "Autonomy" }).click()
-	await expect(page.getByRole("heading", { name: "MAX is running the Discovery." })).toBeVisible()
+	// The run is finished by this point, and the hero says so. The running
+	// variant ("MAX is running the Discovery.") stays pinned by
+	// discovery-command-layer.spec.ts against the in-flight seeded records.
+	await expect(page.getByRole("heading", { name: "MAX ran the Discovery." })).toBeVisible()
 	await expect(page.getByRole("region", { name: "Work handled by MAX" })).toBeVisible()
 	await expect(page.getByRole("heading", { name: "What MAX is handling for you" })).toBeVisible()
 	await expect(page.getByRole("heading", { name: "Conversations MAX is managing" })).toBeVisible()

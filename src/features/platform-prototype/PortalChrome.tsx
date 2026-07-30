@@ -97,6 +97,9 @@ type PortalSidebarProps = {
 	onMobileOpenChange: (open: boolean) => void
 	collapsed: boolean
 	onCollapsedChange: (collapsed: boolean) => void
+	// Live module attention, lifted into the shell. A module that reports its own count
+	// overrides the seeded badge; everything else keeps the static one.
+	badges?: Partial<Record<MaxionModuleId, number>>
 }
 
 export function PortalSidebar({
@@ -107,6 +110,7 @@ export function PortalSidebar({
 	onMobileOpenChange,
 	collapsed,
 	onCollapsedChange,
+	badges,
 }: PortalSidebarProps) {
 	const [notice, setNotice] = useState("")
 	const navigate = (module: MaxionModuleId) => {
@@ -116,6 +120,7 @@ export function PortalSidebar({
 	const renderItem = (item: NavigationItem, compact = false) => {
 		const Icon = item.icon
 		const isActive = item.id === active
+		const badge = badges?.[item.id] ?? item.badge
 		return (
 			<li key={item.id}>
 				<button
@@ -130,7 +135,7 @@ export function PortalSidebar({
 						<Icon className="mxp-portal-nav-icon" weight={isActive ? "fill" : "regular"} aria-hidden="true" />
 					) : null}
 					<span>{item.label}</span>
-					{item.badge ? <b aria-label={`${item.badge} pending`}>{item.badge}</b> : null}
+					{badge ? <b aria-label={`${badge} pending`}>{badge}</b> : null}
 				</button>
 			</li>
 		)

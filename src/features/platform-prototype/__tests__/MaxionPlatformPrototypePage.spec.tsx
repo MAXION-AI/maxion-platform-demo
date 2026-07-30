@@ -166,7 +166,7 @@ describe("MaxionPlatformPrototypePage", () => {
 		expect(screen.getByText("Keep the ServiceNow adapter behind the existing gateway.")).toBeInTheDocument()
 		expect(screen.getByText(/Reading the active context/)).toBeInTheDocument()
 		const impactCard = await screen.findByRole("article", { name: "Steering impact preview" }, { timeout: 4000 })
-		expect(impactCard).toHaveTextContent("Impact preview · nothing applied yet")
+		expect(impactCard).toHaveTextContent("Impact preview · 3 artifacts · nothing applied yet")
 		expect(impactCard).toHaveTextContent("Contained change")
 		fireEvent.click(within(impactCard).getByRole("button", { name: "Apply to plan" }))
 		expect(within(impactCard).getByText(/Applied · snapshot v13/)).toBeInTheDocument()
@@ -179,6 +179,9 @@ describe("MaxionPlatformPrototypePage", () => {
 		for (const flowTitle of ["Mission authority and approval boundary", "ServiceNow to Workday financial integration", "Durable reconciliation and drift repair", "Tenant-safe retry and replay protection", "Release evidence and deployment approval"]) {
 			expect(within(flows).getByRole("button", { name: new RegExp(flowTitle) })).toBeInTheDocument()
 		}
+		// The applied direction re-derived INT-01 and MULE-201, so the flow that owns them
+		// carries the snapshot it was re-checked against until the viewer navigates on.
+		expect(within(flows).getByText("re-checked · v13")).toBeInTheDocument()
 		const behaviorFlow = screen.getByRole("region", { name: "Executable behavior flow for ServiceNow to Workday financial integration" })
 		expect(within(behaviorFlow).getByRole("list", { name: "Ordered application behavior" })).toBeInTheDocument()
 		fireEvent.click(within(behaviorFlow).getByRole("button", { name: /MuleSoft Experience API.*Validate and durably accept ingress/ }))
@@ -271,6 +274,17 @@ describe("MaxionPlatformPrototypePage", () => {
 		fireEvent.click(screen.getByRole("button", { name: /^ServiceNow 19 contracts/ }))
 		expect(screen.getByText("CLM-058")).toBeInTheDocument()
 		expect(screen.getByText(/free-text and drift from the Workday hierarchy/)).toBeInTheDocument()
+
+		// A schedule direction is a sequencing change the evidence graph already knows about:
+		// it must cite CLM-021 rather than fall through to the generic integration answer.
+		const scheduleComposer = screen.getByRole("textbox", { name: "Steer the Plan agent" })
+		fireEvent.change(scheduleComposer, { target: { value: "Protect the October cutover window in the build order." } })
+		fireEvent.keyDown(scheduleComposer, { key: "Enter", code: "Enter" })
+		const scheduleImpact = await screen.findByRole("article", { name: "Steering impact preview" }, { timeout: 4000 })
+		expect(scheduleImpact).toHaveTextContent("The build order absorbs the schedule constraint")
+		expect(scheduleImpact).toHaveTextContent("Contained change")
+		expect(within(scheduleImpact).getByRole("button", { name: "CLM-021" })).toBeInTheDocument()
+		expect(scheduleImpact).toHaveTextContent("The October cutover is a hard program constraint")
 	})
 
 	it("starts an autonomous engagement from a prompt or an approved Plan and exposes workspace topology", async () => {

@@ -9,6 +9,8 @@ import {
 	CirclesThree,
 	Clock,
 	Code,
+	Compass,
+	Cube,
 	Database,
 	DotsThree,
 	FileText,
@@ -30,14 +32,20 @@ import {
 	Users,
 } from "@phosphor-icons/react"
 import { AnimatePresence, motion } from "motion/react"
-import { useEffect, useRef, useState, type ReactNode } from "react"
+import { Fragment, useEffect, useRef, useState, type ReactNode } from "react"
 import { useLocation } from "react-router-dom"
 
 import { useDocumentTitle } from "@/app/hooks/useDocumentTitle"
-import { AgentixPrototypePage } from "@/features/agentix/prototype/AgentixPrototypePage"
-import { DiscoveryAutonomousPrototypePage } from "@/features/discovery-autonomous/DiscoveryAutonomousPrototypePage"
+import { AgentixPrototypePage, type AgentixAttention, type AgentixIntent, type AgentixIntentSignal } from "@/features/agentix/prototype/AgentixPrototypePage"
+import {
+	DiscoveryAutonomousPrototypePage,
+	listDiscoveryJumpRecords,
+	type DiscoveryJump,
+	type DiscoveryJumpRecord,
+	type DiscoveryOpenSignal,
+} from "@/features/discovery-autonomous/DiscoveryAutonomousPrototypePage"
 
-import { PlanModule } from "./PlanAgenticModule"
+import { PLAN_JUMP_ENTRIES, PlanModule, type PlanJumpSignal } from "./PlanAgenticModule"
 import { MaxionSpiralMark, PortalSidebar, PRIMARY_NAVIGATION } from "./PortalChrome"
 import {
 	AccountUtilityModule,
@@ -47,9 +55,15 @@ import {
 	ProjectsModule,
 } from "./PortalReplicaModules"
 import {
+	EXECUTE_FLAGSHIP_ENGAGEMENT,
 	EXECUTE_TASKS,
 	INITIAL_PROJECTS,
+	resolveExecuteBlueprint,
+	type ExecuteBlueprint,
 	type ExecuteLaunchIntent,
+	type ExecuteWorkspaceId,
+	type ExecuteWorkspaceProfile,
+	type ExecuteWorkspaceSpec,
 	type MaxionModuleId,
 	type PortalProject,
 } from "./model"
@@ -61,113 +75,44 @@ import "./maxion-unified-system.css"
 
 type ExecuteRunState = "idle" | "running" | "verified"
 type ExecuteWorkspaceView = "activity" | "topology" | "changes" | "tests" | "terminal" | "deploys" | "audit"
-type ExecuteWorkspaceId = (typeof EXECUTE_TASKS)[number]["id"]
 
-type ExecuteWorkspaceProfile = {
-	branch: string
-	seed: string
-	agentIntro: string
-	steerResponse: string
-	steps: readonly [string, string, string, string]
-	command: string
-	tests: number
-	suites: ReadonlyArray<readonly [string, number]>
-	files: ReadonlyArray<{ name: string; path: string; added: number; diff: readonly string[] }>
-	result: string
-	resultMeta: string
+// Staged-run timing. One clock drives the whole run so every workspace can be read at its
+// own offset — the selected workspace's numbers still match the timer chain exactly.
+const EXECUTE_STAGE_MS = [0, 700, 2100, 3600] as const
+const EXECUTE_RUN_MS = 4400
+const EXECUTE_FILE_START_MS = 900
+const EXECUTE_FILE_STEP_MS = 240
+const EXECUTE_TERMINAL_START_MS = 2200
+const EXECUTE_TERMINAL_STEP_MS = 200
+const EXECUTE_WORKSPACE_LAG_MS = 400
+const EXECUTE_SUITE_SECONDS = 6.8
+
+const executeStageAt = (elapsed: number) => elapsed >= EXECUTE_STAGE_MS[3] ? 3 : elapsed >= EXECUTE_STAGE_MS[2] ? 2 : elapsed >= EXECUTE_STAGE_MS[1] ? 1 : 0
+const executeFilesAt = (elapsed: number, total: number) => Math.max(0, Math.min(total, Math.floor((elapsed - EXECUTE_FILE_START_MS) / EXECUTE_FILE_STEP_MS) + 1))
+const executeTerminalAt = (elapsed: number, suites: number) => Math.max(0, Math.min(suites * 2 + 1, Math.floor((elapsed - EXECUTE_TERMINAL_START_MS) / EXECUTE_TERMINAL_STEP_MS)))
+
+// Suite durations are apportioned from the run's own reported total, so the terminal's
+// per-suite timings add up to the number the result card prints.
+function executeSuiteSeconds(suites: ExecuteWorkspaceProfile["suites"]) {
+	const tests = suites.reduce((sum, [, count]) => sum + count, 0) || 1
+	const budget = Math.round(EXECUTE_SUITE_SECONDS * 10)
+	let remaining = budget
+	return suites.map(([, count], index) => {
+		if (index === suites.length - 1) return (Math.max(3, remaining) / 10).toFixed(1)
+		const share = Math.max(3, Math.round((count / tests) * budget))
+		remaining -= share
+		return (share / 10).toFixed(1)
+	})
 }
 
-const EXECUTE_WORKSPACE_PROFILES: Record<ExecuteWorkspaceId, ExecuteWorkspaceProfile> = {
-	authority: {
-		branch: "execute/erp/authority",
-		seed: "Implement the approved mission-authority boundary while preserving the public API.",
-		agentIntro: "I mapped the outcome to the repository, approved Plan, and authority policy. I’ll implement the typed boundary, repair failures, and return with release evidence.",
-		steerResponse: "I’ve applied that direction to the authority contract without widening repository or deployment scope.",
-		steps: ["Read repository instructions and Plan evidence", "Implement mission authority contract", "Add hostile authority and replay tests", "Run cumulative release gate"],
-		command: "pnpm test mission-authority --runInBand",
-		tests: 48,
-		suites: [["Authority unit suite", 18], ["Tenant isolation", 9], ["Service contracts", 13], ["Cumulative gate", 8]],
-		files: [
-			{ name: "missionPolicy.ts", path: "services/authority", added: 34, diff: ["export type MissionAuthority = {", "+ tenantId: TenantId", "+ permittedActions: Action[]", "+ approvalBoundary: Boundary", "}"] },
-			{ name: "authority.ts", path: "services/authority", added: 18, diff: ["export async function execute(command, authority) {", "+ await policy.assert(command, authority)", "+ return effects.dispatch(command)", "}"] },
-			{ name: "mission-policy.spec.ts", path: "tests/authority", added: 42, diff: ["describe(\"mission policy\", () => {", "+ it(\"rejects actions outside the approved boundary\")", "+ it(\"expires stale authority grants\")", "})"] },
-			{ name: "tenant-isolation.spec.ts", path: "tests/authority", added: 27, diff: ["describe(\"tenant isolation\", () => {", "+ it(\"blocks cross-tenant authority reuse\")", "+ it(\"scopes receipts to the issuing tenant\")", "})"] },
-		],
-		result: "Mission authority API passed its release gate",
-		resultMeta: "TypeScript clean · tenant isolation verified · no production effect",
-	},
-	adapter: {
-		branch: "execute/erp/adapter",
-		seed: "Implement the approved ServiceNow financial-change adapter with replay-safe event handling.",
-		agentIntro: "I traced the existing connector contract and isolated the approved financial-change events. I’ll add typed translation, deduplication, and contract evidence inside this worktree.",
-		steerResponse: "I’ve scoped that direction to the ServiceNow adapter and will prove it against the existing connector contract.",
-		steps: ["Read connector contracts and event fixtures", "Map approved ServiceNow events", "Implement replay-safe deduplication", "Run adapter contract suite"],
-		command: "pnpm test servicenow-adapter --runInBand",
-		tests: 36,
-		suites: [["Event translation", 12], ["Signature validation", 9], ["Replay safety", 7], ["Connector contracts", 8]],
-		files: [
-			{ name: "serviceNowAdapter.ts", path: "services/connectors", added: 41, diff: ["export function translate(event: ServiceNowEvent) {", "+ const change = mapFinancialChange(event)", "+ return withDeduplication(change)", "}"] },
-			{ name: "financialEvent.ts", path: "services/connectors/contracts", added: 23, diff: ["export type ApprovedFinancialEvent = {", "+ eventId: ServiceNowEventId", "+ approvedChange: FinancialChange", "+ deduplicationKey: string", "}"] },
-			{ name: "deduplication.ts", path: "services/connectors", added: 19, diff: ["export function withDeduplication(change) {", "+ const key = deduplicationKey(change)", "+ if (journal.has(key)) return replaySafe(change)", "}"] },
-			{ name: "servicenow-adapter.spec.ts", path: "tests/connectors", added: 38, diff: ["describe(\"servicenow adapter\", () => {", "+ it(\"drops replayed events by deduplication key\")", "+ it(\"rejects unsigned provider payloads\")", "})"] },
-		],
-		result: "ServiceNow adapter passed its contract gate",
-		resultMeta: "36 tests passed · replay safety verified · provider writes disabled",
-	},
-	reconcile: {
-		branch: "execute/erp/reconcile",
-		seed: "Implement durable reconciliation across approved ERP effects and retained provider receipts.",
-		agentIntro: "I found the receipt and effect boundaries for the approved providers. I’ll add a durable journal, drift detection, and repair planning without granting new effect authority.",
-		steerResponse: "I’ve added that constraint to reconciliation planning; repair remains evidence-first and approval-bound.",
-		steps: ["Trace effect receipts and provider state", "Implement durable reconciliation journal", "Add drift detection and repair planning", "Run cross-provider failure suite"],
-		command: "pnpm test reconciliation --runInBand",
-		tests: 42,
-		suites: [["Journal durability", 11], ["Drift detection", 13], ["Repair planning", 10], ["Provider failures", 8]],
-		files: [
-			{ name: "reconciliationJournal.ts", path: "services/reconciliation", added: 52, diff: ["export class ReconciliationJournal {", "+ append(receipt: EffectReceipt): JournalEntry", "+ replay(from: Checkpoint): AsyncIterable<Entry>", "}"] },
-			{ name: "driftDetector.ts", path: "services/reconciliation", added: 37, diff: ["export function detectDrift(observed, journal) {", "+ const expected = journal.project(observed.provider)", "+ return diffStates(expected, observed)", "}"] },
-			{ name: "repairPlan.ts", path: "services/reconciliation", added: 29, diff: ["export function planRepair(drift: DriftReport) {", "+ const steps = orderByDependency(drift.effects)", "+ return { steps, requiresApproval: true }", "}"] },
-			{ name: "reconciliation.spec.ts", path: "tests/reconciliation", added: 45, diff: ["describe(\"reconciliation\", () => {", "+ it(\"survives a provider outage mid-journal\")", "+ it(\"never repairs without an approval\")", "})"] },
-		],
-		result: "Reconciliation workspace passed its failure gate",
-		resultMeta: "42 tests passed · receipts retained · repairs remain approval-bound",
-	},
-	replay: {
-		branch: "execute/erp/replay",
-		seed: "Prove hostile retries cannot escape tenant boundaries or create duplicate effects.",
-		agentIntro: "I isolated the retry, tenant, and idempotency boundaries. I’ll generate hostile replay cases and keep every provider effect mocked.",
-		steerResponse: "I’ve folded that case into the replay matrix and kept the assertion tenant-scoped.",
-		steps: ["Map retry and tenant boundaries", "Generate hostile replay matrix", "Assert duplicate-effect prevention", "Run tenant-isolation suite"],
-		command: "pnpm test hostile-replay --runInBand",
-		tests: 31,
-		suites: [["Tenant crossover", 8], ["Duplicate retries", 9], ["Expired authority", 7], ["Idempotency receipts", 7]],
-		files: [
-			{ name: "hostileReplay.spec.ts", path: "tests/security", added: 61, diff: ["describe(\"hostile replay\", () => {", "+ it(\"rejects a replayed grant from another tenant\")", "+ expect(effectDispatch).not.toRun()", "})"] },
-			{ name: "idempotency.spec.ts", path: "tests/security", added: 44, diff: ["describe(\"idempotency\", () => {", "+ it(\"returns the original receipt on retry\")", "+ expect(receipt).toRemainUnique()", "})"] },
-			{ name: "tenantBoundary.ts", path: "services/authority", added: 16, diff: ["export function assertTenant(scope: TenantScope) {", "+ if (scope.tenantId !== authority.tenantId) throw deny()", "}"] },
-			{ name: "replayFixtures.ts", path: "tests/fixtures", added: 28, diff: ["// Hostile fixtures stay mocked — no provider effects.", "+ export const hostileTenantId = tenant(\"attacker\")", "+ export const replayedGrant = expired(hostileTenantId)"] },
-		],
-		result: "Hostile replay suite passed",
-		resultMeta: "31 tests passed · no cross-tenant access · no duplicate effects",
-	},
-	evidence: {
-		branch: "execute/erp/evidence",
-		seed: "Prepare a release evidence package with rollback, provenance, and owner-ready review material.",
-		agentIntro: "I’m assembling the verified workspace outputs into one reviewable package. I’ll retain source fingerprints, rollback instructions, and the exact production authority boundary.",
-		steerResponse: "I’ve added that evidence request to the release package and preserved its source attribution.",
-		steps: ["Collect verified workspace outputs", "Bind source and actor provenance", "Generate rollback and release notes", "Validate owner review package"],
-		command: "pnpm test release-evidence --runInBand",
-		tests: 26,
-		suites: [["Evidence integrity", 7], ["Source provenance", 8], ["Rollback package", 5], ["Owner review", 6]],
-		files: [
-			{ name: "releaseEvidence.ts", path: "services/release", added: 39, diff: ["export function buildEvidence(workspaces) {", "+ const fingerprints = workspaces.map(sourceFingerprint)", "+ return { fingerprints, productionAuthority: false }", "}"] },
-			{ name: "rollbackPlan.ts", path: "services/release", added: 31, diff: ["export function rollbackManifest(release) {", "+ retainArtifact(release.previous)", "+ return compatibilityChecks(release)", "}"] },
-			{ name: "provenance.ts", path: "services/audit", added: 22, diff: ["export function bindProvenance(entry: AuditEntry) {", "+ entry.actor = currentActor()", "+ entry.sourceFingerprint = hash(entry.artifact)", "}"] },
-			{ name: "release-evidence.spec.ts", path: "tests/release", added: 35, diff: ["describe(\"release evidence\", () => {", "+ it(\"binds every artifact to a source fingerprint\")", "+ it(\"keeps the rollback package owner-ready\")", "})"] },
-		],
-		result: "Release evidence package is owner-ready",
-		resultMeta: "26 tests passed · rollback retained · production authority not granted",
-	},
+// Steering answers vary with what was actually asked. Variant one is the workspace's own
+// line, so the profile keeps owning its voice.
+function executeSteerResponse(profile: ExecuteWorkspaceProfile, message: string) {
+	const text = message.toLowerCase()
+	if (/\b(tests?|assert|assertion|coverage|spec)\b/.test(text)) return `I’ve turned that into an assertion on the ${profile.steerTarget} rather than new behavior — the suite carries it from here.`
+	if (/\b(api|contract|endpoint|interface|schema)\b/.test(text)) return `I’ve held the published contract fixed and applied that inside the ${profile.steerTarget}.`
+	if (/\b(scope|boundary|authority|permission|deploy|production)\b/.test(text)) return `That sits outside this worktree’s authority, so I’ve recorded it against the ${profile.steerTarget} and left the boundary unchanged.`
+	return profile.steerResponse
 }
 
 function MaxionMark({ size = 30 }: { size?: number }) {
@@ -251,11 +196,14 @@ type ExecuteEngagementProgress = {
 	steering: Record<string, string[]>
 	deployRequested: boolean
 	deployRequestedAt: string | null
+	deployRequestedMs: number | null
+	deployArtifact: string
+	deployApproved: boolean
 	auditExported: boolean
 }
 
 type ExecuteWorkspaceCommand =
-	| { type: "workspace"; taskId: ExecuteWorkspaceId }
+	| { type: "workspace"; taskId: string }
 	| { type: "view"; view: (typeof EXECUTE_VIEW_ORDER)[number] }
 	| { type: "run" }
 	| { type: "interrupt" }
@@ -284,9 +232,9 @@ const EXECUTE_PALETTE_MODULES: ReadonlyArray<{ id: MaxionModuleId; label: string
 	{ id: "integrations", label: "Integrations", hint: "Connected systems" },
 ]
 
-function buildExecutePaletteItems(): ExecutePaletteItem[] {
+function buildExecutePaletteItems(workspaces: readonly ExecuteWorkspaceSpec[]): ExecutePaletteItem[] {
 	const items: ExecutePaletteItem[] = []
-	EXECUTE_TASKS.forEach((task, index) => items.push({ id: `workspace-${task.id}`, group: "Workspaces", label: task.title, hint: `Open Workspace ${String(index + 1).padStart(2, "0")}`, keywords: `${task.detail} workspace agent session`, action: { type: "workspace", taskId: task.id } }))
+	workspaces.forEach((task, index) => items.push({ id: `workspace-${task.id}`, group: "Workspaces", label: task.title, hint: `Open Workspace ${String(index + 1).padStart(2, "0")}`, keywords: `${task.detail} workspace agent session`, action: { type: "workspace", taskId: task.id } }))
 	EXECUTE_VIEW_ORDER.forEach((view, index) => items.push({ id: `view-${view}`, group: "Views", label: EXECUTE_VIEW_META[view].label, hint: `${EXECUTE_VIEW_META[view].hint} · ${index + 1}`, keywords: `inspector panel view ${view}`, action: { type: "view", view } }))
 	items.push({ id: "run-start", group: "Run", label: "Start agent run", hint: "MAX implements, tests, and repairs", keywords: "start run launch verify agent", action: { type: "run" } })
 	items.push({ id: "run-interrupt", group: "Run", label: "Interrupt run", hint: "Pause the working agent", keywords: "interrupt pause stop halt", action: { type: "interrupt" } })
@@ -298,10 +246,10 @@ function buildExecutePaletteItems(): ExecutePaletteItem[] {
 	return items
 }
 
-function ExecuteCommandPalette({ onRun, onClose }: { onRun: (action: ExecutePaletteAction) => void; onClose: () => void }) {
+function ExecuteCommandPalette({ workspaces, onRun, onClose }: { workspaces: readonly ExecuteWorkspaceSpec[]; onRun: (action: ExecutePaletteAction) => void; onClose: () => void }) {
 	const [query, setQuery] = useState("")
 	const [active, setActive] = useState(0)
-	const items = buildExecutePaletteItems()
+	const items = buildExecutePaletteItems(workspaces)
 	const q = query.trim().toLowerCase()
 	const filtered = q ? items.filter((item) => `${item.label} ${item.hint} ${item.keywords}`.toLowerCase().includes(q)).slice(0, 9) : items.slice(0, 9)
 	const activeIndex = Math.min(active, Math.max(0, filtered.length - 1))
@@ -336,16 +284,21 @@ function ExecuteCommandPalette({ onRun, onClose }: { onRun: (action: ExecutePale
 	)
 }
 
+type ExecuteJumpTarget = { kind: "workspace"; taskId: ExecuteWorkspaceId } | { kind: "approvals" } | { kind: "engagements" }
+type ExecuteJumpSignal = { tick: number; target: ExecuteJumpTarget }
+
 function ExecuteModule({
 	active,
 	planHandoff,
 	planSnapshot,
+	jumpSignal = null,
 	onVerified,
 	onNavigate,
 }: {
 	active: boolean
 	planHandoff: boolean
 	planSnapshot: string
+	jumpSignal?: ExecuteJumpSignal | null
 	onVerified: () => void
 	onNavigate: (module: MaxionModuleId) => void
 }) {
@@ -353,12 +306,7 @@ function ExecuteModule({
 	const [workspaceOpen, setWorkspaceOpen] = useState(false)
 	const [paletteOpen, setPaletteOpen] = useState(false)
 	const [hubFocusSignal, setHubFocusSignal] = useState(0)
-	const [engagement, setEngagement] = useState<ExecuteLaunchIntent>({
-		source: "plan",
-		title: "ERP modernization delivery",
-		brief: "Implement the approved ERP modernization outcomes with tenant-safe authority boundaries.",
-		autoStart: false,
-	})
+	const [engagement, setEngagement] = useState<ExecuteLaunchIntent>(EXECUTE_FLAGSHIP_ENGAGEMENT)
 	const [progress, setProgress] = useState<Record<string, ExecuteEngagementProgress>>({})
 	// One-shot hub intent, consumed on arrival — the hub remounts whenever a workspace
 	// closes, so a persistent signal would keep re-firing on every re-entry.
@@ -441,57 +389,131 @@ function ExecuteModule({
 		setHubIntent("approvals")
 	}
 
+	// Every engagement carries its own workspaces, branches, and evidence.
+	const blueprint = resolveExecuteBlueprint(engagement)
+	// A requested release is a real approval item: it survives leaving the workspace and
+	// is decided on the hub's approvals surface, beside the repository boundary.
+	const deployEntry = Object.entries(progress).find(([, item]) => item.deployRequested)
+	const deployRequest = deployEntry ? { title: deployEntry[0], artifact: deployEntry[1].deployArtifact, requestedAt: deployEntry[1].deployRequestedAt, approved: deployEntry[1].deployApproved } : null
+	const approveDeploy = () => {
+		if (!deployEntry) return
+		setProgress((items) => ({ ...items, [deployEntry[0]]: { ...items[deployEntry[0]], deployApproved: true } }))
+	}
+
+	// Cross-module arrival from the shell palette. Workspace jumps ride the existing
+	// dispatch seam, so a jump that lands before the workspace mounts is queued, not lost.
+	const jumpActionsRef = useRef<(target: ExecuteJumpTarget) => void>(() => undefined)
+	jumpActionsRef.current = (target) => {
+		if (target.kind === "workspace") {
+			// Shell jump targets name the flagship engagement's workspaces. If another
+			// engagement is open, bring the flagship back first and let the command ride
+			// the pending seam into the workspace that is about to mount.
+			if (blueprint.workspaces.some((workspace) => workspace.id === target.taskId)) { dispatchWorkspace({ type: "workspace", taskId: target.taskId }); return }
+			setEngagement(EXECUTE_FLAGSHIP_ENGAGEMENT)
+			workspaceCommandRef.current = null
+			pendingCommandRef.current = { type: "workspace", taskId: target.taskId }
+			setWorkspaceOpen(true)
+			return
+		}
+		if (target.kind === "approvals") { openApprovals(); return }
+		setWorkspaceOpen(false)
+	}
+	const jumpTickRef = useRef(0)
+	useEffect(() => {
+		if (!jumpSignal || jumpSignal.tick === jumpTickRef.current) return
+		jumpTickRef.current = jumpSignal.tick
+		jumpActionsRef.current(jumpSignal.target)
+	}, [jumpSignal])
+
 	return (
 		<div className="aex-module" ref={rootRef}>
 			{workspaceOpen
-				? <ExecuteWorkspaceModule key={`${engagement.source}-${engagement.title}-${String(engagement.autoStart)}`} onBack={() => setWorkspaceOpen(false)} onPlatform={() => onNavigate("dashboard")} onCommand={openPalette} onOpenApprovals={openApprovals} engagement={engagement} planSnapshot={planSnapshot} progress={progress[engagement.title]} onProgress={(next) => setProgress((items) => ({ ...items, [engagement.title]: next }))} onVerified={onVerified} registerCommands={registerWorkspaceCommands} />
-				: <ExecuteHubModule onOpenRun={(intent) => { setEngagement(intent); setWorkspaceOpen(true) }} onNavigate={onNavigate} planHandoff={planHandoff} planSnapshot={planSnapshot} active={active} focusSignal={hubFocusSignal} intent={hubIntent} onIntentConsumed={() => setHubIntent(null)} engagementState={progress["ERP modernization delivery"]?.runState ?? "idle"} />}
-			{paletteOpen ? <ExecuteCommandPalette onRun={runPaletteAction} onClose={closePalette} /> : null}
+				? <ExecuteWorkspaceModule key={`${engagement.source}-${engagement.title}-${String(engagement.autoStart)}`} onBack={() => setWorkspaceOpen(false)} onPlatform={() => onNavigate("dashboard")} onCommand={openPalette} onOpenApprovals={openApprovals} engagement={engagement} blueprint={blueprint} planSnapshot={planSnapshot} progress={progress[engagement.title]} onProgress={(next) => setProgress((items) => ({ ...items, [engagement.title]: next }))} onVerified={onVerified} registerCommands={registerWorkspaceCommands} />
+				: <ExecuteHubModule onOpenRun={(intent) => { setEngagement(intent); setWorkspaceOpen(true) }} onNavigate={onNavigate} planHandoff={planHandoff} planSnapshot={planSnapshot} active={active} focusSignal={hubFocusSignal} intent={hubIntent} onIntentConsumed={() => setHubIntent(null)} engagementState={progress["ERP modernization delivery"]?.runState ?? "idle"} deployRequest={deployRequest} onApproveDeploy={approveDeploy} />}
+			{paletteOpen ? <ExecuteCommandPalette workspaces={blueprint.workspaces} onRun={runPaletteAction} onClose={closePalette} /> : null}
 		</div>
 	)
 }
 
-function ExecuteRunButton({ runState, onRun }: { runState: ExecuteRunState; onRun: () => void }) {
+function ExecuteRunButton({ runState, paused, onRun }: { runState: ExecuteRunState; paused: boolean; onRun: () => void }) {
+	const label = runState === "verified" ? "Run verified" : runState === "running" ? "Running…" : paused ? "Resume run" : "Start agent run"
 	return (
 		<button type="button" className="mxp-primary" disabled={runState === "running"} onClick={onRun}>
 			{runState === "verified" ? <Check size={14} /> : runState === "running" ? <SpinnerGap className="mxp-spin" size={14} /> : <Play size={14} weight="fill" />}
-			{runState === "verified" ? "Run verified" : runState === "running" ? "Running…" : "Start agent run"}
+			{label}
 		</button>
 	)
 }
 
+// Post-verify the engagement is still a live system: one fact at a time, rotating slowly
+// under the orchestrator. Reduced motion keeps the first fact and never starts a timer.
+function ExecuteAmbientLine({ facts, active }: { facts: readonly string[]; active: boolean }) {
+	const [index, setIndex] = useState(0)
+	useEffect(() => {
+		if (!active || prefersReducedMotion() || facts.length < 2) return
+		const timer = window.setInterval(() => setIndex((current) => (current + 1) % facts.length), 6000)
+		return () => window.clearInterval(timer)
+	}, [active, facts])
+	if (!active || facts.length === 0) return null
+	return <p className="aex-ambient"><i aria-hidden="true" />{facts[index % facts.length]}</p>
+}
+
+// Minutes since this workspace was opened. Timestamps that never move are the loudest
+// tell that nothing is running; under reduced motion they simply stay where they started.
+function useElapsedMinutes() {
+	const [minutes, setMinutes] = useState(0)
+	useEffect(() => {
+		if (prefersReducedMotion()) return
+		const timer = window.setInterval(() => setMinutes((value) => value + 1), 60_000)
+		return () => window.clearInterval(timer)
+	}, [])
+	return minutes
+}
+
 function ExecuteWorkspaceTopology({
 	runState,
+	workspaces,
+	ambient,
 	selectedTask,
 	steeringCounts,
-	completedWorkspaces = 0,
+	runElapsed = null,
 	gateVerifying = false,
 	onSelectTask,
 	onOpenTests,
 }: {
 	runState: ExecuteRunState
+	workspaces: readonly ExecuteWorkspaceSpec[]
+	ambient: readonly string[]
 	selectedTask: string
 	steeringCounts?: Record<string, number>
-	completedWorkspaces?: number
+	runElapsed?: number | null
 	gateVerifying?: boolean
 	onSelectTask: (taskId: string) => void
 	onOpenTests: () => void
 }) {
+	// Each workspace comes online at its own offset into the run, and the topology says so —
+	// the same clock the thread reads, so a workspace is never "Verified" here while its own
+	// session is still working over there.
 	const workspaceStatus = (taskId: string, index: number) => {
 		if (runState === "verified") return "Verified"
 		if (steeringCounts?.[taskId]) return "Directed"
-		if (runState === "running") return index < completedWorkspaces ? "Verified" : index === completedWorkspaces ? "Working" : "Queued"
+		if (runState === "running") {
+			if (runElapsed === null) return index === 0 ? "Working" : "Queued"
+			const elapsed = runElapsed - index * EXECUTE_WORKSPACE_LAG_MS
+			return elapsed >= EXECUTE_RUN_MS ? "Verified" : elapsed >= 0 ? "Working" : "Queued"
+		}
 		return index === 0 ? "Ready" : "Queued"
 	}
 	return (
 		<div className="mxp-topology-graph" role="group" aria-label="Workspace dependency topology">
 			<div className="mxp-topology-node is-orchestrator">
 				<MaxionMark size={27} />
-				<span><small>Orchestrator</small><strong>MAX delivery lead</strong><i>{runState === "running" ? "Coordinating" : runState === "verified" ? "Verified" : "Ready"}</i></span>
+				<span><small>Orchestrator</small><strong>MAX delivery lead</strong><i className={runState === "running" ? "is-coordinating" : runState === "verified" ? "is-verified" : ""}>{runState === "running" ? "Coordinating" : runState === "verified" ? "Verified" : "Ready"}</i></span>
 			</div>
+			<ExecuteAmbientLine facts={ambient} active={runState === "verified"} />
 			<span className="mxp-topology-connector" aria-hidden="true" />
 			<div className="mxp-topology-workspaces">
-				{EXECUTE_TASKS.map((item, index) => (
+				{workspaces.map((item, index) => (
 					<button type="button" key={item.id} aria-label={`Open Workspace ${String(index + 1).padStart(2, "0")}: ${item.title}`} className={`mxp-topology-node${selectedTask === item.id ? " is-selected" : ""}`} onClick={() => onSelectTask(item.id)}>
 						<span className="mxp-mini-glyph"><Code size={13} /></span>
 						<span><small>Workspace {String(index + 1).padStart(2, "0")}</small><strong>{item.title}</strong><i className={`is-${workspaceStatus(item.id, index).toLowerCase()}`}>{workspaceStatus(item.id, index)}</i></span>
@@ -501,7 +523,7 @@ function ExecuteWorkspaceTopology({
 			<span className="mxp-topology-connector is-lower" aria-hidden="true" />
 			<button type="button" aria-label="Open cumulative tests and release gate" className="mxp-topology-node is-gate" onClick={onOpenTests}>
 				<span className="mxp-mini-glyph"><ShieldCheck size={14} /></span>
-				<span><small>Cumulative gate</small><strong>Verify, audit, and prepare release</strong><i>{runState === "verified" ? "Passed" : gateVerifying ? "Verifying" : "Waiting"}</i></span>
+				<span><small>Cumulative gate</small><strong>Verify, audit, and prepare release</strong><i className={runState === "verified" ? "is-verified" : gateVerifying ? "is-verifying" : ""}>{runState === "verified" ? "Passed" : gateVerifying ? "Verifying" : "Waiting"}</i></span>
 			</button>
 		</div>
 	)
@@ -513,6 +535,7 @@ function ExecuteWorkspaceModule({
 	onCommand,
 	onOpenApprovals,
 	engagement,
+	blueprint,
 	planSnapshot,
 	progress,
 	onProgress,
@@ -524,6 +547,7 @@ function ExecuteWorkspaceModule({
 	onCommand: () => void
 	onOpenApprovals: () => void
 	engagement: ExecuteLaunchIntent
+	blueprint: ExecuteBlueprint
 	planSnapshot: string
 	progress?: ExecuteEngagementProgress
 	onProgress: (next: ExecuteEngagementProgress) => void
@@ -532,15 +556,18 @@ function ExecuteWorkspaceModule({
 }) {
 	// A verified engagement re-enters as verified — evidence restored, run not replayed.
 	const restoredVerified = progress?.runState === "verified"
+	const workspaces = blueprint.workspaces
 	const [view, setView] = useState<ExecuteWorkspaceView>("topology")
-	const [selectedTask, setSelectedTask] = useState<ExecuteWorkspaceId>("authority")
+	const [selectedTask, setSelectedTask] = useState<string>(workspaces[0].id)
 	const [runState, setRunState] = useState<ExecuteRunState>(restoredVerified ? "verified" : engagement.autoStart ? "running" : "idle")
 	const [runStage, setRunStage] = useState(0)
-	const [revealedFiles, setRevealedFiles] = useState(0)
-	const [terminalLines, setTerminalLines] = useState(0)
-	const [completedWorkspaces, setCompletedWorkspaces] = useState(0)
+	// Milliseconds into the current run. Sub-stage detail — files landing, terminal lines,
+	// and each workspace's own offset — is derived from this single clock.
+	const [runClock, setRunClock] = useState(0)
+	const [pausedStage, setPausedStage] = useState<number | null>(null)
 	const [deployRequested, setDeployRequested] = useState(progress?.deployRequested ?? false)
 	const [deployRequestedAt, setDeployRequestedAt] = useState<string | null>(progress?.deployRequestedAt ?? null)
+	const [deployRequestedMs, setDeployRequestedMs] = useState<number | null>(progress?.deployRequestedMs ?? null)
 	const [auditExported, setAuditExported] = useState(progress?.auditExported ?? false)
 	const [handoffOpen, setHandoffOpen] = useState(false)
 	const [steerDrafts, setSteerDrafts] = useState<Record<string, string>>({})
@@ -548,16 +575,28 @@ function ExecuteWorkspaceModule({
 	const [steeringMessages, setSteeringMessages] = useState<Record<string, string[]>>(progress?.steering ?? {})
 	const [steerPending, setSteerPending] = useState<Record<string, boolean>>({})
 	const threadScrollRef = useRef<HTMLDivElement>(null)
+	const terminalRef = useRef<HTMLPreElement>(null)
 	const steerRef = useRef<HTMLTextAreaElement>(null)
 	const steerTimersRef = useRef<number[]>([])
-	const task = EXECUTE_TASKS.find((item) => item.id === selectedTask) ?? EXECUTE_TASKS[0]
-	const workspaceIndex = EXECUTE_TASKS.findIndex((item) => item.id === task.id)
+	const deployApproved = progress?.deployApproved ?? false
+	const elapsedMinutes = useElapsedMinutes()
+	const task = workspaces.find((item) => item.id === selectedTask) ?? workspaces[0]
+	const workspaceIndex = workspaces.findIndex((item) => item.id === task.id)
 	const workspaceNumber = String(workspaceIndex + 1).padStart(2, "0")
-	const workspaceProfile = EXECUTE_WORKSPACE_PROFILES[task.id]
+	const workspaceProfile = task.profile
 	const steer = steerDrafts[selectedTask] ?? ""
 	const workspaceMessages = steeringMessages[selectedTask] ?? []
-	const steeringCounts = Object.fromEntries(EXECUTE_TASKS.map((item) => [item.id, steeringMessages[item.id]?.length ?? 0]))
-	const liveTestCount = useCountUp(workspaceProfile.tests, runState === "verified" || (runState === "running" && runStage >= 2), !restoredVerified, 1300)
+	const steeringCounts = Object.fromEntries(workspaces.map((item) => [item.id, steeringMessages[item.id]?.length ?? 0]))
+
+	// Five agent sessions run concurrently, so each workspace reads at its own offset into
+	// the run. Reduced motion — and every other state — collapses back to the shared stage.
+	const staged = runState === "running" && !prefersReducedMotion()
+	const workspaceElapsed = runClock - workspaceIndex * EXECUTE_WORKSPACE_LAG_MS
+	const displayStage = staged ? executeStageAt(workspaceElapsed) : runStage
+	const fileTotal = workspaceProfile.files.length
+	const revealedFiles = runState !== "running" ? fileTotal : staged ? executeFilesAt(workspaceElapsed, fileTotal) : fileTotal
+	const terminalEvents = runState === "verified" ? workspaceProfile.suites.length * 2 + 1 : runState !== "running" ? 0 : staged ? executeTerminalAt(workspaceElapsed, workspaceProfile.suites.length) : workspaceProfile.suites.length * 2 + 1
+	const liveTestCount = useCountUp(workspaceProfile.tests, runState === "verified" || (runState === "running" && displayStage >= 2), !restoredVerified, 1300)
 
 	// Report engagement progress up so the hub and re-entry reflect the real state.
 	// The mount-time snapshot is skipped: it holds nothing new, and the extra parent
@@ -567,13 +606,25 @@ function ExecuteWorkspaceModule({
 	const progressSyncedRef = useRef(false)
 	useEffect(() => {
 		if (!progressSyncedRef.current) { progressSyncedRef.current = true; return }
-		onProgressRef.current({ runState, steering: steeringMessages, deployRequested, deployRequestedAt, auditExported })
-	}, [runState, steeringMessages, deployRequested, deployRequestedAt, auditExported])
+		onProgressRef.current({ runState, steering: steeringMessages, deployRequested, deployRequestedAt, deployRequestedMs, deployArtifact: blueprint.artifact, deployApproved, auditExported })
+		// The blueprint is fixed for the life of this workspace; only real state changes report up.
+		// eslint-disable-next-line react-hooks/exhaustive-deps
+	}, [runState, steeringMessages, deployRequested, deployRequestedAt, deployRequestedMs, deployApproved, auditExported])
 
 	const requestDeploy = () => {
 		if (runState !== "verified" || deployRequested) return
 		setDeployRequested(true)
 		setDeployRequestedAt(new Intl.DateTimeFormat("en-US", { hour: "numeric", minute: "2-digit" }).format(new Date()))
+		setDeployRequestedMs(Date.now())
+	}
+	const startRun = () => {
+		setPausedStage(null)
+		setRunState("running")
+	}
+	const interruptRun = () => {
+		if (runState !== "running") return
+		setPausedStage(displayStage)
+		setRunState("idle")
 	}
 
 	const scrollThreadToEnd = () => {
@@ -590,34 +641,43 @@ function ExecuteWorkspaceModule({
 	useEffect(() => {
 		if (runState !== "running") return
 		const timers: number[] = []
+		let clock = 0
 		if (prefersReducedMotion()) {
 			setRunStage(2)
-			setRevealedFiles(workspaceProfile.files.length)
-			setTerminalLines(3)
-			setCompletedWorkspaces(1)
+			setRunClock(EXECUTE_RUN_MS)
 			timers.push(window.setTimeout(() => {
-				setCompletedWorkspaces(EXECUTE_TASKS.length)
 				setRunState("verified")
 				onVerified()
 			}, 1200))
 		} else {
-			setRunStage(0); setRevealedFiles(0); setTerminalLines(0); setCompletedWorkspaces(0)
-			timers.push(window.setTimeout(() => setRunStage(1), 700))
-			workspaceProfile.files.forEach((_, index) => timers.push(window.setTimeout(() => setRevealedFiles(index + 1), 900 + index * 240)))
-			timers.push(window.setTimeout(() => setRunStage(2), 2100))
-			;[0, 1, 2].forEach((index) => timers.push(window.setTimeout(() => setTerminalLines(index + 1), 2300 + index * 300)))
-			;[1, 2, 3, 4].forEach((count) => timers.push(window.setTimeout(() => setCompletedWorkspaces(count), 600 + count * 700)))
-			timers.push(window.setTimeout(() => setRunStage(3), 3600))
+			setRunStage(0); setRunClock(0)
+			const startedAt = Date.now()
+			// One interval carries sub-stage detail: files landing, terminal lines appending,
+			// and the per-workspace offsets. The stage chain below stays authoritative.
+			clock = window.setInterval(() => setRunClock(Date.now() - startedAt), 160)
+			timers.push(window.setTimeout(() => setRunStage(1), EXECUTE_STAGE_MS[1]))
+			timers.push(window.setTimeout(() => setRunStage(2), EXECUTE_STAGE_MS[2]))
+			timers.push(window.setTimeout(() => setRunStage(3), EXECUTE_STAGE_MS[3]))
 			timers.push(window.setTimeout(() => {
-				setCompletedWorkspaces(EXECUTE_TASKS.length)
 				setRunState("verified")
 				onVerified()
-			}, 4400))
+			}, EXECUTE_RUN_MS))
 		}
-		return () => timers.forEach((timer) => window.clearTimeout(timer))
+		return () => {
+			timers.forEach((timer) => window.clearTimeout(timer))
+			if (clock) window.clearInterval(clock)
+		}
 		// The parent callback is recreated by the shell, while a run must keep one staged timer chain.
 		// eslint-disable-next-line react-hooks/exhaustive-deps
 	}, [runState])
+
+	// The terminal is a log: new lines arrive at the bottom and it follows them.
+	useEffect(() => {
+		if (view !== "terminal") return
+		const node = terminalRef.current
+		if (!node) return
+		node.scrollTop = node.scrollHeight
+	}, [view, terminalEvents, selectedTask])
 
 	useEffect(() => {
 		if (runState === "verified") scrollThreadToEnd()
@@ -645,7 +705,7 @@ function ExecuteWorkspaceModule({
 		}, 750))
 	}
 	const openWorkspace = (taskId: string) => {
-		const nextTask = EXECUTE_TASKS.find((item) => item.id === taskId)
+		const nextTask = workspaces.find((item) => item.id === taskId)
 		if (!nextTask) return
 		setSelectedTask(nextTask.id)
 		window.requestAnimationFrame?.(() => {
@@ -658,8 +718,8 @@ function ExecuteWorkspaceModule({
 		registerCommands((command) => {
 			if (command.type === "workspace") { openWorkspace(command.taskId); return }
 			if (command.type === "view") { setView(command.view); return }
-			if (command.type === "run") { setRunState("running"); return }
-			if (command.type === "interrupt") { setRunState((state) => state === "running" ? "idle" : state); return }
+			if (command.type === "run") { startRun(); return }
+			if (command.type === "interrupt") { interruptRun(); return }
 			if (command.type === "deploy") { setView("deploys"); requestDeploy(); return }
 			if (command.type === "export-audit") { setView("audit"); setAuditExported(true); return }
 			steerRef.current?.focus()
@@ -667,10 +727,26 @@ function ExecuteWorkspaceModule({
 		return () => registerCommands(null)
 	})
 	const workspaceStatus = runState === "verified" ? "Verified" : runState === "running" ? "Working" : "Ready"
-	const visibleFiles = runState === "running" ? workspaceProfile.files.slice(0, Math.min(revealedFiles, workspaceProfile.files.length)) : workspaceProfile.files
+	const visibleFiles = runState === "running" ? workspaceProfile.files.slice(0, Math.min(revealedFiles, fileTotal)) : workspaceProfile.files
 	const selectedFileIndex = Math.min(selectedFiles[selectedTask] ?? 0, Math.max(0, visibleFiles.length - 1))
 	const selectedFile = visibleFiles[selectedFileIndex]
-	const stepState = (index: number): "complete" | "current" | "queued" => runState === "verified" ? "complete" : runState !== "running" ? "queued" : index < runStage ? "complete" : index === runStage ? "current" : "queued"
+	// A direction becomes an assertion, so it lands on this workspace's spec file.
+	const directionCount = workspaceMessages.length
+	const specFileIndex = workspaceProfile.files.reduce((found, file, index) => file.name.includes(".spec.") ? index : found, -1)
+	const directionFileIndex = specFileIndex >= 0 ? specFileIndex : Math.max(0, fileTotal - 1)
+	const suiteSeconds = executeSuiteSeconds(workspaceProfile.suites)
+	// Evidence ages while you sit with it. The clock only advances for viewers who want motion.
+	const deployAgeMinutes = deployRequestedMs ? Math.max(0, Math.floor((Date.now() - deployRequestedMs) / 60_000)) : 0
+	const relativeMinutes = (minutes: number) => minutes === 0 ? "Now" : `${minutes} min`
+	const auditShift = deployApproved ? 1 : 0
+	const auditEntries: Array<[string, string]> = [
+		...(deployApproved ? [["Now", "Release approved by the release owner"] as [string, string]] : []),
+		[relativeMinutes(elapsedMinutes + auditShift), "Release gate verified"],
+		[relativeMinutes(elapsedMinutes + auditShift + 2), `${workspaceProfile.steerTarget.charAt(0).toUpperCase()}${workspaceProfile.steerTarget.slice(1)} updated`],
+		[relativeMinutes(elapsedMinutes + auditShift + 5), "Boundary evaluated"],
+		[relativeMinutes(elapsedMinutes + auditShift + 7), "Plan evidence bound"],
+	]
+	const stepState = (index: number): "complete" | "current" | "queued" => runState === "verified" ? "complete" : runState !== "running" ? "queued" : index < displayStage ? "complete" : index === displayStage ? "current" : "queued"
 	const stepSub = (index: number, state: "complete" | "current" | "queued") => {
 		if (state === "queued") return "Queued"
 		if (index === 0) return state === "complete" ? "Boundaries resolved" : "Resolving boundaries…"
@@ -689,13 +765,25 @@ function ExecuteWorkspaceModule({
 		)
 	}
 	const panelItems: Array<{ id: Exclude<ExecuteWorkspaceView, "activity">; label: string; count?: string; icon: typeof CirclesThree }> = [
-		{ id: "topology", label: "Topology", count: "5", icon: CirclesThree },
+		{ id: "topology", label: "Topology", count: String(workspaces.length), icon: CirclesThree },
 		{ id: "changes", label: "Changes", count: String(visibleFiles.length), icon: FileText },
 		{ id: "tests", label: "Tests", count: String(workspaceProfile.tests), icon: ListChecks },
 		{ id: "terminal", label: "Terminal", icon: TerminalWindow },
-		{ id: "deploys", label: "Deploys", count: "1", icon: ArrowRight },
+		{ id: "deploys", label: "Deploys", count: runState === "verified" ? "1" : undefined, icon: ArrowRight },
 		{ id: "audit", label: "Audit", icon: ShieldCheck },
 	]
+	// The terminal is a real log: the command, the worktree, every suite moving from RUNS to
+	// PASS with its own timing, then the totals the result card quotes.
+	const terminalBody = () => {
+		const lines: string[] = [`$ ${workspaceProfile.command}`, "", `RUN  v2.1.4  max-ai-platform (worktree ${workspaceProfile.branch})`, ""]
+		workspaceProfile.suites.forEach(([name, count], index) => {
+			const spec = `${name.toLowerCase().replaceAll(" ", "-")}.spec.ts`
+			if (terminalEvents > index * 2 + 1) lines.push(`PASS  ${spec}  ${count} tests · ${suiteSeconds[index]}s`)
+			else if (terminalEvents > index * 2) lines.push(`RUNS  ${spec}`)
+		})
+		if (terminalEvents > workspaceProfile.suites.length * 2) lines.push("", `Test Files  ${workspaceProfile.suites.length} passed (${workspaceProfile.suites.length})`)
+		return `${lines.join("\n")}\n`
+	}
 
 	return (
 		<div className="aex-app aex-app--workspace">
@@ -706,9 +794,9 @@ function ExecuteWorkspaceModule({
 				</header>
 				<nav aria-label="Engagement workspaces">
 					<span>Current engagement</span>
-					<button type="button" className="is-current" onClick={() => setView("topology")}><i className={runState === "running" ? "is-running" : runState === "verified" ? "is-verified" : "is-ready"} /><span><strong>{engagement.title}</strong><small>{workspaceStatus} · 5 workspaces</small></span></button>
+					<button type="button" className="is-current" onClick={() => setView("topology")}><i className={runState === "running" ? "is-running" : runState === "verified" ? "is-verified" : "is-ready"} /><span><strong>{engagement.title}</strong><small>{workspaceStatus} · {workspaces.length} workspaces</small></span></button>
 					<span>Workspaces</span>
-					{EXECUTE_TASKS.map((item, index) => <button type="button" key={item.id} aria-label={`Open Workspace ${String(index + 1).padStart(2, "0")}: ${item.title}`} className={selectedTask === item.id ? "is-selected" : ""} onClick={() => openWorkspace(item.id)}><Code size={14} /><span><strong>{item.title}</strong><small>Workspace {String(index + 1).padStart(2, "0")}{steeringCounts[item.id] ? ` · ${steeringCounts[item.id]} direction${steeringCounts[item.id] === 1 ? "" : "s"}` : ""}</small></span>{selectedTask === item.id ? <CaretRight size={13} /> : null}</button>)}
+					{workspaces.map((item, index) => <button type="button" key={item.id} aria-label={`Open Workspace ${String(index + 1).padStart(2, "0")}: ${item.title}`} className={selectedTask === item.id ? "is-selected" : ""} onClick={() => openWorkspace(item.id)}><Code size={14} /><span><strong>{item.title}</strong><small>Workspace {String(index + 1).padStart(2, "0")}{steeringCounts[item.id] ? ` · ${steeringCounts[item.id]} direction${steeringCounts[item.id] === 1 ? "" : "s"}` : ""}</small></span>{selectedTask === item.id ? <CaretRight size={13} /> : null}</button>)}
 				</nav>
 				<footer><span><i />max-ai-platform</span><small>{workspaceProfile.branch}</small></footer>
 			</aside>
@@ -724,11 +812,11 @@ function ExecuteWorkspaceModule({
 						<div className="aex-thread-scroll" ref={threadScrollRef}>
 							<header className="aex-thread-title">
 								<div><span>{workspaceStatus} · Workspace {workspaceNumber}</span><h1>{task.title}</h1><p>{task.detail}. MAX owns implementation and repair inside this workspace’s approved boundary.</p></div>
-								<div><button type="button" disabled={runState !== "running"} onClick={() => setRunState("idle")}><Pause size={14} />Interrupt</button><ExecuteRunButton runState={runState} onRun={() => setRunState("running")} /></div>
+								<div><button type="button" disabled={runState !== "running"} onClick={interruptRun}><Pause size={14} />Interrupt</button><ExecuteRunButton runState={runState} paused={pausedStage !== null} onRun={startRun} /></div>
 							</header>
 
 							{engagement.source === "plan" ? <button type="button" className="aex-thread-context" aria-expanded={handoffOpen} onClick={() => setHandoffOpen((open) => !open)}><FlowArrow size={14} /><span><strong>Imported from Plan</strong><small>{engagement.brief}</small></span><CaretRight size={13} className={`aex-context-caret${handoffOpen ? " is-open" : ""}`} /></button> : null}
-							{engagement.source === "plan" && handoffOpen ? <div className="aex-handoff-detail"><dl><div><dt>Plan of record</dt><dd>ERP modernization delivery plan</dd></div><div><dt>Scope</dt><dd>5 flows · 17 evidence-linked build packages</dd></div><div><dt>Evidence snapshot</dt><dd>{planSnapshot}</dd></div><div><dt>Granted authority</dt><dd>Files, terminal, and tests · deployment not granted</dd></div></dl></div> : null}
+							{engagement.source === "plan" && handoffOpen ? <div className="aex-handoff-detail"><dl><div><dt>Plan of record</dt><dd>{engagement.brief.split(" · ")[0]}</dd></div><div><dt>Scope</dt><dd>{blueprint.scope}</dd></div><div><dt>Evidence snapshot</dt><dd>{planSnapshot}</dd></div><div><dt>Granted authority</dt><dd>Files, terminal, and tests · deployment not granted</dd></div></dl></div> : null}
 							<article className="aex-message is-user"><span>RA</span><div><header><strong>You</strong><time>Just now</time></header><p>{workspaceProfile.seed}</p></div></article>
 							<article className="aex-message is-agent"><MaxionSpiralMark className="aex-message-mark" /><div><header><strong>MAX · Workspace {workspaceNumber}</strong><time>Now</time></header><p><ExecuteStreamedText text={workspaceProfile.agentIntro} /></p></div></article>
 
@@ -736,14 +824,24 @@ function ExecuteWorkspaceModule({
 								<header><span>{runState === "running" ? <SpinnerGap className="mxp-spin" size={15} /> : <CheckCircle size={15} />}<strong>{runState === "verified" ? "Implementation complete" : runState === "running" ? "MAX is working autonomously" : "Ready to execute"}</strong></span><small>{workspaceProfile.steps.length} actions</small></header>
 								{renderStep(0)}
 								{renderStep(1)}
+								{runState !== "idle" ? visibleFiles.map((file) => <div className="aex-tool-call is-edit" key={`edit-${file.name}`}><FileText size={13} /><code>Edit {file.path}/{file.name}</code><span>+{file.added}</span></div>) : null}
 								{renderStep(2)}
-								<div className="aex-tool-call"><TerminalWindow size={14} /><code>{workspaceProfile.command}</code><span>{runState === "verified" || (runState === "running" && runStage >= 3) ? <><Check size={12} />{workspaceProfile.tests} passed</> : runState === "running" && runStage === 2 ? <><SpinnerGap className="mxp-spin" size={12} />Running focused tests…</> : runState === "running" ? "Waiting on implementation" : "Ready"}</span></div>
+								<div className="aex-tool-call"><TerminalWindow size={14} /><code>{workspaceProfile.command}</code><span>{runState === "verified" || (runState === "running" && displayStage >= 3) ? <><Check size={12} />{workspaceProfile.tests} passed</> : runState === "running" && displayStage === 2 ? <><SpinnerGap className="mxp-spin" size={12} />Running focused tests…</> : runState === "running" ? "Waiting on implementation" : "Ready"}</span></div>
 								{renderStep(3)}
+								{directionCount ? <div className="aex-trace-row aex-direction-row"><span className="aex-direction-dot"><FlowArrow size={11} /></span><span><strong>Direction folded into the {workspaceProfile.steerTarget}</strong><small>{directionCount} assertion{directionCount === 1 ? "" : "s"} added · carried by cumulative verification</small></span><time>+{directionCount}</time></div> : null}
 							</section>
 
-							{workspaceMessages.map((message, index) => <article key={`${message}-${index}`} className="aex-message is-user"><span>RA</span><div><header><strong>You</strong><time>Now</time></header><p>{message}</p></div></article>)}
-							{steerPending[selectedTask] ? <article className="aex-message is-agent aex-steer-pending"><MaxionSpiralMark className="aex-message-mark" /><div><header><strong>MAX · Workspace {workspaceNumber}</strong><time>Now</time></header><p><SpinnerGap className="mxp-spin" size={12} />Reading the direction…</p></div></article> : null}
-							{workspaceMessages.length && !steerPending[selectedTask] ? <article className="aex-message is-agent"><MaxionSpiralMark className="aex-message-mark" /><div><header><strong>MAX · Workspace {workspaceNumber}</strong><time>Now</time></header><p><ExecuteStreamedText key={workspaceMessages.length} text={`${workspaceProfile.steerResponse} It will be included in cumulative verification.`} /></p></div></article> : null}
+							{pausedStage !== null && runState === "idle" ? <article className="aex-message is-agent"><MaxionSpiralMark className="aex-message-mark" /><div><header><strong>MAX · Workspace {workspaceNumber}</strong><time>Now</time></header><p>Paused at step {pausedStage + 1} of {workspaceProfile.steps.length}. The worktree is held exactly where it stopped — nothing was discarded and no effects left this workspace. Resume when you are ready.</p></div></article> : null}
+
+							{/* Every direction keeps its own answer, so two steers can be read against each other. */}
+							{workspaceMessages.map((message, index) => (
+								<Fragment key={`direction-${index}`}>
+									<article className="aex-message is-user"><span>RA</span><div><header><strong>You</strong><time>Now</time></header><p>{message}</p></div></article>
+									{index === workspaceMessages.length - 1 && steerPending[selectedTask]
+										? <article className="aex-message is-agent aex-steer-pending"><MaxionSpiralMark className="aex-message-mark" /><div><header><strong>MAX · Workspace {workspaceNumber}</strong><time>Now</time></header><p><SpinnerGap className="mxp-spin" size={12} />Reading the direction…</p></div></article>
+										: <article className="aex-message is-agent"><MaxionSpiralMark className="aex-message-mark" /><div><header><strong>MAX · Workspace {workspaceNumber}</strong><time>Now</time></header><p><ExecuteStreamedText text={`${executeSteerResponse(workspaceProfile, message)} It will be included in cumulative verification.`} /></p></div></article>}
+								</Fragment>
+							))}
 							{runState === "verified" ? <motion.article className="aex-result" initial={prefersReducedMotion() ? false : { opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: .28, ease: [0.16, 1, 0.3, 1] }}><CheckCircle size={18} weight="fill" /><div><strong>{workspaceProfile.result}</strong><p><b>{workspaceProfile.tests} passed in 6.8s</b> · {workspaceProfile.resultMeta}</p><button type="button" onClick={() => setView("tests")}>Review evidence<ArrowRight size={13} /></button></div></motion.article> : null}
 						</div>
 						<form className="aex-steer" onSubmit={(event) => { event.preventDefault(); sendSteer() }}>
@@ -756,12 +854,12 @@ function ExecuteWorkspaceModule({
 					<aside className="aex-inspector" aria-label="Engagement inspector">
 						<nav aria-label="Execute workspace views">{panelItems.map((item) => { const Icon = item.icon; return <button key={item.id} type="button" aria-label={item.label} aria-current={view === item.id ? "page" : undefined} onClick={() => setView(item.id)}><Icon size={15} /><span>{item.label}</span>{item.count ? <b aria-hidden="true">{item.count}</b> : null}</button> })}</nav>
 						<AnimatePresence initial={false}>
-							{view === "topology" ? <motion.section key="topology" className="aex-inspector-panel" initial={{ opacity: 0, x: 6 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0 }} transition={{ duration: .2 }}><header><span>Live orchestration</span><h2>Workspace topology</h2><p>Five isolated workspaces, one cumulative gate. Select any workspace to open its agent session.</p></header><ExecuteWorkspaceTopology runState={runState} selectedTask={selectedTask} steeringCounts={steeringCounts} completedWorkspaces={completedWorkspaces} gateVerifying={runState === "running" && runStage >= 3} onSelectTask={openWorkspace} onOpenTests={() => setView("tests")} /><div className="aex-inspector-note"><ShieldCheck size={14} /><span><strong>Authority stays bounded</strong><small>Files, terminal, and tests only</small></span></div></motion.section> : null}
-							{view === "changes" ? <motion.section key={`changes-${selectedTask}`} className="aex-inspector-panel" initial={{ opacity: 0, x: 6 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0 }} transition={{ duration: .2 }}><header><span>Workspace {workspaceNumber}</span><h2>Changes</h2><p>{runState === "running" ? `${visibleFiles.length} of ${workspaceProfile.files.length} files` : `${workspaceProfile.files.length} files · +${workspaceProfile.files.reduce((sum, file) => sum + file.added, 0)} −2`}</p></header><div className="aex-file-list">{visibleFiles.map((file, index) => <button type="button" key={file.name} className={index === selectedFileIndex ? "is-active" : ""} aria-pressed={index === selectedFileIndex} onClick={() => setSelectedFiles((items) => ({ ...items, [selectedTask]: index }))}><FileText size={14} /><span><strong>{file.name}</strong><small>{file.path}</small></span><b>+{file.added}</b></button>)}{visibleFiles.length === 0 ? <p className="aex-file-empty">Files land here as MAX edits them.</p> : null}</div>{selectedFile ? <pre className="aex-mini-diff"><code><span>{selectedFile.path}/{selectedFile.name} · +{selectedFile.added}</span>{"\n"}{selectedFile.diff.map((line) => line.startsWith("+") ? <b key={line}>{line}{"\n"}</b> : <span key={line}>{line}{"\n"}</span>)}</code></pre> : null}</motion.section> : null}
-							{view === "tests" ? <motion.section key={`tests-${selectedTask}`} className="aex-inspector-panel" initial={{ opacity: 0, x: 6 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0 }} transition={{ duration: .2 }}><header><span>Workspace {workspaceNumber} evidence</span><h2>Tests and release gates</h2><p>{runState === "verified" ? `${workspaceProfile.tests} passed · 0 failed` : "Failures return to this workspace’s agent automatically."}</p></header><div className="aex-test-summary"><CheckCircle size={20} /><span><strong>{runState === "verified" ? "Workspace gate passed" : runState === "running" ? "Verification in progress" : "Gate ready"}</strong><small>No skipped or flaky tests</small></span></div><div className="aex-test-list">{workspaceProfile.suites.map(([name, count]) => <div key={name}><Check size={13} /><span>{name}</span><b>{runState === "verified" ? `${count} passed` : runState === "running" && runStage >= 2 ? `${count} running` : `${count} ready`}</b></div>)}</div></motion.section> : null}
-							{view === "terminal" ? <motion.section key={`terminal-${selectedTask}`} className="aex-inspector-panel" initial={{ opacity: 0, x: 6 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0 }} transition={{ duration: .2 }}><header><span>Workspace {workspaceNumber}</span><h2>Terminal</h2><p>{workspaceProfile.branch}</p></header><pre className="aex-terminal" aria-label={`Workspace ${workspaceNumber} terminal`}><code>$ {workspaceProfile.command}{"\n\n"}{workspaceProfile.suites.slice(0, runState === "verified" ? 3 : runState === "running" ? Math.min(terminalLines, 3) : 0).map(([name]) => `PASS ${name.toLowerCase().replaceAll(" ", "-")}.spec.ts\n`)}{"\n"}<b>{runState === "verified" ? `${workspaceProfile.tests} passed · 0 failed · 6.8s` : runState === "running" ? (runStage >= 2 ? "Focused tests in progress…" : "Preparing the worktree…") : "Ready"}</b></code></pre></motion.section> : null}
-							{view === "deploys" ? <motion.section key="deploys" className="aex-inspector-panel" initial={{ opacity: 0, x: 6 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0 }} transition={{ duration: .2 }}><header><span>Governed release</span><h2>Deploys</h2><p>Production authority is never implied.</p></header><article className="aex-deploy"><span className={deployRequested ? "is-waiting" : ""}><ArrowRight size={17} /></span><div><strong>{deployRequested ? "Approval requested" : "Release candidate ready"}</strong><small>8f37c2 · rollback retained</small></div></article><button type="button" className="aex-panel-action" disabled={deployRequested || runState !== "verified"} onClick={requestDeploy}>{deployRequested ? "Awaiting release owner" : "Request deployment approval"}</button>{deployRequested ? <div className="aex-deploy-receipt"><i /><div><strong>Approval requested · routed to the release owner</strong><small>Root Admin · artifact 8f37c2 · {deployRequestedAt ?? "just now"}</small><button type="button" onClick={onOpenApprovals}>View in approvals<ArrowRight size={12} /></button></div></div> : null}</motion.section> : null}
-							{view === "audit" ? <motion.section key="audit" className="aex-inspector-panel" initial={{ opacity: 0, x: 6 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0 }} transition={{ duration: .2 }}><header><span>Immutable evidence</span><h2>Audit</h2><p>Every action carries source and actor attribution.</p></header><div className="aex-audit">{[["Now","Release gate verified"],["2 min","Authority contract updated"],["5 min","Boundary evaluated"],["7 min","Plan evidence bound"]].map(([time,title]) => <div key={title}><i /><time>{time}</time><span><strong>{title}</strong><small>Evidence fingerprint retained</small></span></div>)}</div><button type="button" className="aex-panel-action" onClick={() => setAuditExported(true)}>{auditExported ? "Audit export ready" : "Export audit package"}</button></motion.section> : null}
+							{view === "topology" ? <motion.section key="topology" className="aex-inspector-panel" initial={{ opacity: 0, x: 6 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0 }} transition={{ duration: .2 }}><header><span>Live orchestration</span><h2>Workspace topology</h2><p>{workspaces.length} isolated workspaces, one cumulative gate. Select any workspace to open its agent session.</p></header><ExecuteWorkspaceTopology runState={runState} workspaces={workspaces} ambient={blueprint.ambient} selectedTask={selectedTask} steeringCounts={steeringCounts} runElapsed={staged ? runClock : null} gateVerifying={runState === "running" && runStage >= 3} onSelectTask={openWorkspace} onOpenTests={() => setView("tests")} /><div className="aex-inspector-note"><ShieldCheck size={14} /><span><strong>Authority stays bounded</strong><small>Files, terminal, and tests only</small></span></div></motion.section> : null}
+							{view === "changes" ? <motion.section key={`changes-${selectedTask}`} className="aex-inspector-panel" initial={{ opacity: 0, x: 6 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0 }} transition={{ duration: .2 }}><header><span>Workspace {workspaceNumber}</span><h2>Changes</h2><p>{runState === "running" ? `${visibleFiles.length} of ${fileTotal} files` : `${fileTotal} files · +${workspaceProfile.files.reduce((sum, file) => sum + file.added, 0)} −2`}{directionCount ? ` · ${directionCount} direction${directionCount === 1 ? "" : "s"} applied` : ""}</p></header><div className="aex-file-list">{visibleFiles.map((file, index) => <button type="button" key={file.name} className={`${index === selectedFileIndex ? "is-active" : ""}${directionCount && index === directionFileIndex ? " has-direction" : ""}`} aria-pressed={index === selectedFileIndex} onClick={() => setSelectedFiles((items) => ({ ...items, [selectedTask]: index }))}><FileText size={14} /><span><strong>{file.name}</strong><small>{file.path}</small></span>{directionCount && index === directionFileIndex ? <em className="aex-file-direction">+{directionCount} direction{directionCount === 1 ? "" : "s"}</em> : null}<b>+{file.added}</b></button>)}{visibleFiles.length === 0 ? <p className="aex-file-empty">Files land here as MAX edits them.</p> : null}</div>{selectedFile ? <pre className="aex-mini-diff"><code><span>{selectedFile.path}/{selectedFile.name} · +{selectedFile.added}</span>{"\n"}{selectedFile.diff.map((line) => line.startsWith("+") ? <b key={line}>{line}{"\n"}</b> : <span key={line}>{line}{"\n"}</span>)}</code></pre> : null}</motion.section> : null}
+							{view === "tests" ? <motion.section key={`tests-${selectedTask}`} className="aex-inspector-panel" initial={{ opacity: 0, x: 6 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0 }} transition={{ duration: .2 }}><header><span>Workspace {workspaceNumber} evidence</span><h2>Tests and release gates</h2><p>{runState === "verified" ? `${workspaceProfile.tests} passed · 0 failed` : "Failures return to this workspace’s agent automatically."}</p></header><div className="aex-test-summary"><CheckCircle size={20} /><span><strong>{runState === "verified" ? "Workspace gate passed" : runState === "running" ? "Verification in progress" : "Gate ready"}</strong><small>No skipped or flaky tests</small></span></div><div className="aex-test-list">{workspaceProfile.suites.map(([name, count]) => <div key={name}><Check size={13} /><span>{name}</span><b>{runState === "verified" ? `${count} passed` : runState === "running" && displayStage >= 2 ? `${count} running` : `${count} ready`}</b></div>)}</div></motion.section> : null}
+							{view === "terminal" ? <motion.section key={`terminal-${selectedTask}`} className="aex-inspector-panel" initial={{ opacity: 0, x: 6 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0 }} transition={{ duration: .2 }}><header><span>Workspace {workspaceNumber}</span><h2>Terminal</h2><p>{workspaceProfile.branch}</p></header><pre className="aex-terminal" ref={terminalRef} aria-label={`Workspace ${workspaceNumber} terminal`}><code>{terminalBody()}<b>{runState === "verified" ? `${workspaceProfile.tests} passed · 0 failed · 6.8s` : runState === "running" ? (displayStage >= 2 ? "Focused tests in progress…" : "Preparing the worktree…") : "Ready"}</b></code></pre></motion.section> : null}
+							{view === "deploys" ? <motion.section key="deploys" className="aex-inspector-panel" initial={{ opacity: 0, x: 6 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0 }} transition={{ duration: .2 }}><header><span>Governed release</span><h2>Deploys</h2><p>Production authority is never implied.</p></header><article className="aex-deploy"><span className={deployApproved ? "is-approved" : deployRequested ? "is-waiting" : ""}>{deployApproved ? <Check size={17} /> : <ArrowRight size={17} />}</span><div><strong>{deployApproved ? "Approved · scheduled by the release owner" : deployRequested ? "Approval requested" : "Release candidate ready"}</strong><small>{blueprint.artifact} · rollback retained</small></div></article><button type="button" className="aex-panel-action" disabled={deployRequested || runState !== "verified"} onClick={requestDeploy}>{deployApproved ? "Release approved" : deployRequested ? "Awaiting release owner" : "Request deployment approval"}</button>{deployRequested ? <div className={`aex-deploy-receipt${deployApproved ? " is-approved" : ""}`}><i /><div><strong>{deployApproved ? "Approved · release owner signed off" : "Approval requested · routed to the release owner"}</strong><small>Root Admin · artifact {blueprint.artifact} · {deployRequestedAt ?? "just now"}{deployAgeMinutes ? ` · ${deployAgeMinutes} min ago` : ""}</small><button type="button" onClick={onOpenApprovals}>View in approvals<ArrowRight size={12} /></button></div></div> : null}</motion.section> : null}
+							{view === "audit" ? <motion.section key="audit" className="aex-inspector-panel" initial={{ opacity: 0, x: 6 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0 }} transition={{ duration: .2 }}><header><span>Immutable evidence</span><h2>Audit</h2><p>Every action carries source and actor attribution.</p></header><div className="aex-audit">{auditEntries.map(([time, title]) => <div key={title}><i /><time>{time}</time><span><strong>{title}</strong><small>Evidence fingerprint retained</small></span></div>)}</div><button type="button" className="aex-panel-action" onClick={() => setAuditExported(true)}>{auditExported ? "Audit export ready" : "Export audit package"}</button></motion.section> : null}
 						</AnimatePresence>
 					</aside>
 				</div>
@@ -777,10 +875,160 @@ function ConsultModule({ onCommand, onNavigate }: { onCommand: () => void; onNav
 	return <div className="mxp-consult mxp-module-with-rail"><ContextRail title="Consult MAX" kicker="Cross-platform intelligence" footer={<div className="mxp-rail-user"><span>RA</span><div><strong>Root Admin</strong><small>Authorized tenant context</small></div></div>}><button type="button" className="mxp-rail-primary"><Plus size={14} />New conversation</button><div className="mxp-rail-label">Recent</div><button type="button" className="is-active"><ChatCircleText size={15} /><span><strong>What needs my attention?</strong><small>Just now</small></span></button><button type="button"><ChatCircleText size={15} /><span><strong>ERP decision history</strong><small>Yesterday</small></span></button><div className="mxp-rail-label">Scope</div><button type="button"><Database size={15} /><span>All MAXION context</span><i className="mxp-success-dot" /></button></ContextRail><div className="mxp-module-area"><ModuleHeader label="Consult MAX" title="Cross-platform conversation" detail="Answers preserve source, ownership, and authority" onCommand={onCommand} /><main className="mxp-consult-main"><header><MaxionMark size={34} /><span>Consult MAX</span><h1>Ask across the work, not around it.</h1><p>Consult MAX explains the current truth across modules. It can route you to work, but it cannot silently approve or execute it.</p></header><div className="mxp-consult-thread">{messages.map((message, index) => <article key={`${message.actor}-${index}`} className={message.actor === "You" ? "is-user" : "is-max"}>{message.actor === "MAX" ? <MaxionMark size={27} /> : <span className="mxp-user-avatar">RA</span>}<div><span>{message.actor}<time>Now</time></span><p>{message.text}</p>{message.actor === "MAX" && index > 0 ? <div className="mxp-answer-actions"><button type="button" onClick={() => onNavigate("agentix")}><Pulse size={13} />Open Agentix approval</button><button type="button" onClick={() => onNavigate("discovery")}><MagnifyingGlass size={13} />Open Discovery boundary</button></div> : null}</div></article>)}</div></main><div className="mxp-consult-composer"><div><textarea aria-label="Message Consult MAX" value={input} onChange={(event) => setInput(event.target.value)} onKeyDown={(event) => { if (event.key === "Enter" && !event.shiftKey) { event.preventDefault(); submit() } }} placeholder="Ask what changed, what needs attention, or why a decision was made…" rows={1} /><div><span><button type="button" aria-label="Attach context"><Paperclip size={15} /></button><small><Database size={13} />All authorized MAXION context</small></span><button type="button" aria-label="Send to Consult MAX" disabled={!input.trim()} onClick={submit}><ArrowRight size={15} /></button></div></div></div></div></div>
 }
 
-function CommandMenu({ open, active, onClose, onNavigate, onStartDiscovery }: { open: boolean; active: MaxionModuleId; onClose: () => void; onNavigate: (module: MaxionModuleId) => void; onStartDiscovery: () => void }) {
-	if (!open) return null
-	const items = [...PRIMARY_NAVIGATION, { id: "integrations" as const, label: "Integrations", icon: Plug }]
-	return <div className="mxp-command-layer" onMouseDown={(event) => { if (event.currentTarget === event.target) onClose() }}><motion.section role="dialog" aria-modal="true" aria-label="MAXION command menu" initial={{ opacity: 0, scale: 0.98, y: -6 }} animate={{ opacity: 1, scale: 1, y: 0 }}><div className="mxp-command-search"><MagnifyingGlass size={16} /><input autoFocus aria-label="Search MAXION commands" placeholder="Search modules, work, and actions…" /><kbd>Esc</kbd></div><div className="mxp-command-label">Go to</div>{items.map((item) => { const Icon = item.icon; return <button type="button" key={item.id} onClick={() => onNavigate(item.id)}>{"spiral" in item && item.spiral ? <MaxionSpiralMark className="mxp-command-spiral" /> : Icon ? <Icon size={16} /> : null}<span><strong>{item.label}</strong><small>{item.id === active ? "Current module" : item.id === "consult" ? "Ask across MAXION" : `Open ${item.label}`}</small></span>{item.id === active ? <Check size={14} /> : <CaretRight size={13} />}</button> })}<div className="mxp-command-label">Quick actions</div><button type="button" onClick={onStartDiscovery}><Plus size={16} /><span><strong>Start a Discovery</strong><small>Autonomous research and interviews</small></span><CaretRight size={13} /></button><button type="button" onClick={() => onNavigate("agentix")}><Lightning size={16} /><span><strong>Create an operational Agent</strong><small>Activate bounded autonomous work</small></span><CaretRight size={13} /></button></motion.section></div>
+// The shell command layer: one registry every module feeds, so a jump target is reachable
+// from anywhere without first navigating to the module that owns it.
+type ShellCommandItem = {
+	id: string
+	group: string
+	label: string
+	hint: string
+	keywords: string
+	icon?: typeof MagnifyingGlass
+	spiral?: boolean
+	current?: boolean
+	run: () => void
+}
+
+type ShellCommandContext = {
+	active: MaxionModuleId
+	agentix: AgentixAttention
+	discoveries: DiscoveryJumpRecord[]
+	navigate: (module: MaxionModuleId) => void
+	startDiscovery: () => void
+	openPlanArtifact: (artifactId: string) => void
+	openExecuteWorkspace: (taskId: ExecuteWorkspaceId) => void
+	openExecuteHub: (target: "approvals" | "engagements") => void
+	openDiscoveryRecord: (recordId: string, jump: DiscoveryJump) => void
+	openAgentix: (intent: AgentixIntent) => void
+}
+
+const AGENTIX_JUMP_AGENTS = [
+	{ id: "tpm" as const, label: "Atlas program lead", keywords: "erp program modernization steering brief decisions atlas" },
+	{ id: "revenue" as const, label: "Revenue operations partner", keywords: "renewal salesforce revenue pipeline follow-through" },
+	{ id: "finance" as const, label: "Finance close operator", keywords: "close quickbooks sap journal effects reconciliation" },
+]
+
+function buildShellCommandItems(context: ShellCommandContext): ShellCommandItem[] {
+	const items: ShellCommandItem[] = []
+	// Open boundaries lead the list, and disappear from it the moment they are resolved.
+	if (context.agentix.approval) items.push({ id: "decision-approval", group: "Decisions", label: "Review July close effects", hint: "Agentix · 164 effects · $184,250 held", keywords: "approval approve exact effects finance july close agentix", icon: ShieldCheck, run: () => context.openAgentix({ type: "decision", id: "approval" }) })
+	if (context.agentix.audience) items.push({ id: "decision-audience", group: "Decisions", label: "Answer the waiting question", hint: "Agentix · who may receive overdue reminders", keywords: "answer question clarification audience overdue reminders atlas agentix", icon: ChatCircleText, run: () => context.openAgentix({ type: "decision", id: "audience" }) })
+	for (const record of context.discoveries) {
+		if (record.status !== "needs-input") continue
+		items.push({ id: `discovery-decision-${record.id}`, group: "Decisions", label: `Review decision · ${record.title}`, hint: "Discover · a bounded decision is waiting", keywords: `discovery decision approve boundary ${record.keywords}`, icon: Compass, run: () => context.openDiscoveryRecord(record.id, "decision") })
+	}
+
+	for (const item of [...PRIMARY_NAVIGATION, { id: "integrations" as const, label: "Integrations", icon: Plug }]) {
+		const spiral = "spiral" in item && Boolean(item.spiral)
+		const hint = item.id === context.active
+			? "Current module"
+			: item.id === "agentix" && context.agentix.count
+				? `${context.agentix.count} decision${context.agentix.count === 1 ? "" : "s"} waiting`
+				: item.id === "consult" ? "Ask across MAXION" : `Open ${item.label}`
+		items.push({ id: `go-${item.id}`, group: "Go to", label: item.label, hint, keywords: `module navigate open ${item.label}`, icon: item.icon, spiral, current: item.id === context.active, run: () => context.navigate(item.id) })
+	}
+
+	items.push({ id: "action-discovery", group: "Actions", label: "Start a Discovery", hint: "Autonomous research and interviews", keywords: "new discovery start research interviews brief mission", icon: Plus, run: context.startDiscovery })
+	items.push({ id: "action-agent", group: "Actions", label: "Create an operational Agent", hint: "Activate bounded autonomous work", keywords: "new agent create activate operational autonomy agentix", icon: Lightning, run: () => context.openAgentix({ type: "create" }) })
+
+	EXECUTE_TASKS.forEach((task, index) => items.push({
+		id: `execute-workspace-${task.id}`,
+		group: "Execute",
+		label: `Open Workspace ${String(index + 1).padStart(2, "0")} · ${task.title}`,
+		hint: `${task.detail} · isolated worktree`,
+		keywords: `execute workspace agent session worktree ${task.id} ${task.detail}`,
+		icon: Code,
+		run: () => context.openExecuteWorkspace(task.id),
+	}))
+	items.push({ id: "execute-approvals", group: "Execute", label: "Execute approvals", hint: "Workspace boundary and release decisions", keywords: "execute approvals boundary release deploy governance", icon: ShieldCheck, run: () => context.openExecuteHub("approvals") })
+	items.push({ id: "execute-engagements", group: "Execute", label: "All engagements", hint: "Back to the Execute hub", keywords: "execute engagements hub overview", icon: Cube, run: () => context.openExecuteHub("engagements") })
+
+	for (const record of context.discoveries) {
+		items.push({ id: `discovery-resume-${record.id}`, group: "Discover", label: `Resume ${record.title}`, hint: record.statusLabel, keywords: `discovery resume open continue ${record.keywords}`, icon: Compass, run: () => context.openDiscoveryRecord(record.id, "resume") })
+		if (record.status === "completed") items.push({ id: `discovery-package-${record.id}`, group: "Discover", label: `Open package · ${record.title}`, hint: "Deliverables and routing", keywords: `discovery package deliverables outputs ${record.keywords}`, icon: FileText, run: () => context.openDiscoveryRecord(record.id, "package") })
+	}
+
+	for (const agent of AGENTIX_JUMP_AGENTS) {
+		const hint = agent.id === "tpm" && context.agentix.audience ? "Needs input" : agent.id === "finance" && context.agentix.approval ? "Approval waiting" : "Working"
+		items.push({ id: `agentix-agent-${agent.id}`, group: "Agentix", label: `Open ${agent.label}`, hint, keywords: `agentix agent session ${agent.keywords}`, icon: Pulse, run: () => context.openAgentix({ type: "agent", id: agent.id }) })
+	}
+	items.push({ id: "agentix-today", group: "Agentix", label: "Agentix today", hint: "Decisions and live work", keywords: "agentix today decisions live work needs you", icon: Tray, run: () => context.openAgentix({ type: "surface", id: "today" }) })
+	items.push({ id: "agentix-activity", group: "Agentix", label: "Agentix activity", hint: "Everything Agentix committed", keywords: "agentix activity ledger receipts committed history", icon: Clock, run: () => context.openAgentix({ type: "surface", id: "activity" }) })
+
+	for (const entry of PLAN_JUMP_ENTRIES) items.push({ id: entry.id, group: "Plan", label: entry.label, hint: entry.hint, keywords: `plan ${entry.keywords}`, icon: FlowArrow, run: () => context.openPlanArtifact(entry.artifactId) })
+
+	return items
+}
+
+// Exact and prefix matches outrank keyword matches, so "INT-02" lands on the contract and
+// "Workspace 03" lands on the workspace instead of whatever mentioned them first.
+function rankShellCommandItem(item: ShellCommandItem, query: string) {
+	const label = item.label.toLowerCase()
+	if (label === query) return 0
+	if (label.startsWith(query)) return 1
+	if (label.includes(query)) return 2
+	if (item.hint.toLowerCase().includes(query)) return 3
+	return 4
+}
+
+function CommandMenu({ context, onClose }: { context: ShellCommandContext; onClose: () => void }) {
+	const [query, setQuery] = useState("")
+	const [active, setActive] = useState(0)
+	const listRef = useRef<HTMLDivElement>(null)
+	const items = buildShellCommandItems(context)
+	const q = query.trim().toLowerCase()
+	// The resting view is composed, not sliced: open boundaries first, then every module,
+	// then the two things people start from. Jump targets arrive as soon as you type.
+	const resting = [
+		...items.filter((item) => item.group === "Decisions").slice(0, 3),
+		...items.filter((item) => item.group === "Go to"),
+		...items.filter((item) => item.group === "Actions"),
+	]
+	const matched = items.filter((item) => `${item.label} ${item.hint} ${item.keywords} ${item.group}`.toLowerCase().includes(q))
+	const filtered = q ? [...matched].sort((a, b) => rankShellCommandItem(a, q) - rankShellCommandItem(b, q)).slice(0, 9) : resting
+	const activeIndex = Math.min(active, Math.max(0, filtered.length - 1))
+	useEffect(() => {
+		listRef.current?.querySelector<HTMLElement>("button.is-active")?.scrollIntoView?.({ block: "nearest" })
+	}, [activeIndex, q])
+	const run = (item: ShellCommandItem) => { item.run(); onClose() }
+	return (
+		<div className="mxp-command-layer" onMouseDown={(event) => { if (event.currentTarget === event.target) onClose() }}>
+			<motion.section role="dialog" aria-modal="true" aria-label="MAXION command menu" initial={prefersReducedMotion() ? false : { opacity: 0, scale: 0.98, y: -6 }} animate={{ opacity: 1, scale: 1, y: 0 }} transition={{ duration: 0.16, ease: [0.16, 1, 0.3, 1] }}>
+				<div className="mxp-command-search">
+					<MagnifyingGlass size={16} />
+					<input
+						autoFocus
+						value={query}
+						aria-label="Search MAXION commands"
+						placeholder="Search modules, work, and actions…"
+						onChange={(event) => { setQuery(event.target.value); setActive(0) }}
+						onKeyDown={(event) => {
+							if (event.key === "ArrowDown") { event.preventDefault(); setActive(Math.min(activeIndex + 1, filtered.length - 1)) }
+							if (event.key === "ArrowUp") { event.preventDefault(); setActive(Math.max(activeIndex - 1, 0)) }
+							if (event.key === "Enter" && filtered[activeIndex]) { event.preventDefault(); run(filtered[activeIndex]) }
+							if (event.key === "Escape") { event.preventDefault(); onClose() }
+						}}
+					/>
+					<kbd>Esc</kbd>
+				</div>
+				<div className="mxp-command-list" ref={listRef}>
+					{filtered.map((item, index) => {
+						const Icon = item.icon
+						return (
+							<button type="button" key={item.id} className={index === activeIndex ? "is-active" : ""} onMouseEnter={() => setActive(index)} onClick={() => run(item)}>
+								{item.spiral ? <MaxionSpiralMark className="mxp-command-spiral" /> : Icon ? <Icon size={16} /> : <span className="mxp-command-dot" aria-hidden="true" />}
+								<span><strong>{item.label}</strong><small>{item.hint}</small></span>
+								<i>{item.group}</i>
+								{item.current ? <Check size={14} /> : <CaretRight size={13} />}
+							</button>
+						)
+					})}
+					{filtered.length === 0 ? <p className="mxp-command-empty">Nothing in MAXION matches “{query}”.</p> : null}
+				</div>
+				<footer className="mxp-command-footer"><span><kbd>↑↓</kbd> navigate</span><span><kbd>↵</kbd> open</span><span><kbd>esc</kbd> close</span></footer>
+			</motion.section>
+		</div>
+	)
 }
 
 export function MaxionPlatformPrototypePage() {
@@ -797,10 +1045,22 @@ export function MaxionPlatformPrototypePage() {
 	const [planSent, setPlanSent] = useState(false)
 	const [planSnapshot, setPlanSnapshot] = useState("v12")
 	const [executeVerified, setExecuteVerified] = useState(false)
+	// Lifted module state: the nav badge and the jump registry both read live attention,
+	// and the seed matches what Agentix reports on mount (two open boundaries).
+	const [agentixAttention, setAgentixAttention] = useState<AgentixAttention>({ count: 2, audience: true, approval: true })
+	// One-shot cross-module intents. Each carries a tick so the receiving module consumes it
+	// exactly once — re-entering a module never replays an old jump.
+	const [planJump, setPlanJump] = useState<PlanJumpSignal | null>(null)
+	const [executeJump, setExecuteJump] = useState<ExecuteJumpSignal | null>(null)
+	const [discoveryOpen, setDiscoveryOpen] = useState<DiscoveryOpenSignal | null>(null)
+	const [agentixIntent, setAgentixIntent] = useState<AgentixIntentSignal | null>(null)
+	const jumpTickRef = useRef(0)
 
 	useEffect(() => {
 		const onKeyDown = (event: KeyboardEvent) => {
-			if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "k") { event.preventDefault(); setCommandOpen(true) }
+			// Module palettes stop ⌘K in the capture phase, so this bubble-phase listener
+			// only ever runs when no module owns the keyboard.
+			if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "k") { event.preventDefault(); setCommandOpen((open) => !open) }
 			if (event.key === "Escape") setCommandOpen(false)
 		}
 		window.addEventListener("keydown", onKeyDown)
@@ -823,25 +1083,47 @@ export function MaxionPlatformPrototypePage() {
 		setDiscoverySetupSignal((current) => current + 1)
 		navigate("discovery")
 	}
+	const nextJumpTick = () => { jumpTickRef.current += 1; return jumpTickRef.current }
+	const openPlanArtifact = (artifactId: string) => { setPlanJump({ tick: nextJumpTick(), artifactId }); navigate("plan") }
+	const openExecuteWorkspace = (taskId: ExecuteWorkspaceId) => { setExecuteJump({ tick: nextJumpTick(), target: { kind: "workspace", taskId } }); navigate("execute") }
+	const openExecuteHub = (target: "approvals" | "engagements") => { setExecuteJump({ tick: nextJumpTick(), target: { kind: target } }); navigate("execute") }
+	const openDiscoveryRecord = (recordId: string, jump: DiscoveryJump) => { setDiscoveryOpen({ tick: nextJumpTick(), recordId, jump }); navigate("discovery") }
+	const openAgentix = (intent: AgentixIntent) => { setAgentixIntent({ tick: nextJumpTick(), intent }); navigate("agentix") }
+	// Saved discoveries live in localStorage, so the registry reads them when the menu opens.
+	const commandContext: ShellCommandContext = {
+		active: activeModule,
+		agentix: agentixAttention,
+		discoveries: commandOpen ? listDiscoveryJumpRecords() : [],
+		navigate,
+		startDiscovery: startDiscoverySetup,
+		openPlanArtifact,
+		openExecuteWorkspace,
+		openExecuteHub,
+		openDiscoveryRecord,
+		openAgentix,
+	}
+	// The entrance animation belongs to the stage that just became visible; `hidden`
+	// semantics stay untouched because every module keeps its state and keyboard gate.
+	const stageClass = (module: MaxionModuleId, modifier = "") => `mxp-stage-view${modifier ? ` ${modifier}` : ""}${activeModule === module ? " is-entering" : ""}`
 	const currentLabel = PRIMARY_NAVIGATION.find((item) => item.id === activeModule)?.label ??
 		({ settings: "Settings", integrations: "Integrations", approvals: "My approvals", usage: "Usage", help: "Help" } as const)[activeModule as "settings" | "integrations" | "approvals" | "usage" | "help"] ??
 		"MAXION"
 
 	return (
 		<div className={`maxion-platform-prototype mxp-root${activeModule === "execute" ? " mxp-root--execute" : ""}${sidebarCollapsed ? " mxp-root--sidebar-collapsed" : ""}`}>
-			<PortalSidebar active={activeModule} onNavigate={navigate} onCommand={() => setCommandOpen(true)} mobileOpen={mobileNavOpen} onMobileOpenChange={setMobileNavOpen} collapsed={sidebarCollapsed} onCollapsedChange={setSidebarCollapsed} />
+			<PortalSidebar active={activeModule} onNavigate={navigate} onCommand={() => setCommandOpen(true)} mobileOpen={mobileNavOpen} onMobileOpenChange={setMobileNavOpen} collapsed={sidebarCollapsed} onCollapsedChange={setSidebarCollapsed} badges={{ agentix: agentixAttention.count }} />
 			<div className="mxp-stage" aria-label={`${currentLabel} module`}>
-				<div className="mxp-stage-view" hidden={activeModule !== "dashboard"}><DashboardModule projects={projects} onNavigate={navigate} discoveryReady={discoveryReady} planSent={planSent} executeVerified={executeVerified} /></div>
-				<div className="mxp-stage-view" hidden={activeModule !== "projects"}><ProjectsModule projects={projects} onProjectsChange={setProjects} onNavigate={navigate} /></div>
-				<div className="mxp-stage-view mxp-stage-view--discovery" hidden={activeModule !== "discovery"}><DiscoveryAutonomousPrototypePage embedded setupSignal={discoverySetupSignal} onPackageReady={() => setDiscoveryReady(true)} /></div>
-				<div className="mxp-stage-view" hidden={activeModule !== "plan"}><PlanModule projects={projects} onNavigate={navigate} onCommand={() => setCommandOpen(true)} onSendToExecute={(snapshot) => { setPlanSent(true); setPlanSnapshot(snapshot); navigate("execute") }} /></div>
-				<div className="mxp-stage-view" hidden={activeModule !== "execute"}><ExecuteModule active={activeModule === "execute"} onNavigate={navigate} planHandoff={planSent} planSnapshot={planSnapshot} onVerified={() => setExecuteVerified(true)} /></div>
-				<div className="mxp-stage-view" hidden={activeModule !== "agentix"}><AgentixPrototypePage embedded /></div>
-				<div className="mxp-stage-view" hidden={activeModule !== "consult"}><ConsultModule onCommand={() => setCommandOpen(true)} onNavigate={navigate} /></div>
-				<div className="mxp-stage-view" hidden={activeModule !== "integrations"}><IntegrationsModule /></div>
-				{(["settings", "approvals", "usage", "help"] as const).map((module) => <div key={module} className="mxp-stage-view" hidden={activeModule !== module}><AccountUtilityModule module={module} onNavigate={navigate} /></div>)}
+				<div className={stageClass("dashboard")} hidden={activeModule !== "dashboard"}><DashboardModule projects={projects} onNavigate={navigate} discoveryReady={discoveryReady} planSent={planSent} executeVerified={executeVerified} /></div>
+				<div className={stageClass("projects")} hidden={activeModule !== "projects"}><ProjectsModule projects={projects} onProjectsChange={setProjects} onNavigate={navigate} /></div>
+				<div className={stageClass("discovery", "mxp-stage-view--discovery")} hidden={activeModule !== "discovery"}><DiscoveryAutonomousPrototypePage embedded setupSignal={discoverySetupSignal} openSignal={discoveryOpen} onPackageReady={() => setDiscoveryReady(true)} /></div>
+				<div className={stageClass("plan")} hidden={activeModule !== "plan"}><PlanModule projects={projects} onNavigate={navigate} onCommand={() => setCommandOpen(true)} jumpSignal={planJump} onSendToExecute={(snapshot) => { setPlanSent(true); setPlanSnapshot(snapshot); navigate("execute") }} /></div>
+				<div className={stageClass("execute", "mxp-stage-view--execute")} hidden={activeModule !== "execute"}><ExecuteModule active={activeModule === "execute"} onNavigate={navigate} planHandoff={planSent} planSnapshot={planSnapshot} jumpSignal={executeJump} onVerified={() => setExecuteVerified(true)} /></div>
+				<div className={stageClass("agentix")} hidden={activeModule !== "agentix"}><AgentixPrototypePage embedded intentSignal={agentixIntent} onAttentionChange={setAgentixAttention} /></div>
+				<div className={stageClass("consult")} hidden={activeModule !== "consult"}><ConsultModule onCommand={() => setCommandOpen(true)} onNavigate={navigate} /></div>
+				<div className={stageClass("integrations")} hidden={activeModule !== "integrations"}><IntegrationsModule /></div>
+				{(["settings", "approvals", "usage", "help"] as const).map((module) => <div key={module} className={stageClass(module)} hidden={activeModule !== module}><AccountUtilityModule module={module} onNavigate={navigate} /></div>)}
 			</div>
-			<AnimatePresence>{commandOpen ? <CommandMenu open={commandOpen} active={activeModule} onClose={() => setCommandOpen(false)} onNavigate={navigate} onStartDiscovery={startDiscoverySetup} /> : null}</AnimatePresence>
+			<AnimatePresence>{commandOpen ? <CommandMenu context={commandContext} onClose={() => setCommandOpen(false)} /> : null}</AnimatePresence>
 		</div>
 	)
 }

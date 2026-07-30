@@ -29,22 +29,34 @@ import {
 	X,
 } from "@phosphor-icons/react"
 import { AnimatePresence, motion, useReducedMotion } from "motion/react"
-import { useEffect, useMemo, useRef, useState, type ReactNode, type RefObject } from "react"
+import { useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode, type RefObject } from "react"
 import { useLocation } from "react-router-dom"
 
 import { useDocumentTitle } from "@/app/hooks/useDocumentTitle"
 import { MaxionSpiralMark } from "@/features/platform-prototype/PortalChrome"
 
-import { AGENT_SCENARIOS, NEED_EXAMPLES, type AgentMessage, type AgentScenario } from "./model"
+import { AGENT_AMBIENT, AGENT_SCENARIOS, NEED_EXAMPLES, deriveAgentTemplate, templateResearchSummary, type AgentMessage, type AgentScenario, type AgentTemplate } from "./model"
 import "./agentix-prototype.css"
 
 type Surface = "today" | "agent" | "create" | "activity"
 type Drawer = "approval" | "inspector" | null
+// Lifted to the shell: the nav badge and the cross-module jump registry both need to know
+// which boundaries are still open, not just how many.
+export type AgentixAttention = { count: number; audience: boolean; approval: boolean }
+export type AgentixIntent =
+	| { type: "surface"; id: "today" | "activity" }
+	| { type: "agent"; id: AgentScenario["id"] }
+	| { type: "decision"; id: "audience" | "approval" }
+	| { type: "create" }
+export type AgentixIntentSignal = { tick: number; intent: AgentixIntent }
 type RunControl = "working" | "interrupted" | "stopped"
 type CreateStage = "interview" | "proposal"
+type SteerNote = { text: string; done: boolean }
 type PaletteItem = { id: string; group: string; label: string; hint: string; keywords: string; run: () => void }
 type InspectorSection = "sources" | "connections" | "artifacts"
-type SessionEvent = { id: string; time: string; agentId: AgentScenario["id"]; title: string; detail: string }
+// `actor` is set only when the event belongs to an Agent the owner just derived — it has no
+// seeded session to open, so the ledger names it truthfully instead of borrowing a scenario.
+type SessionEvent = { id: string; time: string; agentId: AgentScenario["id"]; title: string; detail: string; actor?: { name: string; shortName: string } }
 
 const TODAY_LABEL = new Intl.DateTimeFormat("en-US", { weekday: "long", month: "long", day: "numeric" }).format(new Date())
 const FOCUSABLE_SELECTOR = "button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex='-1'])"
@@ -151,6 +163,17 @@ function Status({ children, tone = "neutral", live = false }: { children: ReactN
 	return <span className={`ax3-status ax3-status--${tone}`}><i className={live ? "is-live" : ""} />{children}</span>
 }
 
+// G1: the sub-step a standing agent is on right now. The index comes from the module
+// heartbeat, which never starts under reduced motion — so tick stays 0 and every surface
+// renders a stable first line with no timer anywhere (L4). Held runs freeze on one honest
+// line instead of pretending to progress.
+function ambientFor(agentId: AgentScenario["id"], control: RunControl, tick: number) {
+	if (control === "interrupted") return "Paused at a safe boundary · no new work has started"
+	if (control === "stopped") return "Stopped · dispatched effects remain under reconciliation"
+	const lines = AGENT_AMBIENT[agentId]
+	return lines[tick % lines.length]
+}
+
 function agentPresentation(agent: AgentScenario, approvalRecorded: boolean, questionAnswered: boolean, control: RunControl) {
 	if (control === "interrupted") return { label: "Interrupted", tone: "attention" as const, detail: "Preserved at a safe boundary" }
 	if (control === "stopped") return { label: "Stopped", tone: "neutral" as const, detail: "No new work will start" }
@@ -219,8 +242,10 @@ function CommandComposer({ value, onChange, onSubmit, inputRef, placeholder, con
 		<div className="ax3-composer-wrap">
 			{palette ? (
 				<div className="ax3-cmd-pop" role="dialog" aria-label="Agentix command menu">
-					<div className="ax3-cmd-pop-list">
-						{palette.items.map((item, index) => <button type="button" key={item.id} className={index === palette.activeIndex ? "is-active" : ""} onMouseDown={(event) => event.preventDefault()} onMouseEnter={() => onPaletteHover?.(index)} onClick={() => onPaletteRun?.(item)}><i>{item.group}</i><span>{item.label}</span><small>{item.hint}</small></button>)}
+					<div className="ax3-cmd-pop-list" id="agentix-command-list">
+						{/* G3: the active row carries an accent rail, a tinted surface, and the ↵ affordance —
+						    arrow keys have to be visible from across the room, not inferred. */}
+						{palette.items.map((item, index) => <button type="button" key={item.id} id={`ax3-cmd-opt-${index}`} className={index === palette.activeIndex ? "is-active" : ""} onMouseDown={(event) => event.preventDefault()} onMouseEnter={() => onPaletteHover?.(index)} onClick={() => onPaletteRun?.(item)}><i>{item.group}</i><span>{item.label}</span><small>{item.hint}</small><kbd aria-hidden="true">↵</kbd></button>)}
 						{palette.items.length === 0 ? <p className="ax3-cmd-pop-empty">Nothing in Agentix matches “{palette.query}”.</p> : null}
 					</div>
 					<footer><span><kbd>↑↓</kbd> navigate</span><span><kbd>↵</kbd> run</span><span><kbd>esc</kbd> close</span><span>Type to filter</span></footer>
@@ -228,7 +253,9 @@ function CommandComposer({ value, onChange, onSubmit, inputRef, placeholder, con
 			) : null}
 			<div className="ax3-composer">
 				<label className="sr-only" htmlFor="agentix-command">Message Agentix</label>
-				<textarea id="agentix-command" ref={inputRef} value={value} onChange={(event) => onChange(event.target.value)} onKeyDown={(event) => { if (event.key === "Enter" && !event.shiftKey && !event.nativeEvent.isComposing && !palette) { event.preventDefault(); onSubmit() } }} onBlur={() => onPaletteDismiss?.()} placeholder={placeholder} rows={1} />
+				{/* aria-activedescendant only — textbox supports it; role="combobox"/aria-expanded would
+				    change this element's role out from under the pinned "Message Agentix" textbox queries. */}
+				<textarea id="agentix-command" ref={inputRef} aria-controls={palette ? "agentix-command-list" : undefined} aria-activedescendant={palette && palette.items.length > 0 ? `ax3-cmd-opt-${palette.activeIndex}` : undefined} value={value} onChange={(event) => onChange(event.target.value)} onKeyDown={(event) => { if (event.key === "Enter" && !event.shiftKey && !event.nativeEvent.isComposing && !palette) { event.preventDefault(); onSubmit() } }} onBlur={() => onPaletteDismiss?.()} placeholder={placeholder} rows={1} />
 				<div className="ax3-composer-bar"><div><button type="button" aria-label="Attach context"><Paperclip size={15} /></button><span><Database size={13} />{contextLabel}</span></div><button className="ax3-send" type="button" aria-label="Send to Agentix" disabled={!value.trim()} onClick={onSubmit}><ArrowRight size={15} weight="bold" /></button></div>
 			</div>
 			<div className="ax3-composer-hint">Agentix can act inside activated authority. Material changes come back to you.</div>
@@ -244,7 +271,7 @@ function AttentionItem({ icon, eyebrow, title, detail, action, onAction }: { ico
 	)
 }
 
-function TodaySurface({ approvalRecorded, questionAnswered, runControls, onOpenAgent, onApproval, onQuestion, onActivity }: { approvalRecorded: boolean; questionAnswered: boolean; runControls: Record<AgentScenario["id"], RunControl>; onOpenAgent: (agent: AgentScenario) => void; onApproval: () => void; onQuestion: () => void; onActivity: () => void }) {
+function TodaySurface({ approvalRecorded, questionAnswered, runControls, ambientTick, onOpenAgent, onApproval, onQuestion, onActivity }: { approvalRecorded: boolean; questionAnswered: boolean; runControls: Record<AgentScenario["id"], RunControl>; ambientTick: number; onOpenAgent: (agent: AgentScenario) => void; onApproval: () => void; onQuestion: () => void; onActivity: () => void }) {
 	const attentionCount = Number(!approvalRecorded) + Number(!questionAnswered)
 	const finance = AGENT_SCENARIOS.find((agent) => agent.id === "finance")!
 	const tpm = AGENT_SCENARIOS.find((agent) => agent.id === "tpm")!
@@ -272,7 +299,10 @@ function TodaySurface({ approvalRecorded, questionAnswered, runControls, onOpenA
 					{[revenue, tpm, finance].map((agent) => {
 						const state = agentPresentation(agent, approvalRecorded, questionAnswered, runControls[agent.id])
 						const summary = agent.id === "revenue" ? "Preparing the Teams summary and 11 account-owner emails" : agent.id === "tpm" ? questionAnswered ? "Publishing the bounded steering brief" : "Risk monitoring continues while the audience waits" : approvalRecorded ? "Reconciling QuickBooks and SAP provider receipts" : "Validated effects remain safely paused"
-						return <motion.button layout key={agent.id} type="button" title={state.detail} onClick={() => onOpenAgent(agent)}><span className="ax3-stream-line"><i className={`ax3-stream-dot ax3-stream-dot--${state.tone}`} /></span><span className="ax3-avatar">{agent.shortName}</span><span className="ax3-stream-copy"><span><strong>{agent.name}</strong><Status tone={state.tone} live={state.tone === "live"}>{state.label}</Status></span><p>{summary}</p></span><CaretRight size={13} /></motion.button>
+						// The ambient line is aria-hidden on purpose: it rotates every heartbeat, and the
+						// row/rail accessible names are pinned by the suites. Committed truth lives in Activity.
+						const ambient = ambientFor(agent.id, runControls[agent.id], ambientTick)
+						return <motion.button layout key={agent.id} type="button" title={state.detail} onClick={() => onOpenAgent(agent)}><span className="ax3-stream-line"><i className={`ax3-stream-dot ax3-stream-dot--${state.tone}`} /></span><span className="ax3-avatar">{agent.shortName}</span><span className="ax3-stream-copy"><span><strong>{agent.name}</strong><Status tone={state.tone} live={state.tone === "live"}>{state.label}</Status></span><p>{summary}</p><small key={ambient} className="ax3-ambient" aria-hidden="true"><i /><span>{ambient}</span></small></span><CaretRight size={13} /></motion.button>
 					})}
 				</div>
 			</section>
@@ -286,12 +316,15 @@ function TodaySurface({ approvalRecorded, questionAnswered, runControls, onOpenA
 	)
 }
 
-function ActivityGroup({ agent, approvalRecorded, questionAnswered, onEvidence }: { agent: AgentScenario; approvalRecorded: boolean; questionAnswered: boolean; onEvidence: () => void }) {
+function ActivityGroup({ agent, approvalRecorded, questionAnswered, ambient, steerNote, onEvidence }: { agent: AgentScenario; approvalRecorded: boolean; questionAnswered: boolean; ambient: string; steerNote: SteerNote | null; onEvidence: () => void }) {
 	const resolved = (agent.id === "finance" && approvalRecorded) || (agent.id === "tpm" && questionAnswered)
 	return (
 		<details className="ax3-activity-group" open>
-			<summary><span><SpinnerGap className="ax3-spin" size={15} /><strong>{resolved ? "Continuing autonomously" : agent.runState}</strong></span><span>{agent.activity.length} steps<CaretRight size={12} /></span></summary>
-			<div>{agent.activity.map((item, index) => { const isLast = index === agent.activity.length - 1; const isResolvedLast = isLast && resolved; const label = isResolvedLast ? agent.id === "finance" ? "Reconciling approved provider effects" : "Publishing the bounded steering brief" : item.title; const detail = isResolvedLast ? agent.id === "finance" ? "Receipts are being matched before the close summary is sent." : "Audience resolved. The decision register is updating now." : item.summary; return <details className="ax3-activity-step" key={item.id}><summary><span className={`ax3-step-icon${isLast && !resolved ? " is-current" : ""}`}>{isLast && !resolved ? <SpinnerGap className="ax3-spin" size={11} /> : <Check size={10} weight="bold" />}</span><span><strong>{label}</strong><small>{detail}</small></span><CaretRight size={11} /></summary><p>{item.detail}{item.evidence ? <button type="button" onClick={onEvidence}><FileText size={12} />{item.evidence}</button> : null}</p></details> })}</div>
+			<summary><span><SpinnerGap className="ax3-spin" size={15} /><strong>{resolved ? "Continuing autonomously" : agent.runState}</strong></span><span>{agent.activity.length + (steerNote ? 1 : 0)} steps<CaretRight size={12} /></span></summary>
+			<div>{agent.activity.map((item, index) => { const isLast = index === agent.activity.length - 1; const isResolvedLast = isLast && resolved; const label = isResolvedLast ? agent.id === "finance" ? "Reconciling approved provider effects" : "Publishing the bounded steering brief" : item.title; const detail = isResolvedLast ? agent.id === "finance" ? "Receipts are being matched before the close summary is sent." : "Audience resolved. The decision register is updating now." : item.summary; return <details className="ax3-activity-step" key={item.id}><summary><span className={`ax3-step-icon${isLast && !resolved ? " is-current" : ""}`}>{isLast && !resolved ? <SpinnerGap className="ax3-spin" size={11} /> : <Check size={10} weight="bold" />}</span><span><strong>{label}</strong><small>{detail}</small>{isLast && !resolved && item.status === "working" ? <small key={ambient} className="ax3-ambient" aria-hidden="true"><i /><span>{ambient}</span></small> : null}</span><CaretRight size={11} /></summary><p>{item.detail}{item.evidence ? <button type="button" onClick={onEvidence}><FileText size={12} />{item.evidence}</button> : null}</p></details> })}
+			{/* G5: a steer is only credible if the run visibly takes it. The direction lands as its
+			    own step, echoed back verbatim, and settles into the run's history. */}
+			{steerNote ? <details className="ax3-activity-step" key="steer-note"><summary><span className={`ax3-step-icon${steerNote.done ? "" : " is-current"}`}>{steerNote.done ? <Check size={10} weight="bold" /> : <SpinnerGap className="ax3-spin" size={11} />}</span><span><strong>{steerNote.done ? "Your direction is folded into the run" : "Folding your direction into the run"}</strong><small>“{steerNote.text}” · applies at the next safe boundary</small></span><CaretRight size={11} /></summary><p>Steering re-orders what this run does next inside its existing authority. It cannot widen tools, recipients, or effects, and it does not restart work already committed.</p></details> : null}</div>
 		</details>
 	)
 }
@@ -328,14 +361,14 @@ function ReconcileReceipts({ stage }: { stage: number }) {
 	const amount = useCountUp(184250, true, animate, 1600)
 	const records = useCountUp(164, true, animate, 1600)
 	return (
-		<section className="ax3-receipts" aria-label="Provider receipts">
+		<section className={`ax3-receipts${stage >= 3 ? " is-settled" : ""}`} aria-label="Provider receipts">
 			<header><span>{stage >= 3 ? <Check size={12} weight="bold" /> : <SpinnerGap className="ax3-spin" size={12} />}Provider receipts</span><div><strong>${amount.toLocaleString("en-US")}</strong><small>{records} records {stage >= 3 ? "reconciled" : "reconciling"}</small></div></header>
 			<div>{RECEIPT_ROWS.map((row, index) => stage >= index ? <motion.div key={row.id} initial={{ opacity: 0, y: 5 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: prefersReducedMotion() ? 0 : 0.2 }} className={`ax3-receipt-row${stage > index ? " is-done" : ""}`}>{stage > index ? <Check size={11} weight="bold" /> : <SpinnerGap className="ax3-spin" size={11} />}<span><strong>{stage > index ? row.done : `${row.pending}…`}</strong><small>{row.detail}</small></span><b>{row.amount}</b></motion.div> : null)}</div>
 		</section>
 	)
 }
 
-function AgentSurface({ agent, approvalRecorded, questionAnswered, control, extraMessages, steerPending, streamingId, reconcileStage, onAnswer, onApproval, onControl, onInspector, onInspectorSection }: { agent: AgentScenario; approvalRecorded: boolean; questionAnswered: boolean; control: RunControl; extraMessages: AgentMessage[]; steerPending: boolean; streamingId: string | null; reconcileStage: number; onAnswer: (answer: string) => void; onApproval: () => void; onControl: (state: RunControl) => void; onInspector: () => void; onInspectorSection: (section: InspectorSection) => void }) {
+function AgentSurface({ agent, approvalRecorded, questionAnswered, control, extraMessages, steerPending, steerNote, ambientTick, streamingId, reconcileStage, onAnswer, onApproval, onControl, onInspector, onInspectorSection }: { agent: AgentScenario; approvalRecorded: boolean; questionAnswered: boolean; control: RunControl; extraMessages: AgentMessage[]; steerPending: boolean; steerNote: SteerNote | null; ambientTick: number; streamingId: string | null; reconcileStage: number; onAnswer: (answer: string) => void; onApproval: () => void; onControl: (state: RunControl) => void; onInspector: () => void; onInspectorSection: (section: InspectorSection) => void }) {
 	const state = agentPresentation(agent, approvalRecorded, questionAnswered, control)
 	const allMessages = [...agent.messages, ...extraMessages]
 	return (
@@ -345,7 +378,7 @@ function AgentSurface({ agent, approvalRecorded, questionAnswered, control, extr
 				<div className="ax3-thread-date"><span>Current run</span></div>
 				{allMessages.map((message) => <div className={`ax3-message ax3-message--${message.author === "You" ? "user" : "agent"}`} key={message.id}>{message.author === "Agentix" ? <div className="ax3-agent-glyph"><MaxionSpiralMark variant="current" className="ax3-agent-spiral" /></div> : null}<div><span>{message.author}<time>{message.time}</time></span><p>{message.author === "Agentix" && message.id === streamingId ? <StreamedText text={message.text} /> : message.text}</p></div></div>)}
 				{steerPending ? <div className="ax3-message ax3-message--agent ax3-message--pending"><div className="ax3-agent-glyph"><MaxionSpiralMark variant="current" className="ax3-agent-spiral" /></div><div><span>Agentix<time>Now</time></span><p>Attaching to the active run…</p></div></div> : null}
-				<ActivityGroup agent={agent} approvalRecorded={approvalRecorded} questionAnswered={questionAnswered} onEvidence={() => onInspectorSection("sources")} />
+				<ActivityGroup agent={agent} approvalRecorded={approvalRecorded} questionAnswered={questionAnswered} ambient={ambientFor(agent.id, control, ambientTick)} steerNote={steerNote} onEvidence={() => onInspectorSection("sources")} />
 				<AnimatePresence initial={false}>
 					{agent.id === "tpm" && !questionAnswered && control === "working" ? <Clarification key="clarification" onAnswer={onAnswer} /> : null}
 					{agent.id === "finance" && !approvalRecorded && control === "working" ? <ApprovalRequest key="approval" onReview={onApproval} /> : null}
@@ -380,9 +413,24 @@ function Inspector({ agent, focusSection, onClose }: { agent: AgentScenario; foc
 	)
 }
 
+// G4: an approval that expires needs a clock the owner can trust. It ticks only when the
+// viewer accepts motion — under reduced motion the window renders as static text with no
+// interval at all, so the unit spec (which approves inside the same tick) never sees a timer.
+function useExpiryClock(seconds: number, live: boolean) {
+	const [remaining, setRemaining] = useState(seconds)
+	useEffect(() => {
+		if (!live) return
+		const timer = window.setInterval(() => setRemaining((current) => (current <= 0 ? 0 : current - 1)), 1000)
+		return () => window.clearInterval(timer)
+	}, [live])
+	if (!live) return "In 22 minutes"
+	return `In ${Math.floor(remaining / 60)}:${String(remaining % 60).padStart(2, "0")}`
+}
+
 function ApprovalDrawer({ onApprove, onClose }: { onApprove: () => void; onClose: () => void }) {
 	const panelRef = useRef<HTMLElement>(null)
 	useDialogFocus(panelRef)
+	const expiry = useExpiryClock(22 * 60, !prefersReducedMotion())
 	return (
 		<motion.div className="ax3-drawer-layer" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onMouseDown={(event) => { if (event.currentTarget === event.target) onClose() }}>
 			<motion.aside ref={panelRef} tabIndex={-1} initial={{ x: 32, opacity: 0 }} animate={{ x: 0, opacity: 1 }} exit={{ x: 24, opacity: 0 }} transition={{ duration: 0.24, ease: [0.16, 1, 0.3, 1] }} role="dialog" aria-modal="true" aria-labelledby="approval-drawer-title">
@@ -390,7 +438,7 @@ function ApprovalDrawer({ onApprove, onClose }: { onApprove: () => void; onClose
 				<section><span>Bound outcome</span><p>Post the validated July close without changing accounts, values, principals, source versions, or recipients.</p></section>
 				<section><span>Exact effect set</span><div className="ax3-effect-row"><div><strong>QuickBooks journal batch</strong><small>126 balanced lines · JUL-SBX-04</small></div><b>$162,410</b></div><div className="ax3-effect-row"><div><strong>SAP inventory adjustments</strong><small>38 bounded adjustments · 2 cost centers</small></div><b>$21,840</b></div><div className="ax3-effect-row"><div><strong>Finance notifications</strong><small>Controller email + Finance Operations Teams</small></div><b>2</b></div></section>
 				<section><span>Approval does not allow</span><ul><li><X size={12} />Edit journal lines or values</li><li><X size={12} />Change principals or recipients</li><li><X size={12} />Create future or recurring authority</li></ul></section>
-				<section><span>Identity and evidence</span><dl><div><dt>Agent owner</dt><dd>Elena Torres</dd></div><div><dt>SAP principal</dt><dd>Finance shared service</dd></div><div><dt>Before-state hash</dt><dd>7e4a…91cc</dd></div><div><dt>Expires</dt><dd>In 22 minutes</dd></div></dl></section>
+				<section><span>Identity and evidence</span><dl><div><dt>Agent owner</dt><dd>Elena Torres</dd></div><div><dt>SAP principal</dt><dd>Finance shared service</dd></div><div><dt>Before-state hash</dt><dd>7e4a…91cc</dd></div><div><dt>Expires</dt><dd className="ax3-expiry">{expiry}</dd></div></dl></section>
 				<footer><button type="button" onClick={onClose}>Keep paused</button><button type="button" onClick={onApprove}><Check size={14} />Approve exact effects</button></footer>
 			</motion.aside>
 		</motion.div>
@@ -406,7 +454,7 @@ function ResearchCountRow({ revealed, done, target, unit, detail }: { revealed: 
 	return <motion.div initial={{ opacity: 0, y: 5 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: prefersReducedMotion() ? 0 : 0.2 }} className={`ax3-research-row${done ? " is-done" : ""}`}>{done ? <Check size={11} weight="bold" /> : <SpinnerGap className="ax3-spin" size={11} />}<strong>{value}</strong><span>{unit}</span><small>{detail}</small></motion.div>
 }
 
-function CreateSurface({ need, stage, researchStage, onStage, onBack, onExample, onActivate, onViewSources }: { need: string; stage: CreateStage; researchStage: number; onStage: (stage: CreateStage) => void; onBack: () => void; onExample: (need: string) => void; onActivate: () => void; onViewSources: () => void }) {
+function CreateSurface({ need, template, stage, researchStage, onStage, onBack, onExample, onActivate, onViewSources }: { need: string; template: AgentTemplate; stage: CreateStage; researchStage: number; onStage: (stage: CreateStage) => void; onBack: () => void; onExample: (need: string) => void; onActivate: () => void; onViewSources: () => void }) {
 	if (!need) {
 		return <div className="ax3-create ax3-create--empty"><div><AgentixMark size={36} /><h1>What should this Agent own?</h1><p>Describe a responsibility or outcome. Agentix will research authorized context, propose the operating model, and only ask what materially changes the work.</p><span>Try an example</span><div className="ax3-create-examples">{NEED_EXAMPLES.map((example) => <button type="button" key={example.id} onClick={() => onExample(example.prompt)}>{example.label}<CaretRight size={12} /></button>)}</div></div></div>
 	}
@@ -418,29 +466,32 @@ function CreateSurface({ need, stage, researchStage, onStage, onBack, onExample,
 				{researchStage < 3 ? (
 					<div className="ax3-research-run" role="status" aria-label="Researching authorized context">
 						<span className="ax3-research-run-title"><SpinnerGap className="ax3-spin" size={13} />Researching authorized context</span>
-						<ResearchCountRow revealed={researchStage >= 0} done={researchStage >= 1} target={5} unit="approved sources" detail="Program brief · milestone plan · Jira · ADRs · Teams" />
-						<ResearchCountRow revealed={researchStage >= 1} done={researchStage >= 2} target={21} unit="memory items" detail="Tenant memory scoped to this responsibility" />
-						<ResearchCountRow revealed={researchStage >= 2} done={researchStage >= 3} target={4} unit="connections" detail="Jira · Teams · Microsoft 365 · SharePoint" />
+						{/* G2: the research rows read the need, not a fixture. A responsibility Agentix has
+						    no seeded scenario for reports its own sources, memory scope, and connections. */}
+						{template.research.map((row, index) => <ResearchCountRow key={row.id} revealed={researchStage >= index} done={researchStage >= index + 1} target={row.target} unit={row.unit} detail={row.detail} />)}
 					</div>
 				) : (
 					<>
-						<div className="ax3-message ax3-message--agent"><div className="ax3-agent-glyph"><MaxionSpiralMark variant="current" className="ax3-agent-spiral" /></div><div><span>Agentix<time>Now</time></span><p><StreamedText text="I found a workable operating model using the context and connections you already authorized." /></p></div></div>
-						<div className="ax3-research-line"><CheckCircle size={16} weight="fill" /><span><strong>Research complete</strong><small>5 approved sources · 21 memory items · 4 connections</small></span><button type="button" onClick={onViewSources}>View sources</button></div>
+						<div className="ax3-message ax3-message--agent"><div className="ax3-agent-glyph"><MaxionSpiralMark variant="current" className="ax3-agent-spiral" /></div><div><span>Agentix<time>Now</time></span><p><StreamedText text={template.found} /></p></div></div>
+						<div className="ax3-research-line"><CheckCircle size={16} weight="fill" /><span><strong>Research complete</strong><small>{templateResearchSummary(template)}</small></span><button type="button" onClick={onViewSources}>View sources</button></div>
 					</>
 				)}
 				{researchStage >= 3 ? <AnimatePresence mode="wait">
-					{stage === "interview" ? <motion.section key="interview" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -6 }} className="ax3-interview"><span>Three choices materially change the work</span><h2>Finish the operating boundaries</h2><div className="ax3-question-row"><div><strong>Routine audience</strong><small>Who may receive follow-ups?</small></div><label><input type="radio" name="audience" defaultChecked />Project team only</label><label><input type="radio" name="audience" />Include sponsor with approval</label></div><div className="ax3-question-row"><div><strong>Commitment updates</strong><small>What may Agentix change?</small></div><label><input type="radio" name="updates" defaultChecked />Draft changes for approval</label><label><input type="radio" name="updates" />Update bounded fields</label></div><div className="ax3-question-row"><div><strong>Operating cadence</strong><small>When should it work?</small></div><label><input type="radio" name="cadence" defaultChecked />Weekdays at 8:00 AM</label><label><input type="radio" name="cadence" />On source change</label></div><button type="button" className="ax3-primary-action" onClick={() => onStage("proposal")}>Build operating model<ArrowRight size={14} /></button></motion.section> : <motion.section key="proposal" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} className="ax3-proposal"><span>Proposed Agent</span><div className="ax3-proposal-title"><span className="ax3-avatar ax3-avatar--large">AP</span><div><h2>Atlas program lead</h2><p>Keep the ERP modernization decision-ready and moving without masking delivery risk.</p></div></div><div className="ax3-proposal-grid"><section><span>Duties</span><ul><li><Check size={12} />Risk and dependency refresh</li><li><Check size={12} />Steering brief</li><li><Check size={12} />Overdue action follow-up</li></ul></section><section><span>Authority</span><ul><li><LockKey size={12} />Project sources only</li><li><LockKey size={12} />Project-team audience</li><li><LockKey size={12} />Exact approval at threshold</li></ul></section></div><div className="ax3-ready"><CheckCircle size={16} weight="fill" /><span><strong>Ready to activate</strong><small>Owner: Root Admin · Agent v1 · first run queues once</small></span></div><button type="button" className="ax3-primary-action" onClick={onActivate}>Activate Agent<ArrowRight size={14} /></button></motion.section>}
+					{stage === "interview" ? <motion.section key="interview" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -6 }} className="ax3-interview"><span>Three choices materially change the work</span><h2>Finish the operating boundaries</h2><div className="ax3-message ax3-message--agent ax3-interview-ask"><div className="ax3-agent-glyph"><MaxionSpiralMark variant="current" className="ax3-agent-spiral" /></div><div><span>Agentix<time>Now</time></span><p><StreamedText text={template.opening} /></p></div></div><div className="ax3-question-stack">{template.questions.map((question, index) => <div className="ax3-question-row" key={question.id} style={{ "--ax3-stagger": index } as CSSProperties}><div><strong>{question.title}</strong><small>{question.prompt}</small></div><label><input type="radio" name={question.name} defaultChecked />{question.options[0]}</label><label><input type="radio" name={question.name} />{question.options[1]}</label></div>)}</div><button type="button" className="ax3-primary-action" onClick={() => onStage("proposal")}>Build operating model<ArrowRight size={14} /></button></motion.section> : <motion.section key="proposal" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} className="ax3-proposal"><span>Proposed Agent</span><div className="ax3-proposal-title"><span className="ax3-avatar ax3-avatar--large">{template.shortName}</span><div><h2>{template.name}</h2><p>{template.mission}</p></div></div>{template.echo ? <p className="ax3-proposal-echo">“{template.echo}”<span>Your words. This Agent owns exactly that — nothing wider.</span></p> : null}<div className="ax3-proposal-grid"><section><span>Duties</span><ul>{template.duties.map((duty) => <li key={duty}><Check size={12} />{duty}</li>)}</ul></section><section><span>Authority</span><ul>{template.authority.map((rule) => <li key={rule}><LockKey size={12} />{rule}</li>)}</ul></section></div><div className="ax3-ready"><CheckCircle size={16} weight="fill" /><span><strong>Ready to activate</strong><small>Owner: Root Admin · Agent v1 · first run queues once</small></span></div><button type="button" className="ax3-primary-action" onClick={onActivate}>Activate Agent<ArrowRight size={14} /></button></motion.section>}
 				</AnimatePresence> : null}
 			</div>
 		</div>
 	)
 }
 
-function ActivitySurface({ sessionEvents, approvalRecorded, onOpenAgent }: { sessionEvents: SessionEvent[]; approvalRecorded: boolean; onOpenAgent: (agent: AgentScenario) => void }) {
-	return <div className="ax3-history"><header><span>Activity</span><h1>Everything Agentix committed</h1><p>Actions, effects, waits, receipts, and verified outcomes—without hidden reasoning.</p></header><div className="ax3-history-day"><span>Today</span>{sessionEvents.map((event) => { const agent = AGENT_SCENARIOS.find((candidate) => candidate.id === event.agentId)!; return <button type="button" key={event.id} onClick={() => onOpenAgent(agent)}><time>{event.time}</time><span className="ax3-history-line"><i /></span><span className="ax3-avatar">{agent.shortName}</span><span><strong>{event.title}</strong><small>{agent.name} · {event.detail}</small></span><Status tone="success">Committed</Status></button> })}{AGENT_SCENARIOS.map((agent, index) => <button type="button" key={agent.id} onClick={() => onOpenAgent(agent)}><time>{index === 0 ? "9:18" : index === 1 ? "9:06" : "8:42"}</time><span className="ax3-history-line"><i /></span><span className="ax3-avatar">{agent.shortName}</span><span><strong>{agent.latestOutcome}</strong><small>{agent.name} · {agent.outcomeMetric} {agent.id === "finance" && approvalRecorded ? "effects approved and reconciling" : agent.outcomeMetricLabel}</small></span><Status tone="success">Verified</Status></button>)}</div><div className="ax3-history-day"><span>Yesterday</span><button type="button" onClick={() => onOpenAgent(AGENT_SCENARIOS[1])}><time>4:32</time><span className="ax3-history-line"><i /></span><span className="ax3-avatar">RO</span><span><strong>Renewal risk register reconciled</strong><small>Revenue operations partner · 18 provider receipts</small></span><Status tone="success">Verified</Status></button></div></div>
+function ActivitySurface({ sessionEvents, approvalRecorded, questionAnswered, runControls, ambientTick, onOpenAgent }: { sessionEvents: SessionEvent[]; approvalRecorded: boolean; questionAnswered: boolean; runControls: Record<AgentScenario["id"], RunControl>; ambientTick: number; onOpenAgent: (agent: AgentScenario) => void }) {
+	// G1: the ledger is committed history, so in-flight work gets its own strip above it —
+	// labelled as not-yet-committed so the two can never be confused. It moves with the same
+	// heartbeat as Today, which means the ledger page is never a still photograph either.
+	return <div className="ax3-history"><header><span>Activity</span><h1>Everything Agentix committed</h1><p>Actions, effects, waits, receipts, and verified outcomes—without hidden reasoning.</p></header><section className="ax3-live-strip" aria-label="Work in flight"><header><span><SpinnerGap className="ax3-spin" size={12} />In flight</span><small>Nothing here is committed yet</small></header>{AGENT_SCENARIOS.map((agent) => { const state = agentPresentation(agent, approvalRecorded, questionAnswered, runControls[agent.id]); const ambient = ambientFor(agent.id, runControls[agent.id], ambientTick); return <button type="button" key={agent.id} onClick={() => onOpenAgent(agent)}><span className="ax3-avatar">{agent.shortName}</span><span><strong>{agent.name}</strong><small key={ambient} className="ax3-ambient" aria-hidden="true"><i /><span>{ambient}</span></small></span><Status tone={state.tone} live={state.tone === "live"}>{state.label}</Status></button> })}</section><div className="ax3-history-day"><span>Today</span>{sessionEvents.map((event) => { const agent = AGENT_SCENARIOS.find((candidate) => candidate.id === event.agentId)!; const actor = event.actor ?? agent; return event.actor ? <div className="ax3-history-row" key={event.id}><time>{event.time}</time><span className="ax3-history-line"><i /></span><span className="ax3-avatar">{actor.shortName}</span><span><strong>{event.title}</strong><small>{actor.name} · {event.detail}</small></span><Status tone="success">Committed</Status></div> : <button type="button" key={event.id} onClick={() => onOpenAgent(agent)}><time>{event.time}</time><span className="ax3-history-line"><i /></span><span className="ax3-avatar">{actor.shortName}</span><span><strong>{event.title}</strong><small>{actor.name} · {event.detail}</small></span><Status tone="success">Committed</Status></button> })}{AGENT_SCENARIOS.map((agent, index) => <button type="button" key={agent.id} onClick={() => onOpenAgent(agent)}><time>{index === 0 ? "9:18 AM" : index === 1 ? "9:06 AM" : "8:42 AM"}</time><span className="ax3-history-line"><i /></span><span className="ax3-avatar">{agent.shortName}</span><span><strong>{agent.latestOutcome}</strong><small>{agent.name} · {agent.outcomeMetric} {agent.id === "finance" && approvalRecorded ? "effects approved and reconciling" : agent.outcomeMetricLabel}</small></span><Status tone="success">Verified</Status></button>)}</div><div className="ax3-history-day"><span>Yesterday</span><button type="button" onClick={() => onOpenAgent(AGENT_SCENARIOS[1])}><time>4:32 PM</time><span className="ax3-history-line"><i /></span><span className="ax3-avatar">RO</span><span><strong>Renewal risk register reconciled</strong><small>Revenue operations partner · 18 provider receipts</small></span><Status tone="success">Verified</Status></button></div></div>
 }
 
-export function AgentixPrototypePage({ embedded = false }: { embedded?: boolean }) {
+export function AgentixPrototypePage({ embedded = false, intentSignal = null, onAttentionChange }: { embedded?: boolean; intentSignal?: AgentixIntentSignal | null; onAttentionChange?: (attention: AgentixAttention) => void }) {
 	useDocumentTitle("Agentix · North-star prototype · Maxion")
 	const location = useLocation()
 	const standalone = !embedded && location.pathname === "/agentix-prototype"
@@ -470,11 +521,27 @@ export function AgentixPrototypePage({ embedded = false }: { embedded?: boolean 
 	const [researchStage, setResearchStage] = useState(3)
 	const [reconcileStage, setReconcileStage] = useState(3)
 	const [steerPendingId, setSteerPendingId] = useState<AgentScenario["id"] | null>(null)
+	const [steerNotes, setSteerNotes] = useState<Record<AgentScenario["id"], SteerNote | null>>({ tpm: null, revenue: null, finance: null })
 	const [streamingId, setStreamingId] = useState<string | null>(null)
 	const steerTimerRef = useRef<number | null>(null)
-	useEffect(() => () => { if (steerTimerRef.current) window.clearTimeout(steerTimerRef.current) }, [])
+	const steerFoldTimerRef = useRef<number | null>(null)
+	useEffect(() => () => { if (steerTimerRef.current) window.clearTimeout(steerTimerRef.current); if (steerFoldTimerRef.current) window.clearTimeout(steerFoldTimerRef.current) }, [])
+
+	// G1 — one module heartbeat, nothing else. Standing agents advance a sub-step every few
+	// seconds so the module is never a still photograph between decisions. Gated OFF under
+	// reduced motion, which means jsdom creates no interval at all and every ambient line
+	// renders its stable first value inside the same commit the suites assert on (L4).
+	const [ambientTick, setAmbientTick] = useState(0)
+	useEffect(() => {
+		if (prefersReducedMotion()) return
+		const timer = window.setInterval(() => setAmbientTick((current) => current + 1), 7000)
+		return () => window.clearInterval(timer)
+	}, [])
 
 	const selectedAgent = useMemo(() => AGENT_SCENARIOS.find((agent) => agent.id === selectedAgentId) ?? null, [selectedAgentId])
+	// G2: the need decides the Agent. Seeded keywords resolve to a seeded scenario; anything
+	// else derives a template from the owner's own words instead of proposing someone else's Agent.
+	const createTemplate = useMemo(() => deriveAgentTemplate(createNeed), [createNeed])
 	const attentionCount = Number(!approvalRecorded) + Number(!questionAnswered)
 	const label = surface === "today" ? "Today" : surface === "activity" ? "Activity" : surface === "create" ? "New Agent" : selectedAgent?.name ?? "Agentix"
 
@@ -491,8 +558,51 @@ export function AgentixPrototypePage({ embedded = false }: { embedded?: boolean 
 	const openDecision = (agentId: AgentScenario["id"], anchor: string) => { setAnchorTarget(anchor); openAgent(AGENT_SCENARIOS.find((agent) => agent.id === agentId)!) }
 	const applyRunControl = (agentId: AgentScenario["id"], control: RunControl) => { setRunControls((current) => ({ ...current, [agentId]: control })); notify(control === "interrupted" ? "Run preserved at a safe boundary." : control === "stopped" ? "Run stopped. Dispatched effects remain under reconciliation." : "Run resumed from its checkpoint.") }
 	// The Activity ledger records what this session actually committed (P1-9) — newest first.
-	const recordEvent = (agentId: AgentScenario["id"], title: string, detail: string) => setSessionEvents((current) => [{ id: `event-${Date.now()}-${current.length}`, time: new Date().toLocaleTimeString([], { hour: "numeric", minute: "2-digit" }), agentId, title, detail }, ...current])
+	const recordEvent = (agentId: AgentScenario["id"], title: string, detail: string, actor?: { name: string; shortName: string }) => setSessionEvents((current) => [{ id: `event-${Date.now()}-${current.length}`, time: new Date().toLocaleTimeString([], { hour: "numeric", minute: "2-digit" }), agentId, title, detail, actor }, ...current])
 	const openInspector = (section: InspectorSection | null = null) => { setInspectorSection(section); setDrawer("inspector"); setMobileNavOpen(false) }
+
+	// G2: activation follows whatever was proposed. A seeded scenario opens its live session —
+	// the ERP path keeps its pinned "Atlas program lead activated as Agent v1." toast byte for
+	// byte — while a derived Agent has no seeded session, so it lands on the ledger row it just
+	// wrote rather than borrowing someone else's surface and calling it yours.
+	const activateTemplate = () => {
+		const template = createTemplate
+		const scenario = template.scenarioId ? AGENT_SCENARIOS.find((agent) => agent.id === template.scenarioId) ?? null : null
+		if (scenario) {
+			setExtraMessages((current) => ({ ...current, [scenario.id]: [...current[scenario.id], { id: `activated-${Date.now()}`, author: "Agentix", text: template.activation, time: "Now", tone: "system" }] }))
+			recordEvent(scenario.id, `${template.name} activated as Agent v1`, "First run queued · authority bounded")
+			openAgent(scenario)
+		} else {
+			recordEvent("tpm", `${template.name} activated as Agent v1`, "First run queued · nothing has run yet", { name: template.name, shortName: template.shortName })
+			goActivity()
+		}
+		notify(`${template.name} activated as Agent v1.`)
+	}
+
+	// Attention is lifted to the shell so the portal badge reports live state instead of a
+	// hardcoded 2. Both flags travel with the count: the shell's jump registry only offers a
+	// decision while that decision is still open.
+	const attentionListenerRef = useRef(onAttentionChange)
+	attentionListenerRef.current = onAttentionChange
+	useEffect(() => {
+		attentionListenerRef.current?.({ count: Number(!approvalRecorded) + Number(!questionAnswered), audience: !questionAnswered, approval: !approvalRecorded })
+	}, [approvalRecorded, questionAnswered])
+
+	// One-shot arrival intent from the shell palette (same seam as Discovery's setupSignal):
+	// the tick is consumed once, so re-entering Agentix never replays a stale jump.
+	const intentActionsRef = useRef<(intent: AgentixIntent) => void>(() => undefined)
+	intentActionsRef.current = (intent) => {
+		if (intent.type === "create") { startCreate(); return }
+		if (intent.type === "surface") { if (intent.id === "activity") goActivity(); else goToday(); return }
+		if (intent.type === "agent") { const agent = AGENT_SCENARIOS.find((item) => item.id === intent.id); if (agent) openAgent(agent); return }
+		openDecision(intent.id === "approval" ? "finance" : "tpm", intent.id === "approval" ? "approval-question" : "audience-question")
+	}
+	const intentTickRef = useRef(0)
+	useEffect(() => {
+		if (!intentSignal || intentSignal.tick === intentTickRef.current) return
+		intentTickRef.current = intentSignal.tick
+		intentActionsRef.current(intentSignal.intent)
+	}, [intentSignal])
 
 	const submitComposer = () => {
 		const value = composerValue.trim()
@@ -506,13 +616,20 @@ export function AgentixPrototypePage({ embedded = false }: { embedded?: boolean 
 			const reply: AgentMessage = { id: `agent-${Date.now()}`, author: "Agentix", text: agent.steerReply, time: "Now", tone: "system" }
 			if (runControls[agent.id] === "stopped") setRunControls((current) => ({ ...current, [agent.id]: "working" }))
 			recordEvent(agent.id, "Steering context attached", "Applied at the next safe boundary")
+			// G5: the run itself has to change, not just the transcript. The direction lands as a
+			// step in the activity group, quoted back, and folds in a beat later.
+			const note = value.length > 60 ? `${value.slice(0, 59).trimEnd()}…` : value
 			if (prefersReducedMotion()) {
 				// L4: the steer spec asserts the echo AND the reply synchronously — one commit, no timer.
 				setExtraMessages((current) => ({ ...current, [agent.id]: [...current[agent.id], userMessage, reply] }))
+				setSteerNotes((current) => ({ ...current, [agent.id]: { text: note, done: true } }))
 				notify("Agentix acknowledged the steering context.")
 			} else {
 				setExtraMessages((current) => ({ ...current, [agent.id]: [...current[agent.id], userMessage] }))
 				setSteerPendingId(agent.id)
+				setSteerNotes((current) => ({ ...current, [agent.id]: { text: note, done: false } }))
+				if (steerFoldTimerRef.current) window.clearTimeout(steerFoldTimerRef.current)
+				steerFoldTimerRef.current = window.setTimeout(() => setSteerNotes((current) => ({ ...current, [agent.id]: current[agent.id] ? { ...current[agent.id]!, done: true } : null })), 1200)
 				if (steerTimerRef.current) window.clearTimeout(steerTimerRef.current)
 				steerTimerRef.current = window.setTimeout(() => {
 					setSteerPendingId(null)
@@ -641,12 +758,14 @@ export function AgentixPrototypePage({ embedded = false }: { embedded?: boolean 
 					<Header label={label} mobileNavOpen={mobileNavOpen} onMobileNav={() => setMobileNavOpen((current) => !current)} onCommand={openPalette} onInspector={() => { setInspectorSection(null); setDrawer(drawer === "inspector" ? null : "inspector") }} inspectorAvailable={surface === "agent" && Boolean(selectedAgent)} onNotifications={goToday} />
 					<div className="ax3-content-shell">
 						<main className="ax3-main" id="agentix-main" ref={mainRef}>
+							{/* G6: the old exit ran as long as the entrance, so every surface swap flashed an
+							    empty main pane. The outgoing surface now leaves in ~90ms under the incoming one. */}
 							<AnimatePresence mode="wait" initial={false}>
-								<motion.div key={`${surface}-${selectedAgentId ?? "none"}`} initial={{ opacity: 0, y: reducedMotion ? 0 : 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: reducedMotion ? 0 : -5 }} transition={transition}>
-									{surface === "today" ? <TodaySurface approvalRecorded={approvalRecorded} questionAnswered={questionAnswered} runControls={runControls} onOpenAgent={openAgent} onApproval={() => openDecision("finance", "approval-question")} onQuestion={() => openDecision("tpm", "audience-question")} onActivity={goActivity} /> : null}
-									{surface === "agent" && selectedAgent ? <AgentSurface agent={selectedAgent} approvalRecorded={approvalRecorded} questionAnswered={questionAnswered} control={runControls[selectedAgent.id]} extraMessages={extraMessages[selectedAgent.id]} steerPending={steerPendingId === selectedAgent.id} streamingId={streamingId} reconcileStage={reconcileStage} onAnswer={(answer) => { setQuestionAnswered(true); setExtraMessages((current) => ({ ...current, tpm: [...current.tpm, { id: `answer-${Date.now()}`, author: "You", text: answer, time: "Now" }] })); recordEvent("tpm", "Audience decision committed", answer); notify("Decision committed. The existing run resumed.") }} onApproval={() => setDrawer("approval")} onControl={(control) => applyRunControl(selectedAgent.id, control)} onInspector={() => { setInspectorSection(null); setDrawer(drawer === "inspector" ? null : "inspector") }} onInspectorSection={openInspector} /> : null}
-									{surface === "create" ? <CreateSurface need={createNeed} stage={createStage} researchStage={researchStage} onStage={setCreateStage} onBack={goToday} onExample={(need) => { setCreateNeed(need); setCreateStage("interview") }} onActivate={() => { const atlas = AGENT_SCENARIOS.find((agent) => agent.id === "tpm")!; setExtraMessages((current) => ({ ...current, tpm: [...current.tpm, { id: `activated-${Date.now()}`, author: "Agentix", text: "Agent v1 is active. The first run is queued: I will reconcile the approved program sources and prepare the steering brief inside the boundaries you set.", time: "Now", tone: "system" }] })); recordEvent("tpm", "Atlas program lead activated as Agent v1", "First run queued · authority bounded"); openAgent(atlas); notify("Atlas program lead activated as Agent v1.") }} onViewSources={() => openInspector("sources")} /> : null}
-									{surface === "activity" ? <ActivitySurface sessionEvents={sessionEvents} approvalRecorded={approvalRecorded} onOpenAgent={openAgent} /> : null}
+								<motion.div key={`${surface}-${selectedAgentId ?? "none"}`} initial={{ opacity: 0, y: reducedMotion ? 0 : 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: reducedMotion ? 0 : -3, transition: reducedMotion ? { duration: 0 } : { duration: 0.09, ease: "linear" as const } }} transition={transition}>
+									{surface === "today" ? <TodaySurface approvalRecorded={approvalRecorded} questionAnswered={questionAnswered} runControls={runControls} ambientTick={ambientTick} onOpenAgent={openAgent} onApproval={() => openDecision("finance", "approval-question")} onQuestion={() => openDecision("tpm", "audience-question")} onActivity={goActivity} /> : null}
+									{surface === "agent" && selectedAgent ? <AgentSurface agent={selectedAgent} approvalRecorded={approvalRecorded} questionAnswered={questionAnswered} control={runControls[selectedAgent.id]} extraMessages={extraMessages[selectedAgent.id]} steerPending={steerPendingId === selectedAgent.id} steerNote={steerNotes[selectedAgent.id]} ambientTick={ambientTick} streamingId={streamingId} reconcileStage={reconcileStage} onAnswer={(answer) => { setQuestionAnswered(true); setExtraMessages((current) => ({ ...current, tpm: [...current.tpm, { id: `answer-${Date.now()}`, author: "You", text: answer, time: "Now" }] })); recordEvent("tpm", "Audience decision committed", answer); notify("Decision committed. The existing run resumed.") }} onApproval={() => setDrawer("approval")} onControl={(control) => applyRunControl(selectedAgent.id, control)} onInspector={() => { setInspectorSection(null); setDrawer(drawer === "inspector" ? null : "inspector") }} onInspectorSection={openInspector} /> : null}
+									{surface === "create" ? <CreateSurface need={createNeed} template={createTemplate} stage={createStage} researchStage={researchStage} onStage={setCreateStage} onBack={goToday} onExample={(need) => { setCreateNeed(need); setCreateStage("interview") }} onActivate={activateTemplate} onViewSources={() => openInspector("sources")} /> : null}
+									{surface === "activity" ? <ActivitySurface sessionEvents={sessionEvents} approvalRecorded={approvalRecorded} questionAnswered={questionAnswered} runControls={runControls} ambientTick={ambientTick} onOpenAgent={openAgent} /> : null}
 								</motion.div>
 							</AnimatePresence>
 						</main>
@@ -655,7 +774,9 @@ export function AgentixPrototypePage({ embedded = false }: { embedded?: boolean 
 					{surface !== "create" || !createNeed ? <CommandComposer value={composerValue} onChange={setComposerValue} onSubmit={submitComposer} inputRef={composerRef} placeholder={surface === "agent" && selectedAgent ? `Steer ${selectedAgent.name}, ask for an update, or add context…` : surface === "create" ? "Describe what this Agent should own…" : "What should Agentix take care of?"} contextLabel={surface === "agent" && selectedAgent ? `${selectedAgent.version} · authority unchanged` : "Authorized tenant context"} palette={paletteOpen ? { items: paletteFiltered, activeIndex: paletteIndex, query: composerValue.trim() } : null} onPaletteHover={setPaletteActive} onPaletteRun={runPaletteItem} onPaletteDismiss={closePalette} /> : null}
 				</div>
 			</div>
-			<AnimatePresence>{drawer === "approval" ? <ApprovalDrawer onClose={() => setDrawer(null)} onApprove={() => { setApprovalRecorded(true); setReconcileStage(prefersReducedMotion() ? 3 : 0); setDrawer(null); recordEvent("finance", "July close effect set approved", "164 effects · $184,250 dispatching"); notify("Approval recorded. Effects are dispatching and reconciling.") }} /> : null}</AnimatePresence>
+			{/* G4: the receipts theater is the payoff for approving — put it on stage instead of
+			    letting it land below the fold behind the exiting decision card. */}
+			<AnimatePresence>{drawer === "approval" ? <ApprovalDrawer onClose={() => setDrawer(null)} onApprove={() => { setApprovalRecorded(true); setReconcileStage(prefersReducedMotion() ? 3 : 0); setDrawer(null); recordEvent("finance", "July close effect set approved", "164 effects · $184,250 dispatching"); notify("Approval recorded. Effects are dispatching and reconciling."); scrollThreadEnd() }} /> : null}</AnimatePresence>
 			<AnimatePresence>{toast ? <motion.div className="ax3-toast" role="status" initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 8 }} transition={transition}><CheckCircle size={15} weight="fill" />{toast}</motion.div> : null}</AnimatePresence>
 		</div>
 	)

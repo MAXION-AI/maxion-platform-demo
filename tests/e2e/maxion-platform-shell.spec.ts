@@ -45,7 +45,7 @@ test("keeps the canonical MAXION shell functional across core modules", async ({
 	await planComposer.press("Enter")
 	const impactCard = page.getByRole("article", { name: "Steering impact preview" })
 	await expect(impactCard).toBeVisible()
-	await expect(impactCard).toContainText("Impact preview · nothing applied yet")
+	await expect(impactCard).toContainText("Impact preview · 3 artifacts · nothing applied yet")
 	await expect(impactCard).toContainText("Contained change")
 	await impactCard.getByRole("button", { name: "Apply to plan" }).click()
 	await expect(impactCard).toContainText("Applied · snapshot v13")
@@ -148,6 +148,76 @@ test("keeps the canonical MAXION shell functional across core modules", async ({
 
 	const accessibility = await new AxeBuilder({ page }).analyze()
 	expect(accessibility.violations.filter((violation) => violation.impact === "critical" || violation.impact === "serious")).toEqual([])
+	expect(runtimeErrors).toEqual([])
+})
+
+test("keeps a running pass in command of its surface and shows what applied steering re-derived", async ({ page }) => {
+	test.setTimeout(120_000)
+	const runtimeErrors: string[] = []
+	page.on("console", (message) => {
+		if (message.type() === "error") runtimeErrors.push(message.text())
+	})
+	page.on("pageerror", (error) => runtimeErrors.push(error.message))
+
+	await page.goto("/maxion-prototype")
+	await page.getByRole("navigation", { name: "Portal sections" }).getByRole("button", { name: "Plan" }).click()
+	await page.getByRole("button", { name: "Create Plan" }).click()
+	await page.getByRole("button", { name: "Start autonomous plan" }).click()
+	await expect(page.getByRole("heading", { name: "MAX is building the implementation plan." })).toBeVisible()
+
+	// A running pass owns ⌘K: the shell's menu must never open over a live run.
+	await page.keyboard.press("ControlOrMeta+k")
+	const runPalette = page.getByRole("dialog", { name: "Plan command menu" })
+	await expect(runPalette).toBeVisible()
+	await expect(page.getByRole("dialog", { name: "MAXION command menu" })).toHaveCount(0)
+	await expect(runPalette.getByRole("button", { name: /Skip to the finished plan/ })).toBeVisible()
+	await expect(runPalette.getByRole("button", { name: /Steer this pass/ })).toBeVisible()
+	await page.keyboard.press("Escape")
+	await expect(runPalette).toHaveCount(0)
+
+	// Design opens read-only as soon as the pass starts composing the system.
+	const designTab = page.getByRole("navigation", { name: "Plan workspace" }).getByRole("button", { name: /Design/ })
+	await expect(designTab).toBeDisabled()
+	await expect(page.locator(".apn-assembly-flow")).toHaveCount(5, { timeout: 15_000 })
+	await expect(designTab).toBeEnabled()
+	await designTab.click()
+	await expect(page.getByRole("heading", { name: "The delivery system is assembling." })).toBeVisible()
+	await expect(page.locator(".apn-blueprint.is-assembling")).toHaveCount(1)
+	await expect(page.getByRole("button", { name: /Mission authority and approval boundary · available when this pass lands/ })).toBeDisabled()
+	await expect(page.getByRole("heading", { name: "See the flow. Understand the behavior. Know what to build." })).toBeVisible({ timeout: 20_000 })
+
+	// The behavior flow executes itself on entry, and a click takes the walk over.
+	await page.getByRole("navigation", { name: "Architecture flows" }).getByRole("button", { name: /ServiceNow to Workday financial integration/ }).click()
+	const behaviorFlow = page.getByRole("region", { name: "Executable behavior flow for ServiceNow to Workday financial integration" })
+	const lastStep = behaviorFlow.getByRole("button", { name: /Joint delivery flow.*Return status and prove the outcome/ })
+	await expect(lastStep).toHaveAttribute("aria-pressed", "true", { timeout: 10_000 })
+	const secondStep = behaviorFlow.getByRole("button", { name: /MuleSoft Experience API.*Validate and durably accept ingress/ })
+	await secondStep.click()
+	await page.waitForTimeout(1_500)
+	await expect(secondStep).toHaveAttribute("aria-pressed", "true")
+	// One screen: the panel itself never scrolls, only the two detail panes do.
+	expect(await page.locator(".apn-diagram-panel").evaluate((element) => element.scrollHeight - element.clientHeight)).toBe(0)
+
+	// The schedule class is derived from the evidence graph, not the generic fallback.
+	const composer = page.getByRole("textbox", { name: "Steer the Plan agent" })
+	await composer.fill("Protect the October cutover window in the build order.")
+	await composer.press("Enter")
+	const impact = page.getByRole("article", { name: "Steering impact preview" })
+	await expect(impact).toContainText("The build order absorbs the schedule constraint")
+	await expect(impact.getByRole("button", { name: "CLM-021" })).toBeVisible()
+	// The decision stays with its consequences: Apply is reachable without scrolling the card.
+	const applyButton = impact.getByRole("button", { name: "Apply to plan" })
+	const applyBox = await applyButton.boundingBox()
+	expect(applyBox).not.toBeNull()
+	expect(applyBox!.y + applyBox!.height).toBeLessThanOrEqual(720)
+
+	// Applying re-derives real artifacts, and the surfaces they live on say so.
+	await applyButton.click()
+	const flowRail = page.getByRole("navigation", { name: "Architecture flows" })
+	await expect(flowRail.getByText("re-checked · v13")).toHaveCount(2)
+	await flowRail.getByRole("button", { name: /Tenant-safe retry and replay protection/ }).click()
+	await expect(page.getByText("re-checked · v13")).toHaveCount(0)
+
 	expect(runtimeErrors).toEqual([])
 })
 

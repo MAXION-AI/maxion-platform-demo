@@ -118,7 +118,9 @@
 .aex-plan-handoff b { color: var(--aex-accent); font-size: 10px; font-weight: 600; }
 
 /* Approval */
-.aex-approval { width: min(640px, calc(100% - 48px)); align-self: center; justify-self: center; padding: 46px 0 80px; }
+/* Two open decisions are taller than the field. The surface scrolls inside its own box —
+   centered when it fits, clamped and scrollable when it does not. */
+.aex-approval { width: min(640px, calc(100% - 48px)); max-height: 100%; align-self: center; justify-self: center; padding: 46px 0 80px; overflow-y: auto; }
 .aex-back { display: inline-flex; min-height: 34px; align-items: center; gap: 7px; margin-bottom: 40px; padding: 0 8px; border: 0; border-radius: 7px; background: transparent; color: var(--aex-muted); font-size: 11px; cursor: pointer; }
 .aex-back:hover { background: var(--aex-hover); color: var(--aex-text); }
 .aex-approval-heading > span { display: grid; width: 38px; height: 38px; place-items: center; margin-bottom: 20px; border: 1px solid rgba(228,189,123,.28); border-radius: 11px; background: rgba(228,189,123,.08); color: var(--aex-warning); }
@@ -235,11 +237,14 @@
 .aex-inspector-panel > header p { margin: 0; color: var(--aex-muted); font-size: 11px; line-height: 1.45; }
 .aex-inspector .mxp-topology-graph { display: flex; min-height: 0; flex-direction: column; align-items: stretch; padding: 16px 0; background: transparent; background-image: none; overflow: visible; }
 .aex-inspector .mxp-topology-node { min-height: 48px; padding: 7px 8px; border: 1px solid var(--aex-line); border-radius: 8px; background: var(--aex-panel); color: var(--aex-muted); box-shadow: none; }
-.aex-inspector .mxp-topology-node:hover { border-color: var(--aex-line-strong); background: var(--aex-hover); }
+/* The light-theme node hover carries !important (maxion-platform-prototype.css), so the
+   dark inspector has to answer in kind or the card flashes white under the cursor. */
+.aex-inspector .mxp-topology-node:hover { border-color: var(--aex-line-strong) !important; background: var(--aex-hover) !important; }
 .aex-inspector .mxp-topology-node.is-selected { border-color: rgba(142,217,197,.38); background: var(--aex-accent-soft); }
 .aex-inspector .mxp-topology-node.is-orchestrator { width: 100%; border-color: #414741; background: #202420; color: var(--aex-text); }
 .aex-inspector .mxp-topology-node.is-orchestrator:hover { border-color: #414741 !important; background: #202420 !important; }
 .aex-inspector .mxp-topology-node.is-gate { width: 100%; border-color: rgba(95,211,207,.28); background: rgba(95,211,207,.08); }
+.aex-inspector .mxp-topology-node.is-gate:hover { border-color: rgba(95,211,207,.45) !important; background: rgba(95,211,207,.13) !important; }
 .aex-inspector .mxp-topology-node .mxp-mini-glyph { border-color: var(--aex-line-strong); background: var(--aex-bg-deep); color: var(--aex-muted); }
 .aex-inspector .mxp-topology-node strong { color: var(--aex-text-2); font-size: 11px; font-weight: 570; }
 .aex-inspector .mxp-topology-node small { color: var(--aex-subtle); font-size: 9px; }
@@ -425,3 +430,58 @@
 .aex-app .aex-deploy-receipt small { margin-top: 3px; color: var(--aex-subtle); font: 10px/1.4 "SFMono-Regular", Consolas, monospace; }
 .aex-app .aex-deploy-receipt button { display: inline-flex; align-items: center; gap: 5px; margin-top: 8px; align-self: flex-start; padding: 0; border: 0; background: transparent; color: var(--aex-accent); font-size: 11px; font-weight: 600; cursor: pointer; }
 .aex-app .aex-deploy-receipt button:hover { color: var(--aex-accent-strong); }
+
+/* Phase 4 — the agent stays alive, the run reads at tool-call granularity, and steering
+   leaves marks. Every selector keeps the .aex-app / .aex-inspector prefix so the 0,1,1
+   `.mxp-root button { color: inherit }` cascade can never eat it. */
+
+/* Inspector panels share one grid cell, so an exiting panel can never push the entering
+   one down the column and snap it back when the crossfade ends. */
+.aex-inspector { position: relative; }
+.aex-inspector-panel { grid-area: 2 / 1; }
+
+/* Live status chips breathe while their work is actually running. */
+@keyframes aex-chip-pulse { 50% { opacity: .5; } }
+@keyframes aex-row-in { from { opacity: 0; transform: translateY(4px); } }
+.aex-inspector .mxp-topology-node i.is-working,
+.aex-inspector .mxp-topology-node i.is-coordinating,
+.aex-inspector .mxp-topology-node i.is-verifying { background: var(--aex-accent-soft); color: var(--aex-accent-strong); animation: aex-chip-pulse 2s ease-in-out infinite; }
+
+/* Post-verify ambience: one fact at a time under the orchestrator. */
+.aex-app .aex-ambient { display: flex; align-items: center; gap: 8px; margin: 11px 2px 0; color: var(--aex-subtle); font-size: 10px; line-height: 1.4; }
+.aex-app .aex-ambient i { width: 5px; height: 5px; flex: none; border-radius: 50%; background: var(--aex-accent); animation: aex-pulse 2.6s ease-in-out infinite; }
+
+/* Per-file tool calls in the thread — the run reads like a session, not a summary. */
+.aex-app .aex-tool-call.is-edit { min-height: 34px; margin-top: 6px; padding-inline: 10px; border-color: rgba(41,45,41,.85); background: rgba(8,10,9,.6); animation: aex-row-in 220ms var(--aex-ease-out) both; }
+.aex-app .aex-tool-call.is-edit > svg { color: var(--aex-accent); }
+.aex-app .aex-tool-call.is-edit code { color: #a7ada5; font-size: 10px; }
+.aex-app .aex-tool-call.is-edit > span { color: var(--aex-success); font-size: 9px; }
+
+/* Steering leaves a mark on the run and on the file it became an assertion in. */
+.aex-app .aex-direction-row { border-bottom: 0; animation: aex-row-in 240ms var(--aex-ease-out) both; }
+.aex-app .aex-direction-dot { display: grid; width: 16px; height: 16px; place-items: center; border-radius: 50%; color: var(--aex-accent); }
+.aex-app .aex-direction-row time { color: var(--aex-accent); }
+.aex-app .aex-file-list button.has-direction { grid-template-columns: auto minmax(0,1fr) auto auto; }
+.aex-app .aex-file-direction { padding: 2px 6px; border-radius: 6px; background: var(--aex-accent-soft); color: var(--aex-accent-strong); font-size: 9px; font-style: normal; font-weight: 620; white-space: nowrap; }
+
+/* The release decision closes where it was raised. */
+.aex-app .aex-release-approval { margin-top: 16px; }
+.aex-app .aex-release-approved { display: inline-flex; align-items: center; gap: 7px; padding: 0 4px; color: var(--aex-success); font-size: 11px; }
+.aex-app .aex-deploy > span.is-approved { background: rgba(95,211,207,.12); color: var(--aex-success); }
+.aex-app .aex-deploy-receipt.is-approved > i { background: var(--aex-success); box-shadow: 0 0 0 3px rgba(95,211,207,.12); }
+
+/* Plan handoff: Execute carves the plan into workspaces on arrival. The composer and the
+   handoff chip stay mounted underneath, so focus lands where the spec pins it. */
+.aex-app .aex-assembly { position: absolute; inset: 0; z-index: 6; display: grid; place-items: center; padding: 28px; background: var(--aex-bg); transition: opacity 280ms var(--aex-ease-out); }
+.aex-app .aex-assembly.is-clearing { opacity: 0; }
+.aex-app .aex-assembly-inner { width: min(720px, 100%); }
+.aex-app .aex-assembly-inner > header { display: flex; align-items: center; gap: 10px; padding-bottom: 14px; border-bottom: 1px solid var(--aex-line); color: var(--aex-accent); }
+.aex-app .aex-assembly-inner > header > span { display: flex; min-width: 0; flex-direction: column; }
+.aex-app .aex-assembly-inner strong { color: var(--aex-text); font-size: 13px; font-weight: 600; letter-spacing: -.01em; }
+.aex-app .aex-assembly-inner > header small { margin-top: 3px; color: var(--aex-muted); font-size: 11px; }
+.aex-app .aex-assembly-grid { display: grid; gap: 6px; margin-top: 14px; }
+.aex-app .aex-assembly-card { display: grid; min-height: 54px; align-content: center; gap: 3px; padding: 9px 13px; border: 1px solid var(--aex-line); border-radius: 9px; background: var(--aex-panel); opacity: 0; transform: translateY(8px); transition: opacity 260ms var(--aex-ease-out), transform 260ms var(--aex-ease-out); }
+.aex-app .aex-assembly-card.is-in { opacity: 1; transform: none; }
+.aex-app .aex-assembly-card span { color: var(--aex-subtle); font-size: 9px; font-weight: 650; letter-spacing: .09em; text-transform: uppercase; }
+.aex-app .aex-assembly-card strong { color: var(--aex-text-2); font-size: 12px; font-weight: 560; }
+.aex-app .aex-assembly-card i { color: var(--aex-accent); font: 10px/1.4 "SFMono-Regular", Consolas, monospace; font-style: normal; }

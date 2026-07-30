@@ -423,6 +423,362 @@
 	}
 }
 
+/* ————————————————————————————————————————————————————————————————
+   The flow executes on entry.
+   Cards arrive in sequence, one pulse traverses the row, the selected
+   step's state line ticks through its transitions, and the Execute
+   context packet compiles FLOW → L2 → L3 → L4 before it fills in.
+   Every one of these is a pure CSS entrance keyed off the selection,
+   so reduced motion resolves them all to their finished state.
+   ———————————————————————————————————————————————————————————————— */
+
+@keyframes apn-flow-card-in {
+	from { opacity: 0; transform: translateY(9px); }
+	to { opacity: 1; transform: none; }
+}
+
+@keyframes apn-flow-token {
+	0% { opacity: 0; transform: translateX(0); }
+	9% { opacity: 1; }
+	84% { opacity: 1; }
+	100% { opacity: 0; transform: translateX(calc((100% + 8px) * (var(--apn-flow-step-count, 5) - 1))); }
+}
+
+@keyframes apn-state-tick-in {
+	from { opacity: 0; transform: translateY(3px); }
+	to { opacity: 1; transform: none; }
+}
+
+@keyframes apn-compile-fill {
+	from { opacity: .2; }
+	to { opacity: 1; }
+}
+
+@keyframes apn-packet-in {
+	from { opacity: 0; transform: translateY(5px); }
+	to { opacity: 1; transform: none; }
+}
+
+.apn-behavior-head {
+	display: grid;
+	grid-template-columns: auto minmax(0, 1fr) auto;
+	align-items: center;
+	gap: 10px;
+}
+
+.apn-behavior-head > span {
+	color: var(--portal-brand-strong);
+	font-size: 8px;
+	font-weight: 730;
+	letter-spacing: .07em;
+	text-transform: uppercase;
+}
+
+.apn-behavior-head p {
+	overflow: hidden;
+	margin: 0;
+	color: var(--portal-muted);
+	font-size: 9px;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.apn-behavior-head i {
+	display: inline-flex;
+	align-items: center;
+	gap: 4px;
+	color: var(--portal-brand-strong);
+	font-size: 8px;
+	font-style: normal;
+	font-weight: 650;
+	white-space: nowrap;
+}
+
+.apn-behavior-track {
+	position: relative;
+	min-width: 0;
+}
+
+.apn-behavior-sequence li {
+	animation: apn-flow-card-in 320ms cubic-bezier(0, 0, .2, 1) backwards;
+	animation-delay: calc(var(--apn-step-index, 0) * 70ms);
+}
+
+.apn-behavior-pulse {
+	position: absolute;
+	z-index: 3;
+	top: 0;
+	bottom: 0;
+	left: 0;
+	width: calc((100% - (var(--apn-flow-step-count, 5) - 1) * 8px) / var(--apn-flow-step-count, 5));
+	border-bottom: 2px solid var(--portal-brand);
+	border-radius: var(--portal-radius-sm);
+	background: linear-gradient(180deg, color-mix(in srgb, var(--portal-brand) 17%, transparent), transparent 76%);
+	box-shadow: 0 8px 20px color-mix(in srgb, var(--portal-brand) 13%, transparent);
+	animation: apn-flow-token 1600ms cubic-bezier(.45, 0, .2, 1) both;
+	animation-delay: 420ms;
+	pointer-events: none;
+}
+
+/* Master and detail sit side by side: the sequence stays visible while the
+   step it selected is read, and only the panes scroll. */
+.apn-behavior-detail-row {
+	display: grid;
+	min-height: 0;
+	grid-template-columns: minmax(0, 1.04fr) minmax(0, 1fr);
+	gap: 12px;
+}
+
+.apn-behavior-detail-row > section {
+	min-height: 0;
+	overflow-y: auto;
+	scrollbar-width: thin;
+}
+
+/* Half the width means the packet header stacks instead of fighting the chip. */
+.apn-behavior-detail-row .apn-workspace-context > header {
+	align-items: flex-start;
+	flex-direction: column;
+	gap: 7px;
+}
+
+.apn-behavior-detail-row .apn-behavior-detail-grid {
+	grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+/* Two columns: state (full width), actor | trigger, failure, evidence. Only the
+   actor cell has a neighbour to its right. */
+.apn-behavior-detail-row .apn-behavior-detail-grid article {
+	border-right: 0;
+}
+
+.apn-behavior-detail-row .apn-behavior-detail-grid article:nth-child(2) {
+	border-right: 1px solid var(--portal-border);
+}
+
+.apn-behavior-detail-row .apn-behavior-detail-grid article.is-state,
+.apn-behavior-detail-row .apn-behavior-detail-grid article.is-failure,
+.apn-behavior-detail-row .apn-behavior-detail-grid article.is-evidence {
+	grid-column: span 2;
+}
+
+.apn-state-tick {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	gap: 5px;
+	margin-top: 6px;
+}
+
+.apn-state-tick > span {
+	display: inline-flex;
+	align-items: center;
+	gap: 5px;
+	animation: apn-state-tick-in 260ms cubic-bezier(0, 0, .2, 1) backwards;
+	animation-delay: calc(var(--apn-seg, 0) * 190ms);
+}
+
+.apn-state-tick i {
+	color: var(--portal-brand);
+	font-size: 9px;
+	font-style: normal;
+}
+
+.apn-state-tick b {
+	padding: 3px 7px;
+	border: 1px solid color-mix(in srgb, var(--portal-brand) 22%, var(--portal-border));
+	border-radius: 999px;
+	background: var(--portal-brand-soft);
+	color: var(--portal-brand-strong);
+	font-size: 9px;
+	font-weight: 640;
+}
+
+.apn-state-tick > span:last-child b {
+	border-color: var(--portal-brand);
+}
+
+/* The compile chip: the packet is assembled from four design layers, and it
+   says so one layer at a time before the packet itself fills in. */
+.apn-compile-chip {
+	display: inline-flex;
+	align-items: center;
+	gap: 5px;
+	padding: 5px 9px;
+	border: 1px solid color-mix(in srgb, var(--portal-brand) 20%, var(--portal-border));
+	border-radius: 999px;
+	color: var(--portal-brand-strong);
+	font-size: 8px;
+	font-style: normal;
+	font-weight: 700;
+	white-space: nowrap;
+}
+
+.apn-compile-chip em {
+	color: var(--portal-muted);
+	font-size: 8px;
+	font-style: normal;
+	font-weight: 650;
+}
+
+.apn-compile-chip b {
+	font-weight: 750;
+	animation: apn-compile-fill 220ms linear backwards;
+	animation-delay: calc(var(--apn-seg, 0) * 50ms);
+}
+
+.apn-compile-chip b.is-arrow {
+	color: color-mix(in srgb, var(--portal-brand) 55%, transparent);
+	font-weight: 500;
+}
+
+.apn-workspace-context .apn-packet-grid {
+	animation: apn-packet-in 280ms cubic-bezier(0, 0, .2, 1) backwards;
+	animation-delay: 350ms;
+}
+
+/* Brand: this surface is teal-accented like the rest of the platform. */
+.apn-behavior-boundary article.is-outcome {
+	border-color: color-mix(in srgb, var(--portal-brand) 32%, var(--portal-border));
+	background: var(--portal-brand-soft);
+}
+
+.apn-behavior-step-detail > header > span {
+	background: var(--portal-brand-soft);
+	color: var(--portal-brand-strong);
+}
+
+.apn-behavior-detail-grid article.is-evidence {
+	background: color-mix(in srgb, var(--portal-brand-soft) 62%, var(--portal-card));
+}
+
+.apn-workspace-context > footer > span {
+	color: var(--portal-brand-strong);
+}
+
+/* Applied steering lands here too: a step whose contract or package the
+   direction re-derived carries the snapshot it was re-checked against. */
+.apn-behavior-sequence button .apn-recheck-chip {
+	justify-self: start;
+	margin-top: 4px;
+	padding: 2px 6px;
+	border-radius: 999px;
+	background: var(--portal-brand-soft);
+	color: var(--portal-brand-strong);
+	font-size: 7.5px;
+	font-weight: 720;
+	letter-spacing: .02em;
+}
+
+.apn-behavior-sequence button.is-rederiving {
+	border-color: color-mix(in srgb, var(--portal-brand) 46%, var(--portal-border));
+}
+
+/* FLOW is a working surface, not a document: the panel itself never scrolls,
+   the two detail panes do. Below 981px the design layout is already a stacked,
+   page-scrolled surface, so this only applies where the split exists. */
+@media (min-width: 981px) {
+	.apn-design-layout > .apn-diagram-panel.is-flow-level {
+		display: grid;
+		min-height: 0;
+		grid-template-rows: auto auto minmax(0, 1fr);
+		overflow: hidden;
+		padding-bottom: 18px;
+		row-gap: 11px;
+	}
+
+	/* The framing question stays, on one line: the master-detail row is what the
+	   reclaimed height is for. */
+	.apn-design-layout > .apn-diagram-panel.is-flow-level > .apn-level-question {
+		align-items: center;
+		margin-top: 2px;
+		padding: 8px 13px;
+	}
+
+	.apn-design-layout > .apn-diagram-panel.is-flow-level > .apn-level-question > div {
+		align-items: baseline;
+		flex-direction: row;
+		gap: 9px;
+	}
+
+	.apn-design-layout > .apn-diagram-panel.is-flow-level > .apn-level-question strong {
+		overflow: hidden;
+		font-size: 11.5px;
+		text-overflow: ellipsis;
+		white-space: nowrap;
+	}
+
+	/* Explicit rows: the flow keeps the flexible track even when the question is
+	   dropped on a short viewport. */
+	.apn-design-layout > .apn-diagram-panel.is-flow-level > .apn-level-question {
+		grid-row: 2;
+	}
+
+	.apn-design-layout > .apn-diagram-panel.is-flow-level > .apn-behavior-flow {
+		min-height: 0;
+		grid-row: 3;
+		grid-template-rows: auto auto auto minmax(0, 1fr);
+		gap: 11px;
+	}
+
+	.apn-design-layout > .apn-diagram-panel.is-flow-level .apn-behavior-sequence button {
+		min-height: 0;
+	}
+
+	.apn-design-layout > .apn-diagram-panel.is-flow-level .apn-behavior-boundary article {
+		padding: 9px 12px;
+	}
+
+	.apn-design-layout > .apn-diagram-panel.is-flow-level .apn-behavior-boundary strong {
+		display: -webkit-box;
+		overflow: hidden;
+		-webkit-box-orient: vertical;
+		-webkit-line-clamp: 2;
+	}
+}
+
+/* Short laptops: the same one-screen surface, with the optional lines dropped
+   before the panes lose their room. Nothing here is unique to this view — the
+   level question, the hint, and the workspace key all appear in the detail. */
+@media (min-width: 981px) and (max-height: 820px) {
+	.apn-behavior-head p {
+		display: none;
+	}
+
+	.apn-design-layout > .apn-diagram-panel.is-flow-level > .apn-level-question {
+		display: none;
+	}
+
+	.apn-design-layout > .apn-diagram-panel.is-flow-level .apn-behavior-sequence button code {
+		display: none;
+	}
+
+	.apn-design-layout > .apn-diagram-panel.is-flow-level .apn-behavior-boundary strong {
+		-webkit-line-clamp: 1;
+	}
+
+	.apn-design-layout > .apn-diagram-panel.is-flow-level > header h2 {
+		font-size: 15px;
+	}
+
+	.apn-design-layout > .apn-diagram-panel.is-flow-level .apn-behavior-sequence button em {
+		overflow: hidden;
+		text-overflow: ellipsis;
+		white-space: nowrap;
+	}
+}
+
+@media (max-width: 1050px) {
+	.apn-behavior-detail-row {
+		grid-template-columns: minmax(0, 1fr);
+	}
+
+	/* The token traverses a single row of equal columns; the wrapped grid is not one. */
+	.apn-behavior-pulse {
+		display: none;
+	}
+}
+
 @media (prefers-reduced-motion: reduce) {
 	.apn-behavior-sequence button {
 		transition: none;
@@ -430,5 +786,18 @@
 
 	.apn-behavior-sequence button:hover {
 		transform: none;
+	}
+
+	/* Every entrance resolves to its finished state — no delayed reveals, no
+	   traversal, nothing waiting on a timer that was never allowed to run. */
+	.apn-behavior-flow .apn-behavior-sequence li,
+	.apn-behavior-flow .apn-state-tick > span,
+	.apn-behavior-flow .apn-compile-chip b,
+	.apn-workspace-context .apn-packet-grid {
+		animation: none !important;
+	}
+
+	.apn-behavior-flow .apn-behavior-pulse {
+		display: none;
 	}
 }
