@@ -283,6 +283,8 @@
 	--aex-accent: #5fd3cf;
 	--aex-accent-strong: #b9eeeb;
 	--aex-accent-soft: rgba(95, 211, 207, .12);
+	/* Greens retired family-wide: verified states speak the teal accent, amber stays approval-only. */
+	--aex-success: #5fd3cf;
 	--aex-radius-sm: var(--mxp-radius-control);
 	--aex-radius: var(--mxp-radius-card);
 	--aex-radius-lg: var(--mxp-radius-composer);

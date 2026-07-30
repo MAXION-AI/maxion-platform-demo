@@ -37,10 +37,10 @@ import {
 	X,
 } from "@phosphor-icons/react"
 import { motion, useReducedMotion } from "motion/react"
-import { useMemo, useRef, useState, type FormEvent, type ReactNode } from "react"
+import { useEffect, useMemo, useRef, useState, type FormEvent, type ReactNode } from "react"
 
 import { MaxionSpiralMark, PRIMARY_NAVIGATION } from "./PortalChrome"
-import type { ExecuteLaunchIntent, MaxionModuleId, PortalProject } from "./model"
+import { EXECUTE_TASKS, type ExecuteLaunchIntent, type MaxionModuleId, type PortalProject } from "./model"
 
 type Navigate = (module: MaxionModuleId) => void
 
@@ -377,23 +377,82 @@ export function ExecuteHubModule({
 	onNavigate,
 	planHandoff,
 	planSnapshot,
+	active,
+	focusSignal,
+	intent,
+	onIntentConsumed,
+	engagementState,
 }: {
 	onOpenRun: (intent: ExecuteLaunchIntent) => void
 	onNavigate: Navigate
 	planHandoff: boolean
 	planSnapshot: string
+	active: boolean
+	focusSignal: number
+	intent: "handoff" | "approvals" | null
+	onIntentConsumed: () => void
+	engagementState: "idle" | "running" | "verified"
 }) {
+	const prefersReducedMotion = useReducedMotion()
 	const [view, setView] = useState<"engagements" | "approvals">("engagements")
 	const [approved, setApproved] = useState(false)
+	const [scopeOpen, setScopeOpen] = useState(false)
+	const [handoffFresh, setHandoffFresh] = useState(false)
 	const [source, setSource] = useState<"prompt" | "plan">(planHandoff ? "plan" : "prompt")
 	const [prompt, setPrompt] = useState("")
 	const [selectedPlanId, setSelectedPlanId] = useState("erp")
 	const composerRef = useRef<HTMLTextAreaElement>(null)
+	const handoffChipRef = useRef<HTMLButtonElement>(null)
+
+	// The Execute stage mounts hidden behind the shell, so an autoFocus on the composer
+	// fires while it is invisible and is lost — focus when the stage actually becomes visible.
+	useEffect(() => {
+		if (!active || view !== "engagements" || source !== "prompt") return
+		if (!composerRef.current?.offsetParent) return
+		composerRef.current.focus()
+		// Only stage visibility re-triggers the landing focus; view/source are entry-time guards.
+		// eslint-disable-next-line react-hooks/exhaustive-deps
+	}, [active])
+
+	// '/' or N anywhere in the hub returns the user to a fresh, focused composer.
+	useEffect(() => {
+		if (!focusSignal) return
+		setView("engagements")
+		setSource("prompt")
+		window.setTimeout(() => composerRef.current?.focus(), 0)
+	}, [focusSignal])
+
+	// One-shot routing intents from the module shell: a workspace surface routing to
+	// approvals, or a fresh "Send to Execute" landing acknowledged — banner up, plan
+	// source preselected, and the handoff chip holding focus. Consumed immediately so
+	// hub remounts never replay a stale intent.
+	useEffect(() => {
+		if (!intent) return
+		if (intent === "approvals") {
+			setView("approvals")
+		} else {
+			setView("engagements")
+			setSource("plan")
+			setSelectedPlanId("erp")
+			setHandoffFresh(true)
+			window.setTimeout(() => handoffChipRef.current?.focus(), 40)
+		}
+		onIntentConsumed()
+		// Consumption callback is a stable-enough shell setter; only the intent drives this.
+		// eslint-disable-next-line react-hooks/exhaustive-deps
+	}, [intent])
 	const availablePlans = PLAN_LIBRARY.filter((plan) => plan.status !== "completed")
 	const selectedPlan = availablePlans.find((plan) => plan.id === selectedPlanId) ?? availablePlans[0]
+	// The flagship engagement reflects the real lifted run state — no hardcoded progress.
 	const activeRuns = [
-		{ name: "ERP modernization delivery", detail: "Verifying release gate", status: "running", brief: "Implement the approved ERP modernization outcomes with tenant-safe authority boundaries." },
-		{ name: "Customer data foundation", detail: "Workspace ready", status: "ready", brief: "Deliver the approved customer data foundation and verify every integration boundary." },
+		{
+			name: "ERP modernization delivery",
+			detail: engagementState === "verified" ? "Verified · evidence ready" : engagementState === "running" ? "Implementing and verifying" : "Ready to start",
+			status: engagementState === "idle" ? "ready" : engagementState,
+			autoStart: engagementState === "running",
+			brief: "Implement the approved ERP modernization outcomes with tenant-safe authority boundaries.",
+		},
+		{ name: "Customer data foundation", detail: "Workspace ready", status: "ready", autoStart: false, brief: "Deliver the approved customer data foundation and verify every integration boundary." },
 	]
 
 	const launchEngagement = (event: FormEvent<HTMLFormElement>) => {
@@ -423,15 +482,15 @@ export function ExecuteHubModule({
 						<MaxionSpiralMark className="aex-brand-mark" />
 						<span><strong>Execute</strong><small>MAXION</small></span>
 					</button>
-					<button type="button" className="aex-new-task" onClick={() => { setView("engagements"); setSource("prompt"); window.setTimeout(() => composerRef.current?.focus(), 0) }}><Plus size={15} />New task<kbd>⌘N</kbd></button>
+					<button type="button" className="aex-new-task" onClick={() => { setView("engagements"); setSource("prompt"); window.setTimeout(() => composerRef.current?.focus(), 0) }}><Plus size={15} />New task<kbd>N</kbd></button>
 				</header>
 				<nav aria-label="Recent Execute tasks">
 					<span>In progress</span>
-					{activeRuns.map((run) => <button type="button" key={run.name} onClick={() => onOpenRun({ source: "plan", title: run.name, brief: run.brief, autoStart: run.status === "running" })}><i className={`is-${run.status}`} /><span><strong>{run.name}</strong><small>{run.detail}</small></span></button>)}
+					{activeRuns.map((run) => <button type="button" key={run.name} onClick={() => onOpenRun({ source: "plan", title: run.name, brief: run.brief, autoStart: run.autoStart })}><i className={`is-${run.status}`} /><span><strong>{run.name}</strong><small>{run.detail}</small></span></button>)}
 					<span>Needs you</span>
 					<button type="button" className="is-attention" onClick={() => setView("approvals")}><ShieldCheck size={15} /><span><strong>{approved ? "No decisions waiting" : "Approve workspace boundary"}</strong><small>{approved ? "MAX is continuing" : "Exact repository authority"}</small></span>{approved ? <Check size={13} /> : <b>1</b>}</button>
 					<span>Completed</span>
-					<button type="button"><CheckCircle size={15} /><span><strong>Auth policy hardening</strong><small>Verified yesterday</small></span></button>
+					<div className="aex-rail-static"><CheckCircle size={15} /><span><strong>Auth policy hardening</strong><small>Verified yesterday</small></span></div>
 				</nav>
 				<footer><span><i />max-ai-platform</span><small>main · local workspace</small></footer>
 			</aside>
@@ -439,28 +498,29 @@ export function ExecuteHubModule({
 			<main className="aex-home-main">
 				<header className="aex-home-bar">
 					<button type="button" className="aex-mobile-brand" aria-label="Return to MAXION" onClick={() => onNavigate("dashboard")}><MaxionSpiralMark className="aex-brand-mark" /><span>Execute</span></button>
-					<div><button type="button" onClick={() => onNavigate("integrations")}><Plug size={15} />Tools</button><button type="button" aria-label="Open Execute notifications"><BellRinging size={16} /></button><button type="button" onClick={() => setView("approvals")}><ShieldCheck size={15} />{approved ? "Clear" : "1 decision"}</button></div>
+					<div><button type="button" onClick={() => onNavigate("integrations")}><Plug size={15} />Tools</button><button type="button" aria-label="Open Execute notifications" onClick={() => setView("approvals")}><BellRinging size={16} /></button><button type="button" onClick={() => setView("approvals")}><ShieldCheck size={15} />{approved ? "Clear" : "1 decision"}</button></div>
 				</header>
 				<div className="aex-mobile-switcher" aria-label="Execute shortcuts"><button type="button" onClick={() => setView("engagements")}>New task</button><button type="button" onClick={() => setView("approvals")}>{approved ? "No decisions" : "Decision needed"}</button></div>
 
 				{view === "engagements" ? (
 					<motion.section className="aex-home-focus" aria-label="What should MAX deliver?" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: .32, ease: [0.16, 1, 0.3, 1] }}>
+						{handoffFresh ? <motion.div className="aex-handoff-banner" role="status" initial={prefersReducedMotion ? false : { opacity: 0, y: -6 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: .3, ease: [0.16, 1, 0.3, 1] }}><CheckCircle size={15} weight="fill" /><span><strong>Plan handoff received</strong><small>ERP modernization delivery plan · evidence snapshot {planSnapshot} · scope preselected below</small></span></motion.div> : null}
 						<div className="aex-home-title"><MaxionSpiralMark className="aex-home-mark" /><span>Autonomous engineering</span><h1>What do you want built?</h1><p>Describe the outcome. MAX will inspect the repository, plan the work, create isolated workspaces, implement, test, repair, and return with evidence.</p></div>
 						<form className="aex-prompt" onSubmit={launchEngagement}>
-							{source === "prompt" ? <textarea ref={composerRef} autoFocus aria-label="What should Execute deliver?" value={prompt} onChange={(event) => setPrompt(event.target.value)} rows={4} placeholder="Build the approved mission-authority boundary, preserve the public API, and return when the release gate is clean." /> : <fieldset className="aex-plan-picker"><legend>Choose an approved Plan</legend>{availablePlans.map((plan) => <button key={plan.id} type="button" aria-pressed={selectedPlanId === plan.id} onClick={() => setSelectedPlanId(plan.id)}><FlowArrow size={15} /><span><strong>{plan.name}</strong><small>{plan.project} · {plan.detail}</small></span>{selectedPlanId === plan.id ? <Check size={14} /> : null}</button>)}</fieldset>}
+							{source === "prompt" ? <textarea ref={composerRef} aria-label="What should Execute deliver?" value={prompt} onChange={(event) => setPrompt(event.target.value)} rows={4} placeholder="Build the approved mission-authority boundary, preserve the public API, and return when the release gate is clean." /> : <fieldset className="aex-plan-picker"><legend>Choose an approved Plan</legend>{availablePlans.map((plan) => <button key={plan.id} type="button" aria-pressed={selectedPlanId === plan.id} onClick={() => setSelectedPlanId(plan.id)}><FlowArrow size={15} /><span><strong>{plan.name}</strong><small>{plan.project} · {plan.detail}</small></span>{selectedPlanId === plan.id ? <Check size={14} /> : null}</button>)}</fieldset>}
 							<footer>
 								<div className="aex-prompt-tools" role="group" aria-label="Engagement source"><button type="button" aria-pressed={source === "prompt"} onClick={() => { setSource("prompt"); window.setTimeout(() => composerRef.current?.focus(), 0) }}><PencilSimpleLine size={15} />Prompt</button><button type="button" aria-pressed={source === "plan"} onClick={() => setSource("plan")}><FlowArrow size={15} />Import from Plan</button><span><Code size={14} />max-ai-platform</span></div>
 								<button type="submit" className="aex-send" aria-label="Start engagement" disabled={source === "prompt" ? !prompt.trim() : !selectedPlan}><ArrowRight size={17} /></button>
 							</footer>
 						</form>
 						<div className="aex-autonomy-line"><span><ShieldCheck size={14} />Bounded authority</span><span><TerminalWindow size={14} />Live tool trace</span><span><CheckCircle size={14} />Self-repairing verification</span></div>
-						{planHandoff ? <button type="button" className="aex-plan-handoff" onClick={openPlanHandoff}><FlowArrow size={15} /><span><strong>Plan handoff attached</strong><small>ERP modernization · 5 flows · 17 packages · evidence snapshot {planSnapshot}</small></span><b>Inspect</b><ArrowRight size={14} /></button> : null}
+						{planHandoff ? <button type="button" ref={handoffChipRef} className={`aex-plan-handoff${handoffFresh ? " is-fresh" : ""}`} onClick={openPlanHandoff}><FlowArrow size={15} /><span><strong>Plan handoff attached</strong><small>ERP modernization · 5 flows · 17 packages · evidence snapshot {planSnapshot}</small></span><b>Inspect</b><ArrowRight size={14} /></button> : null}
 					</motion.section>
 				) : (
 					<motion.section className="aex-approval" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: .28, ease: [0.16, 1, 0.3, 1] }}>
 						<button type="button" className="aex-back" onClick={() => setView("engagements")}><ArrowLeft size={14} />Back to Execute</button>
 						<div className="aex-approval-heading"><span><ShieldCheck size={18} /></span><small>Authority boundary</small><h1>{approved ? "All caught up" : "One decision needs you"}</h1><p>{approved ? "MAX can continue without your input." : "MAX prepared the workspace topology. Approve the exact repository boundary so it can continue autonomously."}</p></div>
-						{approved ? <div className="aex-approval-clear"><CheckCircle size={22} />No pending approvals</div> : <article><header><span>Repository authority</span><strong>ERP modernization delivery</strong></header><dl><div><dt>Repository</dt><dd>max-ai-platform</dd></div><div><dt>Workspaces</dt><dd>5 isolated</dd></div><div><dt>Allowed effect</dt><dd>Files, terminal, tests</dd></div><div><dt>Deployment</dt><dd>Not granted</dd></div></dl><footer><button type="button">Inspect scope</button><button type="button" className="aex-approve" onClick={() => setApproved(true)}>Approve binding<ArrowRight size={14} /></button></footer></article>}
+						{approved ? <div className="aex-approval-clear"><CheckCircle size={22} />No pending approvals</div> : <article><header><span>Repository authority</span><strong>ERP modernization delivery</strong></header><dl><div><dt>Repository</dt><dd>max-ai-platform</dd></div><div><dt>Workspaces</dt><dd>5 isolated</dd></div><div><dt>Allowed effect</dt><dd>Files, terminal, tests</dd></div><div><dt>Deployment</dt><dd>Not granted</dd></div></dl>{scopeOpen ? <div className="aex-scope-detail"><span>Exact workspace binding</span>{EXECUTE_TASKS.map((task, index) => <div key={task.id}><code>execute/erp/{task.id}</code><small>Workspace {String(index + 1).padStart(2, "0")} · {task.title} · {task.files} allowed paths</small></div>)}</div> : null}<footer><button type="button" aria-expanded={scopeOpen} onClick={() => setScopeOpen((open) => !open)}>{scopeOpen ? "Hide scope" : "Inspect scope"}</button><button type="button" className="aex-approve" onClick={() => setApproved(true)}>Approve binding<ArrowRight size={14} /></button></footer></article>}
 					</motion.section>
 				)}
 			</main>
