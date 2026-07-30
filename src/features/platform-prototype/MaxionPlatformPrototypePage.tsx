@@ -30,7 +30,7 @@ import {
 	Users,
 } from "@phosphor-icons/react"
 import { AnimatePresence, motion } from "motion/react"
-import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from "react"
+import { useEffect, useRef, useState, type ReactNode } from "react"
 import { useLocation } from "react-router-dom"
 
 import { useDocumentTitle } from "@/app/hooks/useDocumentTitle"
@@ -451,14 +451,6 @@ function ExecuteModule({
 	)
 }
 
-function LegacyExecuteWorkspaceModule({ onBack, onCommand, planHandoff, onVerified }: { onBack: () => void; onCommand: () => void; planHandoff: boolean; onVerified: () => void }) {
-	const [selectedTask, setSelectedTask] = useState("authority")
-	const [runState, setRunState] = useState<ExecuteRunState>("idle")
-	const task = EXECUTE_TASKS.find((item) => item.id === selectedTask)!
-	useEffect(() => { if (runState !== "running") return; const timer = window.setTimeout(() => { setRunState("verified"); onVerified() }, 1100); return () => window.clearTimeout(timer) }, [onVerified, runState])
-	return <div className="mxp-execute mxp-module-with-rail"><ContextRail title="Execute" kicker="Development" footer={<button type="button" className="mxp-rail-connection"><span className="mxp-live-dot" /><span><strong>Runtime ready</strong><small>Worktree isolated</small></span><CaretRight size={12} /></button>}><button type="button" onClick={onBack}><ArrowLeft size={14} />All engagements</button><button type="button" className="mxp-rail-primary"><Plus size={14} />New workspace</button><div className="mxp-rail-label">ERP modernization</div>{EXECUTE_TASKS.map((item) => <button type="button" key={item.id} className={selectedTask === item.id ? "is-active" : ""} onClick={() => { setSelectedTask(item.id); setRunState("idle") }}><span className="mxp-mini-glyph"><Code size={13} /></span><span><strong>{item.title}</strong><small>{item.status}</small></span></button>)}<div className="mxp-rail-label">Workspace</div><button type="button"><FileText size={15} /><span>Files</span><small>21</small></button><button type="button"><TerminalWindow size={15} /><span>Terminal</span></button><button type="button"><CheckCircle size={15} /><span>Tests</span><small>48</small></button></ContextRail><div className="mxp-module-area"><ModuleHeader label="Execute" title={task.title} detail="max-ai-platform · isolated worktree" onCommand={onCommand} actions={<Status tone={runState === "verified" ? "success" : runState === "running" ? "live" : "neutral"} live={runState === "running"}>{runState === "verified" ? "Verified" : runState === "running" ? "Running" : "Ready"}</Status>} /><main className="mxp-execute-main">{planHandoff ? <div className="mxp-handoff-banner"><LinkSimple size={16} /><span><strong>Plan handoff attached</strong><small>Mission authority foundation · 5 flows · 17 packages · evidence snapshot v12</small></span><button type="button">Inspect</button></div> : null}<section className="mxp-execute-head"><div><span>Current task</span><h1>{task.title}</h1><p>{task.detail}. The agent can edit, test, and iterate inside this workspace without widening repository or deployment authority.</p></div><div><button type="button"><Pause size={14} />Interrupt</button><button type="button" className="mxp-primary" disabled={runState === "running"} onClick={() => setRunState("running")}>{runState === "verified" ? <Check size={14} /> : <Play size={14} weight="fill" />}{runState === "verified" ? "Run verified" : runState === "running" ? "Running…" : "Start agent run"}</button></div></section><div className="mxp-execute-grid"><section className="mxp-agent-session"><div className="mxp-session-date"><span>Agent activity</span></div><article><MaxionMark size={27} /><div><span>MAX Execute<time>Now</time></span><p>I mapped the approved Plan outcome to the existing service boundaries. I’ll implement the typed authority contract, preserve the current API shape, then run the focused and cumulative gates.</p></div></article><details open><summary><span>{runState === "running" ? <SpinnerGap className="mxp-spin" size={15} /> : <CheckCircle size={15} />}<strong>{runState === "verified" ? "Implementation verified" : runState === "running" ? "Implementing and testing" : "Proposed work"}</strong></span><span>4 steps<CaretRight size={12} /></span></summary><div>{["Read plan evidence and repository boundaries", "Implement typed mission policy contract", "Add hostile authority and replay tests", "Run cumulative release gate"].map((item, index) => <div key={item}><span className={runState === "verified" || index === 0 ? "is-complete" : runState === "running" && index === 1 ? "is-current" : ""}>{runState === "verified" || index === 0 ? <Check size={10} /> : runState === "running" && index === 1 ? <SpinnerGap className="mxp-spin" size={10} /> : index + 1}</span><div><strong>{item}</strong><small>{runState === "verified" ? "Verified" : index === 0 ? "Complete" : index === 1 && runState === "running" ? "Editing 3 files" : "Waiting"}</small></div></div>)}</div></details>{runState === "verified" ? <div className="mxp-verified-result"><CheckCircle size={18} weight="fill" /><span><strong>Mission authority API passed its release gate</strong><small>48 tests · TypeScript clean · policy contract verified</small></span></div> : null}</section><aside className="mxp-code-panel"><header><span>missionPolicy.ts</span><button type="button"><DotsThree size={16} /></button></header><pre><code><span>export type MissionAuthority = {'{'}</span>{"\n"}<span className="is-added">+ tenantId: TenantId</span>{"\n"}<span className="is-added">+ missionVersion: number</span>{"\n"}<span className="is-added">+ permittedActions: Action[]</span>{"\n"}<span className="is-added">+ approvalBoundary: Boundary</span>{"\n"}<span className="is-added">+ expiresAt: ISODate</span>{"\n"}<span>{'}'}</span>{"\n\n"}<span>export async function execute(</span>{"\n"}<span>  command: MissionCommand,</span>{"\n"}<span className="is-added">+ authority: MissionAuthority,</span>{"\n"}<span>) {'{'}</span>{"\n"}<span className="is-added">+ await policy.assert(command, authority)</span>{"\n"}<span className="is-added">+ return effects.dispatch(command)</span>{"\n"}<span>{'}'}</span></code></pre><footer><TerminalWindow size={14} /><span>{runState === "verified" ? "48 passed in 6.8s" : runState === "running" ? "Running focused tests…" : "Terminal ready"}</span></footer></aside></div></main></div></div>
-}
-
 function ExecuteRunButton({ runState, onRun }: { runState: ExecuteRunState; onRun: () => void }) {
 	return (
 		<button type="button" className="mxp-primary" disabled={runState === "running"} onClick={onRun}>
@@ -774,137 +766,6 @@ function ExecuteWorkspaceModule({
 					</aside>
 				</div>
 			</section>
-		</div>
-	)
-}
-
-function LegacyTaskFirstExecuteWorkspaceModule({
-	onBack,
-	onCommand,
-	engagement,
-	onVerified,
-}: {
-	onBack: () => void
-	onCommand: () => void
-	engagement: ExecuteLaunchIntent
-	onVerified: () => void
-}) {
-	const [view, setView] = useState<ExecuteWorkspaceView>("activity")
-	const [selectedTask, setSelectedTask] = useState("authority")
-	const [runState, setRunState] = useState<ExecuteRunState>(engagement.autoStart ? "running" : "idle")
-	const [deployRequested, setDeployRequested] = useState(false)
-	const [auditExported, setAuditExported] = useState(false)
-	const [steer, setSteer] = useState("")
-	const [steeringMessages, setSteeringMessages] = useState<string[]>([])
-	const task = EXECUTE_TASKS.find((item) => item.id === selectedTask) ?? EXECUTE_TASKS[0]
-
-	useEffect(() => {
-		if (runState !== "running") return
-		const timer = window.setTimeout(() => {
-			setRunState("verified")
-			onVerified()
-		}, 1600)
-		return () => window.clearTimeout(timer)
-		// The parent callback is intentionally excluded: it is recreated by the shell on render,
-		// but a running engagement must keep one durable completion timer instead of restarting it.
-		// eslint-disable-next-line react-hooks/exhaustive-deps
-	}, [runState])
-
-	const openTask = (taskId: string) => {
-		setSelectedTask(taskId)
-		setView("activity")
-	}
-	const sendSteer = () => {
-		const message = steer.trim()
-		if (!message) return
-		setSteeringMessages((items) => [...items, message])
-		setSteer("")
-	}
-	const statusTone = runState === "verified" ? "success" : runState === "running" ? "live" : "neutral"
-	const workspaceStatus = runState === "verified" ? "Verified" : runState === "running" ? "Working" : "Ready"
-	const viewItems: Array<{ id: ExecuteWorkspaceView; label: string; count?: string }> = [
-		{ id: "activity", label: "Activity" },
-		{ id: "topology", label: "Topology", count: "5" },
-		{ id: "changes", label: "Changes", count: "4" },
-		{ id: "tests", label: "Tests", count: "48" },
-		{ id: "terminal", label: "Terminal" },
-		{ id: "deploys", label: "Deploys", count: "1" },
-		{ id: "audit", label: "Audit" },
-	]
-
-	return (
-		<div className="mxp-execute-workbench">
-			<header className="mxp-execute-workbench-bar">
-				<div>
-					<button type="button" aria-label="All engagements" onClick={onBack}><ArrowLeft size={15} /><span>All engagements</span></button>
-					<i aria-hidden="true" />
-					<span><strong>{engagement.title}</strong><small>max-ai-platform · 5 isolated workspaces</small></span>
-				</div>
-				<div>
-					<button type="button" aria-label="Search Execute" className="mxp-workbench-search" onClick={onCommand}><MagnifyingGlass size={15} /><span>Search or ask</span><kbd>⌘K</kbd></button>
-					<Status tone={statusTone} live={runState === "running"}>{runState === "verified" ? "Verified" : runState === "running" ? "Working" : "Ready"}</Status>
-					<button type="button" aria-label="Execute notifications"><Bell size={16} /></button>
-				</div>
-			</header>
-			<nav className="mxp-execute-workbench-tabs" aria-label="Execute workspace views">
-				{viewItems.map((item) => <button key={item.id} type="button" aria-current={view === item.id ? "page" : undefined} onClick={() => setView(item.id)}>{item.label}{item.count ? <span>{item.count}</span> : null}</button>)}
-			</nav>
-
-			<div className={`mxp-workbench-layout is-${view}`}>
-				<AnimatePresence mode="wait" initial={false}>
-					{view === "activity" ? (
-						<motion.main key="activity" className="mxp-agent-thread" initial={{ opacity: 0, y: 4 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} transition={{ duration: 0.18 }}>
-							<div className="mxp-agent-thread-scroll">
-								{engagement.source === "plan" ? <button type="button" className="mxp-thread-context"><LinkSimple size={15} /><span><strong>Plan handoff attached</strong><small>{engagement.brief}</small></span><CaretRight size={14} /></button> : null}
-								<header className="mxp-thread-heading">
-									<div><small>{workspaceStatus} · Workspace 01</small><h1>{task.title}</h1><p>{task.detail}. MAX owns implementation and repair inside the approved boundary.</p></div>
-									<div><button type="button" disabled={runState !== "running"} onClick={() => setRunState("idle")}><Pause size={14} />Interrupt</button><ExecuteRunButton runState={runState} onRun={() => setRunState("running")} /></div>
-								</header>
-
-								<article className="mxp-thread-message is-user"><span className="mxp-thread-avatar">RA</span><div><header><strong>You</strong><time>9:41 AM</time></header><p>{engagement.brief}</p></div></article>
-								<article className="mxp-thread-message is-max"><MaxionMark size={30} /><div><header><strong>MAX</strong><time>Now</time></header><p>I mapped the outcome to the approved Plan, repository boundaries, and release policy. I’ll coordinate the workspaces, repair failures, and return when the cumulative gate is clean.</p></div></article>
-
-								<section className="mxp-run-trace" aria-live="polite">
-									<header><span>{runState === "running" ? <SpinnerGap className="mxp-spin" size={16} /> : <CheckCircle size={16} />}<strong>{runState === "verified" ? "Implementation complete" : runState === "running" ? "MAX is working autonomously" : "Execution plan ready"}</strong></span><small>4 steps</small></header>
-									<div>{["Read the approved outcome and repository boundaries", "Implement the typed mission policy contract", "Run hostile, integration, and cumulative tests", "Repair failures and package verified evidence"].map((step, index) => {
-										const complete = runState === "verified" || index === 0
-										const current = runState === "running" && index === 1
-										return <div key={step} className={current ? "is-current" : complete ? "is-complete" : ""}><span>{complete ? <Check size={11} /> : current ? <SpinnerGap className="mxp-spin" size={11} /> : index + 1}</span><strong>{step}</strong><small>{runState === "verified" ? "Verified" : complete ? "Complete" : current ? "Editing 3 files" : "Queued"}</small></div>
-									})}</div>
-								</section>
-
-								<div className="mxp-thread-command"><TerminalWindow size={15} /><code>pnpm test mission-authority --runInBand</code><span>{runState === "verified" ? <><Check size={13} />passed</> : runState === "running" ? <><SpinnerGap className="mxp-spin" size={13} />Running focused tests…</> : "ready"}</span></div>
-								{steeringMessages.map((message, index) => <article key={`${message}-${index}`} className="mxp-thread-message is-user"><span className="mxp-thread-avatar">RA</span><div><header><strong>You</strong><time>Now</time></header><p>{message}</p></div></article>)}
-								{steeringMessages.length ? <article className="mxp-thread-message is-max"><MaxionMark size={30} /><div><header><strong>MAX</strong><time>Now</time></header><p>I’ve folded that direction into the active workspace. I’ll preserve the current authority boundary and include the result in cumulative verification.</p></div></article> : null}
-								{runState === "verified" ? <motion.article className="mxp-thread-result" initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }}><CheckCircle size={20} weight="fill" /><div><strong>Mission authority API passed its release gate</strong><p><b>48 passed in 6.8s</b> · TypeScript clean · tenant isolation verified · no production effect</p><button type="button" onClick={() => setView("tests")}>Review evidence<ArrowRight size={14} /></button></div></motion.article> : null}
-							</div>
-							<form className="mxp-agent-composer" onSubmit={(event) => { event.preventDefault(); sendSteer() }}>
-								<textarea aria-label="Steer the active engagement" value={steer} onChange={(event) => setSteer(event.target.value)} onKeyDown={(event) => { if (event.key === "Enter" && !event.shiftKey) { event.preventDefault(); sendSteer() } }} rows={1} placeholder="Steer MAX, add context, or ask about the work…" />
-								<div><span><button type="button" aria-label="Attach context"><Paperclip size={16} /></button><small><ShieldCheck size={13} />Inside approved authority</small></span><button type="submit" aria-label="Send direction" disabled={!steer.trim()}><ArrowRight size={16} /></button></div>
-							</form>
-						</motion.main>
-					) : view === "topology" ? (
-						<motion.main key="topology" className="mxp-execute-main mxp-execute-detail-view" initial={{ opacity: 0, y: 4 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}><header><small>Orchestrated delivery graph</small><h1>Workspace topology</h1><p>Dependencies, isolation boundaries, and current state across the engagement.</p></header><section className="mxp-workspace-topology-card is-expanded"><ExecuteWorkspaceTopology runState={runState} selectedTask={selectedTask} onSelectTask={openTask} onOpenTests={() => setView("tests")} /></section><section className="mxp-workspace-scope-grid">{EXECUTE_TASKS.map((item, index) => <article key={item.id}><span>0{index + 1}</span><div><h2>{item.title}</h2><p>{item.detail}</p><dl><div><dt>Branch</dt><dd>execute/erp/{item.id}</dd></div><div><dt>Allowed paths</dt><dd>{item.files} scoped files</dd></div><div><dt>Depends on</dt><dd>{index === 0 ? "Orchestrator" : EXECUTE_TASKS[index - 1].title}</dd></div></dl></div><button type="button" onClick={() => openTask(item.id)}>Open workspace</button></article>)}</section></motion.main>
-					) : view === "changes" ? (
-						<motion.main key="changes" className="mxp-execute-main mxp-execute-detail-view" initial={{ opacity: 0, y: 4 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}><header><small>Workspace 01</small><h1>Changes</h1><p>Review the artifact directly. MAX keeps the reasoning in the thread and the code here.</p></header><div className="mxp-changes-layout"><nav aria-label="Changed files">{["missionPolicy.ts", "authority.ts", "mission-policy.spec.ts", "tenant-isolation.spec.ts"].map((file, index) => <button type="button" key={file} className={index === 0 ? "is-active" : ""}><FileText size={15} /><span><strong>{file}</strong><small>{index < 2 ? "services/authority" : "tests/authority"}</small></span><b>+{index === 0 ? 34 : index === 1 ? 18 : index === 2 ? 42 : 27}</b></button>)}</nav><aside className="mxp-code-panel"><header><span>missionPolicy.ts</span><button type="button" aria-label="Open file actions"><DotsThree size={16} /></button></header><pre><code><span>export type MissionAuthority = {'{'}</span>{"\n"}<span className="is-added">+ tenantId: TenantId</span>{"\n"}<span className="is-added">+ missionVersion: number</span>{"\n"}<span className="is-added">+ permittedActions: Action[]</span>{"\n"}<span className="is-added">+ approvalBoundary: Boundary</span>{"\n"}<span>{'}'}</span>{"\n\n"}<span>export async function execute(</span>{"\n"}<span>  command: MissionCommand,</span>{"\n"}<span className="is-added">+ authority: MissionAuthority,</span>{"\n"}<span>) {'{'}</span>{"\n"}<span className="is-added">+ await policy.assert(command, authority)</span>{"\n"}<span className="is-added">+ return effects.dispatch(command)</span>{"\n"}<span>{'}'}</span></code></pre><footer><CheckCircle size={14} /><span>TypeScript clean · 4 files changed</span></footer></aside></div></motion.main>
-					) : view === "tests" ? (
-						<motion.main key="tests" className="mxp-execute-main mxp-execute-detail-view" initial={{ opacity: 0, y: 4 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}><header><small>Verified evidence</small><h1>Tests and release gates</h1><p>Failures return to the repair loop automatically. You only see evidence that survived the cumulative gate.</p><ExecuteRunButton runState={runState} onRun={() => setRunState("running")} /></header><section className="mxp-evidence-summary"><div><CheckCircle size={22} /><span><strong>{runState === "verified" ? "48 tests passed" : runState === "running" ? "Verification in progress" : "48 gates prepared"}</strong><small>{runState === "verified" ? "No skipped or flaky tests" : "MAX will repair failures before returning"}</small></span></div><Status tone={statusTone} live={runState === "running"}>{runState === "verified" ? "Release gate passed" : runState === "running" ? "Running" : "Ready"}</Status></section><section className="mxp-test-matrix">{[{ name: "Authority unit suite", count: 18, detail: "Nulls, boundaries, expiry, replay" }, { name: "Tenant isolation", count: 9, detail: "Cross-tenant and hostile identifiers" }, { name: "Service contracts", count: 13, detail: "API, queue, and provider failures" }, { name: "Cumulative release gate", count: 8, detail: "Build, types, regression, accessibility" }].map((suite) => <article key={suite.name}><CheckCircle size={17} /><div><strong>{suite.name}</strong><small>{suite.detail}</small></div><span>{runState === "verified" ? `${suite.count} passed` : `${suite.count} ready`}</span></article>)}</section></motion.main>
-					) : view === "terminal" ? (
-						<motion.main key="terminal" className="mxp-execute-main mxp-execute-detail-view" initial={{ opacity: 0, y: 4 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}><header><small>Workspace 01</small><h1>Terminal</h1><p>Commands run inside the isolated worktree. Output is streamed and retained with the audit chain.</p></header><section className="mxp-terminal-surface" aria-label="Workspace terminal"><header><span><i />max-ai-platform · execute/erp/authority</span><small>zsh</small></header><pre><span>$ pnpm test mission-authority --runInBand</span>{"\n\n"}<span>PASS  tests/authority/mission-policy.spec.ts</span>{"\n"}<span>PASS  tests/authority/tenant-isolation.spec.ts</span>{"\n"}<span>PASS  tests/authority/replay.spec.ts</span>{"\n\n"}<b>{runState === "verified" ? "48 passed · 0 failed · 6.8s" : runState === "running" ? "Running focused tests…" : "Ready to run"}</b></pre></section></motion.main>
-					) : view === "deploys" ? (
-						<motion.main key="deploys" className="mxp-execute-main mxp-execute-detail-view" initial={{ opacity: 0, y: 4 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}><header><small>Governed release</small><h1>Deploys</h1><p>Execute prepares release evidence but never gains production authority silently.</p></header><section className="mxp-deploy-card"><div><span className={deployRequested ? "is-requested" : ""}><ArrowRight size={18} /></span><div><small>Production · max-ai-platform</small><h2>{deployRequested ? "Deployment approval requested" : "Release candidate ready"}</h2><p>Commit candidate 8f37c2 · 48 tests passed · rollback artifact retained.</p></div></div><Status tone={deployRequested ? "attention" : "success"}>{deployRequested ? "Awaiting authority" : "Verified"}</Status><button type="button" className="mxp-primary" disabled={deployRequested || runState !== "verified"} onClick={() => setDeployRequested(true)}>{deployRequested ? "Approval requested" : "Request deployment approval"}</button></section><section className="mxp-release-safeguards"><article><ShieldCheck size={17} /><div><h2>Approval boundary</h2><p>A release owner must approve the exact environment, artifact, and effect.</p></div></article><article><Clock size={17} /><div><h2>Rollback retained</h2><p>The previous artifact and compatibility checks are ready before deployment.</p></div></article><article><Database size={17} /><div><h2>Audit continuity</h2><p>Requester, approver, fingerprint, and provider receipt remain linked.</p></div></article></section></motion.main>
-					) : (
-						<motion.main key="audit" className="mxp-execute-main mxp-execute-detail-view" initial={{ opacity: 0, y: 4 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}><header><small>Immutable evidence chain</small><h1>Audit</h1><p>Every agent decision, tool call, approval, test result, and artifact change carries source and actor attribution.</p><button type="button" onClick={() => setAuditExported(true)}><FileText size={14} />{auditExported ? "Audit export ready" : "Export audit package"}</button></header><section className="mxp-audit-timeline" aria-live="polite">{[{ time: "Now", title: "Cumulative release gate verified", detail: "MAX Execute · requested by Root Admin · 48 results" }, { time: "2 min", title: "Mission authority contract updated", detail: "Workspace 01 · 3 files · artifact fingerprint retained" }, { time: "5 min", title: "Repository boundary evaluated", detail: "Policy engine · allowed paths matched · no widening" }, { time: "7 min", title: "Plan evidence bound to engagement", detail: "ERP modernization delivery plan · snapshot v7" }].map((event) => <article key={event.title}><span><i /></span><time>{event.time}</time><div><h2>{event.title}</h2><p>{event.detail}</p></div><CheckCircle size={15} /></article>)}</section>{auditExported ? <div className="mxp-verified-result"><CheckCircle size={18} /><span><strong>Audit package is ready</strong><small>Events, source bindings, approvals, and test evidence included</small></span></div> : null}</motion.main>
-					)}
-				</AnimatePresence>
-
-				{view === "activity" ? <aside className="mxp-workbench-inspector">
-					<header><div><small>Live orchestration</small><h2>Workspace topology</h2></div><button type="button" onClick={() => setView("topology")}>Open map<ArrowRight size={13} /></button></header>
-					<ExecuteWorkspaceTopology runState={runState} selectedTask={selectedTask} onSelectTask={openTask} onOpenTests={() => setView("tests")} />
-					<section className="mxp-inspector-section"><header><strong>Changes</strong><button type="button" onClick={() => setView("changes")}>4 files</button></header><button type="button" onClick={() => setView("changes")}><FileText size={15} /><span><strong>missionPolicy.ts</strong><small>+34 −2 · just now</small></span><CaretRight size={13} /></button><button type="button" onClick={() => setView("changes")}><FileText size={15} /><span><strong>mission-policy.spec.ts</strong><small>+42 · 1 min</small></span><CaretRight size={13} /></button></section>
-					<section className="mxp-inspector-context"><div><ShieldCheck size={14} /><span><strong>Authority</strong><small>Files, terminal, tests</small></span></div><div><Database size={14} /><span><strong>Memory</strong><small>12 evidence-linked decisions</small></span></div></section>
-				</aside> : null}
-			</div>
 		</div>
 	)
 }
