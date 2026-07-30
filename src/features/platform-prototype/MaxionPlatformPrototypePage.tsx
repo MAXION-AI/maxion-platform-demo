@@ -27,6 +27,7 @@ import {
 	ShieldCheck,
 	Pulse,
 	SpinnerGap,
+	Stack,
 	TerminalWindow,
 	Tray,
 	Users,
@@ -123,11 +124,32 @@ function Status({ children, tone = "neutral", live = false }: { children: ReactN
 	return <span className={`mxp-status mxp-status--${tone}`}><i className={live ? "is-live" : ""} />{children}</span>
 }
 
-function ModuleHeader({ label, title, detail, onCommand, actions }: { label: string; title: string; detail?: string; onCommand: () => void; actions?: ReactNode }) {
+// Header notifications are the shell's open boundaries, not a decoration: the bell carries
+// the same count the sidebar does and routes to the surface that owns each decision.
+type HeaderAlert = { id: string; title: string; detail: string; onOpen: () => void }
+
+function ModuleHeader({ label, title, detail, onCommand, actions, alerts = [] }: { label: string; title: string; detail?: string; onCommand: () => void; actions?: ReactNode; alerts?: HeaderAlert[] }) {
+	const [alertsOpen, setAlertsOpen] = useState(false)
 	return (
 		<header className="mxp-module-header">
 			<div><span>{label}</span><strong>{title}</strong>{detail ? <small>{detail}</small> : null}</div>
-			<div className="mxp-header-actions"><button type="button" className="mxp-search" aria-label="Search MAXION" onClick={onCommand}><MagnifyingGlass size={15} /><span>Search or ask</span><kbd>⌘K</kbd></button>{actions}<button type="button" aria-label="Notifications"><Bell size={16} /></button></div>
+			<div className="mxp-header-actions">
+				<button type="button" className="mxp-search" aria-label="Search MAXION" onClick={onCommand}><MagnifyingGlass size={15} /><span>Search or ask</span><kbd>⌘K</kbd></button>
+				{actions}
+				<div className="mxp-header-bell" onKeyDown={(event) => { if (event.key === "Escape" && alertsOpen) setAlertsOpen(false) }}>
+					<button type="button" aria-label={alerts.length ? `Notifications · ${alerts.length} waiting` : "Notifications"} aria-expanded={alertsOpen} onClick={() => setAlertsOpen((open) => !open)}><Bell size={16} />{alerts.length ? <b aria-hidden="true">{alerts.length}</b> : null}</button>
+					{alertsOpen ? (
+						<>
+							<button type="button" className="mxp-bell-scrim" aria-label="Close notifications" onClick={() => setAlertsOpen(false)} />
+							<div className="mxp-bell-menu" role="group" aria-label="Open boundaries">
+								{alerts.length
+									? alerts.map((alert) => <button type="button" key={alert.id} onClick={() => { setAlertsOpen(false); alert.onOpen() }}><span><strong>{alert.title}</strong><small>{alert.detail}</small></span><CaretRight size={12} /></button>)
+									: <p>Nothing needs you right now. MAX is inside its authority everywhere.</p>}
+							</div>
+						</>
+					) : null}
+				</div>
+			</div>
 		</header>
 	)
 }
@@ -181,7 +203,7 @@ function useCountUp(target: number, started: boolean, animate: boolean, duration
 	return started ? value : 0
 }
 
-function ExecuteStreamedText({ text }: { text: string }) {
+function StreamedText({ text }: { text: string }) {
 	const streamed = useStreamedText(text, true)
 	return <>{streamed}</>
 }
@@ -818,7 +840,7 @@ function ExecuteWorkspaceModule({
 							{engagement.source === "plan" ? <button type="button" className="aex-thread-context" aria-expanded={handoffOpen} onClick={() => setHandoffOpen((open) => !open)}><FlowArrow size={14} /><span><strong>Imported from Plan</strong><small>{engagement.brief}</small></span><CaretRight size={13} className={`aex-context-caret${handoffOpen ? " is-open" : ""}`} /></button> : null}
 							{engagement.source === "plan" && handoffOpen ? <div className="aex-handoff-detail"><dl><div><dt>Plan of record</dt><dd>{engagement.brief.split(" · ")[0]}</dd></div><div><dt>Scope</dt><dd>{blueprint.scope}</dd></div><div><dt>Evidence snapshot</dt><dd>{planSnapshot}</dd></div><div><dt>Granted authority</dt><dd>Files, terminal, and tests · deployment not granted</dd></div></dl></div> : null}
 							<article className="aex-message is-user"><span>RA</span><div><header><strong>You</strong><time>Just now</time></header><p>{workspaceProfile.seed}</p></div></article>
-							<article className="aex-message is-agent"><MaxionSpiralMark className="aex-message-mark" /><div><header><strong>MAX · Workspace {workspaceNumber}</strong><time>Now</time></header><p><ExecuteStreamedText text={workspaceProfile.agentIntro} /></p></div></article>
+							<article className="aex-message is-agent"><MaxionSpiralMark className="aex-message-mark" /><div><header><strong>MAX · Workspace {workspaceNumber}</strong><time>Now</time></header><p><StreamedText text={workspaceProfile.agentIntro} /></p></div></article>
 
 							<section className={`aex-live-run is-${runState}`} aria-live="polite">
 								<header><span>{runState === "running" ? <SpinnerGap className="mxp-spin" size={15} /> : <CheckCircle size={15} />}<strong>{runState === "verified" ? "Implementation complete" : runState === "running" ? "MAX is working autonomously" : "Ready to execute"}</strong></span><small>{workspaceProfile.steps.length} actions</small></header>
@@ -839,7 +861,7 @@ function ExecuteWorkspaceModule({
 									<article className="aex-message is-user"><span>RA</span><div><header><strong>You</strong><time>Now</time></header><p>{message}</p></div></article>
 									{index === workspaceMessages.length - 1 && steerPending[selectedTask]
 										? <article className="aex-message is-agent aex-steer-pending"><MaxionSpiralMark className="aex-message-mark" /><div><header><strong>MAX · Workspace {workspaceNumber}</strong><time>Now</time></header><p><SpinnerGap className="mxp-spin" size={12} />Reading the direction…</p></div></article>
-										: <article className="aex-message is-agent"><MaxionSpiralMark className="aex-message-mark" /><div><header><strong>MAX · Workspace {workspaceNumber}</strong><time>Now</time></header><p><ExecuteStreamedText text={`${executeSteerResponse(workspaceProfile, message)} It will be included in cumulative verification.`} /></p></div></article>}
+										: <article className="aex-message is-agent"><MaxionSpiralMark className="aex-message-mark" /><div><header><strong>MAX · Workspace {workspaceNumber}</strong><time>Now</time></header><p><StreamedText text={`${executeSteerResponse(workspaceProfile, message)} It will be included in cumulative verification.`} /></p></div></article>}
 								</Fragment>
 							))}
 							{runState === "verified" ? <motion.article className="aex-result" initial={prefersReducedMotion() ? false : { opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: .28, ease: [0.16, 1, 0.3, 1] }}><CheckCircle size={18} weight="fill" /><div><strong>{workspaceProfile.result}</strong><p><b>{workspaceProfile.tests} passed in 6.8s</b> · {workspaceProfile.resultMeta}</p><button type="button" onClick={() => setView("tests")}>Review evidence<ArrowRight size={13} /></button></div></motion.article> : null}
@@ -868,11 +890,116 @@ function ExecuteWorkspaceModule({
 	)
 }
 
-function ConsultModule({ onCommand, onNavigate }: { onCommand: () => void; onNavigate: (module: MaxionModuleId) => void }) {
+// Consult reads the same lifted state the badges and the command registry read, so an
+// answer cannot survive the decision it describes.
+type ConsultShellState = {
+	agentix: AgentixAttention
+	discoveryReady: boolean
+	planSent: boolean
+	planSnapshot: string
+	executeVerified: boolean
+}
+
+type ConsultMessage = { actor: "MAX" | "You"; text: string; stream?: boolean }
+type ConsultThread = { id: string; title: string; time: string; messages: ConsultMessage[] }
+
+const CONSULT_GREETING = "I can answer across the authorized MAXION context—Discovery evidence, Plan decisions, Execute state, and Agentix outcomes. What do you need to understand or decide?"
+const CONSULT_NEW_THREAD = "New conversation"
+
+function consultDeliveryLine(state: ConsultShellState) {
+	if (state.executeVerified) return `Execute verified the ERP engagement against evidence snapshot ${state.planSnapshot}; only the release owner's approval is outstanding.`
+	if (state.planSent) return `The ERP delivery plan is in Execute at evidence snapshot ${state.planSnapshot}, progressing inside its isolated worktree.`
+	return "The ERP delivery plan is decision-ready; Execute has not been given the work yet."
+}
+
+function consultAttentionAnswer(state: ConsultShellState) {
+	const open: string[] = []
+	if (state.agentix.approval) open.push("the July close exact-effect approval in Agentix")
+	if (state.agentix.audience) open.push("the overdue-reminder audience question in Agentix")
+	if (!state.discoveryReady) open.push("the external-counsel authority boundary in Discovery")
+	const delivery = consultDeliveryLine(state)
+	if (open.length === 0) return `Nothing is waiting on your authority right now. ${delivery} I can still walk any decision back to the evidence it was made on.`
+	const list = open.length === 1 ? open[0] : `${open.slice(0, -1).join(", ")} and ${open[open.length - 1]}`
+	const lead = open.length === 1 ? "One thing needs" : `${open.length === 2 ? "Two" : "Three"} things need`
+	return `${lead} attention: ${list}. ${delivery} I can open ${open.length === 1 ? "it" : "any of them"} without changing its authority.`
+}
+
+// Four routes over the live state. The default stays attention-shaped, because that is what
+// an unqualified question to a cross-platform agent is actually asking.
+function consultAnswer(message: string, state: ConsultShellState) {
+	const text = message.toLowerCase()
+	if (/\b(discovery|discover|evidence|interview|claim|source|research|tprm)\b/.test(text)) {
+		return state.discoveryReady
+			? "Discovery closed its package: five deliverables, every claim still naming the source it came from, and the external-counsel boundary decided rather than assumed. Nothing in it was written past the evidence."
+			: "Discovery is mid-interview on the third-party onboarding redesign. One authority boundary is still yours — whether MAX may interview external counsel — so the package is not evidence-complete yet. The internal path stays open either way."
+	}
+	if (/\b(plan|architecture|flow|decompose|design|blueprint|l2|l3|l4)\b/.test(text)) {
+		return state.planSent
+			? `The ERP modernization plan is decided and handed to Execute at snapshot ${state.planSnapshot}: five flows through L2–L4, three conflicts resolved, two owners interviewed. Any change from here reopens the approval routing.`
+			: "The ERP modernization plan is decision-ready: five flows decomposed through L2–L4, three conflicts resolved, two owners interviewed. The implementation boundary is approved, so it can move to Execute whenever you send it."
+	}
+	if (/\b(execute|build|implement|test|deploy|release|workspace|worktree|ship)\b/.test(text)) {
+		if (state.executeVerified) return "Execute finished the ERP engagement: 48 tests passed, the cumulative gate is clean, and the release is held at the release owner's approval. Deployment was never granted to the agent, so nothing left the worktree."
+		return state.planSent
+			? "Execute is holding the ERP plan across five isolated workspaces. Its authority is files, terminal, and tests only — deployment is not granted, and the cumulative gate has not been run yet."
+			: "Execute has no ERP engagement yet; the plan is approved but has not been sent. Whenever it is, the authority stays files, terminal, and tests — deployment is a separate decision."
+	}
+	if (/\b(agent|agentix|close|approval|approve|effect|effects|finance|quickbooks|sap|reminder|reminders)\b/.test(text)) {
+		if (state.agentix.approval) return "The finance close operator reconciled 164 validated effects worth $184,250 across QuickBooks and SAP and will post none of them until you approve the exact effects — that is the July close exact-effect approval in Agentix."
+		return state.agentix.audience
+			? "The July close effects are posted and reconciled. What is still open is the Atlas program lead's question about who may receive overdue reminders; it will not message anyone outside the project team until you answer."
+			: "All three Agentix agents are inside their authority with nothing waiting on you. The July close effects are posted and reconciled, and every commitment they made is in the activity ledger with its receipt."
+	}
+	return consultAttentionAnswer(state)
+}
+
+function ConsultModule({ state, onCommand, onNavigate }: { state: ConsultShellState; onCommand: () => void; onNavigate: (module: MaxionModuleId) => void }) {
 	const [input, setInput] = useState("")
-	const [messages, setMessages] = useState<Array<{ actor: "MAX" | "You"; text: string }>>([{ actor: "MAX", text: "I can answer across the authorized MAXION context—Discovery evidence, Plan decisions, Execute state, and Agentix outcomes. What do you need to understand or decide?" }])
-	const submit = () => { const value = input.trim(); if (!value) return; setMessages((items) => [...items, { actor: "You", text: value }, { actor: "MAX", text: "Two things need attention: the July close exact-effect approval in Agentix and the external-counsel authority boundary in Discovery. The ERP delivery plan is decision-ready; Execute is progressing inside its isolated worktree. I can open either boundary without changing its authority." }]); setInput("") }
-	return <div className="mxp-consult mxp-module-with-rail"><ContextRail title="Consult MAX" kicker="Cross-platform intelligence" footer={<div className="mxp-rail-user"><span>RA</span><div><strong>Root Admin</strong><small>Authorized tenant context</small></div></div>}><button type="button" className="mxp-rail-primary"><Plus size={14} />New conversation</button><div className="mxp-rail-label">Recent</div><button type="button" className="is-active"><ChatCircleText size={15} /><span><strong>What needs my attention?</strong><small>Just now</small></span></button><button type="button"><ChatCircleText size={15} /><span><strong>ERP decision history</strong><small>Yesterday</small></span></button><div className="mxp-rail-label">Scope</div><button type="button"><Database size={15} /><span>All MAXION context</span><i className="mxp-success-dot" /></button></ContextRail><div className="mxp-module-area"><ModuleHeader label="Consult MAX" title="Cross-platform conversation" detail="Answers preserve source, ownership, and authority" onCommand={onCommand} /><main className="mxp-consult-main"><header><MaxionMark size={34} /><span>Consult MAX</span><h1>Ask across the work, not around it.</h1><p>Consult MAX explains the current truth across modules. It can route you to work, but it cannot silently approve or execute it.</p></header><div className="mxp-consult-thread">{messages.map((message, index) => <article key={`${message.actor}-${index}`} className={message.actor === "You" ? "is-user" : "is-max"}>{message.actor === "MAX" ? <MaxionMark size={27} /> : <span className="mxp-user-avatar">RA</span>}<div><span>{message.actor}<time>Now</time></span><p>{message.text}</p>{message.actor === "MAX" && index > 0 ? <div className="mxp-answer-actions"><button type="button" onClick={() => onNavigate("agentix")}><Pulse size={13} />Open Agentix approval</button><button type="button" onClick={() => onNavigate("discovery")}><MagnifyingGlass size={13} />Open Discovery boundary</button></div> : null}</div></article>)}</div></main><div className="mxp-consult-composer"><div><textarea aria-label="Message Consult MAX" value={input} onChange={(event) => setInput(event.target.value)} onKeyDown={(event) => { if (event.key === "Enter" && !event.shiftKey) { event.preventDefault(); submit() } }} placeholder="Ask what changed, what needs attention, or why a decision was made…" rows={1} /><div><span><button type="button" aria-label="Attach context"><Paperclip size={15} /></button><small><Database size={13} />All authorized MAXION context</small></span><button type="button" aria-label="Send to Consult MAX" disabled={!input.trim()} onClick={submit}><ArrowRight size={15} /></button></div></div></div></div></div>
+	const [threads, setThreads] = useState<ConsultThread[]>(() => [
+		{ id: "attention", title: "What needs my attention?", time: "Just now", messages: [{ actor: "MAX", text: CONSULT_GREETING }] },
+		{
+			id: "erp-history",
+			title: "ERP decision history",
+			time: "Yesterday",
+			messages: [
+				{ actor: "MAX", text: CONSULT_GREETING },
+				{ actor: "You", text: "Why did the ERP plan choose atomic posting for Workday journal batches?" },
+				{ actor: "MAX", text: "Because a partially posted batch cannot be reconciled against the approved effects. Priya Shah accepted atomic posting on the finance boundary, and the plan records that decision against CLM-021 and the ServiceNow-to-Workday flow. MAX recommended it; it did not decide it." },
+			],
+		},
+	])
+	const [activeThreadId, setActiveThreadId] = useState("attention")
+	const [thinking, setThinking] = useState(false)
+	const [scope, setScope] = useState<"all" | "project">("all")
+	const timersRef = useRef<number[]>([])
+	useEffect(() => () => timersRef.current.forEach((timer) => window.clearTimeout(timer)), [])
+	const activeThread = threads.find((thread) => thread.id === activeThreadId) ?? threads[0]
+	const append = (threadId: string, message: ConsultMessage, title?: string) => setThreads((items) => items.map((thread) => thread.id === threadId ? { ...thread, title: title ?? thread.title, time: "Just now", messages: [...thread.messages, message] } : thread))
+	const submit = () => {
+		const value = input.trim()
+		if (!value) return
+		const threadId = activeThread.id
+		const reply = `${consultAnswer(value, state)}${scope === "project" ? " Answered inside the ERP modernization project only — nothing outside it was read." : ""}`
+		append(threadId, { actor: "You", text: value }, activeThread.title === CONSULT_NEW_THREAD ? (value.length > 46 ? `${value.slice(0, 46)}…` : value) : undefined)
+		setInput("")
+		// Reduced motion answers in the same tick — no thinking beat, no streaming.
+		if (prefersReducedMotion()) { append(threadId, { actor: "MAX", text: reply }); return }
+		setThinking(true)
+		timersRef.current.push(window.setTimeout(() => { setThinking(false); append(threadId, { actor: "MAX", text: reply, stream: true }) }, 620))
+	}
+	const startThread = () => {
+		const id = `thread-${Date.now()}`
+		setThreads((items) => [{ id, title: CONSULT_NEW_THREAD, time: "Just now", messages: [{ actor: "MAX", text: CONSULT_GREETING }] }, ...items])
+		setActiveThreadId(id)
+		setInput("")
+		setThinking(false)
+	}
+	const alerts: HeaderAlert[] = []
+	if (state.agentix.approval) alerts.push({ id: "approval", title: "July close needs an exact approval", detail: "Agentix · 164 effects · $184,250 held", onOpen: () => onNavigate("agentix") })
+	if (state.agentix.audience) alerts.push({ id: "audience", title: "Atlas program lead is waiting on an answer", detail: "Agentix · who may receive overdue reminders", onOpen: () => onNavigate("agentix") })
+	if (!state.discoveryReady) alerts.push({ id: "discovery", title: "An external interview needs your approval", detail: "Discover · third-party onboarding redesign", onOpen: () => onNavigate("discovery") })
+	if (state.executeVerified) alerts.push({ id: "release", title: "A release is waiting on its owner", detail: "Execute · cumulative gate passed", onOpen: () => onNavigate("execute") })
+	return <div className="mxp-consult mxp-module-with-rail"><ContextRail title="Consult MAX" kicker="Cross-platform intelligence" footer={<div className="mxp-rail-user"><span>RA</span><div><strong>Root Admin</strong><small>Authorized tenant context</small></div></div>}><button type="button" className="mxp-rail-primary" onClick={startThread}><Plus size={14} />New conversation</button><div className="mxp-rail-label">Recent</div>{threads.map((thread) => <button type="button" key={thread.id} className={thread.id === activeThread.id ? "is-active" : ""} aria-current={thread.id === activeThread.id ? "true" : undefined} onClick={() => { setActiveThreadId(thread.id); setThinking(false) }}><ChatCircleText size={15} /><span><strong>{thread.title}</strong><small>{thread.time}</small></span></button>)}<div className="mxp-rail-label">Scope</div><button type="button" aria-pressed={scope === "all"} onClick={() => setScope("all")}><Database size={15} /><span>All MAXION context</span>{scope === "all" ? <i className="mxp-success-dot" /> : null}</button><button type="button" aria-pressed={scope === "project"} onClick={() => setScope("project")}><Stack size={15} /><span>ERP modernization only</span>{scope === "project" ? <i className="mxp-success-dot" /> : null}</button></ContextRail><div className="mxp-module-area"><ModuleHeader label="Consult MAX" title="Cross-platform conversation" detail="Answers preserve source, ownership, and authority" onCommand={onCommand} alerts={alerts} /><main className="mxp-consult-main"><header><MaxionMark size={34} /><span>Consult MAX</span><h1>Ask across the work, not around it.</h1><p>Consult MAX explains the current truth across modules. It can route you to work, but it cannot silently approve or execute it.</p></header><div className="mxp-consult-thread">{activeThread.messages.map((message, index) => <article key={`${activeThread.id}-${message.actor}-${index}`} className={message.actor === "You" ? "is-user" : "is-max"}>{message.actor === "MAX" ? <MaxionMark size={27} /> : <span className="mxp-user-avatar">RA</span>}<div><span>{message.actor}<time>Now</time></span><p>{message.stream ? <StreamedText text={message.text} /> : message.text}</p>{message.actor === "MAX" && index > 0 ? <div className="mxp-answer-actions">{state.agentix.approval ? <button type="button" onClick={() => onNavigate("agentix")}><Pulse size={13} />Open Agentix approval</button> : <button type="button" onClick={() => onNavigate("agentix")}><Pulse size={13} />Open Agentix activity</button>}{state.planSent ? <button type="button" onClick={() => onNavigate("execute")}><Cube size={13} />Open the Execute engagement</button> : <button type="button" onClick={() => onNavigate("plan")}><FlowArrow size={13} />Open the ERP plan</button>}{state.discoveryReady ? null : <button type="button" onClick={() => onNavigate("discovery")}><MagnifyingGlass size={13} />Open Discovery boundary</button>}</div> : null}</div></article>)}{thinking ? <article className="is-max mxp-consult-thinking"><MaxionMark size={27} /><div><span>MAX<time>Now</time></span><p><SpinnerGap className="mxp-spin" size={12} />Reading the live workspace…</p></div></article> : null}</div></main><div className="mxp-consult-composer"><div><textarea aria-label="Message Consult MAX" value={input} onChange={(event) => setInput(event.target.value)} onKeyDown={(event) => { if (event.key === "Enter" && !event.shiftKey) { event.preventDefault(); submit() } }} placeholder="Ask what changed, what needs attention, or why a decision was made…" rows={1} /><div><span><button type="button" aria-label="Attach context"><Paperclip size={15} /></button><small><Database size={13} />{scope === "all" ? "All authorized MAXION context" : "ERP modernization project only"}</small></span><button type="button" aria-label="Send to Consult MAX" disabled={!input.trim()} onClick={submit}><ArrowRight size={15} /></button></div></div></div></div></div>
 }
 
 // The shell command layer: one registry every module feeds, so a jump target is reachable
@@ -1031,6 +1158,10 @@ function CommandMenu({ context, onClose }: { context: ShellCommandContext; onClo
 	)
 }
 
+// Shell pages own no keyboard of their own; the modules do. These are the surfaces where
+// '/' is unclaimed, so the shell may map it to the one search the whole platform shares.
+const SHELL_KEYBOARD_MODULES: MaxionModuleId[] = ["dashboard", "projects", "consult", "integrations", "settings", "approvals", "usage", "help"]
+
 export function MaxionPlatformPrototypePage() {
 	useDocumentTitle("MAXION · Unified platform prototype")
 	const location = useLocation()
@@ -1055,6 +1186,12 @@ export function MaxionPlatformPrototypePage() {
 	const [discoveryOpen, setDiscoveryOpen] = useState<DiscoveryOpenSignal | null>(null)
 	const [agentixIntent, setAgentixIntent] = useState<AgentixIntentSignal | null>(null)
 	const jumpTickRef = useRef(0)
+	// The shell keyboard reads the current module without re-subscribing the listener.
+	const activeModuleRef = useRef(activeModule)
+	activeModuleRef.current = activeModule
+	// What the sidebar looked like before Execute borrowed the width, so leaving Execute
+	// gives the viewer their own navigation back instead of an icon rail for good.
+	const collapsedBeforeExecuteRef = useRef(sidebarCollapsed)
 
 	useEffect(() => {
 		const onKeyDown = (event: KeyboardEvent) => {
@@ -1062,6 +1199,15 @@ export function MaxionPlatformPrototypePage() {
 			// only ever runs when no module owns the keyboard.
 			if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "k") { event.preventDefault(); setCommandOpen((open) => !open) }
 			if (event.key === "Escape") setCommandOpen(false)
+			// '/' belongs to whichever surface is visible. Inside a module the module's own
+			// capture-phase listener claims it and stops it here; on a shell page nothing
+			// claims it, so it opens the one search this shell has.
+			if (event.key === "/" && SHELL_KEYBOARD_MODULES.includes(activeModuleRef.current)) {
+				const target = event.target as HTMLElement | null
+				if (target && (target.tagName === "INPUT" || target.tagName === "TEXTAREA" || target.isContentEditable)) return
+				event.preventDefault()
+				setCommandOpen(true)
+			}
 		}
 		window.addEventListener("keydown", onKeyDown)
 		return () => window.removeEventListener("keydown", onKeyDown)
@@ -1069,9 +1215,13 @@ export function MaxionPlatformPrototypePage() {
 
 	const navigate = (module: MaxionModuleId) => {
 		// Execute is a focused, long-running workspace. Keep MAXION navigation one
-		// action away without taking meaningful width away from the work surface.
+		// action away without taking meaningful width away from the work surface — and
+		// hand the sidebar back exactly as it was when the viewer leaves again.
 		if (module === "execute") {
+			if (activeModuleRef.current !== "execute") collapsedBeforeExecuteRef.current = sidebarCollapsed
 			setSidebarCollapsed(true)
+		} else if (activeModuleRef.current === "execute") {
+			setSidebarCollapsed(collapsedBeforeExecuteRef.current)
 		}
 		setActiveModule(module)
 		setCommandOpen(false)
@@ -1111,17 +1261,17 @@ export function MaxionPlatformPrototypePage() {
 
 	return (
 		<div className={`maxion-platform-prototype mxp-root${activeModule === "execute" ? " mxp-root--execute" : ""}${sidebarCollapsed ? " mxp-root--sidebar-collapsed" : ""}`}>
-			<PortalSidebar active={activeModule} onNavigate={navigate} onCommand={() => setCommandOpen(true)} mobileOpen={mobileNavOpen} onMobileOpenChange={setMobileNavOpen} collapsed={sidebarCollapsed} onCollapsedChange={setSidebarCollapsed} badges={{ agentix: agentixAttention.count }} />
+			<PortalSidebar active={activeModule} onNavigate={navigate} onCommand={() => setCommandOpen(true)} mobileOpen={mobileNavOpen} onMobileOpenChange={setMobileNavOpen} collapsed={sidebarCollapsed} onCollapsedChange={setSidebarCollapsed} badges={{ agentix: agentixAttention.count, approvals: agentixAttention.approval ? 1 : 0 }} />
 			<div className="mxp-stage" aria-label={`${currentLabel} module`}>
-				<div className={stageClass("dashboard")} hidden={activeModule !== "dashboard"}><DashboardModule projects={projects} onNavigate={navigate} discoveryReady={discoveryReady} planSent={planSent} executeVerified={executeVerified} /></div>
+				<div className={stageClass("dashboard")} hidden={activeModule !== "dashboard"}><DashboardModule projects={projects} onNavigate={navigate} agentix={agentixAttention} discoveryReady={discoveryReady} planSent={planSent} executeVerified={executeVerified} /></div>
 				<div className={stageClass("projects")} hidden={activeModule !== "projects"}><ProjectsModule projects={projects} onProjectsChange={setProjects} onNavigate={navigate} /></div>
 				<div className={stageClass("discovery", "mxp-stage-view--discovery")} hidden={activeModule !== "discovery"}><DiscoveryAutonomousPrototypePage embedded setupSignal={discoverySetupSignal} openSignal={discoveryOpen} onPackageReady={() => setDiscoveryReady(true)} /></div>
 				<div className={stageClass("plan")} hidden={activeModule !== "plan"}><PlanModule projects={projects} onNavigate={navigate} onCommand={() => setCommandOpen(true)} jumpSignal={planJump} onSendToExecute={(snapshot) => { setPlanSent(true); setPlanSnapshot(snapshot); navigate("execute") }} /></div>
 				<div className={stageClass("execute", "mxp-stage-view--execute")} hidden={activeModule !== "execute"}><ExecuteModule active={activeModule === "execute"} onNavigate={navigate} planHandoff={planSent} planSnapshot={planSnapshot} jumpSignal={executeJump} onVerified={() => setExecuteVerified(true)} /></div>
 				<div className={stageClass("agentix")} hidden={activeModule !== "agentix"}><AgentixPrototypePage embedded intentSignal={agentixIntent} onAttentionChange={setAgentixAttention} /></div>
-				<div className={stageClass("consult")} hidden={activeModule !== "consult"}><ConsultModule onCommand={() => setCommandOpen(true)} onNavigate={navigate} /></div>
+				<div className={stageClass("consult")} hidden={activeModule !== "consult"}><ConsultModule state={{ agentix: agentixAttention, discoveryReady, planSent, planSnapshot, executeVerified }} onCommand={() => setCommandOpen(true)} onNavigate={navigate} /></div>
 				<div className={stageClass("integrations")} hidden={activeModule !== "integrations"}><IntegrationsModule /></div>
-				{(["settings", "approvals", "usage", "help"] as const).map((module) => <div key={module} className={stageClass(module)} hidden={activeModule !== module}><AccountUtilityModule module={module} onNavigate={navigate} /></div>)}
+				{(["settings", "approvals", "usage", "help"] as const).map((module) => <div key={module} className={stageClass(module)} hidden={activeModule !== module}><AccountUtilityModule module={module} onNavigate={navigate} approvalOpen={agentixAttention.approval} onOpenApproval={() => openAgentix({ type: "decision", id: "approval" })} /></div>)}
 			</div>
 			<AnimatePresence>{commandOpen ? <CommandMenu context={commandContext} onClose={() => setCommandOpen(false)} /> : null}</AnimatePresence>
 		</div>

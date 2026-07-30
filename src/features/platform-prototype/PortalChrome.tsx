@@ -21,7 +21,7 @@ import { useId, useState, type ReactNode } from "react"
 
 import { publicAsset } from "@/lib/publicAsset"
 
-import type { MaxionModuleId } from "./model"
+import { WORKSPACE_UNITS_PERCENT, type MaxionModuleId } from "./model"
 
 const PETAL = "M 2 -26 Q -3.5 -18 -0.5 -10 Q 3 -14 2 -26 Z"
 const PETAL_COUNT = 18
@@ -84,7 +84,9 @@ export const PRIMARY_NAVIGATION: NavigationItem[] = [
 const ACCOUNT_NAVIGATION: NavigationItem[] = [
 	{ id: "settings", label: "Settings", icon: GearSix },
 	{ id: "integrations", label: "Integrations", icon: Plug },
-	{ id: "approvals", label: "My approvals", icon: ShieldCheck, badge: 3 },
+	// No seeded number here: the approvals badge is only ever the count the approvals
+	// surface itself can show, passed down as a live badge override.
+	{ id: "approvals", label: "My approvals", icon: ShieldCheck },
 	{ id: "usage", label: "Usage", icon: ChartBar },
 	{ id: "help", label: "Help", icon: Question },
 ]
@@ -186,8 +188,8 @@ export function PortalSidebar({
 					<div className="mxp-account-nav">
 						<div className="mxp-account-divider"><span>Account</span><i /></div>
 						<button type="button" className="mxp-unit-balance" onClick={() => navigate("usage")}>
-							<span><strong>Workspace units</strong><small>38% used this cycle</small></span>
-							<span className="mxp-unit-track"><i /></span>
+							<span><strong>Workspace units</strong><small>{WORKSPACE_UNITS_PERCENT}% used this cycle</small></span>
+							<span className="mxp-unit-track"><i style={{ width: `${WORKSPACE_UNITS_PERCENT}%` }} /></span>
 						</button>
 						<ul>{ACCOUNT_NAVIGATION.map((item) => renderItem(item, true))}</ul>
 					</div>

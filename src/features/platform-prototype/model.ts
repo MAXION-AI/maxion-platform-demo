@@ -550,3 +550,21 @@ export const EXECUTE_FLAGSHIP_ENGAGEMENT: ExecuteLaunchIntent = {
 	brief: "Implement the approved ERP modernization outcomes with tenant-safe authority boundaries.",
 	autoStart: false,
 }
+
+// Workspace units are one number with one denominator. The sidebar meter, the dashboard
+// stat, and the Usage page all read this — a meter that disagrees with its own rows is the
+// fastest way to lose a viewer's trust in everything else on the surface.
+export const WORKSPACE_USAGE_ROWS = [
+	{ module: "Discovery", units: 12_480 },
+	{ module: "Plan", units: 8_140 },
+	{ module: "Execute", units: 14_620 },
+	{ module: "Agentix", units: 6_320 },
+] as const
+
+export const WORKSPACE_UNIT_CAP = 108_000
+export const WORKSPACE_UNITS_USED = WORKSPACE_USAGE_ROWS.reduce((sum, row) => sum + row.units, 0)
+export const WORKSPACE_UNITS_PERCENT = Math.round((WORKSPACE_UNITS_USED / WORKSPACE_UNIT_CAP) * 100)
+export const workspaceUnitsLabel = (units: number) => units.toLocaleString("en-US")
+// The cycle closes with the calendar month, so the reset never drifts into the past.
+export const WORKSPACE_CYCLE_RESET = new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric" })
+	.format(new Date(new Date().getFullYear(), new Date().getMonth() + 1, 0))

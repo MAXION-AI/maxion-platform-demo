@@ -15,8 +15,8 @@
 	--portal-subtle: #64716f;
 	--portal-border: #e0e5e3;
 	--portal-border-strong: #d1d9d6;
-	--portal-success: #2d7b55;
-	--portal-success-soft: #e9f5ee;
+	--portal-success: #10716e;
+	--portal-success-soft: #e4f3f1;
 	--portal-warning: #996018;
 	--portal-warning-soft: #fff5df;
 	--portal-danger: #a2463e;
@@ -182,7 +182,7 @@
 .mxp-unit-balance strong { color: #c1cbca; font-size: 10px; font-weight: 600; }
 .mxp-unit-balance small { color: #71807e; font-size: 9px; }
 .mxp-unit-track { height: 3px; overflow: hidden; border-radius: 2px; background: rgba(255,255,255,.08); }
-.mxp-unit-track i { display: block; width: 38%; height: 100%; border-radius: inherit; background: #5fd3cf; }
+.mxp-unit-track i { display: block; height: 100%; border-radius: inherit; background: #5fd3cf; }
 
 .mxp-portal-sidebar-footer {
 	flex: 0 0 auto;
@@ -702,21 +702,43 @@
 .mxp-settings-card > button svg:last-child { margin-left: auto; }
 .mxp-utility-page > .mxp-approval-inbox { max-width: 900px; margin-inline: 0; }
 .mxp-usage-layout { display: grid; grid-template-columns: 240px minmax(0, 520px); gap: 18px; align-items: start; }
-.mxp-usage-ring { display: grid; aspect-ratio: 1; place-items: center; align-content: center; border: 14px solid #d9ece9; border-top-color: var(--portal-brand); border-radius: 50%; background: #fff; box-shadow: var(--portal-shadow-sm); }
+.mxp-usage-ring { position: relative; display: grid; aspect-ratio: 1; place-items: center; align-content: center; padding: 34px; border-radius: 50%; background: conic-gradient(var(--portal-brand) 0 var(--mxp-usage-arc, 0%), #d9ece9 var(--mxp-usage-arc, 0%) 100%); box-shadow: var(--portal-shadow-sm); text-align: center; }
+.mxp-usage-ring::before { content: ""; position: absolute; inset: 15px; border-radius: 50%; background: #fff; }
+.mxp-usage-ring > * { position: relative; }
 .mxp-usage-ring strong { font-size: 33px; font-variant-numeric: tabular-nums; letter-spacing: -.04em; }
 .mxp-usage-ring span { margin-top: 4px; color: var(--portal-muted); font-size: 9px; }
+.mxp-usage-ring small { margin-top: 7px; color: var(--portal-subtle); font-size: 8px; line-height: 1.45; }
 .mxp-usage-layout > .mxp-portal-card { padding: 16px; }
 .mxp-usage-layout h2 { margin: 0 0 10px; font-size: 13px; }
 .mxp-usage-layout dl { margin: 0; }
-.mxp-usage-layout dl div { display: flex; justify-content: space-between; padding: 10px 0; border-bottom: 1px solid var(--portal-border); font-size: 10px; }
+.mxp-usage-layout dl div { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 4px 12px; padding: 10px 0; border-bottom: 1px solid var(--portal-border); font-size: 10px; }
 .mxp-usage-layout dt { color: var(--portal-muted); }
-.mxp-usage-layout dd { margin: 0; font-weight: 620; font-variant-numeric: tabular-nums; }
+.mxp-usage-layout dd { display: grid; grid-template-columns: auto minmax(72px, 108px); align-items: center; gap: 9px; margin: 0; font-weight: 620; font-variant-numeric: tabular-nums; }
+.mxp-usage-bar { height: 4px; overflow: hidden; border-radius: 3px; background: var(--portal-brand-soft); }
+.mxp-usage-bar i { display: block; height: 100%; border-radius: inherit; background: var(--portal-brand); }
+.mxp-usage-total { display: flex; align-items: center; gap: 6px; margin: 13px 0 0; color: var(--portal-muted); font-size: 9px; }
 .mxp-help-layout { display: grid; max-width: 760px !important; gap: 7px; margin-inline: 0 !important; }
 .mxp-help-layout > label { margin-bottom: 10px; }
-.mxp-help-layout > button { display: grid; grid-template-columns: auto 1fr auto; align-items: center; gap: 10px; min-height: 48px; padding: 10px 12px; border: 1px solid var(--portal-border); border-radius: 8px; background: #fff; text-align: left; cursor: pointer; }
-.mxp-help-layout > button:hover { border-color: #b9c5c2; background: #fbfcfb; }
-.mxp-help-layout > button > svg:first-child { color: var(--portal-brand); }
-.mxp-help-layout > button span { font-size: 10px; font-weight: 620; }
+.mxp-help-topic > button { display: grid; width: 100%; grid-template-columns: auto 1fr auto; align-items: center; gap: 10px; min-height: 48px; padding: 10px 12px; border: 1px solid var(--portal-border); border-radius: 8px; background: #fff; text-align: left; cursor: pointer; }
+.mxp-help-topic > button:hover { border-color: #b9c5c2; background: #fbfcfb; }
+.mxp-help-topic > button > svg:first-child { color: var(--portal-brand); }
+.mxp-help-topic > button span { font-size: 10px; font-weight: 620; }
+.mxp-help-topic > button > svg:last-child { transition: transform 160ms var(--portal-ease); }
+.mxp-help-topic > button[aria-expanded="true"] { border-color: var(--portal-brand); border-radius: 8px 8px 0 0; }
+.mxp-help-topic > button[aria-expanded="true"] > svg:last-child { transform: rotate(90deg); }
+.mxp-help-topic > p { margin: 0; padding: 11px 14px 13px 39px; border: 1px solid var(--portal-border); border-top: 0; border-radius: 0 0 8px 8px; background: var(--portal-raised); color: var(--portal-muted); font-size: 9px; line-height: 1.6; }
+.mxp-help-empty { margin: 6px 2px 0; color: var(--portal-muted); font-size: 9px; line-height: 1.6; }
+
+/* Disconnecting ends real access, so the row asks once before it happens. */
+.mxp-disconnect-confirm { display: flex; align-items: center; gap: 7px; padding: 4px 4px 4px 9px; border: 1px solid #e2c489; border-radius: 9px; background: var(--portal-warning-soft); }
+.mxp-disconnect-confirm > small { display: flex; align-items: center; gap: 5px; color: var(--portal-warning); font-size: 8px; font-weight: 620; white-space: nowrap; }
+.mxp-integration-category article > div:last-child .mxp-disconnect-go { border-color: var(--portal-danger); background: var(--portal-danger); color: #fff; }
+
+.mxp-team-invite { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; align-items: center; gap: 7px; }
+.mxp-team-invite label { display: block; min-width: 0; }
+.mxp-team-invite input { width: 100%; min-height: 36px; padding: 0 10px; border: 1px solid var(--portal-border-strong); border-radius: 8px; background: #fff; color: var(--portal-text); font-size: 10px; }
+.mxp-team-invite button { min-height: 36px; padding: 0 12px; border: 1px solid var(--portal-border-strong); border-radius: 8px; background: #fff; font-size: 9px; font-weight: 620; cursor: pointer; }
+.mxp-team-invite button:disabled { cursor: not-allowed; opacity: .45; }
 
 @keyframes mxp-dialog-enter { from { opacity: 0; transform: translateY(8px) scale(.985); } to { opacity: 1; transform: translateY(0) scale(1); } }
 @keyframes mxp-panel-enter { from { transform: translateX(22px); opacity: .6; } to { transform: translateX(0); opacity: 1; } }
