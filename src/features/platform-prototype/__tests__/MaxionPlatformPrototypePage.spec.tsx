@@ -141,7 +141,7 @@ describe("MaxionPlatformPrototypePage", () => {
 		expect(screen.getByRole("button", { name: "Run verified" })).toBeInTheDocument()
 	}, 120_000)
 
-	it("creates an autonomous Plan from existing context and provides L2, L3, and L4 guidance for every flow", async () => {
+	it("creates an autonomous Plan from existing context and provides executable behavior plus L2, L3, and L4 guidance for every flow", async () => {
 		renderPrototype()
 		fireEvent.click(screen.getByRole("button", { name: "Plan" }))
 		fireEvent.click(screen.getByRole("button", { name: "Create Plan" }))
@@ -172,13 +172,22 @@ describe("MaxionPlatformPrototypePage", () => {
 		expect(within(impactCard).getByText(/Applied · snapshot v13/)).toBeInTheDocument()
 		expect(screen.getByRole("button", { name: "Verified Discovery · snapshot v13" })).toBeInTheDocument()
 		fireEvent.click(within(screen.getByRole("navigation", { name: "Plan workspace" })).getByRole("button", { name: /Design/ }))
-		expect(screen.getByRole("heading", { name: "See the system. Select a node. Know what to build." })).toBeInTheDocument()
+		expect(screen.getByRole("heading", { name: "See the flow. Understand the behavior. Know what to build." })).toBeInTheDocument()
 		expect(screen.queryByText("Generated flows")).not.toBeInTheDocument()
-		expect(screen.getByText("15 / 15")).toBeInTheDocument()
+		expect(screen.getByText("20 / 20")).toBeInTheDocument()
 		const flows = screen.getByRole("navigation", { name: "Architecture flows" })
 		for (const flowTitle of ["Mission authority and approval boundary", "ServiceNow to Workday financial integration", "Durable reconciliation and drift repair", "Tenant-safe retry and replay protection", "Release evidence and deployment approval"]) {
 			expect(within(flows).getByRole("button", { name: new RegExp(flowTitle) })).toBeInTheDocument()
 		}
+		const behaviorFlow = screen.getByRole("region", { name: "Executable behavior flow for ServiceNow to Workday financial integration" })
+		expect(within(behaviorFlow).getByRole("list", { name: "Ordered application behavior" })).toBeInTheDocument()
+		fireEvent.click(within(behaviorFlow).getByRole("button", { name: /MuleSoft Experience API.*Validate and durably accept ingress/ }))
+		expect(within(behaviorFlow).getByRole("region", { name: "Selected behavior step" })).toHaveTextContent("Signed ApprovedFinancialChange v1 received")
+		expect(within(behaviorFlow).getByRole("region", { name: "Execute workspace context packet" })).toHaveTextContent("mulesoft-financial-change-api")
+		expect(within(behaviorFlow).getByRole("region", { name: "Execute workspace context packet" })).toHaveTextContent("MULE-201")
+		expect(within(behaviorFlow).getByRole("region", { name: "Execute workspace context packet" })).toHaveTextContent("INT-01 baselined")
+		expect(within(behaviorFlow).getByRole("region", { name: "Execute workspace context packet" })).toHaveTextContent("OAuth 2.0 client credentials + mTLS")
+		fireEvent.click(screen.getByRole("button", { name: "L2 Solution" }))
 		const l2Diagram = screen.getByRole("group", { name: "L2 diagram for ServiceNow to Workday financial integration" })
 		expect(l2Diagram).toHaveClass("apn-architecture-diagram", "is-l2")
 		expect(l2Diagram.querySelector("svg")).toBeInTheDocument()
@@ -220,6 +229,8 @@ describe("MaxionPlatformPrototypePage", () => {
 		fireEvent.click(within(flowNavigation).getByRole("button", { name: /System blueprint/ }))
 		expect(screen.getByRole("group", { name: "System blueprint for the five implementation flows" })).toBeInTheDocument()
 		fireEvent.click(screen.getByRole("button", { name: "Open Mission authority and approval boundary" }))
+		expect(screen.getByRole("region", { name: "Executable behavior flow for Mission authority and approval boundary" })).toBeInTheDocument()
+		fireEvent.click(screen.getByRole("button", { name: "L2 Solution" }))
 		const authorityDiagram = screen.getByRole("group", { name: "L2 diagram for Mission authority and approval boundary" })
 		expect(authorityDiagram).toBeInTheDocument()
 		expect(within(authorityDiagram).getByText("MAXION AUTHORITY PLANE")).toBeInTheDocument()
@@ -253,7 +264,7 @@ describe("MaxionPlatformPrototypePage", () => {
 		fireEvent.click(within(screen.getByRole("navigation", { name: "Ledger sections" })).getByRole("button", { name: /History/ }))
 		expect(screen.getByRole("heading", { name: "Every pass is recorded. Nothing changes silently." })).toBeInTheDocument()
 		expect(screen.getByText("The integration control plane moves — 12 artifacts re-derive")).toBeInTheDocument()
-		expect(screen.getByText("Initial decomposition: five flows through L2–L4")).toBeInTheDocument()
+		expect(screen.getByText("Initial decomposition: five flows through behavior and L2–L4")).toBeInTheDocument()
 
 		fireEvent.click(within(screen.getByRole("navigation", { name: "Ledger sections" })).getByRole("button", { name: /Sources/ }))
 		expect(screen.getByText("CLM-014")).toBeInTheDocument()

@@ -1,0 +1,434 @@
+.apn-diagram-panel > header [aria-label="Design layer"] {
+	display: grid;
+	grid-template-columns: repeat(4, minmax(58px, 1fr));
+}
+
+.apn-behavior-flow {
+	display: grid;
+	gap: 14px;
+}
+
+.apn-behavior-boundary {
+	display: grid;
+	grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+	align-items: stretch;
+	gap: 10px;
+}
+
+.apn-behavior-boundary > svg {
+	align-self: center;
+	color: var(--portal-brand);
+}
+
+.apn-behavior-boundary article {
+	display: grid;
+	gap: 5px;
+	padding: 12px 14px;
+	border: 1px solid var(--portal-border);
+	border-radius: var(--portal-radius-sm);
+	background: var(--portal-raised);
+}
+
+.apn-behavior-boundary article.is-outcome {
+	border-color: color-mix(in srgb, var(--portal-success) 34%, var(--portal-border));
+	background: var(--portal-success-soft);
+}
+
+.apn-behavior-boundary small,
+.apn-behavior-step-detail small,
+.apn-workspace-context small {
+	color: var(--portal-muted);
+	font-size: 9px;
+	font-weight: 700;
+	letter-spacing: .08em;
+	text-transform: uppercase;
+}
+
+.apn-behavior-boundary strong {
+	color: var(--portal-text);
+	font-size: 11px;
+	font-weight: 620;
+	line-height: 1.5;
+}
+
+.apn-behavior-sequence {
+	display: grid;
+	grid-template-columns: repeat(var(--apn-flow-step-count, 5), minmax(0, 1fr));
+	gap: 8px;
+	margin: 0;
+	padding: 0;
+	list-style: none;
+}
+
+.apn-behavior-sequence li {
+	position: relative;
+	min-width: 0;
+}
+
+.apn-behavior-sequence li > svg {
+	position: absolute;
+	top: 50%;
+	right: -11px;
+	z-index: 2;
+	padding: 2px;
+	border-radius: 50%;
+	background: var(--portal-card);
+	color: var(--portal-brand);
+	transform: translateY(-50%);
+}
+
+.apn-behavior-sequence button {
+	display: grid;
+	width: 100%;
+	min-height: 142px;
+	align-content: start;
+	gap: 5px;
+	padding: 11px;
+	border: 1px solid var(--portal-border);
+	border-radius: var(--portal-radius-sm);
+	background: var(--portal-card);
+	color: var(--portal-text);
+	text-align: left;
+	cursor: pointer;
+	transition: border-color 160ms var(--portal-ease), box-shadow 160ms var(--portal-ease), transform 160ms var(--portal-ease);
+}
+
+.apn-behavior-sequence button:hover {
+	border-color: var(--portal-border-strong);
+	box-shadow: var(--portal-shadow-sm);
+	transform: translateY(-1px);
+}
+
+.apn-behavior-sequence button:focus-visible,
+.apn-behavior-step-detail button:focus-visible,
+.apn-workspace-context button:focus-visible {
+	outline: 2px solid var(--portal-brand);
+	outline-offset: 2px;
+}
+
+.apn-behavior-sequence button[aria-pressed="true"] {
+	border-color: var(--portal-brand);
+	box-shadow: 0 0 0 2px color-mix(in srgb, var(--portal-brand) 12%, transparent);
+}
+
+.apn-behavior-sequence button > span {
+	display: grid;
+	width: 22px;
+	height: 22px;
+	place-items: center;
+	border-radius: 6px;
+	background: var(--portal-brand-soft);
+	color: var(--portal-brand-strong);
+	font-size: 9px;
+	font-weight: 760;
+}
+
+.apn-behavior-sequence button small {
+	overflow: hidden;
+	color: var(--portal-muted);
+	font-size: 8px;
+	font-weight: 650;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.apn-behavior-sequence button strong {
+	font-size: 10px;
+	font-weight: 680;
+	line-height: 1.35;
+}
+
+.apn-behavior-sequence button em {
+	color: var(--portal-subtle);
+	font-size: 8px;
+	font-style: normal;
+	line-height: 1.35;
+}
+
+.apn-behavior-sequence button code {
+	align-self: end;
+	overflow: hidden;
+	margin-top: auto;
+	color: var(--portal-brand-strong);
+	font-size: 8px;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.apn-behavior-step-detail,
+.apn-workspace-context {
+	overflow: hidden;
+	border: 1px solid var(--portal-border);
+	border-radius: var(--portal-radius);
+	background: var(--portal-card);
+	box-shadow: var(--portal-shadow-sm);
+}
+
+.apn-behavior-step-detail > header,
+.apn-workspace-context > header {
+	display: flex;
+	align-items: flex-start;
+	justify-content: space-between;
+	gap: 18px;
+	padding: 14px 16px;
+	border-bottom: 1px solid var(--portal-border);
+}
+
+.apn-behavior-step-detail h3,
+.apn-workspace-context h3 {
+	margin: 4px 0 0;
+	color: var(--portal-text);
+	font-size: 14px;
+	font-weight: 690;
+	letter-spacing: -.015em;
+}
+
+.apn-behavior-step-detail header p {
+	max-width: 780px;
+	margin: 5px 0 0;
+	color: var(--portal-muted);
+	font-size: 10px;
+	line-height: 1.5;
+}
+
+.apn-behavior-step-detail > header > span {
+	display: inline-flex;
+	align-items: center;
+	gap: 5px;
+	padding: 5px 8px;
+	border-radius: 999px;
+	background: var(--portal-success-soft);
+	color: var(--portal-success);
+	font-size: 8px;
+	font-weight: 700;
+	white-space: nowrap;
+}
+
+.apn-behavior-detail-grid {
+	display: grid;
+	grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.apn-behavior-detail-grid article {
+	min-width: 0;
+	padding: 12px 14px;
+	border-right: 1px solid var(--portal-border);
+	border-bottom: 1px solid var(--portal-border);
+}
+
+.apn-behavior-detail-grid article:nth-child(3) {
+	border-right: 0;
+}
+
+.apn-behavior-detail-grid article.is-failure,
+.apn-behavior-detail-grid article.is-evidence {
+	grid-column: span 3;
+	border-right: 0;
+}
+
+.apn-behavior-detail-grid article.is-failure {
+	background: var(--portal-warning-soft);
+}
+
+.apn-behavior-detail-grid article.is-evidence {
+	border-bottom: 0;
+	background: var(--portal-success-soft);
+}
+
+.apn-behavior-detail-grid strong {
+	display: block;
+	margin-top: 5px;
+	color: var(--portal-text);
+	font-size: 10px;
+	font-weight: 620;
+	line-height: 1.45;
+}
+
+.apn-behavior-detail-grid p {
+	margin: 3px 0 0;
+	color: var(--portal-muted);
+	font-size: 9px;
+}
+
+.apn-behavior-step-detail > footer,
+.apn-workspace-context > footer {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 12px;
+	padding: 10px 14px;
+	border-top: 1px solid var(--portal-border);
+	background: var(--portal-raised);
+}
+
+.apn-behavior-step-detail > footer > div {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	gap: 5px;
+}
+
+.apn-behavior-step-detail > footer span {
+	margin-left: 7px;
+	color: var(--portal-muted);
+	font-size: 8px;
+	font-weight: 650;
+}
+
+.apn-behavior-step-detail > footer span:first-child {
+	margin-left: 0;
+}
+
+.apn-behavior-step-detail code {
+	padding: 3px 5px;
+	border: 1px solid var(--portal-border);
+	border-radius: 5px;
+	background: var(--portal-card);
+	color: var(--portal-brand-strong);
+	font-size: 8px;
+}
+
+.apn-behavior-step-detail footer button,
+.apn-workspace-context footer button {
+	display: inline-flex;
+	align-items: center;
+	gap: 5px;
+	padding: 7px 9px;
+	border: 1px solid var(--portal-border-strong);
+	border-radius: 7px;
+	background: var(--portal-card);
+	color: var(--portal-text);
+	font-size: 9px;
+	font-weight: 650;
+	cursor: pointer;
+}
+
+.apn-workspace-context {
+	border-color: color-mix(in srgb, var(--portal-brand) 30%, var(--portal-border));
+}
+
+.apn-workspace-context > header {
+	background: color-mix(in srgb, var(--portal-brand-soft) 58%, var(--portal-card));
+}
+
+.apn-workspace-context > header i {
+	padding: 5px 8px;
+	border: 1px solid color-mix(in srgb, var(--portal-brand) 20%, var(--portal-border));
+	border-radius: 999px;
+	color: var(--portal-brand-strong);
+	font-size: 8px;
+	font-style: normal;
+	font-weight: 700;
+}
+
+.apn-workspace-context > div {
+	display: grid;
+	grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.apn-workspace-context > div article {
+	padding: 13px 15px;
+	border-right: 1px solid var(--portal-border);
+	border-bottom: 1px solid var(--portal-border);
+}
+
+.apn-workspace-context > div article:nth-child(2n) {
+	border-right: 0;
+}
+
+.apn-workspace-context > div article:nth-last-child(-n + 2) {
+	border-bottom: 0;
+}
+
+.apn-workspace-context > div strong {
+	display: block;
+	margin-top: 5px;
+	color: var(--portal-text);
+	font-size: 10px;
+	font-weight: 650;
+	line-height: 1.45;
+}
+
+.apn-workspace-context > div p {
+	margin: 4px 0 0;
+	color: var(--portal-muted);
+	font-size: 9px;
+	line-height: 1.45;
+}
+
+.apn-workspace-context > footer > span {
+	display: inline-flex;
+	align-items: center;
+	gap: 5px;
+	color: var(--portal-success);
+	font-size: 9px;
+	font-weight: 650;
+}
+
+@media (max-width: 1050px) {
+	.apn-behavior-sequence {
+		grid-template-columns: repeat(2, minmax(0, 1fr));
+	}
+
+	.apn-behavior-sequence li > svg {
+		display: none;
+	}
+}
+
+@media (max-width: 720px) {
+	.apn-diagram-panel > header [aria-label="Design layer"] {
+		width: 100%;
+		grid-template-columns: repeat(4, minmax(0, 1fr));
+	}
+
+	.apn-behavior-boundary,
+	.apn-behavior-sequence,
+	.apn-behavior-detail-grid,
+	.apn-workspace-context > div {
+		grid-template-columns: 1fr;
+	}
+
+	.apn-behavior-boundary > svg {
+		justify-self: center;
+		transform: rotate(90deg);
+	}
+
+	.apn-behavior-sequence button {
+		min-height: 0;
+	}
+
+	.apn-behavior-detail-grid article,
+	.apn-behavior-detail-grid article:nth-child(3),
+	.apn-behavior-detail-grid article.is-failure,
+	.apn-behavior-detail-grid article.is-evidence,
+	.apn-workspace-context > div article,
+	.apn-workspace-context > div article:nth-child(2n),
+	.apn-workspace-context > div article:nth-last-child(-n + 2) {
+		grid-column: auto;
+		border-right: 0;
+		border-bottom: 1px solid var(--portal-border);
+	}
+
+	.apn-workspace-context > div article:last-child,
+	.apn-behavior-detail-grid article:last-child {
+		border-bottom: 0;
+	}
+
+	.apn-behavior-step-detail > header,
+	.apn-workspace-context > header,
+	.apn-behavior-step-detail > footer,
+	.apn-workspace-context > footer {
+		align-items: flex-start;
+		flex-direction: column;
+	}
+}
+
+@media (prefers-reduced-motion: reduce) {
+	.apn-behavior-sequence button {
+		transition: none;
+	}
+
+	.apn-behavior-sequence button:hover {
+		transform: none;
+	}
+}

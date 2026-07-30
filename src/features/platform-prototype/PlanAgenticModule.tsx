@@ -29,10 +29,33 @@ import { useEffect, useRef, useState, type CSSProperties } from "react"
 import { MaxionSpiralMark } from "./PortalChrome"
 import { PlanLibraryModule } from "./PortalReplicaModules"
 import { type MaxionModuleId, type PortalProject } from "./model"
+import "./plan-behavior-flow.css"
 
 type PlanView = "plan" | "design" | "ledger"
 type PlanLedgerSection = "decisions" | "history" | "sources"
 type PlanArchitectureLevel = "L2" | "L3" | "L4"
+type PlanDesignLayer = "FLOW" | PlanArchitectureLevel
+
+type PlanBehaviorStep = {
+	id: string
+	title: string
+	actor: string
+	surface: string
+	trigger: string
+	behavior: string
+	stateTransition: string
+	workspaceKey: string
+	contractRefs: readonly string[]
+	packageRefs: readonly string[]
+	failureBehavior: string
+	evidence: string
+}
+
+type PlanBehaviorFlow = {
+	entryCondition: string
+	terminalOutcome: string
+	steps: readonly PlanBehaviorStep[]
+}
 
 type PlanDiagramLane = { x: number; width: number; label: string }
 
@@ -296,7 +319,8 @@ type PlanExecutionBrief = {
 	buildOrder: readonly string[]
 }
 
-const PLAN_LEVEL_QUESTIONS: Record<PlanArchitectureLevel, { question: string; audience: string; output: string }> = {
+const PLAN_LEVEL_QUESTIONS: Record<PlanDesignLayer, { question: string; audience: string; output: string }> = {
+	FLOW: { question: "What happens from the initiating event to a verified outcome?", audience: "Product owners · delivery leads · Execute workspace agents", output: "Ordered behavior, state transitions, system effects, failures, evidence, and workspace ownership" },
 	L2: { question: "Is this the right solution boundary and operating model?", audience: "Solution architect · business and platform owners", output: "Approved systems, responsibilities, integration pattern, and business outcome" },
 	L3: { question: "Can every team implement its interfaces without inventing a contract?", audience: "Technical architects · API, security, data, and operations leads", output: "Deployable components, versioned contracts, mappings, security, and failure behavior" },
 	L4: { question: "Can each delivery team start building and prove completion?", audience: "Engineering leads · developers · QA and release", output: "Assigned work packages, artifacts, dependencies, tests, evidence, and handoff order" },
@@ -409,8 +433,62 @@ const PLAN_EXECUTION_BRIEFS: Record<string, PlanExecutionBrief> = {
 	},
 }
 
+const PLAN_BEHAVIOR_FLOWS: Record<string, PlanBehaviorFlow> = {
+	authority: {
+		entryCondition: "A business owner submits an outcome request backed by verified Discovery context.",
+		terminalOutcome: "Execute receives a current, tenant-bound mission grant that names the approved scope and authority.",
+		steps: [
+			{ id: "AUTH-B01", title: "Propose the bounded mission", actor: "Business owner", surface: "Plan workspace", trigger: "Owner submits the intended outcome", behavior: "Plan assembles the requested outcome, tenant, evidence snapshot, constraints, and effect boundary into MissionProposal v2.", stateTransition: "Draft request → mission proposed", workspaceKey: "plan-mission-api", contractRefs: ["AUTH-01"], packageRefs: ["PLAN-101"], failureBehavior: "Invalid or incomplete scope returns a stable validation state; no policy evaluation begins.", evidence: "Mission proposal, source fingerprint, actor, tenant, and request correlation ID" },
+			{ id: "AUTH-B02", title: "Evaluate policy and decision rights", actor: "MAXION authority plane", surface: "Policy service", trigger: "MissionProposal v2 accepted", behavior: "The policy service resolves tenant ownership, actor role, effect class, approval topology, and the maximum permissible mission scope.", stateTransition: "Mission proposed → approval required or denied", workspaceKey: "authority-policy-service", contractRefs: ["AUTH-01"], packageRefs: ["AUTH-201"], failureBehavior: "Timeout, absent policy, wrong tenant, or ambiguous authority fails closed with an auditable denial reason.", evidence: "Policy version, evaluated claims, bounded scope, and denial or approval requirement" },
+			{ id: "AUTH-B03", title: "Record the named owner decision", actor: "Named approver", surface: "Approval request", trigger: "Policy identifies an approval requirement", behavior: "The approver reviews the exact scope, evidence, affected components, failure controls, and rollback boundary before approving or denying.", stateTransition: "Approval required → approved or denied", workspaceKey: "authority-approval-ledger", contractRefs: ["AUTH-02"], packageRefs: ["AUTH-201"], failureBehavior: "Expired, stale, replayed, or scope-mismatched decisions are rejected and cannot issue a grant.", evidence: "Immutable decision, actor, timestamp, source revision, reason, and approved scope" },
+			{ id: "AUTH-B04", title: "Issue and consume the mission grant", actor: "Execute platform", surface: "Execute mission intake", trigger: "Current approval recorded", behavior: "Plan issues a short-lived signed grant; Execute verifies signature, tenant, revision, scope, expiry, and replay status before creating runnable work.", stateTransition: "Approved → mission runnable", workspaceKey: "execute-mission-verifier", contractRefs: ["AUTH-02"], packageRefs: ["EXEC-301"], failureBehavior: "Any verification failure leaves the mission non-runnable and preserves the denial receipt.", evidence: "Grant fingerprint, verification receipt, consumed revision, and resulting Execute run ID" },
+		],
+	},
+	adapter: {
+		entryCondition: "A financial change is approved in ServiceNow and satisfies the approved implementation boundary.",
+		terminalOutcome: "Exactly one Workday journal is posted, its durable receipt is returned to ServiceNow, and the complete trace is available for reconciliation.",
+		steps: [
+			{ id: "INT-B01", title: "Publish the approved change", actor: "ServiceNow finance user", surface: "ServiceNow financial change", trigger: "The record enters Approved", behavior: "Flow Designer freezes the approved source fields, assigns a correlation and idempotency key, emits ApprovedFinancialChange v1, and shows delivery pending.", stateTransition: "Approved → delivery pending", workspaceKey: "servicenow-financial-change", contractRefs: ["INT-01"], packageRefs: ["SNOW-101"], failureBehavior: "Schema or credential failure retains the approved record, shows delivery failed, and creates no Workday effect.", evidence: "Source record revision, event fingerprint, correlation ID, and outbound delivery receipt" },
+			{ id: "INT-B02", title: "Validate and durably accept ingress", actor: "MuleSoft Experience API", surface: "financial-change-api", trigger: "Signed ApprovedFinancialChange v1 received", behavior: "The API authenticates the caller, validates tenant and schema, deduplicates the event, durably records receipt, and returns 202 only after acceptance.", stateTransition: "Delivery pending → accepted or rejected", workspaceKey: "mulesoft-financial-change-api", contractRefs: ["INT-01"], packageRefs: ["MULE-201"], failureBehavior: "Invalid requests return an actionable 4xx; transient receipt failures return retryable status without acknowledging acceptance.", evidence: "Validated payload hash, policy decision, receipt timestamp, and response code" },
+			{ id: "INT-B03", title: "Transform, queue, and orchestrate", actor: "MuleSoft Process API", surface: "finance-process-api and Anypoint MQ", trigger: "Ingress receipt committed", behavior: "The process resolves canonical Workday references, applies the approved mapping, persists the journal command to MQ, and advances it using bounded retry rules.", stateTransition: "Accepted → journal queued → dispatching", workspaceKey: "mulesoft-finance-process", contractRefs: ["INT-02"], packageRefs: ["MULE-202"], failureBehavior: "Unknown worktags fail without posting; exhausted transient failures move to the monitored DLQ with the original correlation ID.", evidence: "Mapping version, transformed command hash, queue receipt, retry count, and DLQ disposition" },
+			{ id: "INT-B04", title: "Validate and post the journal", actor: "Workday Financials", surface: "Accounting Journal API", trigger: "Authorized journal command dequeued", behavior: "The governed ISU validates worktags, accounting period, currency, balancing, and posting authority before atomically creating the journal.", stateTransition: "Dispatching → posted or classified terminal failure", workspaceKey: "workday-accounting-journal", contractRefs: ["INT-02"], packageRefs: ["WDAY-301"], failureBehavior: "Closed periods, invalid worktags, or authority failures are classified as non-retryable; timeouts remain receipt-aware before retry.", evidence: "Workday request ID, journal ID, status, validation result, and provider receipt" },
+			{ id: "INT-B05", title: "Return status and prove the outcome", actor: "Joint delivery flow", surface: "ServiceNow callback and test evidence", trigger: "Workday returns a terminal receipt", behavior: "MuleSoft writes JournalReceipt v1 to the originating record, preserves replay safety, and the joint gate verifies the full request-to-receipt trace.", stateTransition: "Posted → source updated → flow verified", workspaceKey: "financial-integration-e2e", contractRefs: ["INT-03"], packageRefs: ["INT-401"], failureBehavior: "Callback exhaustion raises reconciliation work without reposting the journal; duplicate delivery returns the retained receipt.", evidence: "Callback response, updated source revision, trace correlation, replay proof, and E2E evidence pack" },
+		],
+	},
+	reconcile: {
+		entryCondition: "A posted effect or scheduled reconciliation window provides a durable expected-state cursor.",
+		terminalOutcome: "Expected and observed state agree, or material drift becomes a bounded repair proposal requiring the correct authority.",
+		steps: [
+			{ id: "REC-B01", title: "Load expected effects", actor: "Finance platform", surface: "Effect journal", trigger: "Receipt committed or reconciliation schedule fires", behavior: "The worker pages through expected effects from the last durable cursor and produces ExpectedState v1 records.", stateTransition: "Scheduled → expected state loaded", workspaceKey: "finance-effect-journal", contractRefs: ["REC-01"], packageRefs: ["FIN-101"], failureBehavior: "Cursor or database failure stops the slice without advancing the checkpoint.", evidence: "Input cursor, expected-effect IDs, source receipts, and next checkpoint" },
+			{ id: "REC-B02", title: "Observe provider reality", actor: "Provider integration", surface: "Paged ERP readers", trigger: "Expected-state slice available", behavior: "Read-only adapters fetch SAP and QuickBooks state with rate limits, timeouts, and resumable provider cursors.", stateTransition: "Expected loaded → observation captured", workspaceKey: "provider-state-readers", contractRefs: ["REC-02"], packageRefs: ["INT-201"], failureBehavior: "Circuit-breaker activation retains the last confirmed cursor and marks the observation incomplete rather than current.", evidence: "Provider cursor, snapshot fingerprint, read timestamp, completeness, and rate-limit metadata" },
+			{ id: "REC-B03", title: "Classify drift deterministically", actor: "Finance controls", surface: "Drift engine", trigger: "Expected and observed snapshots are complete", behavior: "Versioned rules compare material fields, classify benign, repairable, and blocking drift, and preserve the exact inputs used.", stateTransition: "Observation captured → matched or drift classified", workspaceKey: "finance-drift-engine", contractRefs: ["REC-01", "REC-02"], packageRefs: ["CTL-301"], failureBehavior: "Missing or stale observations produce an indeterminate result; they never produce a repair action.", evidence: "Rule version, comparison inputs, classified differences, and materiality decision" },
+			{ id: "REC-B04", title: "Route a bounded repair", actor: "Finance controls owner", surface: "Repair review", trigger: "Material repairable drift classified", behavior: "The repair planner constrains the proposal to the originating mission and routes the exact effect for approval before Execute can act.", stateTransition: "Drift classified → repair proposed or blocked", workspaceKey: "finance-repair-planner", contractRefs: ["REC-01"], packageRefs: ["CTL-301"], failureBehavior: "Scope widening, absent authority, or conflicting provider state blocks the proposal and records the reason.", evidence: "Drift fingerprint, proposed correction, authority boundary, approver decision, and repair correlation ID" },
+		],
+	},
+	replay: {
+		entryCondition: "Execute receives an authenticated external-effect request with a tenant-scoped idempotency key.",
+		terminalOutcome: "Concurrent and repeated requests converge on one retained provider effect and one immutable receipt.",
+		steps: [
+			{ id: "SEC-B01", title: "Canonicalize and authorize the request", actor: "Execute gateway", surface: "Effect command API", trigger: "Authenticated request received", behavior: "The gateway validates tenant ownership and mission scope, canonicalizes the command, and calculates a stable request fingerprint.", stateTransition: "Received → authorized and fingerprinted", workspaceKey: "execute-effect-gateway", contractRefs: ["SEC-01"], packageRefs: ["EXEC-101"], failureBehavior: "Unauthorized resources, malformed scope, and cross-tenant IDs fail before an idempotency claim exists.", evidence: "Actor, tenant, mission, normalized command hash, and authorization decision" },
+			{ id: "SEC-B02", title: "Claim the effect atomically", actor: "Security engineering", surface: "Replay ledger", trigger: "Authorized fingerprint available", behavior: "A tenant/key unique transaction creates the winning claim or returns the retained state for an identical request.", stateTransition: "Fingerprinted → claimed, replayed, or conflicted", workspaceKey: "tenant-replay-ledger", contractRefs: ["SEC-01"], packageRefs: ["SEC-201"], failureBehavior: "A reused key with a different fingerprint returns 409; database ambiguity creates no provider dispatch.", evidence: "Claim transaction, winning request ID, stored fingerprint, and replay classification" },
+			{ id: "SEC-B03", title: "Dispatch once and retain the receipt", actor: "Provider integration", surface: "Transactional outbox", trigger: "Winning claim commits", behavior: "The outbox worker performs the bounded provider call, reconciles ambiguous timeouts, and atomically associates the immutable receipt with the claim.", stateTransition: "Claimed → dispatched → receipt retained", workspaceKey: "provider-effect-dispatcher", contractRefs: ["SEC-02"], packageRefs: ["INT-301"], failureBehavior: "Retries inspect the ledger and provider receipt before acting; terminal failure is retained without opening another claim.", evidence: "Outbox item, attempt history, provider request ID, effect receipt, and reconciliation result" },
+			{ id: "SEC-B04", title: "Return the converged result", actor: "Execute gateway", surface: "Effect command API", trigger: "Receipt or terminal disposition retained", behavior: "The original caller and all valid replays receive the same durable result while conflicting requests receive the stable conflict response.", stateTransition: "Receipt retained → completed and replay-safe", workspaceKey: "execute-effect-gateway", contractRefs: ["SEC-01", "SEC-02"], packageRefs: ["EXEC-101", "SEC-201"], failureBehavior: "Response delivery failure is retryable because the authoritative result remains in the ledger.", evidence: "Response fingerprint, retained receipt ID, duplicate count, and audit-chain position" },
+		],
+	},
+	evidence: {
+		entryCondition: "All required Execute workspaces have terminal implementation and verification evidence for the same source revision.",
+		terminalOutcome: "A named release owner approves or denies one immutable release candidate containing exact artifacts, proof, target scope, and rollback instructions.",
+		steps: [
+			{ id: "REL-B01", title: "Collect pinned workspace outputs", actor: "Execute delivery teams", surface: "Artifact registry", trigger: "Workspace completion gates pass", behavior: "Each workspace publishes source revision, artifact hashes, test receipts, component keys, and acceptance results into WorkspaceEvidence v1.", stateTransition: "Workspace verified → evidence published", workspaceKey: "workspace-evidence-publisher", contractRefs: ["REL-01"], packageRefs: ["REL-101"], failureBehavior: "Missing source lineage, failed acceptance, or stale hashes keep the workspace non-terminal.", evidence: "Artifact hashes, diff, test run IDs, acceptance results, and source component keys" },
+			{ id: "REL-B02", title: "Assemble and validate the candidate", actor: "Release engineering", surface: "Evidence service", trigger: "Required workspace evidence available", behavior: "The service validates completeness, checksums, source-revision consistency, approvals, operational evidence, and proven rollback instructions.", stateTransition: "Evidence published → candidate valid or blocked", workspaceKey: "release-evidence-service", contractRefs: ["REL-01"], packageRefs: ["REL-201"], failureBehavior: "Any stale, mismatched, or absent evidence produces a named blocker and no signable manifest.", evidence: "Validation report, evidence graph, rollback proof, candidate digest, and blocker list" },
+			{ id: "REL-B03", title: "Sign the immutable manifest", actor: "Release engineering", surface: "Release manifest service", trigger: "Candidate validation passes", behavior: "A deterministic canonical representation is content-addressed and signed with the approved target environment and deployment scope.", stateTransition: "Candidate valid → release candidate signed", workspaceKey: "release-manifest-service", contractRefs: ["REL-02"], packageRefs: ["REL-201"], failureBehavior: "Signing or digest mismatch leaves the candidate unsigned and non-deployable.", evidence: "Canonical manifest, signature, artifact digest set, environment, and rollback digest" },
+			{ id: "REL-B04", title: "Decide the bounded release", actor: "Named release owner", surface: "Approval service", trigger: "Signed release candidate available", behavior: "The owner reviews the exact diff, validation evidence, residual risk, target, and rollback proof before approving or denying deployment.", stateTransition: "Candidate signed → approved or denied", workspaceKey: "release-approval-service", contractRefs: ["REL-02"], packageRefs: ["OWN-301"], failureBehavior: "Stale approval, changed candidate digest, or insufficient authority invalidates the decision.", evidence: "Approver identity, decision, candidate digest, target environment, reason, and decision timestamp" },
+		],
+	},
+}
+
 const PLAN_PACKAGE_COUNT = PLAN_FLOWS.reduce((total, flow) => total + PLAN_EXECUTION_BRIEFS[flow.id].workPackages.length, 0)
-const PLAN_VIEW_COUNT = PLAN_FLOWS.length * 3
+const PLAN_VIEW_COUNT = PLAN_FLOWS.length * 4
 
 type PlanRevisionChange = { id: string; change: string }
 type PlanRevision = {
@@ -424,14 +502,14 @@ type PlanRevision = {
 }
 
 const PLAN_REVISION_HISTORY: readonly PlanRevision[] = [
-	{ version: "v12", pass: 8, time: "14:21", trigger: "Autonomous", title: "Routed approvals and sealed traceability", detail: "Matched architecture, security, and program decisions to named approvers; every view now links L2 → L3 → L4 with zero orphans.", changes: [{ id: "APPROVALS", change: "Three evidence-scoped requests delivered to named owners" }, { id: "TRACE", change: `${PLAN_VIEW_COUNT} views linked with zero orphan artifacts` }] },
+	{ version: "v12", pass: 8, time: "14:21", trigger: "Autonomous", title: "Routed approvals and sealed traceability", detail: "Matched behavior, architecture, security, and program decisions to named approvers; every view now links FLOW → L2 → L3 → L4 with zero orphans.", changes: [{ id: "APPROVALS", change: "Three evidence-scoped requests delivered to named owners" }, { id: "TRACE", change: `${PLAN_VIEW_COUNT} views linked with zero orphan artifacts` }] },
 	{ version: "v11", pass: 7, time: "14:19", trigger: "Critic repair", title: "Delivery critic: rollback proof attached to the release flow", detail: "The release candidate could not previously prove its rollback instructions against the exact manifest.", changes: [{ id: "CMP-REL-05", change: "Rollback instructions proven against the release candidate" }, { id: "REL-201", change: "Done condition extended with rollback verification" }] },
 	{ version: "v10", pass: 6, time: "14:17", trigger: "Critic repair", title: "Reliability critic: DLQ runbook and terminal-failure alerts added", detail: "Terminal Workday failures previously disappeared after retry exhaustion.", changes: [{ id: "INT-02", change: "15s timeout and exponential retry codified in the failure contract" }, { id: "MULE-202", change: "DLQ runbook and monitored alert attached" }] },
 	{ version: "v9", pass: 6, time: "14:16", trigger: "Critic repair", title: "Security critic: replay fingerprints bound to stored responses", detail: "A replayed request with a mutated body could previously return another tenant-safe receipt.", changes: [{ id: "CMP-SEC-04", change: "Request fingerprint added to the idempotency claim" }, { id: "SEC-201", change: "Done condition now includes conflicting-duplicate 409" }] },
 	{ version: "v8", pass: 5, time: "14:11", trigger: "Owner answer", title: "Closed accounting periods fail as classified, non-retryable errors", detail: "Marcus Lee (Workday owner) answered the open-period question; the error taxonomy and INT-02 now encode it.", changes: [{ id: "INT-02", change: "Classified non-retryable response added" }, { id: "WDAY-301", change: "Validation rules extended for closed periods" }, { id: "TESTS", change: "2 acceptance tests added" }] },
 	{ version: "v7", pass: 4, time: "14:09", trigger: "Autonomous", title: "Callback ownership assigned to MuleSoft", detail: "The project RACI and integration catalogue disagreed on who owns the journal-status callback; the catalogue is authoritative.", changes: [{ id: "INT-03", change: "Callback contract assigned to MuleSoft" }, { id: "RACI", change: "Reconciled with the integration catalogue" }] },
 	{ version: "v6", pass: 3, time: "14:07", trigger: "Autonomous", title: "Workday reference ID selected as canonical cost-center", detail: "ServiceNow samples and Workday metadata conflicted; Workday is the mastering system for cost centers.", changes: [{ id: "MAPPING", change: "u_cost_center → Worktags.Cost_Center via reference lookup" }, { id: "MULE-202", change: "DataWeave lookup added with unknown-value rejection" }] },
-	{ version: "v5", pass: 2, time: "14:04", trigger: "Autonomous", title: "Initial decomposition: five flows through L2–L4", detail: "The verified Discovery package decomposed into five implementation flows with full level coverage.", changes: [{ id: "FLOWS", change: `5 flows · ${PLAN_VIEW_COUNT} architecture views` }, { id: "PACKAGES", change: `${PLAN_PACKAGE_COUNT} owned work packages` }] },
+	{ version: "v5", pass: 2, time: "14:04", trigger: "Autonomous", title: "Initial decomposition: five flows through behavior and L2–L4", detail: "The verified Discovery package decomposed into five executable behavior flows with full architecture and build coverage.", changes: [{ id: "FLOWS", change: `5 flows · ${PLAN_VIEW_COUNT} traceable design views` }, { id: "PACKAGES", change: `${PLAN_PACKAGE_COUNT} owned work packages` }] },
 ] as const
 
 type PlanImpactArtifact = { id: string; kind: "contract" | "diagram" | "package" | "tests" | "mapping" | "approval"; change: string; diff?: { before: string; after: string } }
@@ -567,7 +645,7 @@ const PLAN_RUN_STAGES = [
 	{ key: "reading", live: "Reading the operating context", done: "Read the operating context", detail: "Grounded the plan in 124 verified claims from Discovery, project decisions, ServiceNow, Workday, integration standards, and policy.", duration: 2400 },
 	{ key: "reconciling", live: "Reconciling conflicts against authoritative sources", done: "Reconciled three conflicts without interrupting you", detail: "Resolved field ownership, callback responsibility, and retry-policy differences against authoritative sources and recorded the rationale.", duration: 2200 },
 	{ key: "interviewing", live: "Interviewing the domain owners", done: "Interviewed the domain owners", detail: "Asked the Workday and MuleSoft owners two targeted questions, incorporated their answers, and preserved the transcripts with the affected contracts.", duration: 2200 },
-	{ key: "designing", live: "Designing and challenging the implementation", done: "Designed and challenged the implementation", detail: `Generated five flows, ${PLAN_VIEW_COUNT} L2–L4 views, and ${PLAN_PACKAGE_COUNT} owned work packages; security, reliability, and delivery critics repaired three gaps.`, duration: 4200 },
+	{ key: "designing", live: "Designing and challenging the implementation", done: "Designed and challenged the implementation", detail: `Generated five executable behavior flows, ${PLAN_VIEW_COUNT} FLOW/L2/L3/L4 views, and ${PLAN_PACKAGE_COUNT} owned work packages; security, reliability, and delivery critics repaired three gaps.`, duration: 4200 },
 	{ key: "routing", live: "Routing the work and its decisions", done: "Routed the work and its decisions", detail: "Matched architecture, security, finance, and program decisions to named approvers and delivered evidence-scoped requests.", duration: 1800 },
 ] as const
 
@@ -682,7 +760,7 @@ function linkifyArtifacts(text: string, onJump: (id: string) => void) {
 		: <span key={index}>{part}</span>)
 }
 
-type PlanPaletteAction = { type: "view"; view: PlanView } | { type: "flow"; flowId: string; level: PlanArchitectureLevel } | { type: "ledger"; section: PlanLedgerSection } | { type: "send" }
+type PlanPaletteAction = { type: "view"; view: PlanView } | { type: "flow"; flowId: string; level: PlanDesignLayer } | { type: "ledger"; section: PlanLedgerSection } | { type: "send" }
 type PlanPaletteItem = { id: string; group: string; label: string; hint: string; keywords: string; action: PlanPaletteAction }
 
 function buildPaletteItems(readyForExecute: boolean): PlanPaletteItem[] {
@@ -698,7 +776,7 @@ function buildPaletteItems(readyForExecute: boolean): PlanPaletteItem[] {
 	]
 	if (readyForExecute) items.push({ id: "send", group: "Actions", label: "Send to Execute", hint: "Hand off the approved L3/L4 scope", keywords: "send execute handoff ship", action: { type: "send" } })
 	for (const flow of PLAN_FLOWS) {
-		items.push({ id: `flow-${flow.id}`, group: "Flows", label: flow.title, hint: `${flow.key} · L2 solution view`, keywords: `${flow.key} ${flow.summary}`, action: { type: "flow", flowId: flow.id, level: "L2" } })
+		items.push({ id: `flow-${flow.id}`, group: "Flows", label: flow.title, hint: `${flow.key} · executable behavior flow`, keywords: `${flow.key} ${flow.summary} behavior application journey`, action: { type: "flow", flowId: flow.id, level: "FLOW" } })
 		const brief = PLAN_EXECUTION_BRIEFS[flow.id]
 		for (const contract of brief.contracts) items.push({ id: `contract-${contract.id}`, group: "Contracts", label: `${contract.id} · ${contract.from} → ${contract.to}`, hint: contract.transport, keywords: `${contract.payload} ${contract.security}`, action: { type: "flow", flowId: flow.id, level: "L3" } })
 		for (const pkg of brief.workPackages) items.push({ id: `pkg-${pkg.id}`, group: "Packages", label: `${pkg.id} · ${pkg.title}`, hint: pkg.team, keywords: pkg.artifact, action: { type: "flow", flowId: flow.id, level: "L4" } })
@@ -770,7 +848,7 @@ function PlanWorkspaceModule({ live, onBack, onCommand, onSendToExecute }: { liv
 	const [approved, setApproved] = useState(false)
 	const [clarificationResolved, setClarificationResolved] = useState(false)
 	const [selectedFlowId, setSelectedFlowId] = useState("adapter")
-	const [level, setLevel] = useState<PlanArchitectureLevel>("L2")
+	const [level, setLevel] = useState<PlanDesignLayer>("FLOW")
 	const [ledgerSection, setLedgerSection] = useState<PlanLedgerSection>("decisions")
 	const [steer, setSteer] = useState("")
 	const [steeringTarget, setSteeringTarget] = useState<string | null>(null)
@@ -845,7 +923,7 @@ function PlanWorkspaceModule({ live, onBack, onCommand, onSendToExecute }: { liv
 		setRevisions((current) => [{ version: `v${Number(current[0].version.slice(1)) + 1}`, pass: current[0].pass + 1, time: "Just now", trigger, title, detail, changes }, ...current])
 	}
 
-	const openFlow = (flowId = selectedFlowId, nextLevel: PlanArchitectureLevel = level) => {
+	const openFlow = (flowId = selectedFlowId, nextLevel: PlanDesignLayer = level) => {
 		setSelectedFlowId(flowId)
 		setLevel(nextLevel)
 		setView("design")
@@ -1300,6 +1378,73 @@ function PlanImpactCard({ entry, onApply, onDiscard, onDismiss, onOpenRevisions,
 	)
 }
 
+function PlanBehaviorFlowView({ flow, brief, onOpenLevel, onSteerStep }: { flow: PlanFlow; brief: PlanExecutionBrief; onOpenLevel: (level: PlanArchitectureLevel) => void; onSteerStep: (context: string) => void }) {
+	const behaviorFlow = PLAN_BEHAVIOR_FLOWS[flow.id]
+	const [selectedStepId, setSelectedStepId] = useState(behaviorFlow.steps[0]?.id ?? "")
+	useEffect(() => setSelectedStepId(behaviorFlow.steps[0]?.id ?? ""), [behaviorFlow])
+	const selectedIndex = Math.max(0, behaviorFlow.steps.findIndex((step) => step.id === selectedStepId))
+	const selectedStep = behaviorFlow.steps[selectedIndex] ?? behaviorFlow.steps[0]
+	const ownedPackages = selectedStep ? brief.workPackages.filter((item) => selectedStep.packageRefs.includes(item.id)) : []
+	const referencedContracts = selectedStep ? brief.contracts.filter((item) => selectedStep.contractRefs.includes(item.id)) : []
+	if (!selectedStep) return null
+
+	return (
+		<section className="apn-behavior-flow" aria-label={`Executable behavior flow for ${flow.title}`}>
+			<div className="apn-behavior-boundary">
+				<article><small>Entry condition</small><strong>{behaviorFlow.entryCondition}</strong></article>
+				<ArrowRight size={15} aria-hidden="true" />
+				<article className="is-outcome"><small>Verified terminal outcome</small><strong>{behaviorFlow.terminalOutcome}</strong></article>
+			</div>
+
+			<ol className="apn-behavior-sequence" aria-label="Ordered application behavior" style={{ "--apn-flow-step-count": behaviorFlow.steps.length } as CSSProperties}>
+				{behaviorFlow.steps.map((step, index) => (
+					<li key={step.id}>
+						<button type="button" aria-pressed={selectedStep.id === step.id} onClick={() => setSelectedStepId(step.id)}>
+							<span>{String(index + 1).padStart(2, "0")}</span>
+							<small>{step.actor}</small>
+							<strong>{step.title}</strong>
+							<em>{step.stateTransition}</em>
+							<code>{step.workspaceKey}</code>
+						</button>
+						{index < behaviorFlow.steps.length - 1 ? <ArrowRight size={14} aria-hidden="true" /> : null}
+					</li>
+				))}
+			</ol>
+
+			<section className="apn-behavior-step-detail" aria-label="Selected behavior step">
+				<header>
+					<div><small>{selectedStep.id} · step {selectedIndex + 1} of {behaviorFlow.steps.length}</small><h3>{selectedStep.title}</h3><p>{selectedStep.behavior}</p></div>
+					<span><CheckCircle size={13} weight="fill" />Workspace scoped</span>
+				</header>
+				<div className="apn-behavior-detail-grid">
+					<article><small>Actor and surface</small><strong>{selectedStep.actor}</strong><p>{selectedStep.surface}</p></article>
+					<article><small>Starts when</small><strong>{selectedStep.trigger}</strong></article>
+					<article><small>State transition</small><strong>{selectedStep.stateTransition}</strong></article>
+					<article className="is-failure"><small>Failure and recovery</small><strong>{selectedStep.failureBehavior}</strong></article>
+					<article className="is-evidence"><small>Proof retained</small><strong>{selectedStep.evidence}</strong></article>
+				</div>
+				<footer>
+					<div><span>Contracts</span>{selectedStep.contractRefs.map((ref) => <code key={ref}>{ref}</code>)}<span>Packages</span>{selectedStep.packageRefs.map((ref) => <code key={ref}>{ref}</code>)}</div>
+					<button type="button" onClick={() => onSteerStep(`${flow.key} · FLOW · ${selectedStep.id} · ${selectedStep.title}`)}><Crosshair size={13} />Steer MAX on this step</button>
+				</footer>
+			</section>
+
+			<section className="apn-workspace-context" aria-label="Execute workspace context packet">
+				<header><div><span>Execute workspace context</span><h3>{selectedStep.workspaceKey}</h3></div><i>Compiled from FLOW → L2 → L3 → L4</i></header>
+				<div>
+					<article><small>Mission</small><strong>{flow.summary}</strong></article>
+					<article><small>Owned behavior</small><strong>{selectedStep.title}</strong><p>{selectedStep.behavior}</p></article>
+					<article><small>Implementation package</small><strong>{ownedPackages.length > 0 ? ownedPackages.map((item) => `${item.id} · ${item.title}`).join(" · ") : selectedStep.packageRefs.join(" · ")}</strong><p>{ownedPackages.length > 0 ? ownedPackages.map((item) => item.artifact).join(" · ") : "Cross-workspace verification responsibility"}</p></article>
+					<article><small>Dependency gate</small><strong>{ownedPackages.length > 0 ? ownedPackages.map((item) => item.dependsOn).join(" · ") : "Required upstream flow gates"}</strong><p>Execute resolves these keys before the workspace becomes runnable.</p></article>
+					<article><small>Interfaces and policy</small><strong>{referencedContracts.map((item) => `${item.id} · ${item.transport}`).join(" · ")}</strong><p>{referencedContracts.map((item) => item.security).join(" · ")}</p></article>
+					<article><small>Completion and evidence gate</small><strong>{ownedPackages.length > 0 ? ownedPackages.map((item) => item.doneWhen).join(" · ") : selectedStep.evidence}</strong><p>{selectedStep.evidence}</p></article>
+				</div>
+				<footer><span><Check size={12} />Behavior, interfaces, state, failure, evidence, and ownership travel together</span><button type="button" onClick={() => onOpenLevel("L2")}>Open solution boundary<ArrowRight size={13} /></button></footer>
+			</section>
+		</section>
+	)
+}
+
 type PlanDiagramNode = PlanFlow["levels"][PlanArchitectureLevel]["nodes"][number]
 
 function PlanArchitectureDiagram({ level, flow, brief, selectedNodeTitle, onSelectNode }: { level: PlanArchitectureLevel; flow: PlanFlow; brief: PlanExecutionBrief; selectedNodeTitle: string; onSelectNode: (title: string) => void }) {
@@ -1457,26 +1602,28 @@ function PlanPackagesPanel({ onOpenFlow }: { onOpenFlow: (flowId: string, level:
 	)
 }
 
-function PlanDesignView({ selectedFlowId, level, onLevelChange, onSelectFlow, onSteerNode }: { selectedFlowId: string; level: PlanArchitectureLevel; onLevelChange: (level: PlanArchitectureLevel) => void; onSelectFlow: (flowId: string) => void; onSteerNode: (context: string) => void }) {
+function PlanDesignView({ selectedFlowId, level, onLevelChange, onSelectFlow, onSteerNode }: { selectedFlowId: string; level: PlanDesignLayer; onLevelChange: (level: PlanDesignLayer) => void; onSelectFlow: (flowId: string) => void; onSteerNode: (context: string) => void }) {
 	const isSystem = selectedFlowId === "system"
 	const isPackages = selectedFlowId === "packages"
 	const selectedFlow = PLAN_FLOWS.find((flow) => flow.id === selectedFlowId) ?? PLAN_FLOWS[0]
-	const diagram = selectedFlow.levels[level]
+	const diagram = level === "FLOW" ? null : selectedFlow.levels[level]
 	const brief = PLAN_EXECUTION_BRIEFS[selectedFlow.id]
 	const [selectedNodeIndex, setSelectedNodeIndex] = useState(0)
-	useEffect(() => setSelectedNodeIndex(0), [selectedFlowId])
-	const nodeIndex = Math.min(selectedNodeIndex, Math.max(0, diagram.nodes.length - 1))
-	const selectedNode = diagram.nodes[nodeIndex] ?? diagram.nodes[0]
+	useEffect(() => setSelectedNodeIndex(0), [selectedFlowId, level])
+	const nodeIndex = diagram ? Math.min(selectedNodeIndex, Math.max(0, diagram.nodes.length - 1)) : 0
+	const selectedNode = diagram ? diagram.nodes[nodeIndex] ?? diagram.nodes[0] : undefined
 	const selectedNodeTitle = selectedNode?.title ?? ""
-	const setSelectedNodeTitle = (title: string) => setSelectedNodeIndex(Math.max(0, diagram.nodes.findIndex((node) => node.title === title)))
+	const setSelectedNodeTitle = (title: string) => {
+		if (diagram) setSelectedNodeIndex(Math.max(0, diagram.nodes.findIndex((node) => node.title === title)))
+	}
 	return (
 		<main className="apn-main apn-architecture-view apn-design-shell">
-			<header className="apn-view-heading apn-design-toolbar"><div><span>Design</span><h1>See the system. Select a node. Know what to build.</h1></div><div><strong>{PLAN_VIEW_COUNT} / {PLAN_VIEW_COUNT}</strong><small>traceable architecture views</small></div></header>
+			<header className="apn-view-heading apn-design-toolbar"><div><span>Design</span><h1>See the flow. Understand the behavior. Know what to build.</h1></div><div><strong>{PLAN_VIEW_COUNT} / {PLAN_VIEW_COUNT}</strong><small>traceable design views</small></div></header>
 			<div className="apn-architecture-layout apn-design-layout">
 				<nav aria-label="Architecture flows">
 					<span>Implementation flows</span>
 					<button type="button" className={`apn-flow-system${isSystem ? " is-active" : ""}`} onClick={() => onSelectFlow("system")}><i><TreeStructure size={14} /></i><span><strong>System blueprint</strong><small>How the five flows compose</small></span><CaretRight size={14} /></button>
-					{PLAN_FLOWS.map((flow) => <button key={flow.id} type="button" className={!isSystem && !isPackages && selectedFlow.id === flow.id ? "is-active" : ""} onClick={() => onSelectFlow(flow.id)}><i>{flow.number}</i><span><strong>{flow.title}</strong><small>{flow.key} · {PLAN_EXECUTION_BRIEFS[flow.id].teams.length} teams · {PLAN_EXECUTION_BRIEFS[flow.id].workPackages.length} build items</small></span><CheckCircle size={14} weight="fill" /></button>)}
+					{PLAN_FLOWS.map((flow) => <button key={flow.id} type="button" className={!isSystem && !isPackages && selectedFlow.id === flow.id ? "is-active" : ""} onClick={() => { onSelectFlow(flow.id); onLevelChange("FLOW") }}><i>{flow.number}</i><span><strong>{flow.title}</strong><small>{flow.key} · {PLAN_BEHAVIOR_FLOWS[flow.id].steps.length} behavior steps · {PLAN_EXECUTION_BRIEFS[flow.id].workPackages.length} build items</small></span><CheckCircle size={14} weight="fill" /></button>)}
 					<button type="button" className={`apn-flow-system${isPackages ? " is-active" : ""}`} onClick={() => onSelectFlow("packages")} aria-label="All work packages"><i><ListChecks size={14} /></i><span><strong>All packages</strong><small>{PLAN_PACKAGE_COUNT} owned build items</small></span><CaretRight size={14} /></button>
 				</nav>
 				{isPackages ? (
@@ -1485,20 +1632,30 @@ function PlanDesignView({ selectedFlowId, level, onLevelChange, onSelectFlow, on
 					<section className="apn-diagram-panel">
 						<header><div><span>ERP-SYS</span><h2>System blueprint</h2></div></header>
 						<section className="apn-level-question"><div><small>This view answers</small><strong>Does the delivery system hang together end to end?</strong></div><span><Users size={13} />Solution architect · program owners</span></section>
-						<div className="apn-diagram-meta"><span>Composed delivery system</span><p>Authority gates the integration; the integration is reconciled, replay-protected, and released only with evidence. Select a flow to open its L2 view.</p><i><CheckCircle size={12} weight="fill" />Generated, traced, and critic-checked</i></div>
-						<PlanSystemBlueprint onOpenFlow={(flowId) => { onSelectFlow(flowId); onLevelChange("L2") }} />
+						<div className="apn-diagram-meta"><span>Composed delivery system</span><p>Authority gates the integration; the integration is reconciled, replay-protected, and released only with evidence. Select a flow to open its executable behavior.</p><i><CheckCircle size={12} weight="fill" />Generated, traced, and critic-checked</i></div>
+						<PlanSystemBlueprint onOpenFlow={(flowId) => { onSelectFlow(flowId); onLevelChange("FLOW") }} />
 						<footer><span>What the composed system guarantees</span><div><p><Check size={12} />No external financial effect without named, bounded authority</p><p><Check size={12} />One approved change produces exactly one posted journal and one receipt</p><p><Check size={12} />Deployment happens only from owner-approved, evidence-backed releases</p></div></footer>
 					</section>
 				) : (
 					<section className="apn-diagram-panel">
-						<header><div><span>{selectedFlow.key}</span><h2>{selectedFlow.title}</h2></div><div role="group" aria-label="Architecture level">{(["L2", "L3", "L4"] as const).map((item) => <button key={item} type="button" aria-pressed={level === item} onClick={() => onLevelChange(item)}><strong>{item}</strong><small>{item === "L2" ? "Solution" : item === "L3" ? "Technical" : "Build"}</small></button>)}</div></header>
+						<header><div><span>{selectedFlow.key}</span><h2>{selectedFlow.title}</h2></div><div role="group" aria-label="Design layer">{(["FLOW", "L2", "L3", "L4"] as const).map((item) => <button key={item} type="button" aria-pressed={level === item} onClick={() => onLevelChange(item)}><strong>{item}</strong><small>{item === "FLOW" ? "Behavior" : item === "L2" ? "Solution" : item === "L3" ? "Technical" : "Build"}</small></button>)}</div></header>
 						<section className="apn-level-question"><div><small>This view answers</small><strong>{PLAN_LEVEL_QUESTIONS[level].question}</strong></div><span><Users size={13} />{PLAN_LEVEL_QUESTIONS[level].audience}</span></section>
-						<div className="apn-diagram-meta"><span>{diagram.name}</span><p>{diagram.focus}</p><i><CheckCircle size={12} weight="fill" />Generated, traced, and critic-checked</i></div>
-						<p className="apn-diagram-instruction"><Lightning size={14} weight="fill" />Select a node to see its owner, interface, build artifact, dependency, and completion condition.</p>
-						<PlanArchitectureDiagram level={level} flow={selectedFlow} brief={brief} selectedNodeTitle={selectedNodeTitle} onSelectNode={setSelectedNodeTitle} />
-						{selectedNode ? <PlanNodeBrief level={level} flow={selectedFlow} node={selectedNode} nodeIndex={nodeIndex} brief={brief} onLevelChange={onLevelChange} onOpenImplementation={() => onSelectFlow("packages")} onSteerNode={onSteerNode} /> : null}
-						<footer><span>Architecture decisions shown in this view</span><div>{diagram.guidance.map((item) => <p key={item}><Check size={12} />{item}</p>)}</div></footer>
-						<PlanExecutableHandoff key={`${selectedFlow.id}-${level}`} level={level} flow={selectedFlow} brief={brief} />
+						{level === "FLOW" ? (
+							<>
+								<div className="apn-diagram-meta"><span>Executable application behavior</span><p>Ordered actors, triggers, system responses, state transitions, failure handling, evidence, and workspace ownership.</p><i><CheckCircle size={12} weight="fill" />Compiled for Execute</i></div>
+								<p className="apn-diagram-instruction"><Lightning size={14} weight="fill" />Select a step to see exactly what the application does and the context its workspace receives.</p>
+								<PlanBehaviorFlowView flow={selectedFlow} brief={brief} onOpenLevel={onLevelChange} onSteerStep={onSteerNode} />
+							</>
+						) : diagram ? (
+							<>
+								<div className="apn-diagram-meta"><span>{diagram.name}</span><p>{diagram.focus}</p><i><CheckCircle size={12} weight="fill" />Generated, traced, and critic-checked</i></div>
+								<p className="apn-diagram-instruction"><Lightning size={14} weight="fill" />Select a node to see its owner, interface, build artifact, dependency, and completion condition.</p>
+								<PlanArchitectureDiagram level={level} flow={selectedFlow} brief={brief} selectedNodeTitle={selectedNodeTitle} onSelectNode={setSelectedNodeTitle} />
+								{selectedNode ? <PlanNodeBrief level={level} flow={selectedFlow} node={selectedNode} nodeIndex={nodeIndex} brief={brief} onLevelChange={onLevelChange} onOpenImplementation={() => onSelectFlow("packages")} onSteerNode={onSteerNode} /> : null}
+								<footer><span>Architecture decisions shown in this view</span><div>{diagram.guidance.map((item) => <p key={item}><Check size={12} />{item}</p>)}</div></footer>
+								<PlanExecutableHandoff key={`${selectedFlow.id}-${level}`} level={level} flow={selectedFlow} brief={brief} />
+							</>
+						) : null}
 					</section>
 				)}
 			</div>
