@@ -225,6 +225,10 @@
 	--ax3-accent: var(--mxp-accent);
 	--ax3-accent-hover: var(--mxp-accent-hover);
 	--ax3-accent-soft: var(--mxp-accent-soft);
+	/* Greens retired family-wide: verified states speak the teal accent, amber stays attention-only.
+	   The deeper hover teal keeps success text ≥4.5:1 on the soft wash (#177f7c lands at 4.37:1). */
+	--ax3-success: var(--mxp-accent-hover);
+	--ax3-success-soft: var(--mxp-accent-soft);
 	font-family: var(--mxp-font-sans);
 	font-size: 14px;
 }

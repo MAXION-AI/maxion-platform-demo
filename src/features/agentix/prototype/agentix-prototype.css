@@ -11,8 +11,9 @@
 	--ax3-accent: oklch(0.39 0.06 182);
 	--ax3-accent-hover: oklch(0.33 0.055 182);
 	--ax3-accent-soft: oklch(0.94 0.025 182);
-	--ax3-success: oklch(0.46 0.105 154);
-	--ax3-success-soft: oklch(0.95 0.025 154);
+	/* Greens retired family-wide (P1-8): verified/live states speak the teal accent, amber stays attention-only. */
+	--ax3-success: var(--ax3-accent);
+	--ax3-success-soft: var(--ax3-accent-soft);
 	--ax3-warning: oklch(0.52 0.105 72);
 	--ax3-warning-soft: oklch(0.955 0.032 78);
 	--ax3-danger: oklch(0.49 0.13 27);
@@ -477,7 +478,8 @@
 
 .ax3-header-actions button:first-child kbd {
 	margin-left: auto;
-	color: var(--ax3-subtle);
+	/* Subtle alone sits at 4.35:1 on the muted chip at 9px — mix toward ink for AA. */
+	color: color-mix(in oklch, var(--ax3-muted) 70%, var(--ax3-ink));
 	font-family: inherit;
 	font-size: 9px;
 }
@@ -523,8 +525,23 @@
 	padding: 48px 40px 44px;
 }
 
+/* Today density (Phase C): the surface must fit ≤1.15 screens at 1280×720, so the lead
+   and section gaps run tighter than the session/history surfaces. */
+.ax3-today {
+	padding-top: 24px;
+	padding-bottom: 12px;
+}
+
 .ax3-today-lead {
-	padding-bottom: 38px;
+	padding-bottom: 14px;
+}
+
+.ax3-today-lead h1 {
+	font-size: clamp(23px, 2.4vw, 28px);
+}
+
+.ax3-today-lead p {
+	margin-top: 6px;
 }
 
 .ax3-today-lead > span,
@@ -560,8 +577,8 @@
 	display: flex;
 	align-items: flex-end;
 	justify-content: space-between;
-	min-height: 36px;
-	margin-bottom: 4px;
+	min-height: 26px;
+	margin-bottom: 3px;
 }
 
 .ax3-section-heading > div {
@@ -594,7 +611,7 @@
 }
 
 .ax3-attention {
-	margin-bottom: 38px;
+	margin-bottom: 16px;
 }
 
 .ax3-attention-item {
@@ -602,8 +619,8 @@
 	grid-template-columns: 28px minmax(0, 1fr) auto;
 	align-items: center;
 	gap: 12px;
-	min-height: 78px;
-	padding: 13px 4px;
+	min-height: 58px;
+	padding: 7px 4px;
 	border-top: 1px solid var(--ax3-line);
 }
 
@@ -655,9 +672,13 @@
 	white-space: nowrap;
 }
 
-.ax3-attention-item > button,
-.ax3-decision-actions button:first-child,
-.ax3-primary-action {
+/* Cascade armor (P0-2, Discovery/Execute precedent): the shell reset
+   `.mxp-root button { color: inherit; font: inherit }` (0,1,1) loads AFTER this file,
+   so every primary-CTA rule carries the .ax3-root prefix (0,2,x) or it renders
+   ink-on-teal at 3.45:1 and loses its font-size. */
+.ax3-root .ax3-attention-item > button,
+.ax3-root .ax3-decision-actions button:first-child,
+.ax3-root .ax3-primary-action {
 	display: inline-flex;
 	align-items: center;
 	justify-content: center;
@@ -673,16 +694,16 @@
 	transition: background 130ms var(--ax3-ease-out), transform 100ms var(--ax3-ease-out), box-shadow 150ms var(--ax3-ease-out);
 }
 
-.ax3-attention-item > button:hover,
-.ax3-decision-actions button:first-child:hover,
-.ax3-primary-action:hover {
+.ax3-root .ax3-attention-item > button:hover,
+.ax3-root .ax3-decision-actions button:first-child:hover,
+.ax3-root .ax3-primary-action:hover {
 	background: var(--ax3-accent-hover);
 	box-shadow: 0 4px 12px oklch(0.25 0.05 182 / 0.15);
 }
 
-.ax3-attention-item > button:active,
-.ax3-decision-actions button:first-child:active,
-.ax3-primary-action:active {
+.ax3-root .ax3-attention-item > button:active,
+.ax3-root .ax3-decision-actions button:first-child:active,
+.ax3-root .ax3-primary-action:active {
 	transform: scale(0.975);
 }
 
@@ -713,7 +734,7 @@
 }
 
 .ax3-live-work {
-	margin-bottom: 36px;
+	margin-bottom: 14px;
 }
 
 .ax3-workstream {
@@ -722,8 +743,8 @@
 
 .ax3-workstream::before {
 	position: absolute;
-	top: 27px;
-	bottom: 27px;
+	top: 23px;
+	bottom: 23px;
 	left: 9px;
 	width: 1px;
 	background: var(--ax3-line);
@@ -737,8 +758,8 @@
 	align-items: center;
 	gap: 11px;
 	width: 100%;
-	min-height: 68px;
-	padding: 9px 4px;
+	min-height: 50px;
+	padding: 5px 4px;
 	border: 0;
 	border-radius: 10px;
 	background: transparent;
@@ -800,7 +821,7 @@
 }
 
 .ax3-stream-copy p {
-	margin: 3px 0 0;
+	margin: 2px 0 0;
 	overflow: hidden;
 	font-size: 12px;
 	text-overflow: ellipsis;
@@ -868,7 +889,7 @@
 }
 
 .ax3-outcomes {
-	padding-bottom: 20px;
+	padding-bottom: 0;
 }
 
 .ax3-outcomes > button {
@@ -877,8 +898,8 @@
 	align-items: center;
 	gap: 10px;
 	width: 100%;
-	min-height: 54px;
-	padding: 10px 4px;
+	min-height: 38px;
+	padding: 6px 4px;
 	border: 0;
 	border-top: 1px solid var(--ax3-line);
 	background: transparent;
@@ -898,11 +919,18 @@
 	color: var(--ax3-success);
 }
 
+/* Completed rows read as a single line (Phase C density): title and evidence share the baseline. */
 .ax3-outcomes > button > span {
 	display: flex;
 	min-width: 0;
-	flex-direction: column;
-	gap: 3px;
+	align-items: baseline;
+	gap: 8px;
+}
+
+.ax3-outcomes > button > span small {
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
 }
 
 .ax3-outcomes strong {
@@ -1024,6 +1052,107 @@
 	color: var(--ax3-subtle);
 	font-size: 8.5px;
 	text-align: center;
+}
+
+/*
+ * Composer-anchored ⌘K popover. Every button rule carries the .ax3-root prefix —
+ * cascade armor against the shell reset (.mxp-root button { color: inherit; font: inherit }),
+ * which loads after this sheet and eats any 0,1,0 / 0,1,1 button rule.
+ */
+.ax3-root .ax3-cmd-pop {
+	position: absolute;
+	left: 50%;
+	bottom: calc(100% + 6px);
+	transform: translateX(-50%);
+	width: min(100% - 32px, 780px);
+	z-index: 30;
+	overflow: hidden;
+	border: 1px solid var(--ax3-line-strong);
+	border-radius: 14px;
+	background: var(--ax3-surface);
+	box-shadow: 0 2px 6px oklch(0.2 0.01 73 / 0.07), 0 18px 48px oklch(0.2 0.01 73 / 0.14);
+}
+
+.ax3-root .ax3-cmd-pop-list {
+	display: flex;
+	flex-direction: column;
+	gap: 2px;
+	max-height: min(320px, 44vh);
+	overflow-y: auto;
+	padding: 6px;
+}
+
+.ax3-root .ax3-cmd-pop-list button {
+	display: grid;
+	grid-template-columns: 76px 1fr auto;
+	align-items: center;
+	gap: 10px;
+	padding: 8px 10px;
+	border: 0;
+	border-radius: 9px;
+	background: transparent;
+	color: var(--ax3-ink);
+	font-size: 12px;
+	text-align: left;
+	cursor: pointer;
+}
+
+.ax3-root .ax3-cmd-pop-list button.is-active {
+	background: var(--ax3-surface-muted);
+}
+
+.ax3-root .ax3-cmd-pop-list button i {
+	color: var(--ax3-subtle);
+	font-size: 9px;
+	font-style: normal;
+	font-weight: 560;
+	letter-spacing: 0.08em;
+	text-transform: uppercase;
+}
+
+.ax3-root .ax3-cmd-pop-list button span {
+	min-width: 0;
+	overflow: hidden;
+	font-weight: 560;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.ax3-root .ax3-cmd-pop-list button small {
+	max-width: 46%;
+	overflow: hidden;
+	justify-self: end;
+	color: var(--ax3-subtle);
+	font-size: 10px;
+	text-align: right;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.ax3-root .ax3-cmd-pop-empty {
+	margin: 0;
+	padding: 14px;
+	color: var(--ax3-muted);
+	font-size: 12px;
+}
+
+.ax3-root .ax3-cmd-pop footer {
+	display: flex;
+	align-items: center;
+	gap: 12px;
+	padding: 7px 12px;
+	border-top: 1px solid var(--ax3-line);
+	color: var(--ax3-subtle);
+	font-size: 9.5px;
+}
+
+.ax3-root .ax3-cmd-pop footer kbd {
+	padding: 1px 4px;
+	border: 1px solid var(--ax3-line);
+	border-radius: 4px;
+	background: var(--ax3-surface-muted);
+	font-family: inherit;
+	font-size: 9px;
 }
 
 .ax3-session {
@@ -1653,19 +1782,6 @@
 	line-height: 1.5;
 }
 
-.ax3-text-action {
-	display: flex;
-	align-items: center;
-	gap: 5px;
-	margin-top: 10px;
-	padding: 0;
-	border: 0;
-	color: var(--ax3-accent);
-	background: transparent;
-	font-size: 9.5px;
-	font-weight: 550;
-}
-
 .ax3-inspector-row {
 	display: grid;
 	grid-template-columns: 16px minmax(0, 1fr);
@@ -1821,12 +1937,14 @@
 	font-size: 9px;
 }
 
-.ax3-research-line button {
+/* .ax3-root prefix: survives the later `.mxp-root button { color: inherit; font: inherit }` reset. */
+.ax3-root .ax3-research-line button {
 	margin-left: auto;
 	border: 0;
 	color: var(--ax3-accent);
 	background: transparent;
 	font-size: 9px;
+	font-weight: 550;
 }
 
 .ax3-interview,
@@ -2453,6 +2571,168 @@
 		justify-content: space-between;
 		gap: 8px;
 	}
+}
+
+/* ————— Phase C: live theater ————— */
+
+/* Live-work dots breathe while a run is active (pure CSS — the reduced-motion block
+   below collapses it to a static halo, which is the intended calm state, L5). */
+.ax3-stream-dot--live {
+	position: relative;
+}
+
+.ax3-stream-dot--live::after {
+	position: absolute;
+	inset: -4px;
+	border: 1px solid color-mix(in oklch, var(--ax3-success) 55%, transparent);
+	border-radius: 50%;
+	content: "";
+	animation: ax3-live-ring 1.9s var(--ax3-ease-out) infinite;
+}
+
+/* Steer pending beat before the streamed reply lands. */
+.ax3-message--pending p {
+	color: var(--ax3-muted);
+	animation: ax3-pending-pulse 1.3s ease-in-out infinite;
+}
+
+@keyframes ax3-pending-pulse {
+	0%, 100% { opacity: 1; }
+	50% { opacity: 0.45; }
+}
+
+/* Create-time staged research: rows reveal one by one with count-ups. */
+.ax3-research-run {
+	margin: 18px 0;
+	padding: 12px 14px;
+	border: 1px solid var(--ax3-line);
+	border-radius: 11px;
+	background: var(--ax3-surface);
+}
+
+.ax3-research-run-title {
+	display: flex;
+	align-items: center;
+	gap: 7px;
+	color: var(--ax3-accent);
+	font-size: 10px;
+	font-weight: 630;
+	letter-spacing: 0.01em;
+}
+
+.ax3-research-row {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	min-height: 24px;
+	margin-top: 8px;
+	color: var(--ax3-muted);
+	font-size: 11px;
+}
+
+.ax3-research-row svg {
+	flex: 0 0 auto;
+	color: var(--ax3-accent);
+}
+
+.ax3-research-row strong {
+	min-width: 20px;
+	color: var(--ax3-ink);
+	font-size: 11.5px;
+	font-variant-numeric: tabular-nums;
+	text-align: right;
+}
+
+.ax3-research-row small {
+	overflow: hidden;
+	color: var(--ax3-subtle);
+	font-size: 9.5px;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+/* Post-approval receipt theater: provider rows land in sequence under a counting aggregate. */
+.ax3-receipts {
+	margin: 18px 0;
+	border: 1px solid var(--ax3-line);
+	border-radius: 12px;
+	background: var(--ax3-surface);
+}
+
+.ax3-receipts > header {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 10px;
+	padding: 10px 13px;
+	border-bottom: 1px solid var(--ax3-line);
+}
+
+.ax3-receipts > header > span {
+	display: flex;
+	align-items: center;
+	gap: 7px;
+	color: var(--ax3-accent);
+	font-size: 10px;
+	font-weight: 630;
+}
+
+.ax3-receipts > header > div {
+	display: flex;
+	align-items: baseline;
+	gap: 7px;
+}
+
+.ax3-receipts > header strong {
+	font-size: 12.5px;
+	font-variant-numeric: tabular-nums;
+}
+
+.ax3-receipts > header small {
+	color: var(--ax3-subtle);
+	font-size: 9.5px;
+	font-variant-numeric: tabular-nums;
+}
+
+.ax3-receipt-row {
+	display: grid;
+	grid-template-columns: 16px minmax(0, 1fr) auto;
+	align-items: center;
+	gap: 9px;
+	min-height: 44px;
+	padding: 7px 13px;
+	color: var(--ax3-accent);
+}
+
+.ax3-receipt-row + .ax3-receipt-row {
+	border-top: 1px solid color-mix(in oklch, var(--ax3-line) 72%, transparent);
+}
+
+.ax3-receipt-row > span {
+	display: flex;
+	min-width: 0;
+	flex-direction: column;
+	gap: 2px;
+}
+
+.ax3-receipt-row strong {
+	color: var(--ax3-ink);
+	font-size: 11.5px;
+	font-weight: 570;
+}
+
+.ax3-receipt-row small {
+	overflow: hidden;
+	color: var(--ax3-subtle);
+	font-size: 9.5px;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.ax3-receipt-row > b {
+	font-size: 11px;
+	font-variant-numeric: tabular-nums;
+	font-weight: 590;
 }
 
 @media (prefers-reduced-motion: reduce) {

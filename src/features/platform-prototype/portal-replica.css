@@ -638,7 +638,7 @@
 .mxp-approval-empty h3 { margin: 9px 0 0; color: var(--portal-text); font-size: 13px; }
 .mxp-approval-empty p { margin: 4px 0 0; color: var(--portal-muted); font-size: 9px; }
 
-/* Execute — calm {
+/* Execute — calm (retired theme kept for reference) {
 	--execute-accent: #167874;
 	--execute-ink: #1d2422;
 	--execute-muted: #626b68;
@@ -647,7 +647,7 @@
 	background:
 		radial-gradient(circle at 50% -18%, rgba(121, 171, 159, .08), transparent 31%),
 		#f6f6f3;
-}
+} */
 
 .mxp-integrations-page .mxp-portal-stats { margin-bottom: 18px; }
 .mxp-integration-notice { display: flex; align-items: flex-start; gap: 10px; margin-bottom: 15px; padding: 11px 13px; border: 1px solid #c9e0dc; border-radius: 9px; background: var(--portal-brand-soft); color: var(--portal-brand); }

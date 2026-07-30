@@ -65,6 +65,7 @@ export interface AgentScenario {
 	outcomeMetric: string
 	outcomeMetricLabel: string
 	nextDuty: string
+	steerReply: string
 	needsAttention?: string
 	duties: AgentDuty[]
 	activity: AgentActivity[]
@@ -117,6 +118,8 @@ export const AGENT_SCENARIOS: AgentScenario[] = [
 		outcomeMetric: "3",
 		outcomeMetricLabel: "decisions needed",
 		nextDuty: "Risk refresh · tomorrow at 8:00 AM",
+		steerReply:
+			"I folded that into the steering brief and the decision register. It takes effect at the next safe boundary and does not widen my authority or the authorized audience.",
 		duties: [
 			{
 				id: "risk-refresh",
@@ -227,6 +230,9 @@ export const AGENT_SCENARIOS: AgentScenario[] = [
 		outcomeMetric: "$842k",
 		outcomeMetricLabel: "ARR reviewed",
 		nextDuty: "Renewal watch · tomorrow at 8:00 AM",
+		// The unit suite pins /I attached that to the active run/ against this agent's steer reply.
+		steerReply:
+			"I attached that to the active run and will apply it at the next safe boundary. It does not widen my authority.",
 		duties: [
 			{
 				id: "renewal-watch",
@@ -316,6 +322,8 @@ export const AGENT_SCENARIOS: AgentScenario[] = [
 		outcomeMetric: "$184k",
 		outcomeMetricLabel: "effects awaiting approval",
 		nextDuty: "Close readiness · July 31 at 6:00 PM",
+		steerReply:
+			"I noted that against the close run. It applies at the next reconciliation boundary and cannot change the approved effect set, principals, or recipients.",
 		needsAttention: "Approve the exact journal and inventory effect set",
 		duties: [
 			{
