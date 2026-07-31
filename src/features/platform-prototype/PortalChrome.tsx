@@ -166,7 +166,7 @@ export function PortalSidebar({
 				className={`mxp-portal-sidebar${mobileOpen ? " is-mobile-open" : ""}${collapsed ? " is-collapsed" : ""}`}
 				aria-label="Main navigation">
 				<div className="mxp-portal-brand">
-					<button type="button" onClick={() => navigate("dashboard")} aria-label="Open MAXION dashboard">
+					<button type="button" onClick={() => navigate("dashboard")} aria-label="Open MAXION dashboard" title="Open MAXION dashboard">
 						<img src={publicAsset("maxion-logo-lockup-white.svg")} alt="MAXION" width="176" height="51" />
 						<MaxionSpiralMark variant="current" className="mxp-portal-brand-mark" />
 					</button>
@@ -174,6 +174,7 @@ export function PortalSidebar({
 						type="button"
 						className="mxp-sidebar-collapse"
 						aria-label={collapsed ? "Expand navigation" : "Collapse navigation"}
+						title={collapsed ? "Expand navigation" : "Collapse navigation"}
 						aria-pressed={collapsed}
 						onClick={() => onCollapsedChange(!collapsed)}>
 						{collapsed ? <CaretRight size={15} /> : <CaretLeft size={15} />}
