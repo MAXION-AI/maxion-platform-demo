@@ -83,6 +83,7 @@ test("keeps a second Plan-derived engagement independently runnable and steerabl
 	const rail = page.getByRole("navigation", { name: "Plan-compiled delivery workspaces" })
 	await expect(rail.getByRole("button", { name: /Enforce the consent boundary/ })).toBeVisible()
 	await expect(rail.getByRole("button", { name: /ServiceNow|MuleSoft|Workday/ })).toHaveCount(0)
+	await page.getByRole("button", { name: "Repositories", exact: true }).click()
 	await expect(page.getByText("execute/customer/identity")).toBeVisible()
 	await expect(page.getByRole("button", { name: "Verified" })).toBeVisible({ timeout: 15_000 })
 
@@ -106,11 +107,13 @@ test("runs the complete collaborative implementation, failure repair, E2E, appro
 	await expect(page.getByRole("navigation", { name: "Plan-compiled delivery workspaces" }).getByRole("button")).toHaveCount(5)
 
 	await page.getByRole("button", { name: "Share", exact: true }).last().click()
-	const share = page.getByRole("dialog", { name: "Share the engagement" })
-	for (const person of ["Root Admin", "Andre Reyes", "Priya Nair", "Mateo Ruiz", "Marcus Lee", "Elena Ortiz"]) {
-		await expect(share.getByText(person, { exact: true })).toBeVisible()
-	}
-	await expect(share.getByText("Least privilege is visible and enforced by workspace")).toBeVisible()
+	const share = page.getByRole("dialog", { name: "Share Delivery Orchestrator" })
+	await expect(share.getByRole("button", { name: /Delivery Orchestrator workspace/ })).toHaveAttribute("aria-pressed", "true")
+	await expect(share.getByRole("radio", { name: /Delivery leadership/ })).toBeChecked()
+	await expect(share.getByRole("button", { name: "Share Delivery Orchestrator with 3 people" })).toBeVisible()
+	await share.getByRole("button", { name: /Manage access/ }).click()
+	for (const person of ["Root Admin", "Andre Reyes", "Elena Ortiz"]) await expect(share.getByText(person, { exact: true })).toBeVisible()
+	await expect(share.getByText("Provider credentials never transfer to collaborators")).toBeVisible()
 	await share.getByRole("button", { name: "Close sharing" }).click()
 
 	await page.getByRole("button", { name: "Coordinating" }).click()
@@ -160,6 +163,52 @@ test("runs the complete collaborative implementation, failure repair, E2E, appro
 	expect(runtimeErrors).toEqual([])
 })
 
+test("coordinates multiple repositories per workspace and shares a team in one decision", async ({ page }) => {
+	const runtimeErrors: string[] = []
+	page.on("console", (message) => { if (message.type() === "error") runtimeErrors.push(message.text()) })
+	page.on("pageerror", (error) => runtimeErrors.push(error.message))
+
+	await openErpWorkspace(page)
+	await page.getByRole("navigation", { name: "Plan-compiled delivery workspaces" }).getByRole("button", { name: /MuleSoft/ }).click()
+	await page.getByRole("button", { name: "Repositories", exact: true }).click()
+	await expect(page.getByRole("heading", { name: "2 connected repositories" })).toBeVisible()
+	await expect(page.getByText("maxion/mule-journal-orchestration")).toBeVisible()
+	await expect(page.getByText("maxion/mule-shared-policies")).toBeVisible()
+	await expect(page.getByText("GitLab · New repository")).toBeVisible()
+	await expect(page.getByText("GitLab · Existing repository")).toBeVisible()
+
+	await page.getByRole("button", { name: "Attach repository", exact: true }).click()
+	const repositoryDialog = page.getByRole("dialog", { name: "Attach repository" })
+	await expect(repositoryDialog.getByRole("textbox", { name: "Organization / repository" })).toBeFocused()
+	await repositoryDialog.getByRole("button", { name: /Create new repository/ }).click()
+	await repositoryDialog.getByRole("button", { name: "Bitbucket" }).click()
+	await repositoryDialog.getByRole("textbox", { name: "Repository name" }).fill("mule-observability")
+	await repositoryDialog.getByRole("button", { name: "Create and attach" }).click()
+	await expect(page.getByRole("heading", { name: "3 connected repositories" })).toBeVisible()
+	await expect(page.getByText("maxion/mule-observability")).toBeVisible()
+	await expect(page.getByText("GitLab · Bitbucket")).toBeVisible()
+
+	await page.getByRole("button", { name: "Share", exact: true }).last().click()
+	const share = page.getByRole("dialog", { name: "Share MuleSoft" })
+	await expect(share.getByRole("button", { name: /MuleSoft workspace/ })).toHaveAttribute("aria-pressed", "true")
+	await expect(share.getByRole("radio", { name: /Enterprise integration team/ })).toBeChecked()
+	await expect(share.getByRole("radio", { name: /Developer/ })).toBeChecked()
+	await share.getByRole("button", { name: "Share MuleSoft with 5 people" }).click()
+	await expect(share.getByRole("status")).toContainText("5 people can open the workspace, converse with MAX, and steer within their authority")
+
+	const controlSizes = await page.locator(".exd-app").evaluate(() => {
+		const size = (selector: string) => getComputedStyle(document.querySelector(selector) as Element).fontSize
+		return {
+			run: size(".exd-workspace-actions .exd-primary"),
+			share: size(".exd-header-actions .exd-share"),
+			panelHeading: size(".exd-panel > header h2"),
+			panelBody: size(".exd-panel > header p"),
+		}
+	})
+	expect(controlSizes).toEqual({ run: "12px", share: "12px", panelHeading: "18px", panelBody: "13px" })
+	expect(runtimeErrors).toEqual([])
+})
+
 test("answers status, contains material deviations, and exposes implementation-grade Plan context", async ({ page }) => {
 	const runtimeErrors: string[] = []
 	page.on("console", (message) => { if (message.type() === "error") runtimeErrors.push(message.text()) })
@@ -202,6 +251,12 @@ test("keeps the Execute hub and workspace usable on a narrow viewport", async ({
 	const rail = page.getByRole("navigation", { name: "Plan-compiled delivery workspaces" })
 	await rail.getByRole("button", { name: /MuleSoft/ }).click()
 	await expect(page.getByRole("textbox", { name: "Steer MuleSoft agent" })).toBeVisible()
+	await page.getByRole("button", { name: "Repositories", exact: true }).click()
+	await expect(page.getByRole("heading", { name: "2 connected repositories" })).toBeVisible()
+	await page.getByRole("button", { name: "Share", exact: true }).last().click()
+	await expect(page.getByRole("dialog", { name: "Share MuleSoft" })).toBeVisible()
+	await page.getByRole("dialog", { name: "Share MuleSoft" }).getByRole("button", { name: "Close sharing" }).click()
+	await expect(page.getByRole("dialog", { name: "Share MuleSoft" })).toHaveCount(0)
 	const dimensions = await page.evaluate(() => ({ clientWidth: document.documentElement.clientWidth, scrollWidth: document.documentElement.scrollWidth }))
 	expect(dimensions.scrollWidth).toBe(dimensions.clientWidth)
 	const accessibility = await new AxeBuilder({ page }).analyze()

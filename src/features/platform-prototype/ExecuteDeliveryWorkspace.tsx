@@ -38,11 +38,13 @@ import { MaxionSpiralMark } from "./PortalChrome"
 import type {
 	ExecuteBlueprint,
 	ExecuteLaunchIntent,
+	ExecuteRepositoryBinding,
+	ExecuteRepositoryProvider,
 	ExecuteWorkspaceMember,
 	ExecuteWorkspaceSpec,
 } from "./model"
 
-export type ExecuteDeliveryView = "topology" | "changes" | "tests" | "environments" | "plan" | "audit"
+export type ExecuteDeliveryView = "topology" | "repositories" | "changes" | "tests" | "environments" | "plan" | "audit"
 export type ExecuteDeliveryCommand =
 	| { type: "workspace"; taskId: string }
 	| { type: "view"; view: "topology" | "changes" | "tests" | "terminal" | "deploys" | "audit" }
@@ -106,6 +108,56 @@ const WORKSPACE_ARTIFACTS: Record<string, string> = {
 
 const RELEASE_ORDER = ["mulesoft", "workday", "servicenow"] as const
 const PLATFORM_WORKSPACES = ["servicenow", "mulesoft", "workday"] as const
+
+type ShareAccessTemplate = "Developer" | "Reviewer" | "Viewer"
+type SuggestedTeam = { id: string; name: string; people: number; detail: string; members: readonly string[] }
+
+const SUGGESTED_TEAMS: Record<string, readonly SuggestedTeam[]> = {
+	orchestrator: [
+		{ id: "delivery-leads", name: "Delivery leadership", people: 3, detail: "Program owner, solution architect, release lead", members: ["Andre Reyes", "Elena Ortiz", "Nina Patel"] },
+		{ id: "architecture-board", name: "Architecture review board", people: 4, detail: "Read, converse, review, and approve deviations", members: ["Nina Patel", "Owen Brooks", "Ava Singh", "Elena Ortiz"] },
+	],
+	servicenow: [
+		{ id: "snow-team", name: "ServiceNow delivery team", people: 4, detail: "Application developers and ATF quality", members: ["Priya Nair", "Leo Grant", "Mina Park", "Sam Wilson"] },
+		{ id: "snow-reviewers", name: "ServiceNow reviewers", people: 2, detail: "Code and platform control review", members: ["Priya Nair", "Nina Patel"] },
+	],
+	mulesoft: [
+		{ id: "mule-team", name: "Enterprise integration team", people: 5, detail: "Mule developers, platform engineer, and MUnit quality", members: ["Mateo Ruiz", "Jules Kim", "Ravi Shah", "Tara Cole", "Owen Brooks"] },
+		{ id: "mule-reviewers", name: "Integration reviewers", people: 3, detail: "API, reliability, and security review", members: ["Ravi Shah", "Nina Patel", "Owen Brooks"] },
+	],
+	workday: [
+		{ id: "workday-team", name: "Workday Financials team", people: 4, detail: "Integration, security, configuration, and test", members: ["Marcus Lee", "Ava Singh", "Daniel Cho", "Elena Ortiz"] },
+		{ id: "finance-reviewers", name: "Finance platform reviewers", people: 3, detail: "Configuration and authority review", members: ["Marcus Lee", "Ava Singh", "Elena Ortiz"] },
+	],
+	verification: [
+		{ id: "quality-team", name: "Integration quality team", people: 4, detail: "Cross-platform scenario owners", members: ["Andre Reyes", "Priya Nair", "Mateo Ruiz", "Marcus Lee"] },
+	],
+}
+
+function fallbackRepositories(workspace: ExecuteWorkspaceSpec): ExecuteRepositoryBinding[] {
+	if (workspace.repositories?.length) return workspace.repositories.map((repository) => ({ ...repository, allowedPaths: [...repository.allowedPaths] }))
+	const slug = workspace.id.replace(/[^a-z0-9-]/gi, "-").toLowerCase()
+	return [{
+		id: `${slug}-primary`,
+		name: `maxion/${slug}`,
+		provider: "GitHub",
+		mode: "existing",
+		role: "Primary implementation",
+		branch: workspace.profile.branch,
+		defaultBranch: "main",
+		access: "Write",
+		ownerTeam: workspace.team ?? "Delivery team",
+		allowedPaths: ["**"],
+		checks: workspace.profile.tests,
+		changedFiles: workspace.profile.files.length,
+		changeRequest: "Draft PR",
+		status: "connected",
+	}]
+}
+
+function suggestedTeams(workspace: ExecuteWorkspaceSpec): readonly SuggestedTeam[] {
+	return SUGGESTED_TEAMS[workspace.id] ?? [{ id: `${workspace.id}-team`, name: workspace.team ?? "Project delivery team", people: 5, detail: "Workspace developers and reviewers", members: ["Workspace owner", "Lead developer", "Developer", "Reviewer", "Quality engineer"] }]
+}
 
 const stateLabel: Record<WorkspaceAgentState, string> = {
 	ready: "Ready",
@@ -180,9 +232,18 @@ export function ExecuteDeliveryWorkspace({
 	const [drafts, setDrafts] = useState<Record<string, string>>({})
 	const [pendingReply, setPendingReply] = useState<string | null>(null)
 	const [shareOpen, setShareOpen] = useState(false)
-	const [shareScope, setShareScope] = useState("engagement")
+	const [shareScope, setShareScope] = useState(selectedId)
+	const [shareMode, setShareMode] = useState<"invite" | "manage">("invite")
+	const [shareAccess, setShareAccess] = useState<ShareAccessTemplate>("Developer")
+	const [selectedTeam, setSelectedTeam] = useState("")
 	const [inviteEmail, setInviteEmail] = useState("")
-	const [inviteSent, setInviteSent] = useState(false)
+	const [inviteRole, setInviteRole] = useState<ShareAccessTemplate>("Developer")
+	const [shareSuccess, setShareSuccess] = useState<string | null>(null)
+	const [repositoryBindings, setRepositoryBindings] = useState<Record<string, ExecuteRepositoryBinding[]>>(() => Object.fromEntries(workspaces.map((item) => [item.id, fallbackRepositories(item)])))
+	const [repositoryOpen, setRepositoryOpen] = useState(false)
+	const [repositoryIntent, setRepositoryIntent] = useState<"existing" | "new">("existing")
+	const [repositoryProvider, setRepositoryProvider] = useState<ExecuteRepositoryProvider>("GitHub")
+	const [repositoryName, setRepositoryName] = useState("")
 	const [previewPerson, setPreviewPerson] = useState("root-admin")
 	const [promotionTarget, setPromotionTarget] = useState<string | null>(null)
 	const [e2eState, setE2EState] = useState<E2EState>(progress?.e2eState ?? "waiting")
@@ -196,6 +257,10 @@ export function ExecuteDeliveryWorkspace({
 	const [expandedTraces, setExpandedTraces] = useState<Record<string, boolean>>({})
 	const composerRef = useRef<HTMLTextAreaElement>(null)
 	const threadRef = useRef<HTMLDivElement>(null)
+	const shareDialogRef = useRef<HTMLElement>(null)
+	const repositoryDialogRef = useRef<HTMLElement>(null)
+	const repositoryNameRef = useRef<HTMLInputElement>(null)
+	const modalTriggerRef = useRef<HTMLButtonElement | null>(null)
 	const timers = useRef<number[]>([])
 	const verifiedReported = useRef(progress?.runState === "verified")
 	const autoStarted = useRef(false)
@@ -205,6 +270,9 @@ export function ExecuteDeliveryWorkspace({
 	const workspaceMessages = messages[workspace.id] ?? []
 	const draft = drafts[workspace.id] ?? ""
 	const traceExpanded = expandedTraces[workspace.id] ?? true
+	const workspaceRepositories = repositoryBindings[workspace.id] ?? fallbackRepositories(workspace)
+	const workspaceTeams = suggestedTeams(workspace)
+	const activeTeam = workspaceTeams.find((team) => team.id === selectedTeam) ?? workspaceTeams[0]
 	const allMembers = useMemo(() => {
 		const map = new Map<string, ExecuteWorkspaceMember>()
 		for (const item of workspaces) for (const member of item.members ?? []) map.set(member.id, member)
@@ -234,6 +302,68 @@ export function ExecuteDeliveryWorkspace({
 
 	const scrollToLatest = () => {
 		window.requestAnimationFrame(() => threadRef.current?.scrollTo({ top: threadRef.current.scrollHeight, behavior: reduceMotion() ? "auto" : "smooth" }))
+	}
+
+	const closeModal = (kind: "share" | "repository") => {
+		if (kind === "share") setShareOpen(false)
+		else setRepositoryOpen(false)
+		window.requestAnimationFrame(() => modalTriggerRef.current?.focus())
+	}
+
+	const openShare = (trigger: HTMLButtonElement) => {
+		modalTriggerRef.current = trigger
+		setShareScope(workspace.id)
+		setShareMode("invite")
+		setShareAccess("Developer")
+		setSelectedTeam(suggestedTeams(workspace)[0]?.id ?? "")
+		setInviteEmail("")
+		setShareSuccess(null)
+		setShareOpen(true)
+	}
+
+	const openRepositoryAttach = (trigger: HTMLButtonElement) => {
+		modalTriggerRef.current = trigger
+		setRepositoryIntent("existing")
+		setRepositoryProvider("GitHub")
+		setRepositoryName("")
+		setRepositoryOpen(true)
+	}
+
+	const attachRepository = () => {
+		const rawName = repositoryName.trim().replace(/^\/+|\/+$/g, "")
+		if (!rawName) return
+		const name = rawName.includes("/") ? rawName : `maxion/${rawName}`
+		const id = `${workspace.id}-${name.split("/").at(-1)?.replace(/[^a-z0-9-]/gi, "-").toLowerCase() ?? "repository"}-${workspaceRepositories.length + 1}`
+		const next: ExecuteRepositoryBinding = {
+			id,
+			name,
+			provider: repositoryProvider,
+			mode: repositoryIntent,
+			role: repositoryIntent === "new" ? "New workspace component" : "Existing dependency",
+			branch: `${workspace.profile.branch}/${name.split("/").at(-1)}`,
+			defaultBranch: "main",
+			access: "Write",
+			ownerTeam: workspace.team ?? "Delivery team",
+			allowedPaths: ["**"],
+			checks: 0,
+			changedFiles: 0,
+			status: repositoryIntent === "new" ? "provisioned" : "connected",
+		}
+		setRepositoryBindings((current) => ({ ...current, [workspace.id]: [...(current[workspace.id] ?? fallbackRepositories(workspace)), next] }))
+		setRepositoryOpen(false)
+		setView("repositories")
+		window.requestAnimationFrame(() => modalTriggerRef.current?.focus())
+	}
+
+	const shareTeam = () => {
+		if (!activeTeam) return
+		setShareSuccess(`${activeTeam.name} now has ${shareAccess.toLowerCase()} access to ${shareScope === "engagement" ? "the engagement" : workspace.title}. ${activeTeam.people} people can open the workspace, converse with MAX, and steer within their authority.`)
+	}
+
+	const shareIndividual = () => {
+		if (!inviteEmail.trim()) return
+		setShareSuccess(`${inviteEmail.trim()} now has ${inviteRole.toLowerCase()} access to ${shareScope === "engagement" ? "the engagement" : workspace.title} and can open its agent workspace.`)
+		setInviteEmail("")
 	}
 
 	const startWorkspace = (id: string) => {
@@ -377,6 +507,30 @@ export function ExecuteDeliveryWorkspace({
 	}, [])
 
 	useEffect(() => {
+		if (!shareOpen && !repositoryOpen) return
+		const dialog = shareOpen ? shareDialogRef.current : repositoryDialogRef.current
+		window.requestAnimationFrame(() => (shareOpen ? dialog : repositoryNameRef.current)?.focus())
+		const onKeyDown = (event: KeyboardEvent) => {
+			if (event.key === "Escape") {
+				event.preventDefault()
+				closeModal(shareOpen ? "share" : "repository")
+				return
+			}
+			if (event.key !== "Tab" || !dialog) return
+			const focusable = [...dialog.querySelectorAll<HTMLElement>('button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), summary, [tabindex]:not([tabindex="-1"])')].filter((item) => item.offsetParent !== null)
+			if (!focusable.length) return
+			const first = focusable[0]
+			const last = focusable[focusable.length - 1]
+			if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last.focus() }
+			else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first.focus() }
+		}
+		window.addEventListener("keydown", onKeyDown)
+		return () => window.removeEventListener("keydown", onKeyDown)
+		// Modal visibility owns this short-lived keyboard listener.
+		// eslint-disable-next-line react-hooks/exhaustive-deps
+	}, [repositoryOpen, shareOpen])
+
+	useEffect(() => {
 		if (engagement.autoStart && !autoStarted.current) { autoStarted.current = true; runAll() }
 		// The initial launch intent is immutable for this mounted engagement.
 		// eslint-disable-next-line react-hooks/exhaustive-deps
@@ -439,10 +593,11 @@ export function ExecuteDeliveryWorkspace({
 	]
 
 	const inspectorViews: Array<{ id: ExecuteDeliveryView; label: string; icon: typeof CirclesThree }> = workspace.kind === "orchestrator"
-		? [{ id: "topology", label: "Topology", icon: CirclesThree }, { id: "environments", label: "Environments", icon: RocketLaunch }, { id: "plan", label: "Plan context", icon: FlowArrow }, { id: "audit", label: "Audit", icon: ShieldCheck }]
-		: [{ id: "changes", label: "Changes", icon: FileText }, { id: "tests", label: "Tests", icon: ListChecks }, { id: "environments", label: "Environments", icon: RocketLaunch }, { id: "plan", label: "Plan context", icon: FlowArrow }, { id: "audit", label: "Audit", icon: ShieldCheck }]
+		? [{ id: "topology", label: "Topology", icon: CirclesThree }, { id: "repositories", label: "Repositories", icon: GitBranch }, { id: "environments", label: "Environments", icon: RocketLaunch }, { id: "plan", label: "Plan context", icon: FlowArrow }, { id: "audit", label: "Audit", icon: ShieldCheck }]
+		: [{ id: "repositories", label: "Repositories", icon: GitBranch }, { id: "changes", label: "Changes", icon: FileText }, { id: "tests", label: "Tests", icon: ListChecks }, { id: "environments", label: "Environments", icon: RocketLaunch }, { id: "plan", label: "Plan context", icon: FlowArrow }, { id: "audit", label: "Audit", icon: ShieldCheck }]
 
 	const selectedCodeFile = workspace.profile.files[Math.min(selectedFile, Math.max(0, workspace.profile.files.length - 1))]
+	const selectedCodeRepository = workspaceRepositories.find((repository) => repository.id === selectedCodeFile?.repositoryId) ?? workspaceRepositories[0]
 	const promotionWorkspace = workspaces.find((item) => item.id === promotionTarget)
 
 	return (
@@ -470,7 +625,7 @@ export function ExecuteDeliveryWorkspace({
 				</nav>
 				<footer>
 					<div className="exd-avatar-stack" aria-label={`${allMembers.length} engagement members`}>{allMembers.slice(0, 4).map((member) => <span key={member.id} className={participantTone(member)} title={`${member.name} · ${member.role}`}>{member.initials}</span>)}<b>+{Math.max(0, allMembers.length - 4)}</b></div>
-					<button type="button" onClick={() => setShareOpen(true)}><ShareNetwork />Share</button>
+					<button type="button" onClick={(event) => openShare(event.currentTarget)}><ShareNetwork />Share</button>
 				</footer>
 			</aside>
 
@@ -482,7 +637,7 @@ export function ExecuteDeliveryWorkspace({
 						<label className="exd-role-preview"><span className="sr-only">Preview role experience</span><Users /><select aria-label="Preview role experience" value={previewPerson} onChange={(event) => previewRole(event.target.value)}>{allMembers.map((member) => <option key={member.id} value={member.id}>{member.name} · {member.role}</option>)}</select></label>
 						<button type="button" aria-label="Search Execute commands" onClick={onCommand}><MagnifyingGlass /><kbd>⌘K</kbd></button>
 						<button type="button" aria-label="Open Execute decisions" onClick={onOpenApprovals}><Bell />{deployRequested && !deployApproved ? <i /> : null}</button>
-						<button type="button" className="exd-share" onClick={() => setShareOpen(true)}><ShareNetwork />Share</button>
+						<button type="button" className="exd-share" aria-label="Share" onClick={(event) => openShare(event.currentTarget)}><ShareNetwork /><span>Share</span></button>
 					</div>
 				</header>
 
@@ -491,7 +646,7 @@ export function ExecuteDeliveryWorkspace({
 						<div className="exd-thread-scroll" ref={threadRef}>
 							<header className="exd-workspace-title">
 								<div className={`exd-system-mark is-${workspace.kind ?? "system"}`}>{workspace.kind === "orchestrator" ? <MaxionSpiralMark /> : systemMonogram(workspace)}</div>
-								<div><span>{workspace.system ?? workspace.title} · {workspace.team ?? "Delivery team"}</span><h1>{workspace.title}</h1><p>{workspace.detail}</p><div className="exd-package-row">{workspace.packages?.map((item) => <code key={item}>{item}</code>)}<span><GitBranch />{workspace.profile.branch}</span></div></div>
+								<div><span>{workspace.system ?? workspace.title} · {workspace.team ?? "Delivery team"}</span><h1>{workspace.title}</h1><p>{workspace.detail}</p><div className="exd-package-row">{workspace.packages?.map((item) => <code key={item}>{item}</code>)}<button type="button" onClick={() => setView("repositories")}><GitBranch />{workspaceRepositories.length} {workspaceRepositories.length === 1 ? "repository" : "repositories"}</button></div></div>
 								<div className="exd-workspace-actions">
 									<div className="exd-avatar-stack">{(workspace.members ?? []).map((member) => <span key={member.id} className={participantTone(member)} title={`${member.name} · ${member.role}`}>{member.initials}</span>)}</div>
 									{workspaceState.agentState === "working" || workspaceState.agentState === "testing" ? <button type="button" onClick={interruptWorkspace}><Pause />Pause</button> : null}
@@ -539,7 +694,9 @@ export function ExecuteDeliveryWorkspace({
 						<AnimatePresence mode="wait" initial={false}>
 							{view === "topology" ? <motion.section key="topology" className="exd-panel" tabIndex={0} initial={{ opacity: 0, x: 8 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0 }}><header><small>LIVE DELIVERY GRAPH</small><h2>Five boundaries. One outcome.</h2><p>Select a workspace to converse with its agent, inspect evidence, or steer the work.</p></header><div className="exd-topology"><button type="button" className="is-source" onClick={() => openWorkspace("servicenow")}><span>SN</span><div><strong>ServiceNow</strong><small>{stateLabel[delivery.servicenow?.agentState ?? "ready"]} · {delivery.servicenow?.artifact}</small></div></button><i><ArrowRight /></i><button type="button" className="is-core" onClick={() => openWorkspace("mulesoft")}><span>MU</span><div><strong>MuleSoft</strong><small>{stateLabel[delivery.mulesoft?.agentState ?? "ready"]} · {delivery.mulesoft?.artifact}</small></div></button><i><ArrowRight /></i><button type="button" onClick={() => openWorkspace("workday")}><span>WD</span><div><strong>Workday</strong><small>{stateLabel[delivery.workday?.agentState ?? "ready"]} · {delivery.workday?.artifact}</small></div></button><button type="button" className="is-orchestrator" onClick={() => openWorkspace("orchestrator")}><MaxionSpiralMark /><div><strong>MAX Orchestrator</strong><small>Coordinates authority, evidence, and release</small></div></button><i className="is-down"><ArrowRight /></i><button type="button" className="is-verification" onClick={() => openWorkspace("verification")}><ShieldCheck /><div><strong>Integration verification</strong><small>{e2eState === "waiting" ? "Waiting on staged artifacts" : `${candidate} · ${e2eState}`}</small></div></button></div><div className="exd-panel-note"><ShieldCheck /><span><strong>Contract-safe orchestration</strong><small>The Orchestrator can coordinate every workspace, but cannot silently change their Plan contracts or production authority.</small></span></div></motion.section> : null}
 
-							{view === "changes" ? <motion.section key="changes" className="exd-panel" tabIndex={0} initial={{ opacity: 0, x: 8 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0 }}><header><small>{workspace.packages?.join(" + ")} · IMPLEMENTATION</small><h2>Changed artifacts</h2><p>{workspace.profile.files.length} files · exact diff retained on {workspace.profile.branch}</p></header><div className="exd-file-list">{workspace.profile.files.map((file, index) => <button type="button" key={file.name} className={selectedFile === index ? "is-selected" : ""} onClick={() => setSelectedFile(index)}><FileText /><span><strong>{file.name}</strong><small>{file.path}</small></span><b>+{file.added}</b></button>)}</div>{selectedCodeFile ? <pre className="exd-diff"><code><span>{selectedCodeFile.path}/{selectedCodeFile.name}</span>{"\n"}{selectedCodeFile.diff.map((line) => line.startsWith("+") ? <b key={line}>{line}{"\n"}</b> : <i key={line}>{line}{"\n"}</i>)}</code></pre> : null}<div className="exd-panel-note"><GitBranch /><span><strong>Review attributed to {workspace.members?.find((member) => member.role === "Contributor")?.name ?? "Root Admin"}</strong><small>{workspaceState.review === "approved" ? "Workspace review gate approved" : "Review opens after focused verification"}</small></span></div></motion.section> : null}
+							{view === "repositories" ? <motion.section key="repositories" className="exd-panel exd-repositories-panel" tabIndex={0} initial={{ opacity: 0, x: 8 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0 }}><header><small>WORKSPACE REPOSITORY SET</small><h2>{workspaceRepositories.length} connected {workspaceRepositories.length === 1 ? "repository" : "repositories"}</h2><p>MAX works across this repository set as one workspace while preserving each provider, branch, path boundary, review, and commit history.</p></header><div className="exd-repository-summary" aria-label="Cross-repository change set"><div><span><GitBranch /></span><p><small>CHANGE SET</small><strong>{workspaceRepositories.reduce((sum, repository) => sum + repository.changedFiles, 0)} files across {workspaceRepositories.length} repos</strong></p></div><div><small>Providers</small><strong>{[...new Set(workspaceRepositories.map((repository) => repository.provider))].join(" · ")}</strong></div><div><small>Checks</small><strong>{workspaceRepositories.reduce((sum, repository) => sum + repository.checks, 0)} passing</strong></div></div><div className="exd-repository-grid">{workspaceRepositories.map((repository) => <article className={`exd-repository-card is-${repository.status}`} key={repository.id}><header><span><GitBranch /></span><div><small>{repository.provider} · {repository.mode === "new" ? "New repository" : "Existing repository"}</small><strong>{repository.name}</strong><p>{repository.role}</p></div><b>{repository.status === "provisioned" ? "Provisioned" : repository.status === "review" ? "In review" : "Connected"}</b></header><dl><div><dt>Working branch</dt><dd><code>{repository.branch}</code></dd></div><div><dt>Authority</dt><dd>{repository.access} · {repository.ownerTeam}</dd></div><div><dt>Allowed paths</dt><dd>{repository.allowedPaths.map((path) => <code key={path}>{path}</code>)}</dd></div><div><dt>Evidence</dt><dd>{repository.checks ? `${repository.checks} checks · ${repository.changedFiles} changed files` : "Checks begin after first change"}</dd></div></dl><footer><span><ShieldCheck />Credentials stay provider-scoped</span><strong>{repository.changeRequest ?? "Change request opens after implementation"}</strong></footer></article>)}</div><button type="button" className="exd-panel-action exd-attach-repository" onClick={(event) => openRepositoryAttach(event.currentTarget)}><GitBranch />Attach repository</button><div className="exd-panel-note"><ShieldCheck /><span><strong>One workspace, multiple repositories, one governed outcome</strong><small>The agent can create a repository or update existing ones, but every write stays inside the visible branch and path authority above.</small></span></div></motion.section> : null}
+
+							{view === "changes" ? <motion.section key="changes" className="exd-panel" tabIndex={0} initial={{ opacity: 0, x: 8 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0 }}><header><small>{workspace.packages?.join(" + ")} · IMPLEMENTATION</small><h2>Changed artifacts</h2><p>{workspace.profile.files.length} files · exact diffs retained across {workspaceRepositories.length} {workspaceRepositories.length === 1 ? "repository" : "repositories"}</p></header><div className="exd-file-list">{workspace.profile.files.map((file, index) => { const repository = workspaceRepositories.find((item) => item.id === file.repositoryId) ?? workspaceRepositories[0]; return <button type="button" key={file.name} className={selectedFile === index ? "is-selected" : ""} onClick={() => setSelectedFile(index)}><FileText /><span><strong>{file.name}</strong><small>{repository?.name} · {file.path}</small></span><b>+{file.added}</b></button> })}</div>{selectedCodeFile ? <pre className="exd-diff"><code><span>{selectedCodeRepository?.name} · {selectedCodeFile.path}/{selectedCodeFile.name}</span>{"\n"}{selectedCodeFile.diff.map((line) => line.startsWith("+") ? <b key={line}>{line}{"\n"}</b> : <i key={line}>{line}{"\n"}</i>)}</code></pre> : null}<div className="exd-panel-note"><GitBranch /><span><strong>Cross-repository review attributed to {workspace.members?.find((member) => member.role === "Contributor")?.name ?? "Root Admin"}</strong><small>{workspaceState.review === "approved" ? "Workspace review gate approved" : "MAX will open linked change requests after focused verification"}</small></span></div></motion.section> : null}
 
 							{view === "tests" ? <motion.section key="tests" className="exd-panel" tabIndex={0} initial={{ opacity: 0, x: 8 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0 }}><header><small>WORKSPACE EVIDENCE</small><h2>{workspace.profile.tests} focused checks</h2><p>Failures return to this workspace agent with the trace and reproduction context attached.</p></header><div className={`exd-test-summary is-${workspaceState.agentState}`}><CheckCircle /><span><strong>{workspaceState.agentState === "verified" ? "Gate passed" : workspaceState.agentState === "blocked" ? "One classified failure" : "Gate ready"}</strong><small>{workspaceState.agentState === "verified" ? `${workspace.profile.tests} passed · 0 failed · no flaky tests` : "No skipped checks are permitted"}</small></span></div><div className="exd-suite-list">{workspace.profile.suites.map(([name, count], index) => <div key={name}>{workspaceState.agentState === "verified" || index < workspaceState.step - 1 ? <Check /> : <Clock />}<span><strong>{name}</strong><small>{count} assertions</small></span><b>{workspaceState.agentState === "verified" ? "Passed" : workspaceState.agentState === "blocked" && name.includes("Duplicate") ? "Failed" : "Ready"}</b></div>)}</div><button type="button" className="exd-terminal-line"><TerminalWindow /><code>{workspace.profile.command}</code><span>{workspaceState.agentState === "verified" ? "exit 0" : "View trace"}</span></button></motion.section> : null}
 
@@ -554,7 +711,9 @@ export function ExecuteDeliveryWorkspace({
 			</section>
 
 			<AnimatePresence>
-				{shareOpen ? <motion.div className="exd-modal-layer" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}><button type="button" className="exd-modal-scrim" aria-label="Close sharing" onClick={() => setShareOpen(false)} /><motion.section role="dialog" aria-modal="true" aria-labelledby="execute-share-title" className="exd-share-modal" initial={{ opacity: 0, y: 12, scale: .985 }} animate={{ opacity: 1, y: 0, scale: 1 }} exit={{ opacity: 0, y: 8 }}><header><span><ShareNetwork /></span><div><small>ACCESS FOLLOWS DELIVERY OWNERSHIP</small><h2 id="execute-share-title">Share the engagement</h2><p>Give each team only the workspace, conversation, artifacts, and environment authority they need.</p></div><button type="button" aria-label="Close sharing" onClick={() => setShareOpen(false)}><X /></button></header><div className="exd-share-scope" role="group" aria-label="Share scope"><button type="button" aria-pressed={shareScope === "engagement"} onClick={() => setShareScope("engagement")}><Stack /><span><strong>Entire engagement</strong><small>Orchestrator and assigned workspaces</small></span></button><button type="button" aria-pressed={shareScope === workspace.id} onClick={() => setShareScope(workspace.id)}><Code /><span><strong>{workspace.title} only</strong><small>{workspace.packages?.join(" + ")}</small></span></button></div><form onSubmit={(event) => { event.preventDefault(); if (inviteEmail.trim()) { setInviteSent(true); setInviteEmail("") } }}><label><span className="sr-only">Invite by email</span><UserPlus /><input value={inviteEmail} onChange={(event) => { setInviteEmail(event.target.value); setInviteSent(false) }} placeholder="name@company.com" type="email" required /></label><select aria-label="Invite role" defaultValue="Contributor"><option>Contributor</option><option>Reviewer</option><option>Viewer</option><option>Orchestrator collaborator</option></select><button type="submit" disabled={!inviteEmail.trim()}>Invite</button></form>{inviteSent ? <p className="exd-invite-status" role="status"><CheckCircle />Invitation prepared with {shareScope === "engagement" ? "engagement" : workspace.title} scope.</p> : null}<div className="exd-member-list">{allMembers.map((member) => <div key={member.id}><span className={participantTone(member)}>{member.initials}</span><p><strong>{member.name}</strong><small>{member.scope}</small></p><select aria-label={`Role for ${member.name}`} defaultValue={member.role}><option>{member.role}</option>{member.role !== "Contributor" ? <option>Contributor</option> : null}{member.role !== "Reviewer" ? <option>Reviewer</option> : null}{member.role !== "Viewer" ? <option>Viewer</option> : null}</select></div>)}</div><footer><ShieldCheck /><span><strong>Least privilege is visible and enforced by workspace</strong><small>Provider credentials and conversations never inherit across platform boundaries.</small></span></footer></motion.section></motion.div> : null}
+				{shareOpen ? <motion.div className="exd-modal-layer" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}><button type="button" className="exd-modal-scrim" aria-label="Close sharing" onClick={() => closeModal("share")} /><motion.section ref={shareDialogRef} tabIndex={-1} role="dialog" aria-modal="true" aria-labelledby="execute-share-title" className="exd-share-modal" initial={{ opacity: 0, y: 12, scale: .985 }} animate={{ opacity: 1, y: 0, scale: 1 }} exit={{ opacity: 0, y: 8 }}><header><span><ShareNetwork /></span><div><small>WORKSPACE ACCESS · LEAST PRIVILEGE</small><h2 id="execute-share-title">Share {workspace.title}</h2><p>Add an entire delivery team in one decision. They can open this workspace and steer MAX inside the authority you grant.</p></div><button type="button" aria-label="Close sharing" onClick={() => closeModal("share")}><X /></button></header><nav className="exd-share-tabs" aria-label="Sharing views"><button type="button" aria-current={shareMode === "invite" ? "page" : undefined} onClick={() => setShareMode("invite")}><UserPlus />Invite</button><button type="button" aria-current={shareMode === "manage" ? "page" : undefined} onClick={() => setShareMode("manage")}><Users />Manage access <b>{allMembers.length}</b></button></nav>{shareMode === "invite" ? <div className="exd-share-body"><div className="exd-share-scope" role="group" aria-label="Share scope"><button type="button" aria-pressed={shareScope === workspace.id} onClick={() => { setShareScope(workspace.id); setShareSuccess(null) }}><Code /><span><strong>{workspace.title} workspace</strong><small>Recommended · agent, repos, evidence, and scoped environments</small></span><CheckCircle /></button><button type="button" aria-pressed={shareScope === "engagement"} onClick={() => { setShareScope("engagement"); setShareSuccess(null) }}><Stack /><span><strong>Entire engagement</strong><small>Orchestrator plus every assigned workspace</small></span><CheckCircle /></button></div><section className="exd-share-section"><header><div><small>1 · CHOOSE A TEAM</small><h3>Suggested for {workspace.title}</h3></div><span>Directory synced</span></header><div className="exd-team-list" role="radiogroup" aria-label="Suggested development teams">{workspaceTeams.map((team) => <button type="button" role="radio" aria-checked={activeTeam?.id === team.id} key={team.id} onClick={() => { setSelectedTeam(team.id); setShareSuccess(null) }}><span><Users /></span><div><strong>{team.name}</strong><small>{team.detail}</small><p>{team.members.slice(0, 3).join(" · ")}{team.members.length > 3 ? ` · +${team.members.length - 3}` : ""}</p></div><b>{team.people}</b></button>)}</div></section><section className="exd-share-section"><header><div><small>2 · SET AUTHORITY</small><h3>What can this team do?</h3></div></header><div className="exd-access-templates" role="radiogroup" aria-label="Team access"><button type="button" role="radio" aria-checked={shareAccess === "Developer"} onClick={() => { setShareAccess("Developer"); setShareSuccess(null) }}><strong>Developer</strong><small>Converse, steer, edit, test, review, propose staging</small></button><button type="button" role="radio" aria-checked={shareAccess === "Reviewer"} onClick={() => { setShareAccess("Reviewer"); setShareSuccess(null) }}><strong>Reviewer</strong><small>Converse, inspect evidence, and review changes</small></button><button type="button" role="radio" aria-checked={shareAccess === "Viewer"} onClick={() => { setShareAccess("Viewer"); setShareSuccess(null) }}><strong>Viewer</strong><small>Read conversations, artifacts, and status</small></button></div></section>{shareSuccess ? <div className="exd-share-success" role="status"><CheckCircle weight="fill" /><div><strong>Workspace access ready</strong><p>{shareSuccess}</p></div></div> : <button type="button" className="exd-share-confirm" onClick={shareTeam}><ShareNetwork />Share {shareScope === "engagement" ? "engagement" : workspace.title} with {activeTeam?.people ?? 0} people<ArrowRight /></button>}<details className="exd-individual-invite"><summary>Invite one person instead</summary><form onSubmit={(event) => { event.preventDefault(); shareIndividual() }}><label><span className="sr-only">Invite by email</span><UserPlus /><input value={inviteEmail} onChange={(event) => { setInviteEmail(event.target.value); setShareSuccess(null) }} placeholder="name@company.com" type="email" required /></label><select aria-label="Invite role" value={inviteRole} onChange={(event) => setInviteRole(event.target.value as ShareAccessTemplate)}><option>Developer</option><option>Reviewer</option><option>Viewer</option></select><button type="submit" disabled={!inviteEmail.trim()}>Invite</button></form></details></div> : <div className="exd-manage-access"><header><div><small>CURRENT ACCESS</small><h3>{shareScope === "engagement" ? "Engagement members" : `${workspace.title} members`}</h3></div><span>Roles apply per workspace</span></header><div className="exd-member-list">{allMembers.filter((member) => shareScope === "engagement" || member.id === "root-admin" || workspace.members?.some((assigned) => assigned.id === member.id)).map((member) => <div key={member.id}><span className={participantTone(member)}>{member.initials}</span><p><strong>{member.name}</strong><small>{member.scope}</small></p><b>{member.role}</b><button type="button" aria-label={`More access options for ${member.name}`}>•••</button></div>)}</div><button type="button" className="exd-panel-action" onClick={() => setShareMode("invite")}><UserPlus />Add another team</button></div>}<footer><ShieldCheck /><span><strong>Provider credentials never transfer to collaborators</strong><small>MAX brokers repository and environment actions through each person’s explicit workspace authority.</small></span></footer></motion.section></motion.div> : null}
+
+				{repositoryOpen ? <motion.div className="exd-modal-layer" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}><button type="button" className="exd-modal-scrim" aria-label="Close repository attachment" onClick={() => closeModal("repository")} /><motion.section ref={repositoryDialogRef} tabIndex={-1} role="dialog" aria-modal="true" aria-labelledby="repository-attach-title" className="exd-repo-modal" initial={{ opacity: 0, y: 12, scale: .985 }} animate={{ opacity: 1, y: 0, scale: 1 }} exit={{ opacity: 0, y: 8 }}><header><span><GitBranch /></span><div><small>EXTEND THE WORKSPACE REPOSITORY SET</small><h2 id="repository-attach-title">Attach repository</h2><p>Connect an existing codebase or provision a new one. MAX coordinates both in the same workspace.</p></div><button type="button" aria-label="Close repository attachment" onClick={() => closeModal("repository")}><X /></button></header><div className="exd-repo-form"><div className="exd-repo-intent" role="group" aria-label="Repository intent"><button type="button" aria-pressed={repositoryIntent === "existing"} onClick={() => setRepositoryIntent("existing")}><GitBranch /><span><strong>Existing repository</strong><small>Clone a scoped worktree and preserve its history</small></span></button><button type="button" aria-pressed={repositoryIntent === "new"} onClick={() => setRepositoryIntent("new")}><Sparkle /><span><strong>Create new repository</strong><small>Provision the app, policies, or tests this workspace needs</small></span></button></div><fieldset><legend>Provider</legend><div className="exd-provider-switch">{(["GitHub", "GitLab", "Bitbucket"] as ExecuteRepositoryProvider[]).map((provider) => <button type="button" key={provider} aria-pressed={repositoryProvider === provider} onClick={() => setRepositoryProvider(provider)}>{provider}</button>)}</div></fieldset><label className="exd-repo-name"><span>{repositoryIntent === "new" ? "Repository name" : "Organization / repository"}</span><div><GitBranch /><input ref={repositoryNameRef} value={repositoryName} onChange={(event) => setRepositoryName(event.target.value)} placeholder={repositoryIntent === "new" ? "mule-contract-tests" : "maxion/existing-service"} /></div></label><div className="exd-repo-impact"><ShieldCheck /><div><strong>{repositoryIntent === "new" ? "MAX will provision an empty private repository" : "MAX will create a scoped worktree"}</strong><p>Provider: {repositoryProvider} · Branch: {workspace.profile.branch}/… · Access: write inside declared paths · Production authority: none</p></div></div><p className="exd-demo-disclaimer">Demo preview · no provider effect</p></div><footer><button type="button" onClick={() => closeModal("repository")}>Cancel</button><button type="button" className="exd-primary" disabled={!repositoryName.trim()} onClick={attachRepository}>{repositoryIntent === "new" ? "Create and attach" : "Attach repository"}<ArrowRight /></button></footer></motion.section></motion.div> : null}
 
 				{promotionWorkspace ? <motion.div className="exd-modal-layer" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}><button type="button" className="exd-modal-scrim" aria-label="Discard staging proposal" onClick={() => setPromotionTarget(null)} /><motion.section role="dialog" aria-modal="true" aria-labelledby="promotion-title" className="exd-impact-modal" initial={{ opacity: 0, y: 12, scale: .985 }} animate={{ opacity: 1, y: 0, scale: 1 }} exit={{ opacity: 0, y: 8 }}><header><span><RocketLaunch /></span><div><small>IMPACT PREVIEW · ENVIRONMENT MUTATION</small><h2 id="promotion-title">Promote {promotionWorkspace.title} to staging</h2><p>Review the exact effect. Nothing changes until you apply it.</p></div><button type="button" aria-label="Discard staging proposal" onClick={() => setPromotionTarget(null)}><X /></button></header><dl><div><dt>Artifact</dt><dd>{delivery[promotionWorkspace.id]?.artifact}</dd></div><div><dt>Target</dt><dd>{promotionWorkspace.environment?.staging}</dd></div><div><dt>Evidence</dt><dd>{promotionWorkspace.profile.tests} tests passed · review approved</dd></div><div><dt>Candidate impact</dt><dd>{Math.min(platformStaged + 1, implementationTotal)}/{implementationTotal} artifacts eligible for RC-07</dd></div><div><dt>Rollback</dt><dd>Current staging version retained for one-click restore</dd></div><div><dt>Actor</dt><dd>Root Admin · Owner authority</dd></div></dl><div className="exd-impact-callout"><ShieldCheck /><span><strong>No production effect</strong><small>MAX will record the receipt and re-check candidate compatibility after promotion.</small></span></div><footer><button type="button" onClick={() => setPromotionTarget(null)}>Discard</button><button type="button" className="exd-primary" onClick={applyPromotion}>Apply promotion<ArrowRight /></button></footer></motion.section></motion.div> : null}
 			</AnimatePresence>

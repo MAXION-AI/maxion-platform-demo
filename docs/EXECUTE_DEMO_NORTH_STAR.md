@@ -24,6 +24,7 @@ The experience must show one approved Plan becoming a coordinated implementation
 - System and delivery-team workspaces compiled from Plan L4 packages.
 - Human members with workspace-specific roles and authority.
 - A specialized agent in every workspace.
+- A governed repository set in every workspace, spanning any mix of GitHub, GitLab, and Bitbucket repositories.
 - Independent implementation, test, review, and environment state per workspace.
 - A version-locked cross-platform E2E candidate.
 - Coordinated, evidence-backed production release.
@@ -47,7 +48,9 @@ Plan compiles the work into the following delivery workspaces:
 | Workday Financials | WDAY-301 | Secure, validate, and post the governed journal |
 | Integration verification | INT-401 | Prove the complete request-to-receipt behavior and release evidence |
 
-Workspace boundaries follow system and delivery ownership. Multiple L4 packages may live in one workspace when they share the same team, repository, environment, and authority boundary.
+Workspace boundaries follow system and delivery ownership. A workspace is not a repository. It is the durable collaboration and authority boundary for one delivery team, and it may coordinate any number of existing or newly provisioned repositories needed to deliver its assigned Plan packages.
+
+For example, the MuleSoft workspace can create `maxion/mule-journal-orchestration`, update the existing `maxion/mule-shared-policies`, and retain both change requests as one cross-repository change set. The Workday workspace can do the equivalent in Bitbucket, while a ServiceNow workspace can remain on GitHub. Provider choice does not change the workspace interaction model.
 
 ## Personas and authority
 
@@ -105,11 +108,12 @@ Routine logs collapse into expandable traces. The user sees the value of autonom
 
 Inspector priority is:
 
-1. Changes
-2. Tests
-3. Environments
-4. Plan context
-5. Audit
+1. Repositories
+2. Changes
+3. Tests
+4. Environments
+5. Plan context
+6. Audit
 
 Topology is the Orchestrator's primary inspector view. Workspace contributors see their implementation evidence first.
 
@@ -124,13 +128,27 @@ Topology is the Orchestrator's primary inspector view. Workspace contributors se
 
 ### 2. Sharing and collaboration
 
-- Share the engagement or an individual workspace.
-- Assign owner, contributor, reviewer, approver, or viewer roles.
+- Default sharing to the current workspace; make entire-engagement access a deliberate escalation.
+- Add a suggested development team in one decision rather than assigning people and roles one row at a time.
+- Offer three plain-language authority templates: Developer, Reviewer, and Viewer.
+- Preserve individual email invitations and compact role management as secondary paths.
+- Confirm exactly which team, people count, workspace, and steering authority were granted.
 - Show real participant names and attribution in messages and audit events.
 - Represent presence, mentions, unread state, review requests, and handoffs.
 - Keep access visibly scoped to the selected workspace.
 
-### 3. Interactive Orchestrator
+### 3. Multi-repository workspaces
+
+- Treat a workspace as a repository set, never as a single repository binding.
+- Attach existing repositories or create new ones across GitHub, GitLab, and Bitbucket.
+- Show provider, repository purpose, working branch, default branch, owner team, write authority, allowed paths, checks, changed files, and change request for every binding.
+- Attribute every changed file to its repository and retain linked PR or MR evidence.
+- Coordinate a single implementation objective across all repository worktrees without collapsing their histories or credentials.
+- Pin repository SHAs and provider receipts into staging and E2E candidates.
+- Make provider credentials non-transferable when a workspace is shared; collaborators receive workspace authority, not raw credentials.
+- Allow the Orchestrator to observe repository-set status without silently widening a platform workspace's path or write authority.
+
+### 4. Interactive Orchestrator
 
 - Open and converse with the Orchestrator like any other workspace.
 - Ask for complete delivery status or a specific blocker.
@@ -142,26 +160,26 @@ Topology is the Orchestrator's primary inspector view. Workspace contributors se
 - Prepare promotion and release proposals.
 - Never silently mutate another workspace or change approved architecture.
 
-### 4. Independent workspace lifecycle
+### 5. Independent workspace lifecycle
 
 Every workspace tracks its own:
 
 - Agent and implementation state.
-- Branch or worktree.
+- Repository set, branches, worktrees, path scopes, and linked change requests.
 - Plan package version.
 - Dependencies and blockers.
 - Changes, tests, and review state.
 - Development, staging, E2E, and production artifacts.
 - Promotion history and rollback reference.
 
-### 5. Staging promotion
+### 6. Staging promotion
 
 - A verified workspace may propose promotion of an exact artifact to staging.
 - Show impact before the mutation and require Apply or Discard.
 - Record who initiated and approved the promotion.
 - Keep workspace staging independent while preserving candidate compatibility.
 
-### 6. Version-locked cross-platform E2E
+### 7. Version-locked cross-platform E2E
 
 - Assemble one immutable candidate from exact ServiceNow, MuleSoft, and Workday versions.
 - Require all Plan dependency gates before assembly.
@@ -169,7 +187,7 @@ Every workspace tracks its own:
 - Classify failures and route them to the correct workspace with trace and reproduction evidence.
 - Retain a complete evidence pack for the candidate.
 
-### 7. Coordinated production release
+### 8. Coordinated production release
 
 - Pin exact approved artifacts and environment bindings.
 - Follow Plan dependency order.
@@ -178,20 +196,20 @@ Every workspace tracks its own:
 - Attach rollback instructions and evidence.
 - Track each platform deployment and the complete cross-platform outcome.
 
-### 8. Runtime deviations
+### 9. Runtime deviations
 
 - Repair implementation-local defects inside Execute when they do not change the approved contract.
 - Detect contract, scope, system-boundary, security, or operating-model deviations.
 - Produce a Plan change proposal containing original contract, new evidence, affected artifacts, impacted workspaces, proposed alternative, and work that can safely continue.
 - Resume affected work only after a new approved Plan snapshot is published.
 
-### 9. Receipts and history
+### 10. Receipts and history
 
 - Attribute every direction, change, test, promotion, approval, deployment, and rollback.
 - Show artifact hashes, environment, Plan snapshot, actor, timestamp, and retained evidence.
 - Make release and workspace history easy to compare without turning the interface into an audit dashboard.
 
-### 10. Role-specific experience
+### 11. Role-specific experience
 
 - Engagement owners land in Orchestrator with cross-team progress and exact decisions.
 - Contributors deep-link to their assigned workspace and implementation context.
@@ -221,6 +239,7 @@ The Execute demo must feel calmer, faster, and more legible than a typical enter
 
 - Dark-first, warm near-black surfaces with one restrained teal accent.
 - One type system, one radius system, one motion vocabulary, and a strict 4px spacing grid.
+- A semantic Execute type scale: 10px captions, 11px metadata, 12px controls, 13px body copy, 18px panel headings, and 24–34px workspace titles. Font size follows content role, never the component that happened to render it.
 - Conversation-first composition inspired by the focus and speed of Claude Code and Codex, without copying either product.
 - Information density through alignment and progressive disclosure, not boxes inside boxes.
 - Immediate feedback under 100ms; standard transitions between 200 and 300ms.
@@ -234,16 +253,18 @@ The Execute demo must feel calmer, faster, and more legible than a typical enter
 The prospect journey must be navigable without explanation:
 
 1. Open the approved engagement and see MAX coordinating the implementation.
-2. Open Share and see workspace-specific access already assigned.
-3. Converse with the Orchestrator and direct a cross-workspace concern.
-4. Enter ServiceNow, MuleSoft, and Workday workspaces and watch implementation, tests, and repair occur independently.
-5. Review the inherited Plan context without leaving Execute.
-6. Promote exact workspace artifacts to staging using an impact preview.
-7. Assemble a version-locked E2E candidate.
-8. Watch the E2E suite run, classify a failure, route it to MuleSoft, repair it, and rerun.
-9. Review the passed candidate, approvals, evidence, rollback, and production sequence.
-10. Deploy each platform in the governed order and see the cross-platform outcome verified.
-11. Raise a contract-changing direction and see Execute create a bounded Plan deviation rather than silently diverge.
+2. Open MuleSoft and see one workspace coordinating a new application repository and an existing shared-policy repository.
+3. Attach an existing repository or create a new one on another provider without leaving the workspace.
+4. Share the MuleSoft workspace with the suggested integration team in one decision and see exactly how five people can steer MAX.
+5. Converse with the Orchestrator and direct a cross-workspace concern.
+6. Enter ServiceNow, MuleSoft, and Workday workspaces and watch implementation, tests, and repair occur independently.
+7. Review the inherited Plan context without leaving Execute.
+8. Promote exact workspace artifacts to staging using an impact preview.
+9. Assemble a version-locked E2E candidate.
+10. Watch the E2E suite run, classify a failure, route it to MuleSoft, repair it, and rerun.
+11. Review the passed candidate, approvals, evidence, rollback, and production sequence.
+12. Deploy each platform in the governed order and see the cross-platform outcome verified.
+13. Raise a contract-changing direction and see Execute create a bounded Plan deviation rather than silently diverge.
 
 ## Roadmap and acceptance contract
 
@@ -251,6 +272,8 @@ The prospect journey must be navigable without explanation:
 
 - Plan packages compile into system/team workspaces.
 - Workspace membership, roles, sharing, and attribution are present.
+- Every workspace exposes a multi-provider repository set with existing and new repository bindings.
+- Team sharing is one decision with a workspace-first default and visible steering authority.
 - Orchestrator is a real conversational workspace.
 - Every workspace has independent state.
 - Development and staging lifecycle is navigable.
@@ -264,6 +287,7 @@ The prospect journey must be navigable without explanation:
 - Exact artifact, environment, approval, and rollback receipts.
 - Failure classification and automatic defect routing.
 - Workspace-specific environment bindings and authority.
+- Cross-repository change sets, linked PR or MR receipts, path scopes, and pinned repository SHAs.
 - Production verification and release history.
 
 ### P2 — frontier experience
@@ -275,5 +299,6 @@ The prospect journey must be navigable without explanation:
 - Purposeful transitions and streamed progress.
 - Empty, blocked, error, and recovery states.
 - Historical workspace and release comparison.
+- Semantic typography contract verified through computed styles in desktop and mobile layouts.
 
 The demo is complete only when every item above is visible, reachable, internally consistent, keyboard-accessible, covered by component tests where appropriate, and exercised through Playwright in desktop and mobile layouts.

@@ -109,7 +109,26 @@ export type ExecuteWorkspaceId = (typeof EXECUTE_TASKS)[number]["id"]
 // The ERP set is the flagship and the default; the second approved Plan has its own
 // full set; anything else is decomposed from the brief the viewer actually wrote.
 
-export type ExecuteWorkspaceFile = { name: string; path: string; added: number; diff: readonly string[] }
+export type ExecuteWorkspaceFile = { name: string; path: string; added: number; diff: readonly string[]; repositoryId?: string }
+
+export type ExecuteRepositoryProvider = "GitHub" | "GitLab" | "Bitbucket"
+
+export type ExecuteRepositoryBinding = {
+	id: string
+	name: string
+	provider: ExecuteRepositoryProvider
+	mode: "existing" | "new"
+	role: string
+	branch: string
+	defaultBranch: string
+	access: "Read" | "Write" | "Review"
+	ownerTeam: string
+	allowedPaths: readonly string[]
+	checks: number
+	changedFiles: number
+	changeRequest?: string
+	status: "connected" | "provisioned" | "review"
+}
 
 export type ExecuteWorkspaceProfile = {
 	branch: string
@@ -162,7 +181,7 @@ export type ExecuteWorkspaceSpec = {
 	system?: string
 	team?: string
 	packages?: readonly string[]
-	repository?: string
+	repositories?: readonly ExecuteRepositoryBinding[]
 	authority?: string
 	members?: readonly ExecuteWorkspaceMember[]
 	environment?: ExecuteEnvironmentBinding
@@ -211,7 +230,7 @@ const ERP_WORKSPACE_PROFILES: Record<ExecuteWorkspaceId, ExecuteWorkspaceProfile
 		files: [
 			{ name: "x_max_fin_change.js", path: "servicenow/business-rules", added: 41, diff: ["(function executeRule(current) {", "+ const event = FinancialChange.from(current)", "+ publisher.sendSigned(event)", "})(current)"] },
 			{ name: "FinancialChangePublisher.js", path: "servicenow/script-includes", added: 53, diff: ["publish: function(change) {", "+ return this.outbox.enqueue(change, change.id)", "}"] },
-			{ name: "financial-change-publisher.spec.js", path: "servicenow/atf", added: 38, diff: ["describe(\"financial change publisher\", () => {", "+ it(\"does not publish an unapproved change\")", "+ it(\"retains MuleSoft delivery status\")", "})"] },
+			{ name: "financial-change-publisher.spec.js", path: "servicenow/atf", added: 38, repositoryId: "snow-atf", diff: ["describe(\"financial change publisher\", () => {", "+ it(\"does not publish an unapproved change\")", "+ it(\"retains MuleSoft delivery status\")", "})"] },
 		],
 		result: "ServiceNow update set passed its workspace gate",
 		resultMeta: "36 tests passed · update set US-SNOW-101.8 · callback evidence retained",
@@ -229,7 +248,7 @@ const ERP_WORKSPACE_PROFILES: Record<ExecuteWorkspaceId, ExecuteWorkspaceProfile
 		files: [
 			{ name: "journal-orchestration.xml", path: "mule/src/main/mule", added: 67, diff: ["<flow name=\"journal-orchestration\">", "+ <validation:is-true expression=\"#[payload.approved]\" />", "+ <vm:publish queueName=\"journal.delivery\" />", "</flow>"] },
 			{ name: "to-workday-journal.dwl", path: "mule/src/main/resources", added: 46, diff: ["%dw 2.0", "+ output application/json", "+ --- payload map JournalLine::from"] },
-			{ name: "idempotency-policy.xml", path: "mule/src/main/mule", added: 28, diff: ["<idempotent-message-validator", "+ idExpression=\"#[attributes.headers.'x-event-id']\"", "+ objectStore=\"journal-idempotency\" />"] },
+			{ name: "idempotency-policy.xml", path: "policies/idempotency", added: 28, repositoryId: "mule-policies", diff: ["<idempotent-message-validator", "+ idExpression=\"#[attributes.headers.'x-event-id']\"", "+ objectStore=\"journal-idempotency\" />"] },
 			{ name: "duplicate-replay.spec.xml", path: "mule/src/test/munit", added: 51, diff: ["<munit:test name=\"duplicate-replay\">", "+ <munit-tools:verify-call processor=\"workday:post\" times=\"1\" />", "</munit:test>"] },
 		],
 		result: "MuleSoft application passed its workspace gate",
@@ -248,7 +267,7 @@ const ERP_WORKSPACE_PROFILES: Record<ExecuteWorkspaceId, ExecuteWorkspaceProfile
 		files: [
 			{ name: "Journal_Integration.xml", path: "workday/config", added: 48, diff: ["<Integration_System>", "+ <Name>MAXION Journal Delivery</Name>", "+ <Atomic_Posting>true</Atomic_Posting>", "</Integration_System>"] },
 			{ name: "ISU_MAXION_JOURNAL.xml", path: "workday/security", added: 24, diff: ["<Integration_System_User>", "+ <Domain>Post Journals</Domain>", "+ <Domain>View Integration Events</Domain>", "</Integration_System_User>"] },
-			{ name: "journal-validation.spec.xml", path: "workday/tests", added: 39, diff: ["<Scenario name=\"journal validation\">", "+ <Assert path=\"Company_Reference\" required=\"true\" />", "+ <Assert effect=\"atomic-post\" />", "</Scenario>"] },
+			{ name: "journal-validation.spec.xml", path: "workday/tests", added: 39, repositoryId: "workday-tests", diff: ["<Scenario name=\"journal validation\">", "+ <Assert path=\"Company_Reference\" required=\"true\" />", "+ <Assert effect=\"atomic-post\" />", "</Scenario>"] },
 		],
 		result: "Workday configuration passed its workspace gate",
 		resultMeta: "34 tests passed · WDAY-JRN-301.5 · least-privilege domains verified",
@@ -286,7 +305,7 @@ const ERP_WORKSPACE_META: Record<ExecuteWorkspaceId, Omit<ExecuteWorkspaceSpec, 
 		system: "Cross-platform delivery",
 		team: "Engagement leadership",
 		packages: ["SNOW-101", "MULE-201", "MULE-202", "WDAY-301", "INT-401"],
-		repository: "maxion/erp-modernization-delivery",
+		repositories: [{ id: "erp-delivery", name: "maxion/erp-modernization-delivery", provider: "GitHub", mode: "existing", role: "Delivery manifest", branch: "execute/erp/orchestrator", defaultBranch: "main", access: "Write", ownerTeam: "Engagement leadership", allowedPaths: [".maxion/execute/**"], checks: 27, changedFiles: 3, changeRequest: "PR #184", status: "review" }],
 		authority: "Coordinate, pause, route, propose candidates, and request approvals; cannot alter Plan contracts or deploy silently.",
 		members: [ROOT_ADMIN, ANDRE_REYES, ELENA_ORTIZ],
 		environment: { development: "All bound worktrees", staging: "Cross-platform staging control", production: "Approval-gated release control" },
@@ -306,7 +325,10 @@ const ERP_WORKSPACE_META: Record<ExecuteWorkspaceId, Omit<ExecuteWorkspaceSpec, 
 		system: "ServiceNow",
 		team: "ServiceNow delivery",
 		packages: ["SNOW-101"],
-		repository: "maxion/servicenow-financial-change",
+		repositories: [
+			{ id: "snow-app", name: "maxion/servicenow-financial-change", provider: "GitHub", mode: "existing", role: "Application source", branch: "execute/erp/servicenow", defaultBranch: "main", access: "Write", ownerTeam: "ServiceNow delivery", allowedPaths: ["servicenow/business-rules/**", "servicenow/script-includes/**"], checks: 24, changedFiles: 2, changeRequest: "PR #218", status: "review" },
+			{ id: "snow-atf", name: "maxion/servicenow-atf", provider: "GitHub", mode: "existing", role: "Automated test pack", branch: "execute/erp/servicenow-atf", defaultBranch: "main", access: "Write", ownerTeam: "ServiceNow quality", allowedPaths: ["servicenow/atf/**"], checks: 12, changedFiles: 1, changeRequest: "PR #91", status: "review" },
+		],
 		authority: "Edit the scoped update set, run ATF, request staging, and inspect provider receipts.",
 		members: [ROOT_ADMIN, PRIYA_NAIR],
 		environment: { development: "PDI · snow-dev-04", staging: "UAT · snow-uat-02", production: "Prod · snow-prod" },
@@ -326,7 +348,10 @@ const ERP_WORKSPACE_META: Record<ExecuteWorkspaceId, Omit<ExecuteWorkspaceSpec, 
 		system: "MuleSoft Anypoint",
 		team: "Enterprise integration",
 		packages: ["MULE-201", "MULE-202"],
-		repository: "maxion/mule-journal-orchestration",
+		repositories: [
+			{ id: "mule-app", name: "maxion/mule-journal-orchestration", provider: "GitLab", mode: "new", role: "Deployable Mule application", branch: "execute/erp/mulesoft", defaultBranch: "main", access: "Write", ownerTeam: "Enterprise integration", allowedPaths: ["mule/**", "pom.xml"], checks: 41, changedFiles: 3, changeRequest: "MR !42", status: "provisioned" },
+			{ id: "mule-policies", name: "maxion/mule-shared-policies", provider: "GitLab", mode: "existing", role: "Shared reliability policies", branch: "execute/erp/mulesoft-idempotency", defaultBranch: "main", access: "Write", ownerTeam: "Integration platform", allowedPaths: ["policies/idempotency/**"], checks: 11, changedFiles: 1, changeRequest: "MR !117", status: "review" },
+		],
 		authority: "Edit the Mule application, run MUnit, publish to Exchange, request staging, and operate the scoped DLQ.",
 		members: [ROOT_ADMIN, MATEO_RUIZ],
 		environment: { development: "CloudHub dev · us-east-2", staging: "CloudHub staging · us-east-2", production: "CloudHub prod · us-east-2" },
@@ -346,7 +371,10 @@ const ERP_WORKSPACE_META: Record<ExecuteWorkspaceId, Omit<ExecuteWorkspaceSpec, 
 		system: "Workday Financials",
 		team: "Workday delivery",
 		packages: ["WDAY-301"],
-		repository: "maxion/workday-journal-delivery",
+		repositories: [
+			{ id: "workday-config", name: "maxion/workday-journal-delivery", provider: "Bitbucket", mode: "existing", role: "Configuration migration", branch: "execute/erp/workday", defaultBranch: "main", access: "Write", ownerTeam: "Workday delivery", allowedPaths: ["workday/config/**", "workday/security/**"], checks: 25, changedFiles: 2, changeRequest: "PR #76", status: "review" },
+			{ id: "workday-tests", name: "maxion/workday-contract-tests", provider: "Bitbucket", mode: "new", role: "Contract verification", branch: "execute/erp/workday-contracts", defaultBranch: "main", access: "Write", ownerTeam: "Workday quality", allowedPaths: ["workday/tests/**"], checks: 9, changedFiles: 1, changeRequest: "PR #1", status: "provisioned" },
+		],
 		authority: "Edit the scoped configuration migration, validate in implementation tenant, and request promotion.",
 		members: [ROOT_ADMIN, MARCUS_LEE],
 		environment: { development: "Implementation tenant · WD-IMPL", staging: "Preview tenant · WD-PREV", production: "Production tenant · WD-PROD" },
@@ -366,7 +394,7 @@ const ERP_WORKSPACE_META: Record<ExecuteWorkspaceId, Omit<ExecuteWorkspaceSpec, 
 		system: "Cross-platform verification",
 		team: "Integration quality",
 		packages: ["INT-401"],
-		repository: "maxion/erp-integration-e2e",
+		repositories: [{ id: "erp-e2e", name: "maxion/erp-integration-e2e", provider: "GitHub", mode: "existing", role: "Cross-platform verification", branch: "execute/erp/verification", defaultBranch: "main", access: "Write", ownerTeam: "Integration quality", allowedPaths: ["e2e/**"], checks: 41, changedFiles: 3, changeRequest: "PR #64", status: "review" }],
 		authority: "Pin staged artifacts, run non-production E2E, route defects, and seal evidence; cannot modify platform workspaces.",
 		members: [ROOT_ADMIN, ANDRE_REYES, ELENA_ORTIZ],
 		environment: { development: "Ephemeral harness", staging: "Shared integration stage", production: "Post-release verification only" },

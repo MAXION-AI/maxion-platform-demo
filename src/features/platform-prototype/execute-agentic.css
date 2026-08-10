@@ -507,6 +507,13 @@
 	--exd-danger: #e08a81;
 	--exd-radius: 10px;
 	--exd-radius-lg: 14px;
+	--exd-type-caption: 10px;
+	--exd-type-meta: 11px;
+	--exd-type-ui: 12px;
+	--exd-type-body: 13px;
+	--exd-type-heading: 18px;
+	--exd-leading-ui: 1.25;
+	--exd-leading-body: 1.5;
 	grid-template-columns: 248px minmax(0, 1fr);
 	background: var(--exd-bg);
 	color: var(--exd-text);
@@ -610,7 +617,9 @@
 .exd-workspace-title p { max-width: 600px; margin: 8px 0 0; color: var(--exd-muted); font-size: 11.5px; line-height: 1.55; }
 .exd-package-row { display: flex; flex-wrap: wrap; align-items: center; gap: 5px; margin-top: 11px; }
 .exd-package-row code { padding: 3px 6px; border: 1px solid rgba(134,219,195,.16); border-radius: 5px; background: var(--exd-accent-soft); color: var(--exd-accent); font: 8px/1.2 "SFMono-Regular", Consolas, monospace; }
-.exd-package-row > span { display: inline-flex; min-width: 0; align-items: center; gap: 5px; margin-left: 3px; color: var(--exd-faint); font: 8px/1.2 "SFMono-Regular", Consolas, monospace; }
+.exd-package-row > :is(span,button) { display: inline-flex; min-width: 0; align-items: center; gap: 5px; margin-left: 3px; border: 0; background: transparent; color: var(--exd-faint); font: var(--exd-type-meta)/1.2 "SFMono-Regular", Consolas, monospace; }
+.exd-package-row > button { padding: 3px 5px; border-radius: 5px; cursor: pointer; }
+.exd-package-row > button:hover { background: var(--exd-surface-2); color: var(--exd-accent); }
 .exd-package-row svg { width: 12px; height: 12px; }
 .exd-workspace-actions { display: flex; align-items: center; gap: 7px; }
 .exd-workspace-actions > button, .exd-primary { display: inline-flex; min-height: 34px; align-items: center; justify-content: center; gap: 7px; padding: 0 10px; border: 1px solid var(--exd-line); border-radius: 8px; background: var(--exd-surface); color: var(--exd-muted); font-size: 9px; font-weight: 600; cursor: pointer; transition: background 150ms ease, border-color 150ms ease, color 150ms ease, transform 100ms ease; }
@@ -917,6 +926,129 @@
 .exd-impact-modal > footer { display: flex; justify-content: flex-end; gap: 8px; padding: 18px 22px 22px; }
 .exd-impact-modal > footer > button { display: inline-flex; min-height: 36px; align-items: center; gap: 6px; padding: 0 13px; border: 1px solid var(--exd-line-strong); border-radius: 8px; background: var(--exd-surface); color: var(--exd-text-2); font-size: 9px; cursor: pointer; }
 
+/* Multi-repository workspace control */
+.exd-repository-summary { display: grid; grid-template-columns: minmax(0,1.5fr) repeat(2,minmax(0,.75fr)); gap: 1px; overflow: hidden; border: 1px solid var(--exd-line); border-radius: 10px; background: var(--exd-line); }
+.exd-repository-summary > div { display: flex; min-width: 0; flex-direction: column; justify-content: center; padding: 11px 12px; background: var(--exd-surface); }
+.exd-repository-summary > div:first-child { display: grid; grid-template-columns: auto minmax(0,1fr); align-items: center; gap: 9px; }
+.exd-repository-summary > div:first-child > span { display: grid; width: 32px; height: 32px; place-items: center; border-radius: 9px; background: var(--exd-accent-soft); color: var(--exd-accent); }
+.exd-repository-summary p { display: flex; min-width: 0; flex-direction: column; margin: 0; }
+.exd-repository-summary small { color: var(--exd-faint); font-size: var(--exd-type-caption); font-weight: 700; letter-spacing: .08em; text-transform: uppercase; }
+.exd-repository-summary strong { margin-top: 4px; overflow: hidden; color: var(--exd-text-2); font-size: var(--exd-type-ui); font-weight: 600; text-overflow: ellipsis; white-space: nowrap; }
+.exd-repository-grid { display: grid; gap: 9px; margin-top: 12px; }
+.exd-repository-card { overflow: hidden; border: 1px solid var(--exd-line); border-radius: 11px; background: var(--exd-surface); transition: border-color 150ms ease, transform 150ms ease; }
+.exd-repository-card:hover { border-color: var(--exd-line-strong); transform: translateY(-1px); }
+.exd-repository-card > header { display: grid; grid-template-columns: auto minmax(0,1fr) auto; align-items: start; gap: 10px; padding: 12px; border-bottom: 1px solid var(--exd-line); }
+.exd-repository-card > header > span { display: grid; width: 34px; height: 34px; place-items: center; border-radius: 9px; background: var(--exd-surface-3); color: var(--exd-accent); }
+.exd-repository-card > header > div { display: flex; min-width: 0; flex-direction: column; }
+.exd-repository-card > header small { color: var(--exd-accent); font-size: var(--exd-type-caption); font-weight: 700; letter-spacing: .06em; text-transform: uppercase; }
+.exd-repository-card > header strong { margin-top: 4px; overflow-wrap: anywhere; font: var(--exd-type-body)/1.25 "SFMono-Regular", Consolas, monospace; }
+.exd-repository-card > header p { margin: 4px 0 0; color: var(--exd-muted); font-size: var(--exd-type-meta); }
+.exd-repository-card > header > b { padding: 4px 7px; border-radius: 6px; background: var(--exd-accent-soft); color: var(--exd-accent); font-size: var(--exd-type-caption); font-weight: 650; }
+.exd-repository-card dl { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 1px; margin: 0; background: var(--exd-line); }
+.exd-repository-card dl > div { min-width: 0; padding: 10px 12px; background: var(--exd-bg); }
+.exd-repository-card dt { color: var(--exd-faint); font-size: var(--exd-type-caption); font-weight: 700; text-transform: uppercase; }
+.exd-repository-card dd { display: flex; min-width: 0; flex-wrap: wrap; gap: 4px; margin: 5px 0 0; color: var(--exd-text-2); font-size: var(--exd-type-meta); line-height: 1.45; }
+.exd-repository-card dd code { overflow: hidden; padding: 2px 5px; border-radius: 4px; background: rgba(255,255,255,.035); color: var(--exd-muted); font: var(--exd-type-caption)/1.3 "SFMono-Regular", Consolas, monospace; text-overflow: ellipsis; }
+.exd-repository-card > footer { display: flex; min-height: 38px; align-items: center; justify-content: space-between; gap: 8px; padding: 8px 12px; color: var(--exd-muted); font-size: var(--exd-type-meta); }
+.exd-repository-card > footer span { display: inline-flex; align-items: center; gap: 5px; }
+.exd-repository-card > footer svg { color: var(--exd-accent); }
+.exd-repository-card > footer strong { color: var(--exd-text-2); font-weight: 600; }
+.exd-attach-repository { border-style: dashed; }
+
+/* Team-first sharing */
+.exd-share-modal { width: min(720px,100%); }
+.exd-share-modal:focus, .exd-repo-modal:focus { outline: 0; }
+.exd-share-tabs { display: flex; gap: 4px; padding: 10px 20px 0; }
+.exd-share-tabs button { display: inline-flex; min-height: 34px; align-items: center; gap: 6px; padding: 0 10px; border: 0; border-radius: 8px; background: transparent; color: var(--exd-muted); font-size: var(--exd-type-ui); cursor: pointer; }
+.exd-share-tabs button[aria-current="page"] { background: var(--exd-surface-2); color: var(--exd-text); }
+.exd-share-tabs b { display: grid; min-width: 18px; height: 18px; place-items: center; border-radius: 9px; background: var(--exd-surface-3); font-size: var(--exd-type-caption); }
+.exd-share-body { padding-bottom: 12px; }
+.exd-share-body .exd-share-scope { padding-top: 12px; }
+.exd-share-body .exd-share-scope button { grid-template-columns: auto minmax(0,1fr) auto; min-height: 68px; }
+.exd-share-scope button > svg:last-child { visibility: hidden; color: var(--exd-accent); }
+.exd-share-scope button[aria-pressed="true"] > svg:last-child { visibility: visible; }
+.exd-share-section { margin: 10px 20px 0; }
+.exd-share-section > header, .exd-manage-access > header { display: flex; align-items: end; justify-content: space-between; gap: 10px; margin-bottom: 8px; }
+.exd-share-section > header > div, .exd-manage-access > header > div { display: flex; flex-direction: column; }
+.exd-share-section > header small, .exd-manage-access > header small { color: var(--exd-accent); font-size: var(--exd-type-caption); font-weight: 700; letter-spacing: .08em; }
+.exd-share-section h3, .exd-manage-access h3 { margin: 3px 0 0; font-size: 15px; font-weight: 580; letter-spacing: -.015em; }
+.exd-share-section > header > span, .exd-manage-access > header > span { color: var(--exd-faint); font-size: var(--exd-type-meta); }
+.exd-team-list { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 7px; }
+.exd-team-list > button { display: grid; min-height: 88px; grid-template-columns: auto minmax(0,1fr) auto; align-items: start; gap: 9px; padding: 11px; border: 1px solid var(--exd-line); border-radius: 10px; background: var(--exd-bg); color: var(--exd-muted); text-align: left; cursor: pointer; }
+.exd-team-list > button[aria-checked="true"] { border-color: rgba(134,219,195,.38); background: var(--exd-accent-soft); }
+.exd-team-list > button > span { display: grid; width: 30px; height: 30px; place-items: center; border-radius: 8px; background: var(--exd-surface-3); color: var(--exd-accent); }
+.exd-team-list > button > div { display: flex; min-width: 0; flex-direction: column; }
+.exd-team-list strong { color: var(--exd-text-2); font-size: var(--exd-type-ui); font-weight: 600; }
+.exd-team-list small, .exd-team-list p { margin: 4px 0 0; color: var(--exd-faint); font-size: var(--exd-type-meta); line-height: 1.4; }
+.exd-team-list p { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.exd-team-list > button > b { display: grid; min-width: 24px; height: 24px; place-items: center; border-radius: 12px; background: var(--exd-surface-3); color: var(--exd-text-2); font-size: var(--exd-type-meta); }
+.exd-access-templates { display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); gap: 7px; }
+.exd-access-templates button { display: flex; min-height: 64px; flex-direction: column; padding: 10px; border: 1px solid var(--exd-line); border-radius: 9px; background: var(--exd-bg); color: var(--exd-muted); text-align: left; cursor: pointer; }
+.exd-access-templates button[aria-checked="true"] { border-color: rgba(134,219,195,.38); background: var(--exd-accent-soft); }
+.exd-access-templates strong { color: var(--exd-text-2); font-size: var(--exd-type-ui); }
+.exd-access-templates small { margin-top: 4px; color: var(--exd-faint); font-size: var(--exd-type-meta); line-height: 1.35; }
+.exd-share-confirm { display: flex; width: calc(100% - 40px); min-height: 42px; align-items: center; justify-content: center; gap: 8px; margin: 14px 20px 0; border: 0; border-radius: 9px; background: var(--exd-accent); color: #07110d !important; font-size: var(--exd-type-ui); font-weight: 650; cursor: pointer; box-shadow: 0 10px 28px rgba(0,0,0,.2); }
+.exd-share-success { display: grid; grid-template-columns: auto minmax(0,1fr); gap: 10px; margin: 14px 20px 0; padding: 12px; border: 1px solid rgba(134,219,195,.26); border-radius: 10px; background: var(--exd-accent-soft); color: var(--exd-accent); }
+.exd-share-success div { display: flex; flex-direction: column; }
+.exd-share-success strong { color: var(--exd-text); font-size: var(--exd-type-body); }
+.exd-share-success p { margin: 4px 0 0; color: var(--exd-muted); font-size: var(--exd-type-body); line-height: var(--exd-leading-body); }
+.exd-individual-invite { margin: 12px 20px 0; border-top: 1px solid var(--exd-line); }
+.exd-individual-invite summary { padding: 12px 0 3px; color: var(--exd-muted); font-size: var(--exd-type-ui); cursor: pointer; }
+.exd-individual-invite form { display: grid; grid-template-columns: minmax(0,1fr) 120px auto; gap: 7px; padding-top: 8px; }
+.exd-individual-invite form label { display: flex; height: 38px; align-items: center; gap: 7px; padding: 0 9px; border: 1px solid var(--exd-line-strong); border-radius: 8px; background: var(--exd-bg); color: var(--exd-muted); }
+.exd-individual-invite input { width: 100%; min-width: 0; border: 0; outline: 0; background: transparent; color: var(--exd-text); }
+.exd-individual-invite select, .exd-individual-invite button { min-height: 38px; padding: 0 10px; border: 1px solid var(--exd-line-strong); border-radius: 8px; background: var(--exd-bg); color: var(--exd-text-2); }
+.exd-individual-invite button { background: var(--exd-accent); color: #07110d; font-weight: 650; cursor: pointer; }
+.exd-manage-access { padding: 16px 20px 18px; }
+.exd-manage-access .exd-member-list { padding: 0; }
+.exd-manage-access .exd-member-list > div { grid-template-columns: 30px minmax(0,1fr) auto auto; }
+.exd-member-list > div > b { color: var(--exd-muted); font-size: var(--exd-type-meta); font-weight: 550; }
+.exd-member-list > div > button { width: 30px; height: 30px; border: 0; border-radius: 7px; background: transparent; color: var(--exd-faint); cursor: pointer; }
+.exd-member-list > div > button:hover { background: var(--exd-surface-3); color: var(--exd-text); }
+
+/* Repository attachment */
+.exd-repo-modal { position: relative; width: min(620px,100%); max-height: min(820px,calc(100vh - 48px)); overflow-y: auto; border: 1px solid var(--exd-line-strong); border-radius: 16px; background: #121513; box-shadow: 0 32px 100px rgba(0,0,0,.5), inset 0 1px rgba(255,255,255,.025); }
+.exd-repo-modal > header { display: grid; grid-template-columns: auto minmax(0,1fr) auto; gap: 12px; padding: 22px; border-bottom: 1px solid var(--exd-line); }
+.exd-repo-modal > header > span { display: grid; width: 38px; height: 38px; place-items: center; border-radius: 11px; background: var(--exd-accent-soft); color: var(--exd-accent); }
+.exd-repo-modal > header > div { min-width: 0; }
+.exd-repo-modal > header small { color: var(--exd-accent); font-size: var(--exd-type-caption); font-weight: 720; letter-spacing: .1em; }
+.exd-repo-modal > header h2 { margin: 5px 0 0; font-size: 20px; font-weight: 560; letter-spacing: -.03em; }
+.exd-repo-modal > header p { margin: 6px 0 0; color: var(--exd-muted); font-size: var(--exd-type-body); line-height: var(--exd-leading-body); }
+.exd-repo-modal > header > button { display: grid; width: 30px; height: 30px; place-items: center; border: 0; border-radius: 8px; background: transparent; color: var(--exd-muted); cursor: pointer; }
+.exd-repo-form { padding: 18px 22px; }
+.exd-repo-intent { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 8px; }
+.exd-repo-intent button { display: grid; min-height: 70px; grid-template-columns: auto minmax(0,1fr); align-items: center; gap: 9px; padding: 10px; border: 1px solid var(--exd-line); border-radius: 10px; background: var(--exd-bg); color: var(--exd-muted); text-align: left; cursor: pointer; }
+.exd-repo-intent button[aria-pressed="true"] { border-color: rgba(134,219,195,.38); background: var(--exd-accent-soft); color: var(--exd-accent); }
+.exd-repo-intent button span { display: flex; flex-direction: column; }
+.exd-repo-intent strong { color: var(--exd-text-2); font-size: var(--exd-type-ui); }
+.exd-repo-intent small { margin-top: 4px; color: var(--exd-faint); font-size: var(--exd-type-meta); line-height: 1.35; }
+.exd-repo-form fieldset { margin: 16px 0 0; padding: 0; border: 0; }
+.exd-repo-form legend, .exd-repo-name > span { color: var(--exd-faint); font-size: var(--exd-type-caption); font-weight: 700; letter-spacing: .08em; text-transform: uppercase; }
+.exd-provider-switch { display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); gap: 5px; margin-top: 7px; padding: 4px; border: 1px solid var(--exd-line); border-radius: 9px; background: var(--exd-bg); }
+.exd-provider-switch button { min-height: 32px; border: 0; border-radius: 6px; background: transparent; color: var(--exd-muted); cursor: pointer; }
+.exd-provider-switch button[aria-pressed="true"] { background: var(--exd-surface-3); color: var(--exd-text); }
+.exd-repo-name { display: flex; flex-direction: column; gap: 7px; margin-top: 16px; }
+.exd-repo-name > div { display: flex; height: 42px; align-items: center; gap: 8px; padding: 0 11px; border: 1px solid var(--exd-line-strong); border-radius: 9px; background: var(--exd-bg); color: var(--exd-accent); }
+.exd-repo-name input { width: 100%; min-width: 0; border: 0; outline: 0; background: transparent; color: var(--exd-text); }
+.exd-repo-impact { display: grid; grid-template-columns: auto minmax(0,1fr); gap: 9px; margin-top: 14px; padding: 11px; border: 1px solid rgba(134,219,195,.18); border-radius: 9px; background: var(--exd-accent-soft); color: var(--exd-accent); }
+.exd-repo-impact div { display: flex; flex-direction: column; }
+.exd-repo-impact strong { color: var(--exd-text-2); font-size: var(--exd-type-ui); }
+.exd-repo-impact p { margin: 4px 0 0; color: var(--exd-muted); font-size: var(--exd-type-meta); line-height: 1.45; }
+.exd-demo-disclaimer { margin: 10px 0 0; color: var(--exd-faint); font-size: var(--exd-type-meta); text-align: center; }
+.exd-repo-modal > footer { display: flex; justify-content: flex-end; gap: 8px; padding: 0 22px 22px; }
+.exd-repo-modal > footer > button { display: inline-flex; min-height: 38px; align-items: center; gap: 6px; padding: 0 13px; border: 1px solid var(--exd-line-strong); border-radius: 8px; background: var(--exd-surface); color: var(--exd-text-2); cursor: pointer; }
+
+/* Execute semantic type contract — one scale, chosen by content role. */
+.exd-app :is(button,select,input) { font-size: var(--exd-type-ui); line-height: var(--exd-leading-ui); }
+.exd-app :is(.exd-workspace-title p,.exd-message p,.exd-panel > header p,.exd-share-modal > header p,.exd-impact-modal > header p) { font-size: var(--exd-type-body); line-height: var(--exd-leading-body); }
+.exd-app :is(.exd-rail nav strong,.exd-plan-strip strong,.exd-message strong,.exd-trace-step strong,.exd-result strong,.exd-panel-note strong,.exd-file-list button strong,.exd-test-summary strong,.exd-suite-list strong,.exd-binding-list strong,.exd-context-hero strong,.exd-history-compare strong,.exd-audit-list strong,.exd-member-list strong) { font-size: var(--exd-type-ui); line-height: var(--exd-leading-ui); }
+.exd-app :is(.exd-brand small,.exd-engagement-summary small,.exd-rail nav small,.exd-header-title small,.exd-environment-rail small,.exd-workspace-title > div:nth-child(2) > span,.exd-plan-strip small,.exd-autonomy small,.exd-message time,.exd-trace-step small,.exd-result p,.exd-result small,.exd-panel-note small,.exd-file-list button small,.exd-test-summary small,.exd-suite-list small,.exd-binding-list b,.exd-environment-action span,.exd-context-hero span,.exd-history-compare section span,.exd-audit-list time,.exd-audit-list small,.exd-member-list small,.exd-share-modal > footer small,.exd-impact-callout small) { font-size: var(--exd-type-meta); line-height: 1.4; }
+.exd-app :is(.exd-engagement-summary > span,.exd-rail-label,.exd-panel > header > small,.exd-autonomy span,.exd-context-sections h3,.exd-impact-modal dt) { font-size: var(--exd-type-caption); line-height: 1.3; }
+.exd-app .exd-panel > header h2 { font-size: var(--exd-type-heading); }
+.exd-app .exd-composer textarea { font-size: var(--exd-type-body); line-height: var(--exd-leading-body); }
+.exd-app .exd-inspector > nav button { font-size: var(--exd-type-meta); }
+.exd-app :is(.exd-header-actions .exd-share,.exd-workspace-actions > button,.exd-primary,.exd-panel-action,.exd-candidate > button,.exd-e2e-card > button,.exd-release-sequence > button,.exd-impact-modal > footer > button) { font-size: var(--exd-type-ui); }
+
 /* Responsive delivery workspace */
 @media (max-width: 1320px) {
 	.exd-header { grid-template-columns: minmax(190px,.7fr) minmax(360px,1.35fr) auto; gap: 10px; }
@@ -953,7 +1085,8 @@
 	.aex-app.exd-app { grid-template-rows: 60px minmax(0,1fr); }
 	.exd-rail nav > button { min-width: 142px; }
 	.exd-header { padding: 0 8px; }
-	.exd-header-title small, .exd-header-actions button kbd, .exd-header-actions .exd-share { display: none; }
+	.exd-header-title small, .exd-header-actions button kbd, .exd-header-actions .exd-share span { display: none; }
+	.exd-header-actions .exd-share { width: 32px; padding: 0; }
 	.exd-thread-scroll { padding: 22px 15px 38px; }
 	.exd-workspace-title { grid-template-columns: auto minmax(0,1fr); }
 	.exd-workspace-actions { grid-column: 1 / -1; justify-content: space-between; padding-top: 4px; }
@@ -969,13 +1102,19 @@
 	.exd-composer-scope > span:last-child { display: none; }
 	.exd-composer > footer > span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 	.exd-panel { padding-inline: 14px; }
-	.exd-context-sections, .exd-share-scope, .exd-impact-modal dl { grid-template-columns: 1fr; }
+	.exd-context-sections, .exd-share-scope, .exd-impact-modal dl, .exd-repository-summary, .exd-repository-card dl, .exd-team-list, .exd-access-templates, .exd-repo-intent { grid-template-columns: 1fr; }
 	.exd-context-sections section.is-wide { grid-column: auto; }
 	.exd-share-modal > form { grid-template-columns: 1fr; }
+	.exd-individual-invite form { grid-template-columns: 1fr; }
 	.exd-member-list > div { grid-template-columns: 30px minmax(0,1fr); }
 	.exd-member-list select { grid-column: 2; margin-bottom: 8px; }
 	.exd-modal-layer { padding: 10px; }
-	.exd-share-modal, .exd-impact-modal { max-height: calc(100vh - 20px); }
+	.exd-share-modal, .exd-impact-modal, .exd-repo-modal { max-height: calc(100vh - 20px); }
+	.exd-share-modal > header, .exd-repo-modal > header { padding: 17px; }
+	.exd-share-section, .exd-individual-invite { margin-inline: 14px; }
+	.exd-share-body .exd-share-scope, .exd-share-tabs, .exd-manage-access { padding-inline: 14px; }
+	.exd-repo-form { padding-inline: 17px; }
+	.exd-repo-name input, .exd-individual-invite input { font-size: 16px; }
 }
 @media (prefers-reduced-motion: reduce) {
 	.exd-app *, .exd-app *::before, .exd-app *::after { scroll-behavior: auto !important; animation-duration: .001ms !important; animation-iteration-count: 1 !important; transition-duration: .001ms !important; }

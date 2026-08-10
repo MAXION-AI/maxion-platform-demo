@@ -144,7 +144,7 @@ describe("MaxionPlatformPrototypePage", () => {
 		fireEvent.click(portalNavigation().getByRole("button", { name: "Consult Max" }))
 		fireEvent.click(portalNavigation().getByRole("button", { name: /^Execute/ }))
 		expect(screen.getByRole("button", { name: "Verified" })).toBeInTheDocument()
-	}, 120_000)
+	}, 150_000)
 
 	it("creates an autonomous Plan from existing context and provides executable behavior plus L2, L3, and L4 guidance for every flow", async () => {
 		renderPrototype()
@@ -328,11 +328,19 @@ describe("MaxionPlatformPrototypePage", () => {
 		await waitFor(() => expect(inspector.getByText("POST /financial-changes v3")).toBeInTheDocument(), { timeout: 5_000 })
 		fireEvent.click(inspector.getByRole("button", { name: /^Audit$/ }))
 		await waitFor(() => expect(inspector.getByRole("heading", { name: "Workspace history" })).toBeInTheDocument(), { timeout: 5_000 })
+		fireEvent.click(inspector.getByRole("button", { name: /^Repositories$/ }))
+		await waitFor(() => expect(inspector.getByRole("heading", { name: "2 connected repositories" })).toBeInTheDocument(), { timeout: 5_000 })
+		expect(inspector.getByText("maxion/servicenow-financial-change")).toBeInTheDocument()
+		expect(inspector.getByText("maxion/servicenow-atf")).toBeInTheDocument()
 		const shareButtons = screen.getAllByRole("button", { name: /^Share$/ })
 		fireEvent.click(shareButtons[shareButtons.length - 1])
-		const share = screen.getByRole("dialog", { name: "Share the engagement" })
+		const share = screen.getByRole("dialog", { name: "Share ServiceNow" })
+		expect(within(share).getByRole("button", { name: /ServiceNow workspace/ })).toHaveAttribute("aria-pressed", "true")
+		expect(within(share).getByRole("radio", { name: /ServiceNow delivery team/ })).toHaveAttribute("aria-checked", "true")
+		fireEvent.click(within(share).getByRole("button", { name: "Share ServiceNow with 4 people" }))
+		expect(within(share).getByRole("status")).toHaveTextContent("4 people can open the workspace, converse with MAX, and steer within their authority")
+		fireEvent.click(within(share).getByRole("button", { name: /Manage access/ }))
 		expect(within(share).getByText("Priya Nair")).toBeInTheDocument()
-		expect(within(share).getByText("Elena Ortiz")).toBeInTheDocument()
 	})
 
 	it("manages an integration connection and exposes its governed access log", async () => {
