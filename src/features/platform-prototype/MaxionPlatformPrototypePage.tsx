@@ -47,6 +47,7 @@ import {
 } from "@/features/discovery-autonomous/DiscoveryAutonomousPrototypePage"
 
 import { PLAN_JUMP_ENTRIES, PlanModule, type PlanJumpSignal } from "./PlanAgenticModule"
+import { ExecuteDeliveryWorkspace, type ExecuteDeliveryCommand, type ExecuteDeliveryProgress } from "./ExecuteDeliveryWorkspace"
 import { MaxionSpiralMark, PortalSidebar, PRIMARY_NAVIGATION } from "./PortalChrome"
 import {
 	AccountUtilityModule,
@@ -213,25 +214,8 @@ const EXECUTE_STEP_TIMES = ["0.7s", "1.4s", "1.5s", "0.8s"] as const
 
 // Engagement progress lives on ExecuteModule so the hub reflects real state and
 // re-entering a verified engagement restores it instead of replaying the run.
-type ExecuteEngagementProgress = {
-	runState: ExecuteRunState
-	steering: Record<string, string[]>
-	deployRequested: boolean
-	deployRequestedAt: string | null
-	deployRequestedMs: number | null
-	deployArtifact: string
-	deployApproved: boolean
-	auditExported: boolean
-}
-
-type ExecuteWorkspaceCommand =
-	| { type: "workspace"; taskId: string }
-	| { type: "view"; view: (typeof EXECUTE_VIEW_ORDER)[number] }
-	| { type: "run" }
-	| { type: "interrupt" }
-	| { type: "deploy" }
-	| { type: "export-audit" }
-	| { type: "focus-steer" }
+type ExecuteEngagementProgress = ExecuteDeliveryProgress
+type ExecuteWorkspaceCommand = ExecuteDeliveryCommand
 type ExecutePaletteAction = Exclude<ExecuteWorkspaceCommand, { type: "focus-steer" }> | { type: "module"; module: MaxionModuleId } | { type: "new-task" } | { type: "engagements" }
 type ExecutePaletteItem = { id: string; group: string; label: string; hint: string; keywords: string; action: ExecutePaletteAction }
 
@@ -450,7 +434,7 @@ function ExecuteModule({
 	return (
 		<div className="aex-module" ref={rootRef}>
 			{workspaceOpen
-				? <ExecuteWorkspaceModule key={`${engagement.source}-${engagement.title}-${String(engagement.autoStart)}`} onBack={() => setWorkspaceOpen(false)} onPlatform={() => onNavigate("dashboard")} onCommand={openPalette} onOpenApprovals={openApprovals} engagement={engagement} blueprint={blueprint} planSnapshot={planSnapshot} progress={progress[engagement.title]} onProgress={(next) => setProgress((items) => ({ ...items, [engagement.title]: next }))} onVerified={onVerified} registerCommands={registerWorkspaceCommands} />
+				? <ExecuteDeliveryWorkspace key={`${engagement.source}-${engagement.title}-${String(engagement.autoStart)}`} onBack={() => setWorkspaceOpen(false)} onPlatform={() => onNavigate("dashboard")} onCommand={openPalette} onOpenApprovals={openApprovals} engagement={engagement} blueprint={blueprint} planSnapshot={planSnapshot} progress={progress[engagement.title]} onProgress={(next) => setProgress((items) => ({ ...items, [engagement.title]: next }))} onVerified={onVerified} registerCommands={registerWorkspaceCommands} />
 				: <ExecuteHubModule onOpenRun={(intent) => { setEngagement(intent); setWorkspaceOpen(true) }} onNavigate={onNavigate} planHandoff={planHandoff} planSnapshot={planSnapshot} active={active} focusSignal={hubFocusSignal} intent={hubIntent} onIntentConsumed={() => setHubIntent(null)} engagementState={progress["ERP modernization delivery"]?.runState ?? "idle"} deployRequest={deployRequest} onApproveDeploy={approveDeploy} />}
 			{paletteOpen ? <ExecuteCommandPalette workspaces={blueprint.workspaces} onRun={runPaletteAction} onClose={closePalette} /> : null}
 		</div>

@@ -95,11 +95,11 @@ export const PLAN_WORKSTREAMS = [
 ] as const
 
 export const EXECUTE_TASKS = [
-	{ id: "authority", title: "Build mission authority API", status: "Working", detail: "Implement typed policy and approval boundaries", files: 7 },
-	{ id: "adapter", title: "Add ServiceNow event adapter", status: "Queued", detail: "Map approved financial-change events", files: 5 },
-	{ id: "reconcile", title: "Implement durable reconciliation", status: "Queued", detail: "Detect and repair cross-system drift", files: 9 },
-	{ id: "replay", title: "Prove tenant-safe replay", status: "Queued", detail: "Exercise hostile retries and duplicate-effect prevention", files: 6 },
-	{ id: "evidence", title: "Prepare release evidence", status: "Queued", detail: "Assemble audit, rollback, and release-owner evidence", files: 8 },
+	{ id: "orchestrator", title: "Delivery Orchestrator", status: "Working", detail: "Coordinate packages, dependencies, decisions, and release", files: 6 },
+	{ id: "servicenow", title: "ServiceNow", status: "Working", detail: "Publish governed financial-change events and retain delivery status", files: 5 },
+	{ id: "mulesoft", title: "MuleSoft", status: "Working", detail: "Validate, transform, queue, retry, and orchestrate journal delivery", files: 7 },
+	{ id: "workday", title: "Workday Financials", status: "Working", detail: "Secure, validate, and post the governed journal", files: 5 },
+	{ id: "verification", title: "Integration verification", status: "Queued", detail: "Prove request-to-receipt behavior across exact staged artifacts", files: 6 },
 ] as const
 
 export type ExecuteWorkspaceId = (typeof EXECUTE_TASKS)[number]["id"]
@@ -126,7 +126,50 @@ export type ExecuteWorkspaceProfile = {
 	resultMeta: string
 }
 
-export type ExecuteWorkspaceSpec = { id: string; title: string; detail: string; files: number; profile: ExecuteWorkspaceProfile }
+export type ExecuteWorkspaceRole = "Owner" | "Orchestrator collaborator" | "Contributor" | "Reviewer" | "Release approver" | "Viewer"
+
+export type ExecuteWorkspaceMember = {
+	id: string
+	name: string
+	initials: string
+	role: ExecuteWorkspaceRole
+	presence: "online" | "away" | "offline"
+	scope: string
+}
+
+export type ExecuteImplementationContext = {
+	mission: string
+	behavior: readonly string[]
+	contracts: readonly string[]
+	dependencies: readonly string[]
+	doneWhen: readonly string[]
+	evidence: readonly string[]
+}
+
+export type ExecuteEnvironmentBinding = {
+	development: string
+	staging: string
+	production: string
+}
+
+export type ExecuteWorkspaceSpec = {
+	id: string
+	title: string
+	detail: string
+	files: number
+	profile: ExecuteWorkspaceProfile
+	kind?: "orchestrator" | "system" | "verification"
+	system?: string
+	team?: string
+	packages?: readonly string[]
+	repository?: string
+	authority?: string
+	members?: readonly ExecuteWorkspaceMember[]
+	environment?: ExecuteEnvironmentBinding
+	context?: ExecuteImplementationContext
+	presence?: number
+	unread?: number
+}
 
 export type ExecuteBlueprint = {
 	key: string
@@ -137,100 +180,206 @@ export type ExecuteBlueprint = {
 }
 
 const ERP_WORKSPACE_PROFILES: Record<ExecuteWorkspaceId, ExecuteWorkspaceProfile> = {
-	authority: {
-		branch: "execute/erp/authority",
-		seed: "Implement the approved mission-authority boundary while preserving the public API.",
-		agentIntro: "I mapped the outcome to the repository, approved Plan, and authority policy. I’ll implement the typed boundary, repair failures, and return with release evidence.",
-		steerResponse: "I’ve applied that direction to the authority contract without widening repository or deployment scope.",
-		steerTarget: "authority contract",
-		steps: ["Read repository instructions and Plan evidence", "Implement mission authority contract", "Add hostile authority and replay tests", "Run cumulative release gate"],
-		command: "pnpm test mission-authority --runInBand",
-		tests: 48,
-		suites: [["Authority unit suite", 18], ["Tenant isolation", 9], ["Service contracts", 13], ["Cumulative gate", 8]],
+	orchestrator: {
+		branch: "execute/erp/orchestrator",
+		seed: "Coordinate the approved ServiceNow to Workday delivery through MuleSoft without changing the Plan contract.",
+		agentIntro: "I bound Plan snapshot PL-24.7 to five authority-scoped workspaces. I’m sequencing dependencies, watching evidence, and will interrupt only for a material decision or environment authority.",
+		steerResponse: "I routed that direction to the owning workspace agents and added the result to the candidate gate.",
+		steerTarget: "delivery graph",
+		steps: ["Bind Plan packages and authority", "Coordinate platform workspaces", "Resolve dependency and evidence gaps", "Assemble the governed release candidate"],
+		command: "max execute status --candidate RC-07",
+		tests: 27,
+		suites: [["Package integrity", 7], ["Dependency graph", 8], ["Authority scopes", 6], ["Candidate readiness", 6]],
 		files: [
-			{ name: "missionPolicy.ts", path: "services/authority", added: 34, diff: ["export type MissionAuthority = {", "+ tenantId: TenantId", "+ permittedActions: Action[]", "+ approvalBoundary: Boundary", "}"] },
-			{ name: "authority.ts", path: "services/authority", added: 18, diff: ["export async function execute(command, authority) {", "+ await policy.assert(command, authority)", "+ return effects.dispatch(command)", "}"] },
-			{ name: "mission-policy.spec.ts", path: "tests/authority", added: 42, diff: ["describe(\"mission policy\", () => {", "+ it(\"rejects actions outside the approved boundary\")", "+ it(\"expires stale authority grants\")", "})"] },
-			{ name: "tenant-isolation.spec.ts", path: "tests/authority", added: 27, diff: ["describe(\"tenant isolation\", () => {", "+ it(\"blocks cross-tenant authority reuse\")", "+ it(\"scopes receipts to the issuing tenant\")", "})"] },
+			{ name: "delivery-manifest.yaml", path: ".maxion/execute", added: 44, diff: ["candidate: RC-07", "+ plan_snapshot: PL-24.7", "+ workspaces: [servicenow, mulesoft, workday]", "+ promotion_policy: exact-artifacts"] },
+			{ name: "release-sequence.yaml", path: ".maxion/execute", added: 31, diff: ["release:", "+ - mulesoft", "+ - workday", "+ - servicenow"] },
+			{ name: "authority-map.json", path: ".maxion/execute", added: 29, diff: ["{", "+ \"orchestrator\": [\"coordinate\", \"propose\"],", "+ \"production\": \"approval_required\"", "}"] },
 		],
-		result: "Mission authority API passed its release gate",
-		resultMeta: "TypeScript clean · tenant isolation verified · no production effect",
+		result: "Delivery organization is candidate-ready",
+		resultMeta: "5 workspace contracts bound · 3 platform gates tracked · no provider effect",
 	},
-	adapter: {
-		branch: "execute/erp/adapter",
-		seed: "Implement the approved ServiceNow financial-change adapter with replay-safe event handling.",
-		agentIntro: "I traced the existing connector contract and isolated the approved financial-change events. I’ll add typed translation, deduplication, and contract evidence inside this worktree.",
-		steerResponse: "I’ve scoped that direction to the ServiceNow adapter and will prove it against the existing connector contract.",
-		steerTarget: "ServiceNow adapter",
-		steps: ["Read connector contracts and event fixtures", "Map approved ServiceNow events", "Implement replay-safe deduplication", "Run adapter contract suite"],
-		command: "pnpm test servicenow-adapter --runInBand",
+	servicenow: {
+		branch: "execute/erp/servicenow",
+		seed: "Implement Plan package SNOW-101: publish approved financial changes and retain delivery status.",
+		agentIntro: "I traced the Business Rule, event contract, and callback state model. I’ll implement the publisher, protect replay boundaries, and return with the exact staging artifact.",
+		steerResponse: "I applied that direction inside SNOW-101 and preserved the published MuleSoft contract.",
+		steerTarget: "ServiceNow publisher",
+		steps: ["Read SNOW-101 and instance contract", "Implement event publisher and callback state", "Prove signing, replay, and ACL behavior", "Package the ServiceNow update set"],
+		command: "snc test --suite financial-change-publisher",
 		tests: 36,
-		suites: [["Event translation", 12], ["Signature validation", 9], ["Replay safety", 7], ["Connector contracts", 8]],
+		suites: [["Business Rule", 10], ["Event signing", 9], ["Callback state", 8], ["ACL and replay", 9]],
 		files: [
-			{ name: "serviceNowAdapter.ts", path: "services/connectors", added: 41, diff: ["export function translate(event: ServiceNowEvent) {", "+ const change = mapFinancialChange(event)", "+ return withDeduplication(change)", "}"] },
-			{ name: "financialEvent.ts", path: "services/connectors/contracts", added: 23, diff: ["export type ApprovedFinancialEvent = {", "+ eventId: ServiceNowEventId", "+ approvedChange: FinancialChange", "+ deduplicationKey: string", "}"] },
-			{ name: "deduplication.ts", path: "services/connectors", added: 19, diff: ["export function withDeduplication(change) {", "+ const key = deduplicationKey(change)", "+ if (journal.has(key)) return replaySafe(change)", "}"] },
-			{ name: "servicenow-adapter.spec.ts", path: "tests/connectors", added: 38, diff: ["describe(\"servicenow adapter\", () => {", "+ it(\"drops replayed events by deduplication key\")", "+ it(\"rejects unsigned provider payloads\")", "})"] },
+			{ name: "x_max_fin_change.js", path: "servicenow/business-rules", added: 41, diff: ["(function executeRule(current) {", "+ const event = FinancialChange.from(current)", "+ publisher.sendSigned(event)", "})(current)"] },
+			{ name: "FinancialChangePublisher.js", path: "servicenow/script-includes", added: 53, diff: ["publish: function(change) {", "+ return this.outbox.enqueue(change, change.id)", "}"] },
+			{ name: "financial-change-publisher.spec.js", path: "servicenow/atf", added: 38, diff: ["describe(\"financial change publisher\", () => {", "+ it(\"does not publish an unapproved change\")", "+ it(\"retains MuleSoft delivery status\")", "})"] },
 		],
-		result: "ServiceNow adapter passed its contract gate",
-		resultMeta: "36 tests passed · replay safety verified · provider writes disabled",
+		result: "ServiceNow update set passed its workspace gate",
+		resultMeta: "36 tests passed · update set US-SNOW-101.8 · callback evidence retained",
 	},
-	reconcile: {
-		branch: "execute/erp/reconcile",
-		seed: "Implement durable reconciliation across approved ERP effects and retained provider receipts.",
-		agentIntro: "I found the receipt and effect boundaries for the approved providers. I’ll add a durable journal, drift detection, and repair planning without granting new effect authority.",
-		steerResponse: "I’ve added that constraint to reconciliation planning; repair remains evidence-first and approval-bound.",
-		steerTarget: "reconciliation journal",
-		steps: ["Trace effect receipts and provider state", "Implement durable reconciliation journal", "Add drift detection and repair planning", "Run cross-provider failure suite"],
-		command: "pnpm test reconciliation --runInBand",
-		tests: 42,
-		suites: [["Journal durability", 11], ["Drift detection", 13], ["Repair planning", 10], ["Provider failures", 8]],
+	mulesoft: {
+		branch: "execute/erp/mulesoft",
+		seed: "Implement MULE-201 and MULE-202: validate, transform, queue, retry, and deliver journals to Workday.",
+		agentIntro: "I bound both Mule packages to the Workday journal contract. I’m implementing the API-led flow, durable retry, idempotency, and DLQ recovery as one owned integration boundary.",
+		steerResponse: "I applied that constraint across MULE-201 and MULE-202 and kept the Workday schema pinned.",
+		steerTarget: "MuleSoft integration flow",
+		steps: ["Read RAML and Workday journal contract", "Implement validation, mapping, and durable queue", "Prove retry, idempotency, and DLQ recovery", "Package the deployable Mule application"],
+		command: "mvn test -Dtest=JournalOrchestrationSuite",
+		tests: 52,
+		suites: [["RAML contract", 12], ["DataWeave mapping", 14], ["Retry and DLQ", 15], ["Duplicate replay", 11]],
 		files: [
-			{ name: "reconciliationJournal.ts", path: "services/reconciliation", added: 52, diff: ["export class ReconciliationJournal {", "+ append(receipt: EffectReceipt): JournalEntry", "+ replay(from: Checkpoint): AsyncIterable<Entry>", "}"] },
-			{ name: "driftDetector.ts", path: "services/reconciliation", added: 37, diff: ["export function detectDrift(observed, journal) {", "+ const expected = journal.project(observed.provider)", "+ return diffStates(expected, observed)", "}"] },
-			{ name: "repairPlan.ts", path: "services/reconciliation", added: 29, diff: ["export function planRepair(drift: DriftReport) {", "+ const steps = orderByDependency(drift.effects)", "+ return { steps, requiresApproval: true }", "}"] },
-			{ name: "reconciliation.spec.ts", path: "tests/reconciliation", added: 45, diff: ["describe(\"reconciliation\", () => {", "+ it(\"survives a provider outage mid-journal\")", "+ it(\"never repairs without an approval\")", "})"] },
+			{ name: "journal-orchestration.xml", path: "mule/src/main/mule", added: 67, diff: ["<flow name=\"journal-orchestration\">", "+ <validation:is-true expression=\"#[payload.approved]\" />", "+ <vm:publish queueName=\"journal.delivery\" />", "</flow>"] },
+			{ name: "to-workday-journal.dwl", path: "mule/src/main/resources", added: 46, diff: ["%dw 2.0", "+ output application/json", "+ --- payload map JournalLine::from"] },
+			{ name: "idempotency-policy.xml", path: "mule/src/main/mule", added: 28, diff: ["<idempotent-message-validator", "+ idExpression=\"#[attributes.headers.'x-event-id']\"", "+ objectStore=\"journal-idempotency\" />"] },
+			{ name: "duplicate-replay.spec.xml", path: "mule/src/test/munit", added: 51, diff: ["<munit:test name=\"duplicate-replay\">", "+ <munit-tools:verify-call processor=\"workday:post\" times=\"1\" />", "</munit:test>"] },
 		],
-		result: "Reconciliation workspace passed its failure gate",
-		resultMeta: "42 tests passed · receipts retained · repairs remain approval-bound",
+		result: "MuleSoft application passed its workspace gate",
+		resultMeta: "52 tests passed · mule-journal-api:2.4.1 · DLQ replay evidence retained",
 	},
-	replay: {
-		branch: "execute/erp/replay",
-		seed: "Prove hostile retries cannot escape tenant boundaries or create duplicate effects.",
-		agentIntro: "I isolated the retry, tenant, and idempotency boundaries. I’ll generate hostile replay cases and keep every provider effect mocked.",
-		steerResponse: "I’ve folded that case into the replay matrix and kept the assertion tenant-scoped.",
-		steerTarget: "replay matrix",
-		steps: ["Map retry and tenant boundaries", "Generate hostile replay matrix", "Assert duplicate-effect prevention", "Run tenant-isolation suite"],
-		command: "pnpm test hostile-replay --runInBand",
-		tests: 31,
-		suites: [["Tenant crossover", 8], ["Duplicate retries", 9], ["Expired authority", 7], ["Idempotency receipts", 7]],
+	workday: {
+		branch: "execute/erp/workday",
+		seed: "Implement WDAY-301: secure, validate, and post the governed Workday journal.",
+		agentIntro: "I traced the integration system user, journal validation rules, and receipt contract. I’ll configure the endpoint, least-privilege security, and atomic posting evidence.",
+		steerResponse: "I applied that direction within WDAY-301 without widening the integration system user’s domain access.",
+		steerTarget: "Workday journal endpoint",
+		steps: ["Read WDAY-301 and tenant security contract", "Configure journal endpoint and validation", "Prove atomic posting and least privilege", "Package the Workday configuration migration"],
+		command: "wdx validate journal-integration --tenant impl",
+		tests: 34,
+		suites: [["Journal schema", 9], ["Business validation", 10], ["Atomic posting", 8], ["Security domains", 7]],
 		files: [
-			{ name: "hostileReplay.spec.ts", path: "tests/security", added: 61, diff: ["describe(\"hostile replay\", () => {", "+ it(\"rejects a replayed grant from another tenant\")", "+ expect(effectDispatch).not.toRun()", "})"] },
-			{ name: "idempotency.spec.ts", path: "tests/security", added: 44, diff: ["describe(\"idempotency\", () => {", "+ it(\"returns the original receipt on retry\")", "+ expect(receipt).toRemainUnique()", "})"] },
-			{ name: "tenantBoundary.ts", path: "services/authority", added: 16, diff: ["export function assertTenant(scope: TenantScope) {", "+ if (scope.tenantId !== authority.tenantId) throw deny()", "}"] },
-			{ name: "replayFixtures.ts", path: "tests/fixtures", added: 28, diff: ["// Hostile fixtures stay mocked — no provider effects.", "+ export const hostileTenantId = tenant(\"attacker\")", "+ export const replayedGrant = expired(hostileTenantId)"] },
+			{ name: "Journal_Integration.xml", path: "workday/config", added: 48, diff: ["<Integration_System>", "+ <Name>MAXION Journal Delivery</Name>", "+ <Atomic_Posting>true</Atomic_Posting>", "</Integration_System>"] },
+			{ name: "ISU_MAXION_JOURNAL.xml", path: "workday/security", added: 24, diff: ["<Integration_System_User>", "+ <Domain>Post Journals</Domain>", "+ <Domain>View Integration Events</Domain>", "</Integration_System_User>"] },
+			{ name: "journal-validation.spec.xml", path: "workday/tests", added: 39, diff: ["<Scenario name=\"journal validation\">", "+ <Assert path=\"Company_Reference\" required=\"true\" />", "+ <Assert effect=\"atomic-post\" />", "</Scenario>"] },
 		],
-		result: "Hostile replay suite passed",
-		resultMeta: "31 tests passed · no cross-tenant access · no duplicate effects",
+		result: "Workday configuration passed its workspace gate",
+		resultMeta: "34 tests passed · WDAY-JRN-301.5 · least-privilege domains verified",
 	},
-	evidence: {
-		branch: "execute/erp/evidence",
-		seed: "Prepare a release evidence package with rollback, provenance, and owner-ready review material.",
-		agentIntro: "I’m assembling the verified workspace outputs into one reviewable package. I’ll retain source fingerprints, rollback instructions, and the exact production authority boundary.",
-		steerResponse: "I’ve added that evidence request to the release package and preserved its source attribution.",
-		steerTarget: "release evidence package",
-		steps: ["Collect verified workspace outputs", "Bind source and actor provenance", "Generate rollback and release notes", "Validate owner review package"],
-		command: "pnpm test release-evidence --runInBand",
-		tests: 26,
-		suites: [["Evidence integrity", 7], ["Source provenance", 8], ["Rollback package", 5], ["Owner review", 6]],
+	verification: {
+		branch: "execute/erp/verification",
+		seed: "Prove INT-401 against exact staged ServiceNow, MuleSoft, and Workday artifacts.",
+		agentIntro: "I’m preparing the cross-platform harness now. I’ll pin exact versions, run the request-to-receipt matrix, classify any failure to its owner, and retain a release-grade evidence pack.",
+		steerResponse: "I added that scenario to INT-401 and kept the candidate manifest immutable.",
+		steerTarget: "cross-platform E2E matrix",
+		steps: ["Pin the candidate manifest", "Run request-to-receipt scenarios", "Classify and route defects", "Seal release and rollback evidence"],
+		command: "max e2e run --candidate RC-07 --suite INT-401",
+		tests: 41,
+		suites: [["Happy path and schema", 11], ["Auth and timeout", 10], ["Retry, duplicate, and DLQ", 12], ["Callback and reconciliation", 8]],
 		files: [
-			{ name: "releaseEvidence.ts", path: "services/release", added: 39, diff: ["export function buildEvidence(workspaces) {", "+ const fingerprints = workspaces.map(sourceFingerprint)", "+ return { fingerprints, productionAuthority: false }", "}"] },
-			{ name: "rollbackPlan.ts", path: "services/release", added: 31, diff: ["export function rollbackManifest(release) {", "+ retainArtifact(release.previous)", "+ return compatibilityChecks(release)", "}"] },
-			{ name: "provenance.ts", path: "services/audit", added: 22, diff: ["export function bindProvenance(entry: AuditEntry) {", "+ entry.actor = currentActor()", "+ entry.sourceFingerprint = hash(entry.artifact)", "}"] },
-			{ name: "release-evidence.spec.ts", path: "tests/release", added: 35, diff: ["describe(\"release evidence\", () => {", "+ it(\"binds every artifact to a source fingerprint\")", "+ it(\"keeps the rollback package owner-ready\")", "})"] },
+			{ name: "RC-07.yaml", path: "e2e/candidates", added: 33, diff: ["candidate: RC-07", "+ servicenow: US-SNOW-101.8", "+ mulesoft: mule-journal-api:2.4.1", "+ workday: WDAY-JRN-301.5"] },
+			{ name: "request-to-receipt.spec.ts", path: "e2e/specs", added: 63, diff: ["test(\"approved change reaches a Workday receipt\", async () => {", "+ await expect(serviceNow.status(change)).toBe(\"posted\")", "})"] },
+			{ name: "failure-routing.spec.ts", path: "e2e/specs", added: 41, diff: ["test(\"routes duplicate replay to MuleSoft\", async () => {", "+ expect(defect.owner).toBe(\"mulesoft\")", "})"] },
 		],
-		result: "Release evidence package is owner-ready",
-		resultMeta: "26 tests passed · rollback retained · production authority not granted",
+		result: "Candidate RC-07 passed cross-platform verification",
+		resultMeta: "41 scenarios passed · evidence EV-RC07-91 · rollback package retained",
+	},
+}
+
+const ROOT_ADMIN: ExecuteWorkspaceMember = { id: "root-admin", name: "Root Admin", initials: "RA", role: "Owner", presence: "online", scope: "Entire engagement" }
+const ANDRE_REYES: ExecuteWorkspaceMember = { id: "andre-reyes", name: "Andre Reyes", initials: "AR", role: "Orchestrator collaborator", presence: "online", scope: "Orchestrator" }
+const PRIYA_NAIR: ExecuteWorkspaceMember = { id: "priya-nair", name: "Priya Nair", initials: "PN", role: "Contributor", presence: "online", scope: "ServiceNow" }
+const MATEO_RUIZ: ExecuteWorkspaceMember = { id: "mateo-ruiz", name: "Mateo Ruiz", initials: "MR", role: "Contributor", presence: "online", scope: "MuleSoft" }
+const MARCUS_LEE: ExecuteWorkspaceMember = { id: "marcus-lee", name: "Marcus Lee", initials: "ML", role: "Contributor", presence: "away", scope: "Workday Financials" }
+const ELENA_ORTIZ: ExecuteWorkspaceMember = { id: "elena-ortiz", name: "Elena Ortiz", initials: "EO", role: "Release approver", presence: "offline", scope: "Staging and production" }
+
+const ERP_WORKSPACE_META: Record<ExecuteWorkspaceId, Omit<ExecuteWorkspaceSpec, "id" | "title" | "detail" | "files" | "profile">> = {
+	orchestrator: {
+		kind: "orchestrator",
+		system: "Cross-platform delivery",
+		team: "Engagement leadership",
+		packages: ["SNOW-101", "MULE-201", "MULE-202", "WDAY-301", "INT-401"],
+		repository: "maxion/erp-modernization-delivery",
+		authority: "Coordinate, pause, route, propose candidates, and request approvals; cannot alter Plan contracts or deploy silently.",
+		members: [ROOT_ADMIN, ANDRE_REYES, ELENA_ORTIZ],
+		environment: { development: "All bound worktrees", staging: "Cross-platform staging control", production: "Approval-gated release control" },
+		context: {
+			mission: "Deliver approved financial changes from ServiceNow to Workday Financials through MuleSoft with complete request-to-receipt evidence.",
+			behavior: ["Coordinate workspace agents against Plan dependency order", "Route defects and evidence requests to the owning platform", "Assemble immutable candidates only from verified staged artifacts"],
+			contracts: ["L2 SA-04 · governed journal delivery", "L3 TC-17 · signed event and callback", "L4 packages SNOW-101 through INT-401"],
+			dependencies: ["ServiceNow publisher precedes cross-platform verification", "MuleSoft schema stays compatible with Workday WDAY-301", "All platform staging receipts required before RC assembly"],
+			doneWhen: ["Every platform workspace passes its gate", "RC-07 passes INT-401", "Release approvals and rollback evidence are bound"],
+			evidence: ["Plan snapshot PL-24.7", "Architecture decision ADR-118", "Control matrix CTL-09"],
+		},
+		presence: 3,
+		unread: 1,
+	},
+	servicenow: {
+		kind: "system",
+		system: "ServiceNow",
+		team: "ServiceNow delivery",
+		packages: ["SNOW-101"],
+		repository: "maxion/servicenow-financial-change",
+		authority: "Edit the scoped update set, run ATF, request staging, and inspect provider receipts.",
+		members: [ROOT_ADMIN, PRIYA_NAIR],
+		environment: { development: "PDI · snow-dev-04", staging: "UAT · snow-uat-02", production: "Prod · snow-prod" },
+		context: {
+			mission: "Publish only approved financial-change records and retain delivery status returned by MuleSoft.",
+			behavior: ["Sign the outbound event", "Use the change record as the idempotency source", "Update delivered, rejected, or reconciliation-required status"],
+			contracts: ["POST /financial-changes v3", "Header x-event-id is stable across retry", "Callback status follows TC-17 enum"],
+			dependencies: ["Consumes approved change state from ServiceNow", "Publishes to MuleSoft journal API", "Receives signed delivery callback"],
+			doneWhen: ["ATF suite passes", "Unsigned and replayed events are rejected", "Update set is import-preview clean"],
+			evidence: ["SNOW-101 build contract", "CLM-021 approval rule", "ServiceNow ACL inventory"],
+		},
+		presence: 2,
+		unread: 0,
+	},
+	mulesoft: {
+		kind: "system",
+		system: "MuleSoft Anypoint",
+		team: "Enterprise integration",
+		packages: ["MULE-201", "MULE-202"],
+		repository: "maxion/mule-journal-orchestration",
+		authority: "Edit the Mule application, run MUnit, publish to Exchange, request staging, and operate the scoped DLQ.",
+		members: [ROOT_ADMIN, MATEO_RUIZ],
+		environment: { development: "CloudHub dev · us-east-2", staging: "CloudHub staging · us-east-2", production: "CloudHub prod · us-east-2" },
+		context: {
+			mission: "Validate, transform, queue, retry, and deliver the approved journal to Workday without duplicate financial effects.",
+			behavior: ["Validate signed ServiceNow events", "Transform into Workday journal schema", "Retry transient failures and route terminal failures to the DLQ"],
+			contracts: ["RAML journal-api v3", "DataWeave journal schema 2026.4", "Idempotency receipt retained for 30 days"],
+			dependencies: ["Consumes ServiceNow SNOW-101", "Calls Workday WDAY-301", "Returns TC-17 delivery status"],
+			doneWhen: ["MUnit suite passes", "Duplicate replay causes one Workday call", "DLQ recovery retains the original event identity"],
+			evidence: ["MULE-201 API contract", "MULE-202 reliability contract", "Threat model TM-44"],
+		},
+		presence: 2,
+		unread: 2,
+	},
+	workday: {
+		kind: "system",
+		system: "Workday Financials",
+		team: "Workday delivery",
+		packages: ["WDAY-301"],
+		repository: "maxion/workday-journal-delivery",
+		authority: "Edit the scoped configuration migration, validate in implementation tenant, and request promotion.",
+		members: [ROOT_ADMIN, MARCUS_LEE],
+		environment: { development: "Implementation tenant · WD-IMPL", staging: "Preview tenant · WD-PREV", production: "Production tenant · WD-PROD" },
+		context: {
+			mission: "Accept the governed journal, validate its business dimensions, and post atomically with a durable receipt.",
+			behavior: ["Authenticate the MuleSoft integration system user", "Validate company, ledger, balancing, and period", "Post all journal lines atomically"],
+			contracts: ["Workday Journal Import v42.1", "Atomic batch semantics", "Receipt includes Workday journal and integration event references"],
+			dependencies: ["Receives MULE-202 payload", "Uses approved finance security group", "Returns receipt to MuleSoft callback path"],
+			doneWhen: ["Validation suite passes", "Partial posting is impossible", "Security domains contain no unrelated finance access"],
+			evidence: ["WDAY-301 build contract", "Finance authority decision DEC-31", "Security review SEC-77"],
+		},
+		presence: 1,
+		unread: 0,
+	},
+	verification: {
+		kind: "verification",
+		system: "Cross-platform verification",
+		team: "Integration quality",
+		packages: ["INT-401"],
+		repository: "maxion/erp-integration-e2e",
+		authority: "Pin staged artifacts, run non-production E2E, route defects, and seal evidence; cannot modify platform workspaces.",
+		members: [ROOT_ADMIN, ANDRE_REYES, ELENA_ORTIZ],
+		environment: { development: "Ephemeral harness", staging: "Shared integration stage", production: "Post-release verification only" },
+		context: {
+			mission: "Prove the complete approved-change to Workday-receipt flow against an immutable release candidate.",
+			behavior: ["Pin exact staged artifacts", "Run happy, hostile, recovery, and reconciliation scenarios", "Classify failures and route them with reproduction evidence"],
+			contracts: ["INT-401 scenario catalog", "Candidate manifest is immutable", "Evidence pack EV-RC07-91"],
+			dependencies: ["ServiceNow, MuleSoft, and Workday staging receipts", "Compatible Plan snapshot PL-24.7", "No unresolved platform workspace blockers"],
+			doneWhen: ["41 scenarios pass", "Zero unclassified failures", "Rollback and release verification steps are retained"],
+			evidence: ["INT-401 verification contract", "E2E risk matrix RM-12", "Release policy REL-08"],
+		},
+		presence: 3,
+		unread: 1,
 	},
 }
 
@@ -244,7 +393,7 @@ const ERP_BLUEPRINT: ExecuteBlueprint = {
 		"Rollback package retained · one revision back",
 		"5 worktrees held for review · production authority not granted",
 	],
-	workspaces: EXECUTE_TASKS.map((task) => ({ id: task.id, title: task.title, detail: task.detail, files: task.files, profile: ERP_WORKSPACE_PROFILES[task.id] })),
+	workspaces: EXECUTE_TASKS.map((task) => ({ id: task.id, title: task.title, detail: task.detail, files: task.files, profile: ERP_WORKSPACE_PROFILES[task.id], ...ERP_WORKSPACE_META[task.id] })),
 }
 
 const CUSTOMER_BLUEPRINT: ExecuteBlueprint = {

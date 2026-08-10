@@ -59,7 +59,7 @@ test("the global command menu filters, arrow-navigates, and runs the active item
 	await expect(menu.locator("button.is-active")).toContainText("Open Workspace 03")
 	await search.press("Enter")
 	await expect(shellMenu(page)).toHaveCount(0)
-	await expect(page.getByRole("heading", { name: "Implement durable reconciliation" })).toBeVisible()
+	await expect(page.getByRole("heading", { name: "MuleSoft" })).toBeVisible()
 
 	// Escape closes the menu from anywhere it can be opened.
 	await openShellMenu(page)
@@ -94,8 +94,8 @@ test("jumps across modules from wherever the viewer already is", async ({ page }
 	menu = await openShellMenu(page)
 	await menu.getByRole("textbox", { name: "Search MAXION commands" }).fill("Workspace 03")
 	await menu.getByRole("textbox", { name: "Search MAXION commands" }).press("Enter")
-	await expect(page.getByRole("heading", { name: "Implement durable reconciliation" })).toBeVisible()
-	await expect(page.getByRole("textbox", { name: "Steer Workspace 03: Implement durable reconciliation" })).toBeVisible()
+	await expect(page.getByRole("heading", { name: "MuleSoft" })).toBeVisible()
+	await expect(page.getByRole("textbox", { name: "Steer MuleSoft agent" })).toBeVisible()
 
 	// A saved Discovery that needs input is registered too, and resumes at its decision.
 	menu = await openShellMenu(page)
@@ -121,7 +121,7 @@ test("gives the newly visible stage its own entrance and clears the Execute scri
 	await expect(entering).toHaveCount(1)
 	await expect(entering).toContainText("3 active projects · 1 archived")
 
-	await navigation.getByRole("button", { name: "Execute 1 pending" }).click()
+	await navigation.getByRole("button", { name: /^Execute/ }).click()
 	await expect(page.locator(".mxp-stage-view--execute.is-entering")).toHaveCount(1)
 	// The dark scrim is theater only: it must not stay painted over the module.
 	await expect

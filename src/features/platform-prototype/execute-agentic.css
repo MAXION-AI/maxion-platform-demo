@@ -485,3 +485,498 @@
 .aex-app .aex-assembly-card span { color: var(--aex-subtle); font-size: 9px; font-weight: 650; letter-spacing: .09em; text-transform: uppercase; }
 .aex-app .aex-assembly-card strong { color: var(--aex-text-2); font-size: 12px; font-weight: 560; }
 .aex-app .aex-assembly-card i { color: var(--aex-accent); font: 10px/1.4 "SFMono-Regular", Consolas, monospace; font-style: normal; }
+
+/* Execute delivery operating system ------------------------------------------------------
+   A compact three-pane workspace: delivery organization, conversation, contextual proof. */
+.aex-app.exd-app {
+	--exd-bg: #0d100f;
+	--exd-rail: #090b0a;
+	--exd-surface: #121513;
+	--exd-surface-2: #171b18;
+	--exd-surface-3: #1d221f;
+	--exd-line: #292e2a;
+	--exd-line-strong: #3a423c;
+	--exd-text: #f2f4ef;
+	--exd-text-2: #c8cec7;
+	--exd-muted: #a5ada6;
+	--exd-faint: #98a198;
+	--exd-accent: #86dbc3;
+	--exd-accent-strong: #b4f0de;
+	--exd-accent-soft: rgba(134, 219, 195, .1);
+	--exd-warning: #e7bf7f;
+	--exd-danger: #e08a81;
+	--exd-radius: 10px;
+	--exd-radius-lg: 14px;
+	grid-template-columns: 248px minmax(0, 1fr);
+	background: var(--exd-bg);
+	color: var(--exd-text);
+	overflow: hidden;
+}
+.exd-app button, .exd-app textarea, .exd-app select, .exd-app input { font: inherit; }
+.exd-app button { color: inherit; }
+.exd-app button:disabled { cursor: not-allowed; opacity: .42; }
+.exd-app :is(button, textarea, select, input):focus-visible { outline: 2px solid var(--exd-accent); outline-offset: 2px; }
+.exd-app svg { width: 16px; height: 16px; flex: none; }
+.exd-app .mxp-spin { animation: exd-spin 900ms linear infinite; }
+@keyframes exd-spin { to { transform: rotate(360deg); } }
+@keyframes exd-pulse { 50% { opacity: .45; transform: scale(.86); } }
+@keyframes exd-rise { from { opacity: 0; transform: translateY(5px); } }
+
+/* Delivery organization */
+.exd-rail { display: flex; min-width: 0; min-height: 0; flex-direction: column; border-right: 1px solid var(--exd-line); background: var(--exd-rail); }
+.exd-rail > header { display: grid; gap: 14px; padding: 17px 13px 15px; border-bottom: 1px solid rgba(41,46,42,.74); }
+.exd-brand { display: flex; align-items: center; gap: 10px; padding: 0 3px; border: 0; background: transparent; text-align: left; cursor: pointer; }
+.exd-brand > svg { width: 25px; height: 25px; color: var(--exd-accent); filter: drop-shadow(0 0 12px rgba(134,219,195,.14)); }
+.exd-brand span { display: flex; min-width: 0; flex-direction: column; }
+.exd-brand strong { font-size: 13px; font-weight: 650; letter-spacing: -.015em; }
+.exd-brand small { margin-top: 1px; color: var(--exd-faint); font-size: 9px; font-weight: 700; letter-spacing: .12em; text-transform: uppercase; }
+.exd-back { display: flex; min-height: 34px; align-items: center; gap: 7px; padding: 0 9px; border: 1px solid var(--exd-line); border-radius: 8px; background: var(--exd-surface); color: var(--exd-muted) !important; font-size: 10px; cursor: pointer; transition: 150ms ease; }
+.exd-back:hover { border-color: var(--exd-line-strong); background: var(--exd-surface-2); color: var(--exd-text-2) !important; }
+.exd-engagement-summary { display: flex; flex-direction: column; padding: 15px 15px 10px; }
+.exd-engagement-summary > span { display: flex; align-items: center; gap: 7px; color: var(--exd-faint); font-size: 9px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; }
+.exd-engagement-summary > span i { width: 6px; height: 6px; border-radius: 50%; background: var(--exd-accent); }
+.exd-engagement-summary > span i.is-live { animation: exd-pulse 1.8s ease-in-out infinite; }
+.exd-engagement-summary strong { margin-top: 9px; font-size: 12px; font-weight: 610; line-height: 1.35; }
+.exd-engagement-summary small { margin-top: 4px; color: var(--exd-faint); font-size: 9px; }
+.exd-rail > nav { min-height: 0; flex: 1; padding: 5px 8px 16px; overflow-y: auto; }
+.exd-rail-label { display: block; padding: 13px 9px 7px; color: var(--exd-faint); font-size: 9px; font-weight: 700; letter-spacing: .1em; text-transform: uppercase; }
+.exd-rail nav > button { display: grid; width: 100%; min-height: 56px; grid-template-columns: 29px minmax(0,1fr) auto; align-items: center; gap: 9px; padding: 7px 8px; border: 1px solid transparent; border-radius: 9px; background: transparent; color: var(--exd-muted); text-align: left; cursor: pointer; transition: background 150ms ease, border-color 150ms ease, color 150ms ease, transform 100ms ease; }
+.exd-rail nav > button:hover { background: rgba(255,255,255,.036); color: var(--exd-text-2); }
+.exd-rail nav > button:active { transform: scale(.99); }
+.exd-rail nav > button.is-selected { border-color: rgba(134,219,195,.13); background: linear-gradient(90deg, rgba(134,219,195,.09), rgba(134,219,195,.025)); color: var(--exd-text); box-shadow: inset 2px 0 var(--exd-accent); }
+.exd-workspace-icon { display: grid; width: 28px; height: 28px; place-items: center; border: 1px solid var(--exd-line); border-radius: 8px; background: var(--exd-surface); color: var(--exd-muted); }
+.exd-workspace-icon svg { width: 14px; height: 14px; }
+.exd-workspace-icon.is-orchestrator { border-color: rgba(134,219,195,.22); background: var(--exd-accent-soft); color: var(--exd-accent); }
+.exd-workspace-icon.is-verification { color: var(--exd-accent); }
+.exd-rail nav > button > span:nth-child(2) { display: flex; min-width: 0; flex-direction: column; }
+.exd-rail nav strong { overflow: hidden; font-size: 11px; font-weight: 580; text-overflow: ellipsis; white-space: nowrap; }
+.exd-rail nav small { margin-top: 3px; overflow: hidden; color: var(--exd-faint); font: 8.5px/1.3 "SFMono-Regular", Consolas, monospace; text-overflow: ellipsis; white-space: nowrap; }
+.exd-workspace-state { display: flex; align-items: center; gap: 5px; }
+.exd-workspace-state > i { width: 7px; height: 7px; border-radius: 50%; background: var(--exd-faint); box-shadow: 0 0 0 3px rgba(255,255,255,.025); }
+.exd-workspace-state > i.is-working, .exd-workspace-state > i.is-testing { background: var(--exd-accent); animation: exd-pulse 1.8s ease-in-out infinite; }
+.exd-workspace-state > i.is-verified { background: var(--exd-accent); }
+.exd-workspace-state > i.is-paused { background: var(--exd-warning); }
+.exd-workspace-state > i.is-blocked { background: var(--exd-danger); }
+.exd-workspace-state b { display: grid; min-width: 17px; height: 17px; place-items: center; border-radius: 9px; background: var(--exd-accent-soft); color: var(--exd-accent); font-size: 8px; }
+.exd-rail > footer { display: flex; min-height: 64px; align-items: center; justify-content: space-between; gap: 8px; padding: 10px 12px; border-top: 1px solid var(--exd-line); }
+.exd-rail > footer > button { display: inline-flex; min-height: 32px; align-items: center; gap: 6px; padding: 0 8px; border: 1px solid var(--exd-line); border-radius: 8px; background: transparent; color: var(--exd-muted); font-size: 10px; cursor: pointer; }
+.exd-rail > footer > button:hover { border-color: var(--exd-line-strong); color: var(--exd-text); }
+.exd-avatar-stack { display: flex; align-items: center; padding-left: 5px; }
+.exd-avatar-stack > :is(span,b) { display: grid; width: 28px; height: 28px; place-items: center; margin-left: -5px; border: 2px solid var(--exd-rail); border-radius: 50%; background: #262c28; color: var(--exd-text-2); font-size: 8px; font-weight: 700; }
+.exd-avatar-stack > span.is-online::after { position: absolute; width: 6px; height: 6px; margin: 20px 0 0 19px; border: 1px solid var(--exd-rail); border-radius: 50%; background: var(--exd-accent); content: ""; }
+.exd-avatar-stack > span.is-away::after { position: absolute; width: 6px; height: 6px; margin: 20px 0 0 19px; border: 1px solid var(--exd-rail); border-radius: 50%; background: var(--exd-warning); content: ""; }
+.exd-avatar-stack > b { color: var(--exd-muted); font-weight: 600; }
+
+/* Persistent engagement header */
+.exd-stage { display: grid; min-width: 0; min-height: 0; grid-template-rows: 62px minmax(0,1fr); background: radial-gradient(circle at 46% -10%, rgba(94,153,132,.08), transparent 34%), var(--exd-bg); }
+.exd-header { display: grid; min-width: 0; grid-template-columns: minmax(220px,.75fr) minmax(430px,1.55fr) auto; align-items: center; gap: 18px; padding: 0 14px; border-bottom: 1px solid var(--exd-line); background: rgba(13,16,15,.88); backdrop-filter: blur(18px); }
+.exd-header-title { display: flex; min-width: 0; align-items: center; gap: 9px; }
+.exd-header-title > button, .exd-header-actions > button { display: grid; width: 32px; height: 32px; place-items: center; border: 1px solid transparent; border-radius: 8px; background: transparent; color: var(--exd-muted); cursor: pointer; transition: 150ms ease; }
+.exd-header-title > button:hover, .exd-header-actions > button:hover { border-color: var(--exd-line); background: var(--exd-surface); color: var(--exd-text); }
+.exd-header-title > span { display: flex; min-width: 0; flex-direction: column; }
+.exd-header-title strong { overflow: hidden; font-size: 11px; font-weight: 620; text-overflow: ellipsis; white-space: nowrap; }
+.exd-header-title small { margin-top: 3px; overflow: hidden; color: var(--exd-faint); font-size: 9px; text-overflow: ellipsis; white-space: nowrap; }
+.exd-environment-rail { display: flex; min-width: 0; align-items: center; justify-content: center; }
+.exd-environment-rail > div { display: flex; min-width: 0; align-items: center; gap: 6px; opacity: .5; }
+.exd-environment-rail > div.is-active { opacity: 1; }
+.exd-environment-rail > div > span { display: grid; width: 20px; height: 20px; flex: none; place-items: center; border: 1px solid var(--exd-line-strong); border-radius: 50%; background: var(--exd-surface); color: var(--exd-muted); font: 8px/1 "SFMono-Regular", Consolas, monospace; }
+.exd-environment-rail > div.is-active > span { border-color: rgba(134,219,195,.38); color: var(--exd-accent); }
+.exd-environment-rail > div.is-complete > span { background: var(--exd-accent); color: #07100d; }
+.exd-environment-rail > div > span svg { width: 11px; height: 11px; }
+.exd-environment-rail p { display: flex; min-width: 0; flex-direction: column; margin: 0; }
+.exd-environment-rail strong { font-size: 9px; font-weight: 620; white-space: nowrap; }
+.exd-environment-rail small { margin-top: 2px; color: var(--exd-faint); font-size: 8px; white-space: nowrap; }
+.exd-environment-rail > i { width: clamp(14px,2vw,32px); height: 1px; margin: 0 6px; background: var(--exd-line); }
+.exd-header-actions { display: flex; align-items: center; gap: 4px; }
+.exd-header-actions > button { display: inline-flex; width: auto; min-width: 32px; padding: 0 8px; gap: 6px; }
+.exd-header-actions button kbd { color: var(--exd-faint); font: 8px/1 "SFMono-Regular", Consolas, monospace; }
+.exd-header-actions button > i { width: 6px; height: 6px; border-radius: 50%; background: var(--exd-warning); }
+.exd-header-actions .exd-share { border-color: var(--exd-line); color: var(--exd-text-2); font-size: 10px; }
+.exd-role-preview { display: flex; height: 32px; align-items: center; gap: 5px; padding: 0 7px; border: 1px solid var(--exd-line); border-radius: 8px; background: transparent; color: var(--exd-muted); }
+.exd-role-preview svg { width: 13px; height: 13px; }
+.exd-role-preview select { max-width: 132px; border: 0; outline: 0; background: transparent; color: var(--exd-muted); font-size: 9px; cursor: pointer; }
+
+/* Conversation + proof */
+.exd-body { display: grid; min-width: 0; min-height: 0; grid-template-columns: minmax(520px,1fr) minmax(350px,420px); overflow: hidden; }
+.exd-thread { display: grid; min-width: 0; min-height: 0; grid-template-rows: minmax(0,1fr) auto; border-right: 1px solid var(--exd-line); }
+.exd-thread-scroll { width: 100%; max-width: 900px; min-height: 0; justify-self: center; padding: 30px clamp(24px,4vw,58px) 48px; overflow-y: auto; scrollbar-gutter: stable; }
+.exd-workspace-title { display: grid; grid-template-columns: auto minmax(0,1fr) auto; align-items: start; gap: 13px; padding-bottom: 22px; }
+.exd-system-mark { display: grid; width: 42px; height: 42px; place-items: center; border: 1px solid var(--exd-line-strong); border-radius: 11px; background: var(--exd-surface-2); color: var(--exd-text-2); font-size: 10px; font-weight: 760; letter-spacing: .04em; }
+.exd-system-mark svg { width: 22px; height: 22px; }
+.exd-system-mark.is-orchestrator { border-color: rgba(134,219,195,.28); background: var(--exd-accent-soft); color: var(--exd-accent); }
+.exd-workspace-title > div:nth-child(2) { min-width: 0; }
+.exd-workspace-title > div:nth-child(2) > span { color: var(--exd-accent); font-size: 8.5px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; }
+.exd-workspace-title h1 { margin: 5px 0 0; font-size: clamp(24px,2.3vw,34px); font-weight: 520; letter-spacing: -.045em; line-height: 1.08; }
+.exd-workspace-title p { max-width: 600px; margin: 8px 0 0; color: var(--exd-muted); font-size: 11.5px; line-height: 1.55; }
+.exd-package-row { display: flex; flex-wrap: wrap; align-items: center; gap: 5px; margin-top: 11px; }
+.exd-package-row code { padding: 3px 6px; border: 1px solid rgba(134,219,195,.16); border-radius: 5px; background: var(--exd-accent-soft); color: var(--exd-accent); font: 8px/1.2 "SFMono-Regular", Consolas, monospace; }
+.exd-package-row > span { display: inline-flex; min-width: 0; align-items: center; gap: 5px; margin-left: 3px; color: var(--exd-faint); font: 8px/1.2 "SFMono-Regular", Consolas, monospace; }
+.exd-package-row svg { width: 12px; height: 12px; }
+.exd-workspace-actions { display: flex; align-items: center; gap: 7px; }
+.exd-workspace-actions > button, .exd-primary { display: inline-flex; min-height: 34px; align-items: center; justify-content: center; gap: 7px; padding: 0 10px; border: 1px solid var(--exd-line); border-radius: 8px; background: var(--exd-surface); color: var(--exd-muted); font-size: 9px; font-weight: 600; cursor: pointer; transition: background 150ms ease, border-color 150ms ease, color 150ms ease, transform 100ms ease; }
+.exd-workspace-actions > button:hover:not(:disabled), .exd-primary:hover:not(:disabled) { border-color: rgba(134,219,195,.38); background: var(--exd-surface-2); color: var(--exd-text); }
+.exd-workspace-actions > button:active:not(:disabled), .exd-primary:active:not(:disabled) { transform: scale(.98); }
+.exd-workspace-actions .exd-primary, .exd-app .exd-primary { border-color: rgba(134,219,195,.34); background: var(--exd-accent); color: #07110d !important; box-shadow: 0 8px 24px rgba(0,0,0,.17); }
+.exd-workspace-actions .exd-primary:hover:not(:disabled), .exd-app .exd-primary:hover:not(:disabled) { background: var(--exd-accent-strong); color: #07110d !important; }
+.exd-workspace-actions .exd-avatar-stack > :is(span,b) { border-color: var(--exd-bg); }
+.exd-plan-strip { display: grid; width: 100%; min-height: 50px; grid-template-columns: auto minmax(0,1fr) auto; align-items: center; gap: 10px; margin: 1px 0 14px; padding: 9px 11px; border: 1px solid var(--exd-line); border-radius: var(--exd-radius); background: rgba(18,21,19,.7); color: var(--exd-muted); text-align: left; cursor: pointer; transition: 160ms ease; }
+.exd-plan-strip:hover { border-color: var(--exd-line-strong); background: var(--exd-surface-2); }
+.exd-plan-strip > svg:first-child { color: var(--exd-accent); }
+.exd-plan-strip span { display: flex; min-width: 0; flex-direction: column; }
+.exd-plan-strip strong { color: var(--exd-text-2); font-size: 10px; font-weight: 590; }
+.exd-plan-strip small { margin-top: 3px; overflow: hidden; color: var(--exd-faint); font-size: 8.5px; text-overflow: ellipsis; white-space: nowrap; }
+.exd-autonomy { display: grid; grid-template-columns: repeat(4,minmax(0,1fr)); margin-bottom: 24px; border-block: 1px solid var(--exd-line); }
+.exd-autonomy > div { display: flex; min-width: 0; flex-direction: column; padding: 12px 11px 12px 0; }
+.exd-autonomy > div + div { padding-left: 11px; border-left: 1px solid var(--exd-line); }
+.exd-autonomy span { color: var(--exd-faint); font-size: 8px; font-weight: 700; letter-spacing: .09em; text-transform: uppercase; }
+.exd-autonomy strong { margin-top: 5px; overflow: hidden; color: var(--exd-text-2); font-size: 9.5px; font-weight: 590; text-overflow: ellipsis; white-space: nowrap; }
+.exd-autonomy small { margin-top: 3px; overflow: hidden; color: var(--exd-faint); font-size: 8px; text-overflow: ellipsis; white-space: nowrap; }
+.exd-autonomy .is-now strong { color: var(--exd-accent); }
+.exd-autonomy .is-attention strong { color: var(--exd-warning); }
+
+.exd-message { display: grid; grid-template-columns: 29px minmax(0,1fr); gap: 11px; margin: 18px 0; }
+.exd-message > span { display: grid; width: 28px; height: 28px; place-items: center; border: 1px solid var(--exd-line); border-radius: 8px; background: var(--exd-surface); color: var(--exd-muted); font-size: 8px; font-weight: 700; }
+.exd-message.is-max > span { border-color: rgba(134,219,195,.2); background: var(--exd-accent-soft); color: var(--exd-accent); }
+.exd-message > span svg { width: 15px; height: 15px; }
+.exd-message > div { min-width: 0; padding-top: 2px; }
+.exd-message header { display: flex; align-items: center; gap: 8px; }
+.exd-message strong { font-size: 10px; font-weight: 620; }
+.exd-message time { color: var(--exd-faint); font-size: 8px; }
+.exd-message p { margin: 6px 0 0; color: var(--exd-text-2); font-size: 11.5px; line-height: 1.62; }
+.exd-message p .mxp-spin { display: inline; width: 12px; height: 12px; color: var(--exd-accent); vertical-align: -2px; }
+
+.exd-trace { margin: 20px 0 24px 39px; overflow: hidden; border: 1px solid var(--exd-line); border-radius: var(--exd-radius-lg); background: rgba(12,15,13,.72); box-shadow: 0 16px 40px rgba(0,0,0,.12); }
+.exd-trace > header { display: flex; min-height: 44px; align-items: center; justify-content: space-between; gap: 12px; padding: 0 13px; border-bottom: 1px solid var(--exd-line); }
+.exd-trace > header > span { display: inline-flex; align-items: center; gap: 7px; }
+.exd-trace > header svg { color: var(--exd-accent); }
+.exd-trace.is-blocked > header svg { color: var(--exd-danger); }
+.exd-trace > header strong { font-size: 10px; font-weight: 610; }
+.exd-trace > header small { color: var(--exd-faint); font: 8px/1.2 "SFMono-Regular", Consolas, monospace; }
+.exd-trace > header .exd-trace-controls { gap: 9px; }
+.exd-trace-controls button { display: inline-flex; min-height: 26px; align-items: center; gap: 4px; padding: 0 6px; border: 1px solid var(--exd-line); border-radius: 6px; background: var(--exd-surface); color: var(--exd-muted); font-size: 8px; cursor: pointer; }
+.exd-trace-controls button svg { width: 10px; height: 10px; transition: transform 160ms ease; }
+.exd-trace-controls button[aria-expanded="true"] svg { transform: rotate(90deg); }
+.exd-trace-step { display: grid; min-height: 49px; grid-template-columns: 18px minmax(0,1fr) auto; align-items: center; gap: 10px; padding: 7px 13px; color: var(--exd-faint); }
+.exd-trace-step + .exd-trace-step { border-top: 1px solid rgba(41,46,42,.6); }
+.exd-trace-step > :first-child { display: grid; width: 17px; height: 17px; place-items: center; border: 1px solid var(--exd-line-strong); border-radius: 50%; font: 8px/1 "SFMono-Regular", Consolas, monospace; }
+.exd-trace-step.is-complete > svg { border-color: rgba(134,219,195,.3); background: var(--exd-accent-soft); color: var(--exd-accent); }
+.exd-trace-step.is-current > svg { border: 0; color: var(--exd-accent); }
+.exd-trace-step div { display: flex; min-width: 0; flex-direction: column; }
+.exd-trace-step strong { color: var(--exd-text-2); font-size: 9.5px; font-weight: 560; }
+.exd-trace-step small { margin-top: 3px; overflow: hidden; color: var(--exd-faint); font-size: 8px; text-overflow: ellipsis; white-space: nowrap; }
+.exd-trace-step time { font: 8px/1 "SFMono-Regular", Consolas, monospace; }
+.exd-tool-line { display: grid; min-height: 38px; grid-template-columns: auto minmax(0,1fr) auto; align-items: center; gap: 8px; margin: 3px 8px 8px; padding: 0 9px; border: 1px solid rgba(41,46,42,.78); border-radius: 7px; background: #080a09; color: var(--exd-muted); }
+.exd-tool-line svg { width: 13px; height: 13px; color: var(--exd-accent); }
+.exd-tool-line code { overflow: hidden; color: #aab1aa; font: 8.5px/1.2 "SFMono-Regular", Consolas, monospace; text-overflow: ellipsis; white-space: nowrap; }
+.exd-tool-line span { display: inline-flex; align-items: center; gap: 4px; color: var(--exd-accent); font-size: 8px; white-space: nowrap; }
+.exd-tool-line span svg { width: 10px; height: 10px; }
+
+.exd-defect, .exd-repair, .exd-deviation, .exd-result { display: grid; align-items: start; gap: 11px; margin: 20px 0 20px 39px; padding: 14px; border: 1px solid rgba(224,138,129,.28); border-radius: var(--exd-radius-lg); background: rgba(224,138,129,.055); }
+.exd-defect { grid-template-columns: auto minmax(0,1fr); }
+.exd-defect > span, .exd-repair > span, .exd-deviation > span { display: grid; width: 30px; height: 30px; place-items: center; border-radius: 9px; background: rgba(224,138,129,.12); color: var(--exd-danger); }
+.exd-defect small, .exd-repair small, .exd-deviation small { color: var(--exd-danger); font-size: 8px; font-weight: 720; letter-spacing: .08em; }
+.exd-defect h2 { margin: 5px 0 0; font-size: 13px; font-weight: 610; letter-spacing: -.015em; }
+.exd-defect p, .exd-repair p, .exd-deviation p { margin: 6px 0 0; color: var(--exd-muted); font-size: 9.5px; line-height: 1.5; }
+.exd-defect dl { display: grid; grid-template-columns: repeat(3,1fr); gap: 1px; margin: 11px 0; overflow: hidden; border: 1px solid rgba(224,138,129,.15); border-radius: 8px; background: rgba(224,138,129,.12); }
+.exd-defect dl div { display: flex; min-width: 0; flex-direction: column; padding: 8px; background: var(--exd-bg); }
+.exd-defect dt { color: var(--exd-faint); font-size: 8px; }
+.exd-defect dd { margin: 3px 0 0; color: var(--exd-text-2); font-size: 8.5px; line-height: 1.35; }
+.exd-defect button, .exd-repair button, .exd-deviation button, .exd-result button { display: inline-flex; min-height: 30px; align-items: center; gap: 6px; padding: 0 8px; border: 1px solid var(--exd-line-strong); border-radius: 7px; background: var(--exd-surface); color: var(--exd-text-2); font-size: 9px; cursor: pointer; }
+.exd-defect button { float: right; }
+.exd-repair, .exd-deviation { grid-template-columns: auto minmax(0,1fr) auto; }
+.exd-repair { border-color: rgba(134,219,195,.24); background: var(--exd-accent-soft); }
+.exd-repair > span { background: rgba(134,219,195,.12); color: var(--exd-accent); }
+.exd-repair small { color: var(--exd-accent); }
+.exd-repair strong, .exd-deviation strong { display: block; margin-top: 4px; font-size: 11px; font-weight: 610; }
+.exd-deviation { border-color: rgba(231,191,127,.3); background: rgba(231,191,127,.06); }
+.exd-deviation > span { background: rgba(231,191,127,.12); color: var(--exd-warning); }
+.exd-deviation small { color: var(--exd-warning); }
+.exd-deviation code { display: inline-block; margin: 8px 4px 0 0; padding: 3px 5px; border-radius: 5px; background: rgba(231,191,127,.1); color: var(--exd-warning); font: 8px/1.2 "SFMono-Regular", Consolas, monospace; }
+.exd-result { grid-template-columns: auto minmax(0,1fr) auto; border-color: rgba(134,219,195,.25); background: var(--exd-accent-soft); }
+.exd-result > svg { color: var(--exd-accent); }
+.exd-result strong { font-size: 11px; font-weight: 620; }
+.exd-result p { margin: 4px 0 0; color: var(--exd-muted); font-size: 9px; }
+.exd-result div > span { display: flex; flex-wrap: wrap; gap: 5px 10px; margin-top: 8px; }
+.exd-result small { display: inline-flex; align-items: center; gap: 4px; color: var(--exd-muted); font-size: 8px; }
+.exd-result small svg { width: 10px; height: 10px; color: var(--exd-accent); }
+
+/* Steering composer */
+.exd-composer { width: min(820px,calc(100% - 48px)); justify-self: center; margin: 0 auto 17px; overflow: hidden; border: 1px solid var(--exd-line-strong); border-radius: var(--exd-radius-lg); background: rgba(23,27,24,.96); box-shadow: 0 18px 52px rgba(0,0,0,.28); transition: border-color 180ms ease, box-shadow 220ms ease, transform 220ms ease; }
+.exd-composer:focus-within { border-color: rgba(134,219,195,.56); box-shadow: 0 0 0 3px rgba(134,219,195,.065), 0 22px 62px rgba(0,0,0,.34); transform: translateY(-1px); }
+.exd-composer-scope { display: flex; min-height: 40px; align-items: center; gap: 8px; padding: 7px 10px 4px; }
+.exd-composer-scope .exd-workspace-icon { width: 24px; height: 24px; }
+.exd-composer-scope p { display: flex; min-width: 0; flex-direction: column; margin: 0; }
+.exd-composer-scope p small { color: var(--exd-faint); font-size: 7.5px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; }
+.exd-composer-scope p strong { color: var(--exd-text-2); font-size: 9px; font-weight: 590; }
+.exd-composer-scope > span:last-child { display: inline-flex; align-items: center; gap: 4px; margin-left: auto; color: var(--exd-faint); font: 8px/1.2 "SFMono-Regular", Consolas, monospace; }
+.exd-composer-scope > span:last-child svg { width: 11px; height: 11px; color: var(--exd-accent); }
+.exd-composer textarea { display: block; width: 100%; min-height: 48px; max-height: 150px; resize: vertical; padding: 7px 13px 10px; border: 0; outline: 0; background: transparent; color: var(--exd-text); font-size: 11.5px; line-height: 1.5; }
+.exd-composer textarea::placeholder { color: #717a72; }
+.exd-composer > footer { display: flex; min-height: 38px; align-items: center; gap: 8px; padding: 5px 7px 7px 8px; border-top: 1px solid rgba(41,46,42,.7); }
+.exd-composer > footer > button { display: grid; width: 29px; height: 29px; place-items: center; border: 0; border-radius: 8px; background: transparent; color: var(--exd-muted); cursor: pointer; }
+.exd-composer > footer > button:last-child { margin-left: auto; background: var(--exd-text); color: var(--exd-bg); }
+.exd-composer > footer > button:last-child:hover:not(:disabled) { background: var(--exd-accent-strong); }
+.exd-composer > footer > span { display: inline-flex; align-items: center; gap: 5px; color: var(--exd-faint); font-size: 8px; }
+.exd-composer > footer > span svg { width: 11px; height: 11px; color: var(--exd-accent); }
+
+/* Contextual inspector */
+.exd-inspector { display: grid; min-width: 0; min-height: 0; grid-template-rows: 43px minmax(0,1fr); background: #0f1210; }
+.exd-inspector > nav { display: flex; min-width: 0; align-items: center; gap: 1px; padding: 5px 7px; border-bottom: 1px solid var(--exd-line); overflow-x: auto; }
+.exd-inspector > nav button { display: inline-flex; min-width: 34px; height: 31px; flex: 0 0 auto; align-items: center; justify-content: center; gap: 5px; padding: 0 8px; border: 0; border-radius: 7px; background: transparent; color: var(--exd-faint); font-size: 8.5px; cursor: pointer; transition: 140ms ease; }
+.exd-inspector > nav button:hover { background: var(--exd-surface); color: var(--exd-text-2); }
+.exd-inspector > nav button[aria-current="page"] { background: var(--exd-surface-2); color: var(--exd-text); }
+.exd-inspector > nav button svg { width: 13px; height: 13px; }
+.exd-inspector > nav button b { display: grid; min-width: 15px; height: 15px; place-items: center; border-radius: 8px; background: var(--exd-accent-soft); color: var(--exd-accent); font-size: 7px; }
+.exd-panel { min-width: 0; min-height: 0; padding: 21px 18px 30px; overflow-y: auto; }
+.exd-panel > header { padding-bottom: 16px; }
+.exd-panel > header > small { color: var(--exd-accent); font-size: 8px; font-weight: 720; letter-spacing: .1em; }
+.exd-panel > header h2 { margin: 6px 0 0; font-size: 17px; font-weight: 560; letter-spacing: -.025em; }
+.exd-panel > header p { margin: 7px 0 0; color: var(--exd-muted); font-size: 9.5px; line-height: 1.5; }
+.exd-panel-note { display: flex; align-items: flex-start; gap: 9px; margin-top: 15px; padding: 11px; border: 1px solid rgba(134,219,195,.14); border-radius: 9px; background: var(--exd-accent-soft); color: var(--exd-accent); }
+.exd-panel-note svg { width: 14px; height: 14px; margin-top: 1px; }
+.exd-panel-note span { display: flex; min-width: 0; flex-direction: column; }
+.exd-panel-note strong { color: var(--exd-text-2); font-size: 9px; font-weight: 590; }
+.exd-panel-note small { margin-top: 3px; color: var(--exd-muted); font-size: 8px; line-height: 1.45; }
+
+.exd-topology { display: grid; grid-template-columns: minmax(0,1fr) auto; gap: 7px 8px; padding: 2px 0; }
+.exd-topology > button { display: grid; min-height: 56px; grid-template-columns: 29px minmax(0,1fr); align-items: center; gap: 9px; padding: 8px; border: 1px solid var(--exd-line); border-radius: 9px; background: var(--exd-surface); color: var(--exd-muted); text-align: left; cursor: pointer; transition: 150ms ease; }
+.exd-topology > button:hover { border-color: var(--exd-line-strong); background: var(--exd-surface-2); transform: translateY(-1px); }
+.exd-topology > button > span, .exd-topology > button > svg { display: grid; width: 28px; height: 28px; place-items: center; border-radius: 8px; background: var(--exd-surface-3); color: var(--exd-text-2); font-size: 8px; font-weight: 700; }
+.exd-topology > button > div { display: flex; min-width: 0; flex-direction: column; }
+.exd-topology > button strong { font-size: 9.5px; font-weight: 590; }
+.exd-topology > button small { margin-top: 3px; overflow: hidden; color: var(--exd-faint); font: 7.5px/1.3 "SFMono-Regular", Consolas, monospace; text-overflow: ellipsis; white-space: nowrap; }
+.exd-topology > i { display: grid; place-items: center; color: var(--exd-faint); transform: rotate(90deg); }
+.exd-topology > i svg { width: 12px; height: 12px; }
+.exd-topology > button.is-orchestrator { grid-column: 1 / -1; border-color: rgba(134,219,195,.22); background: var(--exd-accent-soft); }
+.exd-topology > button.is-orchestrator > svg { padding: 6px; background: rgba(134,219,195,.11); color: var(--exd-accent); }
+.exd-topology > i.is-down { grid-column: 1 / -1; transform: rotate(90deg); }
+.exd-topology > button.is-verification { grid-column: 1 / -1; }
+.exd-topology > button.is-verification > svg { padding: 6px; color: var(--exd-accent); }
+
+.exd-file-list { display: grid; gap: 3px; }
+.exd-file-list button { display: grid; min-height: 45px; grid-template-columns: auto minmax(0,1fr) auto; align-items: center; gap: 8px; padding: 6px 8px; border: 1px solid transparent; border-radius: 8px; background: transparent; color: var(--exd-muted); text-align: left; cursor: pointer; }
+.exd-file-list button:hover { background: rgba(255,255,255,.03); }
+.exd-file-list button.is-selected { border-color: var(--exd-line); background: var(--exd-surface-2); color: var(--exd-text); }
+.exd-file-list button svg { width: 13px; height: 13px; color: var(--exd-accent); }
+.exd-file-list button span { display: flex; min-width: 0; flex-direction: column; }
+.exd-file-list button strong { overflow: hidden; font-size: 9px; font-weight: 580; text-overflow: ellipsis; white-space: nowrap; }
+.exd-file-list button small { margin-top: 3px; overflow: hidden; color: var(--exd-faint); font-size: 8px; text-overflow: ellipsis; white-space: nowrap; }
+.exd-file-list button b { color: var(--exd-accent); font: 8px/1 "SFMono-Regular", Consolas, monospace; }
+.exd-diff { max-height: 230px; margin: 12px 0 0; overflow: auto; padding: 12px; border: 1px solid var(--exd-line); border-radius: 9px; background: #080a09; color: var(--exd-muted); font: 8.5px/1.75 "SFMono-Regular", Consolas, monospace; white-space: pre-wrap; }
+.exd-diff code > span { color: var(--exd-faint); }
+.exd-diff b { color: var(--exd-accent); font-weight: 500; }
+.exd-diff i { color: var(--exd-muted); font-style: normal; }
+
+.exd-test-summary { display: flex; align-items: center; gap: 9px; padding: 12px; border: 1px solid var(--exd-line); border-radius: 9px; background: var(--exd-surface); }
+.exd-test-summary > svg { color: var(--exd-accent); }
+.exd-test-summary.is-blocked > svg { color: var(--exd-danger); }
+.exd-test-summary span { display: flex; flex-direction: column; }
+.exd-test-summary strong { font-size: 10px; font-weight: 600; }
+.exd-test-summary small { margin-top: 3px; color: var(--exd-faint); font-size: 8px; }
+.exd-suite-list { display: grid; margin-top: 10px; }
+.exd-suite-list > div { display: grid; min-height: 43px; grid-template-columns: auto minmax(0,1fr) auto; align-items: center; gap: 8px; border-bottom: 1px solid var(--exd-line); }
+.exd-suite-list > div > svg { width: 12px; height: 12px; color: var(--exd-accent); }
+.exd-suite-list > div span { display: flex; min-width: 0; flex-direction: column; }
+.exd-suite-list strong { font-size: 9px; font-weight: 560; }
+.exd-suite-list small { margin-top: 2px; color: var(--exd-faint); font-size: 8px; }
+.exd-suite-list b { color: var(--exd-muted); font-size: 8px; font-weight: 560; }
+.exd-terminal-line { display: grid; width: 100%; min-height: 38px; grid-template-columns: auto minmax(0,1fr) auto; align-items: center; gap: 8px; margin-top: 13px; padding: 0 9px; border: 1px solid var(--exd-line); border-radius: 8px; background: #080a09; color: var(--exd-muted); text-align: left; cursor: pointer; }
+.exd-terminal-line svg { width: 13px; height: 13px; color: var(--exd-accent); }
+.exd-terminal-line code { overflow: hidden; font: 8px/1.2 "SFMono-Regular", Consolas, monospace; text-overflow: ellipsis; white-space: nowrap; }
+.exd-terminal-line span { color: var(--exd-accent); font-size: 8px; }
+
+.exd-binding-list { display: grid; gap: 5px; }
+.exd-binding-list > div { display: grid; min-height: 48px; grid-template-columns: 29px minmax(0,1fr) auto; align-items: center; gap: 9px; padding: 7px 8px; border: 1px solid var(--exd-line); border-radius: 9px; background: var(--exd-surface); opacity: .62; }
+.exd-binding-list > div.is-current { border-color: rgba(134,219,195,.24); background: var(--exd-accent-soft); opacity: 1; }
+.exd-binding-list > div > span { display: grid; width: 28px; height: 28px; place-items: center; border-radius: 8px; background: var(--exd-surface-3); color: var(--exd-muted); }
+.exd-binding-list > div > span svg { width: 13px; height: 13px; }
+.exd-binding-list > div > div { display: flex; min-width: 0; flex-direction: column; }
+.exd-binding-list small { color: var(--exd-faint); font-size: 7.5px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; }
+.exd-binding-list strong { margin-top: 3px; overflow: hidden; font-size: 9px; font-weight: 570; text-overflow: ellipsis; white-space: nowrap; }
+.exd-binding-list b { color: var(--exd-accent); font-size: 8px; font-weight: 600; }
+.exd-environment-action { display: flex; align-items: flex-end; justify-content: space-between; gap: 12px; margin-top: 14px; padding-top: 13px; border-top: 1px solid var(--exd-line); }
+.exd-environment-action > div { display: flex; min-width: 0; flex-direction: column; }
+.exd-environment-action small, .exd-candidate small, .exd-release-sequence small, .exd-e2e-card small { color: var(--exd-accent); font-size: 7.5px; font-weight: 720; letter-spacing: .08em; }
+.exd-environment-action strong { margin-top: 4px; font: 9px/1.3 "SFMono-Regular", Consolas, monospace; }
+.exd-environment-action span { margin-top: 4px; color: var(--exd-faint); font-size: 8px; }
+.exd-environment-action .exd-primary { flex: none; }
+.exd-candidate, .exd-release-sequence, .exd-e2e-card { margin-top: 14px; overflow: hidden; border: 1px solid var(--exd-line); border-radius: 10px; background: var(--exd-surface); }
+.exd-candidate > header, .exd-e2e-card > header, .exd-release-sequence > header { display: flex; min-height: 55px; align-items: center; gap: 9px; padding: 9px 11px; border-bottom: 1px solid var(--exd-line); }
+.exd-candidate > header > span, .exd-e2e-card > header > span { display: grid; width: 29px; height: 29px; place-items: center; border-radius: 8px; background: var(--exd-accent-soft); color: var(--exd-accent); }
+.exd-candidate > header > div, .exd-e2e-card > header > div, .exd-release-sequence > header > div { display: flex; min-width: 0; flex-direction: column; }
+.exd-candidate > header strong, .exd-e2e-card > header strong, .exd-release-sequence > header strong { margin-top: 3px; font-size: 9px; font-weight: 590; }
+.exd-candidate > div { display: grid; min-height: 38px; grid-template-columns: minmax(0,.8fr) minmax(0,1.2fr) auto; align-items: center; gap: 7px; padding: 0 10px; border-bottom: 1px solid rgba(41,46,42,.65); }
+.exd-candidate > div span { font-size: 8.5px; }
+.exd-candidate > div code { overflow: hidden; color: var(--exd-muted); font: 7.5px/1.2 "SFMono-Regular", Consolas, monospace; text-overflow: ellipsis; white-space: nowrap; }
+.exd-candidate > div b { display: inline-flex; align-items: center; gap: 3px; color: var(--exd-faint); font-size: 7.5px; font-weight: 560; }
+.exd-candidate > div b svg { width: 9px; height: 9px; color: var(--exd-accent); }
+.exd-candidate > button, .exd-e2e-card > button, .exd-release-sequence > button { display: flex; width: calc(100% - 16px); min-height: 34px; align-items: center; justify-content: center; gap: 6px; margin: 8px; border: 1px solid var(--exd-line-strong); border-radius: 8px; background: var(--exd-surface-2); color: var(--exd-text-2); font-size: 8.5px; cursor: pointer; }
+.exd-e2e-card > div { display: grid; gap: 1px; padding: 7px; }
+.exd-e2e-card > div span { display: grid; min-height: 31px; grid-template-columns: auto minmax(0,1fr) auto; align-items: center; gap: 7px; padding: 0 7px; background: rgba(255,255,255,.018); color: var(--exd-muted); font-size: 8px; }
+.exd-e2e-card > div span svg { width: 10px; height: 10px; color: var(--exd-accent); }
+.exd-e2e-card > div span b { font-weight: 570; }
+.exd-e2e-card.is-failed { border-color: rgba(224,138,129,.28); }
+.exd-e2e-card.is-failed > header > span { background: rgba(224,138,129,.1); color: var(--exd-danger); }
+.exd-release-sequence > header { justify-content: space-between; }
+.exd-release-sequence > header > span { padding: 3px 6px; border-radius: 5px; background: var(--exd-accent-soft); color: var(--exd-accent); font-size: 7.5px; text-transform: capitalize; }
+.exd-release-sequence > div { display: grid; min-height: 42px; grid-template-columns: 22px minmax(0,1fr) auto; align-items: center; gap: 8px; padding: 0 10px; border-bottom: 1px solid var(--exd-line); color: var(--exd-faint); }
+.exd-release-sequence > div > span { display: grid; width: 19px; height: 19px; place-items: center; border: 1px solid var(--exd-line-strong); border-radius: 50%; font-size: 7px; }
+.exd-release-sequence > div > div { display: flex; flex-direction: column; }
+.exd-release-sequence > div strong { color: var(--exd-text-2); font-size: 8.5px; font-weight: 570; }
+.exd-release-sequence > div small { margin-top: 2px; color: var(--exd-faint); font: 7px/1.2 "SFMono-Regular", Consolas, monospace; letter-spacing: 0; }
+.exd-release-sequence > div > svg { width: 11px; height: 11px; }
+.exd-release-sequence > div.is-complete > svg { color: var(--exd-accent); }
+.exd-release-sequence > div.is-current { background: var(--exd-accent-soft); color: var(--exd-accent); }
+
+.exd-context-hero { display: grid; grid-template-columns: auto minmax(0,1fr) auto; align-items: start; gap: 9px; padding: 11px; border: 1px solid rgba(134,219,195,.18); border-radius: 9px; background: var(--exd-accent-soft); }
+.exd-context-hero > svg { color: var(--exd-accent); }
+.exd-context-hero > div { display: flex; min-width: 0; flex-direction: column; }
+.exd-context-hero small { color: var(--exd-accent); font-size: 7.5px; font-weight: 720; letter-spacing: .08em; }
+.exd-context-hero strong { margin-top: 4px; font-size: 9.5px; font-weight: 600; }
+.exd-context-hero span { margin-top: 5px; color: var(--exd-muted); font-size: 8.5px; line-height: 1.45; }
+.exd-context-hero > b { color: var(--exd-accent); font-size: 7.5px; font-weight: 600; }
+.exd-context-sections { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 8px; margin-top: 10px; }
+.exd-context-sections section { min-width: 0; padding: 10px; border: 1px solid var(--exd-line); border-radius: 9px; background: var(--exd-surface); }
+.exd-context-sections section.is-wide { grid-column: 1 / -1; }
+.exd-context-sections h3 { margin: 0 0 8px; color: var(--exd-faint); font-size: 7.5px; font-weight: 720; letter-spacing: .08em; text-transform: uppercase; }
+.exd-context-sections p { display: grid; grid-template-columns: auto minmax(0,1fr); gap: 6px; margin: 0; color: var(--exd-muted); font-size: 8px; line-height: 1.45; }
+.exd-context-sections p + p { margin-top: 6px; }
+.exd-context-sections p svg { width: 10px; height: 10px; margin-top: 1px; color: var(--exd-accent); }
+.exd-context-sections code { display: inline-block; margin: 2px 4px 2px 0; padding: 3px 5px; border-radius: 5px; background: rgba(255,255,255,.035); color: var(--exd-text-2); font: 7.5px/1.2 "SFMono-Regular", Consolas, monospace; }
+.exd-empty { padding: 18px; border: 1px dashed var(--exd-line-strong); border-radius: 9px; color: var(--exd-muted); font-size: 9px; text-align: center; }
+
+.exd-audit-list { display: grid; }
+.exd-history-compare { margin-bottom: 13px; overflow: hidden; border: 1px solid var(--exd-line); border-radius: 9px; background: var(--exd-surface); }
+.exd-history-compare > header { display: flex; align-items: center; gap: 8px; padding: 9px 10px; border-bottom: 1px solid var(--exd-line); }
+.exd-history-compare > header > span { display: grid; width: 26px; height: 26px; place-items: center; border-radius: 7px; background: var(--exd-accent-soft); color: var(--exd-accent); }
+.exd-history-compare > header > span svg { width: 12px; height: 12px; }
+.exd-history-compare > header div { display: flex; flex-direction: column; }
+.exd-history-compare small { color: var(--exd-accent); font-size: 7.5px; font-weight: 720; letter-spacing: .08em; }
+.exd-history-compare strong { margin-top: 2px; color: var(--exd-text-2); font-size: 8.5px; font-weight: 580; }
+.exd-history-compare > div { display: grid; grid-template-columns: minmax(0,1fr) auto minmax(0,1fr); align-items: center; gap: 8px; padding: 10px; }
+.exd-history-compare section { display: flex; min-width: 0; flex-direction: column; }
+.exd-history-compare section span { margin-top: 4px; color: var(--exd-muted); font-size: 7.5px; line-height: 1.4; }
+.exd-history-compare > div > i { color: var(--exd-faint); }
+.exd-history-compare > div > i svg { width: 12px; height: 12px; }
+.exd-audit-list > div { display: grid; min-height: 52px; grid-template-columns: 28px 30px minmax(0,1fr); align-items: start; gap: 8px; padding: 8px 0; border-bottom: 1px solid var(--exd-line); }
+.exd-audit-list > div > span { display: grid; width: 27px; height: 27px; place-items: center; border-radius: 8px; background: var(--exd-surface-3); color: var(--exd-text-2); font-size: 7px; font-weight: 700; }
+.exd-audit-list > div > span.is-max { background: var(--exd-accent-soft); color: var(--exd-accent); }
+.exd-audit-list > div > span svg { width: 13px; height: 13px; }
+.exd-audit-list time { padding-top: 3px; color: var(--exd-faint); font-size: 7.5px; }
+.exd-audit-list p { display: flex; min-width: 0; flex-direction: column; margin: 0; }
+.exd-audit-list strong { font-size: 8.5px; font-weight: 570; }
+.exd-audit-list small { margin-top: 4px; overflow: hidden; color: var(--exd-faint); font-size: 7.5px; line-height: 1.35; text-overflow: ellipsis; }
+.exd-panel-action { display: flex; width: 100%; min-height: 35px; align-items: center; justify-content: center; gap: 6px; margin-top: 13px; border: 1px solid var(--exd-line-strong); border-radius: 8px; background: var(--exd-surface); color: var(--exd-text-2); font-size: 8.5px; cursor: pointer; }
+
+/* Sharing and impact preview */
+.exd-modal-layer { position: fixed; inset: 0; z-index: 120; display: grid; place-items: center; padding: 24px; }
+.exd-modal-scrim { position: absolute; inset: 0; border: 0; background: rgba(3,5,4,.72); cursor: default; backdrop-filter: blur(8px); }
+.exd-share-modal, .exd-impact-modal { position: relative; width: min(680px,100%); max-height: min(820px,calc(100vh - 48px)); overflow-y: auto; border: 1px solid var(--exd-line-strong); border-radius: 16px; background: #121513; box-shadow: 0 32px 100px rgba(0,0,0,.5), inset 0 1px rgba(255,255,255,.025); }
+.exd-share-modal > header, .exd-impact-modal > header { display: grid; grid-template-columns: auto minmax(0,1fr) auto; gap: 12px; padding: 22px; border-bottom: 1px solid var(--exd-line); }
+.exd-share-modal > header > span, .exd-impact-modal > header > span { display: grid; width: 38px; height: 38px; place-items: center; border-radius: 11px; background: var(--exd-accent-soft); color: var(--exd-accent); }
+.exd-share-modal > header > div, .exd-impact-modal > header > div { min-width: 0; }
+.exd-share-modal > header small, .exd-impact-modal > header small { color: var(--exd-accent); font-size: 8px; font-weight: 720; letter-spacing: .1em; }
+.exd-share-modal > header h2, .exd-impact-modal > header h2 { margin: 5px 0 0; font-size: 20px; font-weight: 560; letter-spacing: -.03em; }
+.exd-share-modal > header p, .exd-impact-modal > header p { margin: 6px 0 0; color: var(--exd-muted); font-size: 9.5px; line-height: 1.5; }
+.exd-share-modal > header > button, .exd-impact-modal > header > button { display: grid; width: 30px; height: 30px; place-items: center; border: 0; border-radius: 8px; background: transparent; color: var(--exd-muted); cursor: pointer; }
+.exd-share-modal > header > button:hover, .exd-impact-modal > header > button:hover { background: var(--exd-surface-3); color: var(--exd-text); }
+.exd-share-scope { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 8px; padding: 16px 20px 10px; }
+.exd-share-scope button { display: grid; min-height: 58px; grid-template-columns: auto minmax(0,1fr); align-items: center; gap: 10px; padding: 9px 11px; border: 1px solid var(--exd-line); border-radius: 9px; background: transparent; color: var(--exd-muted); text-align: left; cursor: pointer; }
+.exd-share-scope button[aria-pressed="true"] { border-color: rgba(134,219,195,.34); background: var(--exd-accent-soft); color: var(--exd-accent); }
+.exd-share-scope button span { display: flex; min-width: 0; flex-direction: column; }
+.exd-share-scope strong { color: var(--exd-text-2); font-size: 9.5px; font-weight: 590; }
+.exd-share-scope small { margin-top: 3px; color: var(--exd-faint); font-size: 8px; }
+.exd-share-modal > form { display: grid; grid-template-columns: minmax(0,1fr) 150px auto; gap: 7px; padding: 8px 20px 12px; }
+.exd-share-modal > form label { display: flex; height: 36px; align-items: center; gap: 7px; padding: 0 9px; border: 1px solid var(--exd-line-strong); border-radius: 8px; background: var(--exd-bg); color: var(--exd-muted); }
+.exd-share-modal > form label input { width: 100%; min-width: 0; border: 0; outline: 0; background: transparent; color: var(--exd-text); font-size: 9px; }
+.exd-share-modal > form select, .exd-share-modal > form > button { min-height: 36px; border: 1px solid var(--exd-line-strong); border-radius: 8px; background: var(--exd-bg); color: var(--exd-text-2); font-size: 8.5px; }
+.exd-share-modal > form > button { padding: 0 12px; background: var(--exd-accent); color: #07110d; font-weight: 650; cursor: pointer; }
+.exd-invite-status { display: flex; align-items: center; gap: 6px; margin: 0 20px 10px; color: var(--exd-accent); font-size: 8.5px; }
+.exd-member-list { padding: 3px 20px 15px; }
+.exd-member-list > div { display: grid; min-height: 50px; grid-template-columns: 30px minmax(0,1fr) 166px; align-items: center; gap: 9px; border-bottom: 1px solid var(--exd-line); }
+.exd-member-list > div > span { display: grid; width: 29px; height: 29px; place-items: center; border-radius: 8px; background: var(--exd-surface-3); color: var(--exd-text-2); font-size: 7.5px; font-weight: 700; }
+.exd-member-list > div > span.is-online { box-shadow: inset 0 -2px var(--exd-accent); }
+.exd-member-list > div > span.is-away { box-shadow: inset 0 -2px var(--exd-warning); }
+.exd-member-list p { display: flex; min-width: 0; flex-direction: column; margin: 0; }
+.exd-member-list strong { font-size: 9px; font-weight: 590; }
+.exd-member-list small { margin-top: 3px; color: var(--exd-faint); font-size: 8px; }
+.exd-member-list select { height: 30px; border: 1px solid var(--exd-line); border-radius: 7px; background: var(--exd-bg); color: var(--exd-muted); font-size: 8px; }
+.exd-share-modal > footer { display: flex; align-items: flex-start; gap: 9px; padding: 14px 20px 18px; border-top: 1px solid var(--exd-line); color: var(--exd-accent); }
+.exd-share-modal > footer span { display: flex; flex-direction: column; }
+.exd-share-modal > footer strong { color: var(--exd-text-2); font-size: 9px; font-weight: 590; }
+.exd-share-modal > footer small { margin-top: 3px; color: var(--exd-muted); font-size: 8px; }
+.exd-impact-modal { width: min(580px,100%); }
+.exd-impact-modal dl { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 1px; margin: 18px 22px; overflow: hidden; border: 1px solid var(--exd-line); border-radius: 10px; background: var(--exd-line); }
+.exd-impact-modal dl div { display: flex; min-height: 62px; flex-direction: column; padding: 12px; background: var(--exd-bg); }
+.exd-impact-modal dt { color: var(--exd-faint); font-size: 8px; font-weight: 680; text-transform: uppercase; }
+.exd-impact-modal dd { margin: 6px 0 0; color: var(--exd-text-2); font-size: 9px; line-height: 1.4; }
+.exd-impact-callout { display: flex; align-items: flex-start; gap: 9px; margin: 0 22px; padding: 11px; border: 1px solid rgba(134,219,195,.18); border-radius: 9px; background: var(--exd-accent-soft); color: var(--exd-accent); }
+.exd-impact-callout span { display: flex; flex-direction: column; }
+.exd-impact-callout strong { color: var(--exd-text-2); font-size: 9px; }
+.exd-impact-callout small { margin-top: 3px; color: var(--exd-muted); font-size: 8px; }
+.exd-impact-modal > footer { display: flex; justify-content: flex-end; gap: 8px; padding: 18px 22px 22px; }
+.exd-impact-modal > footer > button { display: inline-flex; min-height: 36px; align-items: center; gap: 6px; padding: 0 13px; border: 1px solid var(--exd-line-strong); border-radius: 8px; background: var(--exd-surface); color: var(--exd-text-2); font-size: 9px; cursor: pointer; }
+
+/* Responsive delivery workspace */
+@media (max-width: 1320px) {
+	.exd-header { grid-template-columns: minmax(190px,.7fr) minmax(360px,1.35fr) auto; gap: 10px; }
+	.exd-role-preview { display: none; }
+	.exd-body { grid-template-columns: minmax(500px,1fr) 360px; }
+	.exd-inspector > nav button span { display: none; }
+}
+@media (max-width: 1080px) {
+	.aex-app.exd-app { grid-template-columns: 210px minmax(0,1fr); }
+	.exd-header { grid-template-columns: minmax(170px,.65fr) minmax(330px,1.25fr) auto; }
+	.exd-environment-rail p small { display: none; }
+	.exd-body { grid-template-columns: minmax(440px,1fr) 330px; }
+	.exd-thread-scroll { padding-inline: 24px; }
+	.exd-autonomy { grid-template-columns: repeat(2,minmax(0,1fr)); }
+	.exd-autonomy > div:nth-child(3) { border-left: 0; border-top: 1px solid var(--exd-line); }
+	.exd-autonomy > div:nth-child(4) { border-top: 1px solid var(--exd-line); }
+}
+@media (max-width: 860px) {
+	.aex-app.exd-app { grid-template-columns: 1fr; grid-template-rows: 66px minmax(0,1fr); }
+	.exd-rail { flex-direction: row; border-right: 0; border-bottom: 1px solid var(--exd-line); overflow: hidden; }
+	.exd-rail > header, .exd-engagement-summary, .exd-rail > footer, .exd-rail-label { display: none; }
+	.exd-rail > nav { display: flex; align-items: center; gap: 4px; padding: 6px 8px; overflow-x: auto; }
+	.exd-rail nav > button { width: auto; min-width: 154px; min-height: 52px; flex: 0 0 auto; grid-template-columns: 28px minmax(0,1fr) auto; }
+	.exd-stage { grid-template-rows: 54px minmax(0,1fr); }
+	.exd-header { grid-template-columns: minmax(0,1fr) auto; }
+	.exd-environment-rail { display: none; }
+	.exd-body { display: block; overflow-y: auto; }
+	.exd-thread { min-height: 650px; border-right: 0; }
+	.exd-thread-scroll { min-height: 520px; overflow: visible; }
+	.exd-inspector { min-height: 500px; border-top: 1px solid var(--exd-line); }
+	.exd-inspector > nav button span { display: inline; }
+}
+@media (max-width: 620px) {
+	.aex-app.exd-app { grid-template-rows: 60px minmax(0,1fr); }
+	.exd-rail nav > button { min-width: 142px; }
+	.exd-header { padding: 0 8px; }
+	.exd-header-title small, .exd-header-actions button kbd, .exd-header-actions .exd-share { display: none; }
+	.exd-thread-scroll { padding: 22px 15px 38px; }
+	.exd-workspace-title { grid-template-columns: auto minmax(0,1fr); }
+	.exd-workspace-actions { grid-column: 1 / -1; justify-content: space-between; padding-top: 4px; }
+	.exd-workspace-title h1 { font-size: 25px; }
+	.exd-autonomy { grid-template-columns: 1fr; }
+	.exd-autonomy > div + div { padding-left: 0; border-left: 0; border-top: 1px solid var(--exd-line); }
+	.exd-autonomy > div { padding-inline: 0; }
+	.exd-trace, .exd-defect, .exd-repair, .exd-deviation, .exd-result { margin-left: 0; }
+	.exd-defect, .exd-repair, .exd-deviation, .exd-result { grid-template-columns: auto minmax(0,1fr); }
+	.exd-defect button, .exd-repair button, .exd-deviation button, .exd-result button { grid-column: 1 / -1; justify-self: stretch; justify-content: center; }
+	.exd-defect dl { grid-template-columns: 1fr; }
+	.exd-composer { width: calc(100% - 20px); }
+	.exd-composer-scope > span:last-child { display: none; }
+	.exd-composer > footer > span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+	.exd-panel { padding-inline: 14px; }
+	.exd-context-sections, .exd-share-scope, .exd-impact-modal dl { grid-template-columns: 1fr; }
+	.exd-context-sections section.is-wide { grid-column: auto; }
+	.exd-share-modal > form { grid-template-columns: 1fr; }
+	.exd-member-list > div { grid-template-columns: 30px minmax(0,1fr); }
+	.exd-member-list select { grid-column: 2; margin-bottom: 8px; }
+	.exd-modal-layer { padding: 10px; }
+	.exd-share-modal, .exd-impact-modal { max-height: calc(100vh - 20px); }
+}
+@media (prefers-reduced-motion: reduce) {
+	.exd-app *, .exd-app *::before, .exd-app *::after { scroll-behavior: auto !important; animation-duration: .001ms !important; animation-iteration-count: 1 !important; transition-duration: .001ms !important; }
+}

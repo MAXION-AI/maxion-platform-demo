@@ -1,27 +1,43 @@
 import AxeBuilder from "@axe-core/playwright"
-import { expect, test } from "@playwright/test"
+import { expect, type Page, test } from "@playwright/test"
 
-test("scopes ⌘K to Execute and drives workspaces and views from the palette", async ({ page }) => {
+async function openExecute(page: Page) {
+	await page.goto("/maxion-prototype")
+	if ((page.viewportSize()?.width ?? 1280) < 700) await page.getByRole("button", { name: "Open navigation" }).click()
+	await page.getByRole("navigation", { name: "Portal sections" }).getByRole("button", { name: /^Execute/ }).click()
+	await expect(page.getByRole("heading", { name: "What do you want built?", exact: true })).toBeVisible()
+}
+
+async function openErpWorkspace(page: Page) {
+	await openExecute(page)
+	await page.getByRole("navigation", { name: "Recent Execute tasks" }).getByRole("button", { name: /ERP modernization delivery/ }).click()
+	await expect(page.getByRole("heading", { name: "Delivery Orchestrator" })).toBeVisible()
+}
+
+async function promoteToStaging(page: Page, workspaceName: RegExp) {
+	const rail = page.getByRole("navigation", { name: "Plan-compiled delivery workspaces" })
+	await rail.getByRole("button", { name: workspaceName }).click()
+	await page.getByRole("button", { name: "Environments", exact: true }).click()
+	await page.getByRole("button", { name: "Propose staging" }).click()
+	const impact = page.getByRole("dialog", { name: /Promote .* to staging/ })
+	await expect(impact.getByText("No production effect")).toBeVisible()
+	await expect(impact.getByText(/rollback/i)).toBeVisible()
+	await impact.getByRole("button", { name: "Apply promotion" }).click()
+	await expect(page.getByText("Staged", { exact: true }).last()).toBeVisible()
+}
+
+test("scopes the command layer to Execute and makes every workspace keyboard reachable", async ({ page }) => {
 	const runtimeErrors: string[] = []
-	page.on("console", (message) => {
-		if (message.type() === "error") runtimeErrors.push(message.text())
-	})
+	page.on("console", (message) => { if (message.type() === "error") runtimeErrors.push(message.text()) })
 	page.on("pageerror", (error) => runtimeErrors.push(error.message))
 
 	await page.goto("/maxion-prototype")
-	await expect(page.getByRole("heading", { name: "Good afternoon, Root Admin" })).toBeVisible()
-
-	// On the Dashboard the portal menu owns ⌘K; the Execute palette must stay closed.
 	await page.keyboard.press("ControlOrMeta+k")
 	await expect(page.getByRole("dialog", { name: "MAXION command menu" })).toBeVisible()
 	await expect(page.getByRole("dialog", { name: "Execute command menu" })).toHaveCount(0)
 	await page.keyboard.press("Escape")
-	await expect(page.getByRole("dialog", { name: "MAXION command menu" })).toHaveCount(0)
 
-	// Inside Execute, ⌘K opens the Execute-scoped palette and suppresses the portal menu.
-	const navigation = page.getByRole("navigation", { name: "Portal sections" })
-	await navigation.getByRole("button", { name: "Execute 1 pending" }).click()
-	await expect(page.getByRole("heading", { name: "What do you want built?", exact: true })).toBeVisible()
+	await page.getByRole("navigation", { name: "Portal sections" }).getByRole("button", { name: /^Execute/ }).click()
 	await page.keyboard.press("ControlOrMeta+k")
 	const palette = page.getByRole("dialog", { name: "Execute command menu" })
 	await expect(palette).toBeVisible()
@@ -29,170 +45,165 @@ test("scopes ⌘K to Execute and drives workspaces and views from the palette", 
 	const paletteAccessibility = await new AxeBuilder({ page }).include(".aex-palette-layer").analyze()
 	expect(paletteAccessibility.violations.filter((violation) => violation.impact === "critical" || violation.impact === "serious")).toEqual([])
 
-	// Escape closes the palette without leaving Execute.
-	await page.keyboard.press("Escape")
-	await expect(palette).toHaveCount(0)
-	await expect(page.getByRole("heading", { name: "What do you want built?", exact: true })).toBeVisible()
+	const search = palette.getByRole("textbox", { name: "Search Execute commands" })
+	await search.fill("MuleSoft")
+	await search.press("Enter")
+	await expect(page.getByRole("heading", { name: "MuleSoft" })).toBeVisible()
 
-	// The palette jumps straight into a workspace agent session from the hub.
-	await page.keyboard.press("ControlOrMeta+k")
-	const paletteSearch = palette.getByRole("textbox", { name: "Search Execute commands" })
-	await paletteSearch.fill("reconciliation")
-	await paletteSearch.press("Enter")
-	await expect(page.getByRole("heading", { name: "Implement durable reconciliation" })).toBeVisible()
-
-	// Digits switch inspector views while the workspace is open.
 	await page.keyboard.press("2")
-	await expect(page.getByRole("heading", { name: "Changes" })).toBeVisible()
+	await expect(page.getByRole("heading", { name: "Changed artifacts" })).toBeVisible()
 	await page.keyboard.press("6")
-	await expect(page.getByRole("heading", { name: "Audit" })).toBeVisible()
-
-	// Slash focuses the steering composer, and digits typed there stay text.
+	await expect(page.getByRole("heading", { name: "Workspace history" })).toBeVisible()
 	await page.keyboard.press("/")
-	const composer = page.getByRole("textbox", { name: "Steer Workspace 03: Implement durable reconciliation" })
+	const composer = page.getByRole("textbox", { name: "Steer MuleSoft agent" })
 	await expect(composer).toBeFocused()
 	await page.keyboard.press("3")
-	await expect(page.getByRole("heading", { name: "Audit" })).toBeVisible()
 	await expect(composer).toHaveValue("3")
+	await expect(page.getByRole("heading", { name: "Workspace history" })).toBeVisible()
 
-	// Module navigation from the palette, after which the shell owns ⌘K again.
 	await page.keyboard.press("ControlOrMeta+k")
-	await paletteSearch.fill("Dashboard")
-	await paletteSearch.press("Enter")
+	await search.fill("Dashboard")
+	await search.press("Enter")
 	await expect(page.getByRole("heading", { name: "Good afternoon, Root Admin" })).toBeVisible()
-	await page.keyboard.press("ControlOrMeta+k")
-	await expect(page.getByRole("dialog", { name: "MAXION command menu" })).toBeVisible()
-	await expect(page.getByRole("dialog", { name: "Execute command menu" })).toHaveCount(0)
-	await page.keyboard.press("Escape")
-
 	expect(runtimeErrors).toEqual([])
 })
 
-test("gives every engagement its own repository story and keeps the agent alive around the run", async ({ page }) => {
+test("keeps a second Plan-derived engagement independently runnable and steerable", async ({ page }) => {
+	test.setTimeout(60_000)
 	const runtimeErrors: string[] = []
-	page.on("console", (message) => {
-		if (message.type() === "error") runtimeErrors.push(message.text())
-	})
+	page.on("console", (message) => { if (message.type() === "error") runtimeErrors.push(message.text()) })
 	page.on("pageerror", (error) => runtimeErrors.push(error.message))
 
-	await page.goto("/maxion-prototype")
-	await page.getByRole("navigation", { name: "Portal sections" }).getByRole("button", { name: "Execute 1 pending" }).click()
+	await openExecute(page)
 	await page.getByRole("button", { name: "Import from Plan" }).click()
-	await page.getByRole("button", { name: /Customer data foundation Customer 360/ }).click()
+	await page.getByRole("group", { name: "Choose an approved Plan" }).getByRole("button", { name: /Customer data foundation/ }).click()
 	await page.getByRole("button", { name: "Start engagement" }).click()
 
-	// The second approved Plan is decomposed into its own workspaces — not the ERP set.
 	await expect(page.getByRole("heading", { name: "Resolve customer identity" })).toBeVisible()
-	const railWorkspaces = page.getByRole("navigation", { name: "Engagement workspaces" })
-	await expect(railWorkspaces.getByRole("button", { name: "Open Workspace 03: Enforce the consent boundary" })).toBeVisible()
-	await expect(railWorkspaces.getByRole("button", { name: /Build mission authority API/ })).toHaveCount(0)
-	await expect(page.locator(".aex-rail > footer small")).toHaveText("execute/customer/identity")
+	const rail = page.getByRole("navigation", { name: "Plan-compiled delivery workspaces" })
+	await expect(rail.getByRole("button", { name: /Enforce the consent boundary/ })).toBeVisible()
+	await expect(rail.getByRole("button", { name: /ServiceNow|MuleSoft|Workday/ })).toHaveCount(0)
+	await expect(page.getByText("execute/customer/identity")).toBeVisible()
+	await expect(page.getByRole("button", { name: "Verified" })).toBeVisible({ timeout: 15_000 })
 
-	// Each workspace runs at its own offset, so mid-run they are provably not one session:
-	// once 01 has resolved its boundaries, 05 is still resolving its own.
-	await expect(page.locator(".aex-live-run .aex-trace-row").first()).toContainText("Boundaries resolved")
-	await railWorkspaces.getByRole("button", { name: /Open Workspace 05/ }).click()
-	await expect(page.locator(".aex-live-run .aex-trace-row").first()).toContainText("Resolving boundaries")
-
-	await railWorkspaces.getByRole("button", { name: /Open Workspace 01/ }).click()
-	await expect(page.getByRole("button", { name: "Run verified" })).toBeVisible({ timeout: 15_000 })
-
-	// The run reads at tool-call granularity: one row per edited file, one terminal line per suite.
-	await expect(page.locator(".aex-tool-call.is-edit").first()).toContainText("Edit services/identity/identityResolver.ts")
-	await expect(page.locator(".aex-tool-call.is-edit")).toHaveCount(4)
-	await page.getByRole("button", { name: "Terminal" }).click()
-	const terminal = page.getByLabel("Workspace 01 terminal")
-	await expect(terminal).toContainText("identity-resolution")
-	await expect(terminal).toContainText("PASS  deterministic-matching.spec.ts")
-	await expect(terminal).toContainText("Test Files  4 passed (4)")
-	await expect(terminal).toContainText("39 passed · 0 failed · 6.8s")
-
-	// The marquee topology panel never flashes light under the cursor, and it keeps talking
-	// after the run lands.
-	await page.getByRole("button", { name: "Topology" }).click()
-	const node = page.getByRole("button", { name: "Open Workspace 03: Enforce the consent boundary" }).last()
-	await node.hover()
-	const hovered = await node.evaluate((element) => getComputedStyle(element).backgroundColor)
-	const channels = hovered.match(/\d+/g)?.slice(0, 3).map(Number) ?? [255, 255, 255]
-	expect(channels.reduce((sum, channel) => sum + channel, 0)).toBeLessThan(240)
-	await expect(page.locator(".aex-ambient")).toContainText("Watching main for drift")
-
+	const composer = page.getByRole("textbox", { name: "Steer Resolve customer identity agent" })
+	await composer.fill("Keep the identity threshold deterministic and explain the evidence.")
+	await composer.press("Enter")
+	await expect(page.getByText(/applied that direction inside Resolve customer identity/)).toBeVisible()
+	await page.getByRole("button", { name: "Tests", exact: true }).click()
+	await expect(page.getByRole("heading", { name: "39 focused checks" })).toBeVisible()
 	expect(runtimeErrors).toEqual([])
 })
 
-test("makes steering, interruption, and the release decision leave marks", async ({ page }) => {
+test("runs the complete collaborative implementation, failure repair, E2E, approval, and production lifecycle", async ({ page }) => {
+	test.setTimeout(120_000)
 	const runtimeErrors: string[] = []
-	page.on("console", (message) => {
-		if (message.type() === "error") runtimeErrors.push(message.text())
-	})
+	page.on("console", (message) => { if (message.type() === "error") runtimeErrors.push(message.text()) })
 	page.on("pageerror", (error) => runtimeErrors.push(error.message))
 
-	await page.goto("/maxion-prototype")
-	await page.getByRole("navigation", { name: "Portal sections" }).getByRole("button", { name: "Execute 1 pending" }).click()
-	await page.getByRole("button", { name: "Import from Plan" }).click()
-	await page.getByRole("button", { name: "Start engagement" }).click()
-	await expect(page.getByRole("heading", { name: "Workspace topology" })).toBeVisible()
+	await openErpWorkspace(page)
+	await expect(page.getByRole("complementary", { name: "Execute workspaces" })).toBeVisible()
+	await expect(page.getByRole("navigation", { name: "Plan-compiled delivery workspaces" }).getByRole("button")).toHaveCount(5)
 
-	// Interrupting is an event: the thread says where the worktree is held, and the primary
-	// action becomes the resume.
-	await page.getByRole("button", { name: "Interrupt" }).click()
-	await expect(page.getByText(/Paused at step \d of 4/)).toBeVisible()
-	await page.getByRole("button", { name: "Resume run" }).click()
-	await expect(page.getByRole("button", { name: "Run verified" })).toBeVisible({ timeout: 15_000 })
+	await page.getByRole("button", { name: "Share", exact: true }).last().click()
+	const share = page.getByRole("dialog", { name: "Share the engagement" })
+	for (const person of ["Root Admin", "Andre Reyes", "Priya Nair", "Mateo Ruiz", "Marcus Lee", "Elena Ortiz"]) {
+		await expect(share.getByText(person, { exact: true })).toBeVisible()
+	}
+	await expect(share.getByText("Least privilege is visible and enforced by workspace")).toBeVisible()
+	await share.getByRole("button", { name: "Close sharing" }).click()
 
-	// Two directions, two different answers, and a mark on the run and on the file they became.
-	const composer = page.getByRole("textbox", { name: "Steer Workspace 01: Build mission authority API" })
-	await composer.fill("Add a test for expired authority grants.")
-	await composer.press("Enter")
-	await expect(page.getByText(/turned that into an assertion on the authority contract/)).toBeVisible()
-	await composer.fill("Leave the published API and its contract unchanged.")
-	await composer.press("Enter")
-	await expect(page.getByText(/held the published contract fixed/)).toBeVisible()
-	await expect(page.getByText(/turned that into an assertion on the authority contract/)).toBeVisible()
-	await expect(page.locator(".aex-direction-row")).toContainText("Direction folded into the authority contract")
-	await page.getByRole("button", { name: /^Changes/ }).click()
-	await expect(page.locator(".aex-file-direction")).toHaveText("+2 directions")
+	await page.getByRole("button", { name: "Coordinating" }).click()
+	await expect(page.getByRole("button", { name: "Workspaces verified" })).toBeVisible({ timeout: 15_000 })
+	await promoteToStaging(page, /ServiceNow/)
+	await promoteToStaging(page, /MuleSoft/)
+	await promoteToStaging(page, /Workday/)
 
-	// The release request is a real decision that closes on the approvals surface.
-	await page.getByRole("button", { name: /^Deploys/ }).click()
-	await page.getByRole("button", { name: "Request deployment approval" }).click()
-	await expect(page.locator(".aex-deploy-receipt")).toContainText("artifact 8f37c2")
-	await page.getByRole("button", { name: /View in approvals/ }).click()
-	await expect(page.getByRole("heading", { name: "Two decisions need you" })).toBeVisible()
-	const release = page.locator(".aex-release-approval")
-	await expect(release).toContainText("Deployment approval · ERP modernization delivery")
-	await release.getByRole("button", { name: "Approve release" }).click()
-	await expect(release).toContainText("Approved · scheduled by the release owner")
+	const rail = page.getByRole("navigation", { name: "Plan-compiled delivery workspaces" })
+	await rail.getByRole("button", { name: /Delivery Orchestrator/ }).click()
+	await page.getByRole("button", { name: "Environments", exact: true }).click()
+	await page.getByRole("button", { name: "Assemble RC-07" }).click()
+	await expect(page.getByRole("heading", { name: "Integration verification" })).toBeVisible()
+	await page.getByRole("button", { name: "Run cross-platform E2E" }).click()
+	await expect(page.getByText("40 passed · 1 classified failure")).toBeVisible({ timeout: 10_000 })
+	await expect(page.getByText("Duplicate replay produced a second Workday call")).toBeVisible()
+
+	await page.getByRole("button", { name: "Open MuleSoft workspace" }).click()
+	await page.getByRole("button", { name: "Repair & verify" }).click()
+	await expect(page.getByText(/52 tests passed · mule-journal-api:2.4.2/)).toBeVisible({ timeout: 10_000 })
+	await rail.getByRole("button", { name: /Integration verification/ }).click()
+	await expect(page.getByText("Repair verified · rerun ready")).toBeVisible()
+	await page.getByRole("button", { name: "Rerun RC-07.1" }).click()
+	await expect(page.getByLabel("Integration verification inspector").getByText("41 scenarios passed", { exact: true })).toBeVisible({ timeout: 10_000 })
+
+	await rail.getByRole("button", { name: /Delivery Orchestrator/ }).click()
+	await page.getByRole("button", { name: "Environments", exact: true }).click()
+	await page.getByRole("button", { name: "Request production approvals" }).click()
 	await expect(page.getByRole("heading", { name: "One decision needs you" })).toBeVisible()
+	const approval = page.locator(".aex-release-approval")
+	await expect(approval).toContainText("Elena Ortiz · Release approver")
+	await expect(approval).toContainText("41 E2E scenarios passed")
+	await approval.getByRole("button", { name: "Record Elena’s approval" }).click()
+	await expect(approval).toContainText("production sequence unlocked")
 
-	// And the decision is waiting inside the workspace it came from.
+	await page.getByRole("button", { name: "Back to Execute" }).click()
 	await page.getByRole("navigation", { name: "Recent Execute tasks" }).getByRole("button", { name: /ERP modernization delivery/ }).click()
-	await page.getByRole("button", { name: /^Deploys/ }).click()
-	await expect(page.locator(".aex-deploy")).toContainText("Approved · scheduled by the release owner")
-	await page.getByRole("button", { name: "Audit" }).click()
-	await expect(page.locator(".aex-audit")).toContainText("Release approved by the release owner")
+	await page.getByRole("button", { name: "Environments", exact: true }).click()
+	await page.getByRole("button", { name: "Run governed release" }).click()
+	await expect(page.getByRole("button", { name: "Release verified" })).toBeVisible({ timeout: 15_000 })
+	await expect(page.getByText("Cross-platform outcome verified")).toBeVisible()
+	await expect(page.getByRole("region", { name: "Delivery environment progression" })).toContainText("ProductionVerified")
 
+	await page.getByRole("button", { name: "Topology", exact: true }).click()
+	const accessibility = await new AxeBuilder({ page }).analyze()
+	expect(accessibility.violations.filter((violation) => violation.impact === "critical" || violation.impact === "serious")).toEqual([])
 	expect(runtimeErrors).toEqual([])
 })
 
-test("focuses the hub composer on entry and gives N a real new-task action", async ({ page }) => {
-	await page.goto("/maxion-prototype")
-	await expect(page.getByRole("heading", { name: "Good afternoon, Root Admin" })).toBeVisible()
-	await page.getByRole("navigation", { name: "Portal sections" }).getByRole("button", { name: "Execute 1 pending" }).click()
+test("answers status, contains material deviations, and exposes implementation-grade Plan context", async ({ page }) => {
+	const runtimeErrors: string[] = []
+	page.on("console", (message) => { if (message.type() === "error") runtimeErrors.push(message.text()) })
+	page.on("pageerror", (error) => runtimeErrors.push(error.message))
 
-	// Arriving lands typing-ready: the composer holds focus once the stage is visible.
-	const composer = page.getByRole("textbox", { name: "What should Execute deliver?" })
-	await expect(composer).toBeFocused()
+	await openErpWorkspace(page)
+	await page.getByRole("button", { name: "Collapse" }).click()
+	await expect(page.getByRole("button", { name: "Expand", exact: true })).toBeVisible()
+	await page.getByRole("button", { name: "Expand", exact: true }).click()
+	const composer = page.getByRole("textbox", { name: "Steer Delivery Orchestrator agent" })
+	await composer.fill("Where are we and what is blocked?")
+	await composer.press("Enter")
+	await expect(page.getByText(/0 of 3 platform workspaces are verified/)).toBeVisible()
 
-	// '/' returns to a focused prompt composer after the source toggle removed it.
+	await composer.fill("Extend the Workday schema and add a new integration endpoint.")
+	await composer.press("Enter")
+	await expect(page.getByText("MAX contained the impact before implementation diverged")).toBeVisible()
+	await expect(page.getByText(/prepared Plan change proposal PLD-14/)).toBeVisible()
+	await page.getByRole("button", { name: "Create Plan proposal" }).click()
+	await expect(page.getByText("PLD-14 sent to Plan")).toBeVisible()
+
+	await page.getByRole("button", { name: "Plan context", exact: true }).click()
+	await expect(page.getByRole("heading", { name: "Plan context" })).toBeVisible()
+	await expect(page.getByText("L2 SA-04 · governed journal delivery")).toBeVisible()
+	await expect(page.getByText("L3 TC-17 · signed event and callback")).toBeVisible()
+	await expect(page.getByText("L4 packages SNOW-101 through INT-401")).toBeVisible()
+	await expect(page.getByText("Architecture decision ADR-118")).toBeVisible()
+	await page.getByRole("button", { name: "Audit", exact: true }).click()
+	await expect(page.getByRole("region", { name: "Artifact history comparison" })).toContainText("Current artifact versus approved baseline")
+	await expect(page.getByRole("region", { name: "Artifact history comparison" })).toContainText("Plan PL-24.6 baseline")
+	expect(runtimeErrors).toEqual([])
+})
+
+test("keeps the Execute hub and workspace usable on a narrow viewport", async ({ page }) => {
+	await page.setViewportSize({ width: 390, height: 844 })
+	await openExecute(page)
 	await page.getByRole("button", { name: "Import from Plan" }).click()
-	await expect(composer).toHaveCount(0)
-	await page.keyboard.press("/")
-	await expect(composer).toBeFocused()
-
-	// N starts a new task whenever the user is not typing.
-	await page.getByRole("button", { name: "Import from Plan" }).click()
-	await expect(composer).toHaveCount(0)
-	await page.keyboard.press("n")
-	await expect(composer).toBeFocused()
+	await page.getByRole("button", { name: "Start engagement" }).click()
+	await expect(page.getByRole("heading", { name: "Delivery Orchestrator" })).toBeVisible()
+	const rail = page.getByRole("navigation", { name: "Plan-compiled delivery workspaces" })
+	await rail.getByRole("button", { name: /MuleSoft/ }).click()
+	await expect(page.getByRole("textbox", { name: "Steer MuleSoft agent" })).toBeVisible()
+	const dimensions = await page.evaluate(() => ({ clientWidth: document.documentElement.clientWidth, scrollWidth: document.documentElement.scrollWidth }))
+	expect(dimensions.scrollWidth).toBe(dimensions.clientWidth)
+	const accessibility = await new AxeBuilder({ page }).analyze()
+	expect(accessibility.violations.filter((violation) => violation.impact === "critical" || violation.impact === "serious")).toEqual([])
 })
