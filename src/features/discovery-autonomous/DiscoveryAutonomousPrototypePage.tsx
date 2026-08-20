@@ -37,6 +37,7 @@ import {
 
 import { publicAsset } from "@/lib/publicAsset"
 
+import { DeliverableExhibit } from "./deliverables"
 import {
 	DELIVERABLES,
 	DELIVERABLE_CONTENT,
@@ -45,12 +46,14 @@ import {
 	OPERATION_ELAPSED_MINUTES,
 	SCENARIOS,
 	nowActions,
+	scenarioForBrief,
 	type OwnerInterviewQuestion,
 	type Person,
 	type ScenarioKey,
 } from "./model"
 import "./styles.css"
 import "./frontier.css"
+import "./deliverable-reader.css"
 
 type View = "thread" | "overview" | "package"
 type Drawer = "people" | "sources" | "package" | null
@@ -661,17 +664,20 @@ export function DiscoveryAutonomousPrototypePage({ embedded = false, setupSignal
 		if (!missionBrief.trim()) return
 		const recordId = createRecordId()
 		const startedAt = new Date().toISOString()
-		const startingMessages = initialInterviewMessages(scenarioKey, missionBrief)
+		// The brief decides the investigation, so resolve it before anything is
+		// seeded from a scenario the person did not describe.
+		const nextScenario = scenarioForBrief(missionBrief)
+		const startingMessages = initialInterviewMessages(nextScenario, missionBrief)
 		const newRecord: DiscoveryRecord = {
 			id: recordId,
 			title: missionTitle(missionBrief),
 			brief: missionBrief,
-			scenarioKey,
+			scenarioKey: nextScenario,
 			view: "thread",
 			phase: 0,
 			paused: false,
 			decision: "pending",
-			people: SCENARIOS[scenarioKey].people,
+			people: SCENARIOS[nextScenario].people,
 			messages: startingMessages,
 			interviewIndex: 0,
 			interviewClosed: false,
@@ -683,6 +689,7 @@ export function DiscoveryAutonomousPrototypePage({ embedded = false, setupSignal
 		}
 		setActiveRecordId(recordId)
 		setRecords((current) => [newRecord, ...current].slice(0, MAX_SAVED_DISCOVERIES))
+		setScenarioKey(nextScenario)
 		setScreen("preparing")
 		setView("thread")
 		setPhase(0)
@@ -691,7 +698,7 @@ export function DiscoveryAutonomousPrototypePage({ embedded = false, setupSignal
 		setInterviewIndex(0)
 		setInterviewClosed(false)
 		setClarificationPending(false)
-		setPeople(SCENARIOS[scenarioKey].people)
+		setPeople(SCENARIOS[nextScenario].people)
 		setMessages(startingMessages)
 		setInvitesSent(false)
 		registerStreamableMessages(startingMessages)
@@ -1663,7 +1670,7 @@ function WorkspaceShell({
 					<button type="button" className="business-status" aria-label="Discovery status" title={phase === 4 && interviewClosed ? "Jump to the decision" : "Open the owner thread"} onClick={onJumpToDecision}>
 							<span className={phase === 4 && interviewClosed ? "attention" : phase >= 7 ? "complete" : "working"} />
 							<strong>{businessStatus}</strong>
-							<small>{!interviewClosed ? "MAX asks only for judgment the records can’t supply" : phase === 4 ? "1 decision needs you" : phase >= 7 ? "5 deliverables ready" : "MAX is continuing autonomously"}</small>
+							<small>{!interviewClosed ? "MAX asks only for judgment the records can’t supply" : phase === 4 ? "1 decision needs you" : phase >= 7 ? `${DELIVERABLES.length} deliverables ready` : "MAX is continuing autonomously"}</small>
 					</button>
 				</div>
 
@@ -1950,7 +1957,7 @@ function Overview({
 				<section className="overview-list">
 					<OverviewRow icon={<UsersThree size={17} />} label="People" detail={`${people.length} mapped · ${interviewed} complete`} onClick={() => onOpenDrawer("people")} />
 					<OverviewRow icon={<Database size={17} />} label="Sources" detail={`${scenario.sources.length} connected · read automatically`} onClick={() => onOpenDrawer("sources")} />
-					<OverviewRow icon={<Package size={17} />} label="Package" detail={phase >= 7 ? "5 deliverables ready" : "Plan refining with evidence"} onClick={() => onOpenDrawer("package")} />
+					<OverviewRow icon={<Package size={17} />} label="Package" detail={phase >= 7 ? `${DELIVERABLES.length} deliverables ready` : "Plan refining with evidence"} onClick={() => onOpenDrawer("package")} />
 				</section>
 
 				<section className="autonomy-supervision-facts"><span>Intervention policy</span><dl><div><dt>Routine actions</dt><dd>Automatic</dd></div><div><dt>Material exceptions</dt><dd>{decisionPending ? "1 waiting" : "None"}</dd></div><div><dt>Blocked branches</dt><dd>0</dd></div><div><dt>Next owner update</dt><dd>{phase >= 7 ? "Delivered" : "At readiness"}</dd></div></dl></section>
@@ -2181,7 +2188,7 @@ function Thread({
 				<button className="context-section interactive" type="button" onClick={onOpenPeople}><span>Stakeholders</span><strong>{people.length} mapped</strong><p>{joinNames(people)}</p><CaretRight size={14} /></button>
 				<button className="context-section interactive" type="button" onClick={onOpenSources}><span>Connected sources</span><strong>{scenario.sources.length} reading automatically</strong><p>{scenario.sources.map((source) => source.system).join(" · ")}</p><CaretRight size={14} /></button>
 				<div className="context-section"><span>{interviewing ? `Interview focus · ${interviewIndex + 1} of ${scenario.ownerInterview.length}` : "Current operation"}</span><strong>{interviewing ? currentInterviewPrompt.topic : OPERATIONS[phase].label}</strong><p>{interviewing ? currentInterviewPrompt.evidenceHint : OPERATIONS[phase].detail}</p>{interviewing ? <div className="interview-progress" role="progressbar" aria-label="Owner interview progress" aria-valuemin={1} aria-valuemax={scenario.ownerInterview.length} aria-valuenow={interviewIndex + 1}><span style={{ width: `${((interviewIndex + 1) / scenario.ownerInterview.length) * 100}%` }} /></div> : null}</div>
-				{phase >= 6 ? <button className="context-section interactive package-context" type="button" onClick={onOpenPackage}><span>Decision package</span><strong>{packageReady ? "5 deliverables ready" : "Generating from synthesis"}</strong><p>{packageReady ? "Open the final reader and approval package." : "Outputs will appear without a separate blueprint task."}</p><CaretRight size={14} /></button> : null}
+				{phase >= 6 ? <button className="context-section interactive package-context" type="button" onClick={onOpenPackage}><span>Decision package</span><strong>{packageReady ? `${DELIVERABLES.length} deliverables ready` : "Generating from synthesis"}</strong><p>{packageReady ? "Open the final reader and approval package." : "Outputs will appear without a separate blueprint task."}</p><CaretRight size={14} /></button> : null}
 				<div className="context-section command-examples">
 					<span>Direct MAX</span>
 					{interviewing ? <button type="button" onClick={() => onCommandTextChange(`Check ${scenario.sources[0].system} and verify this`)}>“Verify this from {scenario.sources[0].system}”</button> : null}
@@ -2521,6 +2528,18 @@ function Deliverables({ scenarioKey, phase, selected, onSelect, onManage }: { sc
 	const generating = phase >= 6
 	const bodies = DELIVERABLE_CONTENT[scenarioKey]
 	const body = bodies[Math.min(Math.max(selected, 0), bodies.length - 1)]
+	// Exhibits are numbered per document in reading order, the way a consulting
+	// pack numbers them, so a finding can be cited as "Exhibit 3" in review.
+	const exhibitNumbers = useMemo(() => {
+		const numbers = new Map<string, number>()
+		let counter = 0
+		for (const section of body.sections) {
+			if (!section.exhibit) continue
+			counter += 1
+			numbers.set(section.heading, counter)
+		}
+		return numbers
+	}, [body])
 	// Deliverables materialize one at a time across the synthesis window instead
 	// of appearing in a single jump. Reduced motion lands the whole set at once.
 	const [materialized, setMaterialized] = useState(() => prefersInstantMotion() ? DELIVERABLES.length : 1)
@@ -2544,16 +2563,53 @@ function Deliverables({ scenarioKey, phase, selected, onSelect, onManage }: { sc
 					})}
 				</nav>
 
-				<section className="deliverable-reader">
+				<section className="deliverable-reader" tabIndex={0} aria-label={`${DELIVERABLES[selected].name} · decision package document`}>
 					<div className="reader-heading"><div><p className="eyebrow">{DELIVERABLES[selected].audience}</p><h2>{DELIVERABLES[selected].name}</h2></div>{ready ? <span className="reader-verified-tag"><CheckCircle size={14} weight="fill" /> Evidence bound</span> : null}</div>
 					{ready ? (
-						<div className="reader-content" key={selected}>
+						<article className="reader-content" key={selected}>
 							<h3>{body.heading}</h3>
-							<p>{body.lede}</p>
-							{body.sections.map((section) => <section className="reader-section" key={section.heading}><h4>{section.heading}</h4><p>{section.body}</p></section>)}
-							{body.findings.map((finding, index) => <div className="key-finding" key={finding.label}><span>{String(index + 1).padStart(2, "0")}</span><div><strong>{finding.label}</strong><p>{finding.detail}</p></div></div>)}
+							<p className="reader-lede">{body.lede}</p>
+
+							<dl className="reader-metrics" aria-label="Key figures">
+								{body.metrics.map((metric) => <div key={metric.label}><dt>{metric.value}</dt><dd><strong>{metric.label}</strong><span>{metric.note}</span></dd></div>)}
+							</dl>
+
+							<section className="reader-messages" aria-label="What this document argues">
+								<h4>What this document argues</h4>
+								<ol>
+									{body.keyMessages.map((message) => <li key={message.label}><strong>{message.label}</strong><p>{message.detail}</p></li>)}
+								</ol>
+							</section>
+
+							{body.sections.map((section) => (
+								<section className="reader-section" key={section.heading}>
+									<h4>{section.heading}</h4>
+									{section.paragraphs.map((paragraph) => <p key={paragraph.slice(0, 48)}>{paragraph}</p>)}
+									{section.bullets ? (
+										<ul className="reader-bullets">
+											{section.bullets.map((bullet) => <li key={bullet.label}><strong>{bullet.label}</strong><span>{bullet.detail}</span></li>)}
+										</ul>
+									) : null}
+									{section.exhibit ? <DeliverableExhibit exhibit={section.exhibit} index={exhibitNumbers.get(section.heading) ?? 1} /> : null}
+								</section>
+							))}
+
+							<section className="reader-findings" aria-label="Findings">
+								{body.findings.map((finding, index) => <div className="key-finding" key={finding.label}><span>{String(index + 1).padStart(2, "0")}</span><div><strong>{finding.label}</strong><p>{finding.detail}</p></div></div>)}
+							</section>
+
+							<section className="reader-next-steps" aria-labelledby={`next-steps-${selected}`}>
+								<h4 id={`next-steps-${selected}`}>Next steps</h4>
+								<table>
+									<thead><tr><th scope="col">Action</th><th scope="col">Owner</th><th scope="col">By when</th></tr></thead>
+									<tbody>
+										{body.nextSteps.map((step) => <tr key={step.action}><th scope="row">{step.action}</th><td>{step.owner}</td><td>{step.due}</td></tr>)}
+									</tbody>
+								</table>
+							</section>
+
 							<div className="citation-row">{body.citations.map((citation) => <span key={citation}>{citation}</span>)}</div>
-						</div>
+						</article>
 					) : (
 						<div className="reader-waiting">
 							<div className={generating ? "document-animation active" : "document-animation"}><span /><span /><span /><span /></div>
