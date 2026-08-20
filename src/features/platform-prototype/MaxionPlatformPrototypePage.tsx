@@ -1154,6 +1154,7 @@ export function MaxionPlatformPrototypePage() {
 	const [commandOpen, setCommandOpen] = useState(false)
 	const [mobileNavOpen, setMobileNavOpen] = useState(false)
 	const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
+	const [keyboardNavigation, setKeyboardNavigation] = useState(false)
 	const [projects, setProjects] = useState(INITIAL_PROJECTS)
 	const [discoveryReady, setDiscoveryReady] = useState(false)
 	const [discoverySetupSignal, setDiscoverySetupSignal] = useState(0)
@@ -1179,6 +1180,12 @@ export function MaxionPlatformPrototypePage() {
 
 	useEffect(() => {
 		const onKeyDown = (event: KeyboardEvent) => {
+			const target = event.target as HTMLElement | null
+			const targetIsEditable = Boolean(target && (target.tagName === "INPUT" || target.tagName === "TEXTAREA" || target.isContentEditable))
+			// Text inputs match :focus-visible after a pointer click in Chromium. Track
+			// modality at the shell instead so composers stay quiet for pointer users
+			// and retain a precise focus cue for keyboard navigation and shortcuts.
+			if (event.key === "Tab" || !targetIsEditable) setKeyboardNavigation(true)
 			// Module palettes stop ⌘K in the capture phase, so this bubble-phase listener
 			// only ever runs when no module owns the keyboard.
 			if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "k") { event.preventDefault(); setCommandOpen((open) => !open) }
@@ -1187,14 +1194,18 @@ export function MaxionPlatformPrototypePage() {
 			// capture-phase listener claims it and stops it here; on a shell page nothing
 			// claims it, so it opens the one search this shell has.
 			if (event.key === "/" && SHELL_KEYBOARD_MODULES.includes(activeModuleRef.current)) {
-				const target = event.target as HTMLElement | null
 				if (target && (target.tagName === "INPUT" || target.tagName === "TEXTAREA" || target.isContentEditable)) return
 				event.preventDefault()
 				setCommandOpen(true)
 			}
 		}
+		const onPointerDown = () => setKeyboardNavigation(false)
 		window.addEventListener("keydown", onKeyDown)
-		return () => window.removeEventListener("keydown", onKeyDown)
+		window.addEventListener("pointerdown", onPointerDown, true)
+		return () => {
+			window.removeEventListener("keydown", onKeyDown)
+			window.removeEventListener("pointerdown", onPointerDown, true)
+		}
 	}, [])
 
 	const navigate = (module: MaxionModuleId) => {
@@ -1244,7 +1255,7 @@ export function MaxionPlatformPrototypePage() {
 		"MAXION"
 
 	return (
-		<div className={`maxion-platform-prototype mxp-root${activeModule === "execute" ? " mxp-root--execute" : ""}${sidebarCollapsed ? " mxp-root--sidebar-collapsed" : ""}`}>
+		<div className={`maxion-platform-prototype mxp-root${activeModule === "execute" ? " mxp-root--execute" : ""}${sidebarCollapsed ? " mxp-root--sidebar-collapsed" : ""}${keyboardNavigation ? " mxp-keyboard-navigation" : ""}`}>
 			<PortalSidebar active={activeModule} onNavigate={navigate} onCommand={() => setCommandOpen(true)} mobileOpen={mobileNavOpen} onMobileOpenChange={setMobileNavOpen} collapsed={sidebarCollapsed} onCollapsedChange={setSidebarCollapsed} badges={{ agentix: agentixAttention.count, approvals: agentixAttention.approval ? 1 : 0, execute: executeVerified ? 0 : 1 }} />
 			<div className="mxp-stage" aria-label={`${currentLabel} module`}>
 				<div className={stageClass("dashboard")} hidden={activeModule !== "dashboard"}><DashboardModule projects={projects} onNavigate={navigate} agentix={agentixAttention} discoveryReady={discoveryReady} planSent={planSent} executeVerified={executeVerified} /></div>

@@ -1,6 +1,36 @@
 import AxeBuilder from "@axe-core/playwright"
 import { expect, test } from "@playwright/test"
 
+test("hides scrollbar chrome without disabling scrolling", async ({ page }) => {
+	await page.goto("/maxion-prototype")
+
+	const scrollbarBehavior = await page.evaluate(() => {
+		const probe = document.createElement("div")
+		const content = document.createElement("div")
+		probe.style.cssText = "position:fixed;inset:0 auto auto 0;width:40px;height:40px;overflow:auto;"
+		content.style.cssText = "width:120px;height:120px;"
+		probe.append(content)
+		document.body.append(probe)
+		probe.scrollTo({ left: 24, top: 24 })
+
+		const result = {
+			scrollbarWidth: getComputedStyle(probe).scrollbarWidth,
+			webkitScrollbarDisplay: getComputedStyle(probe, "::-webkit-scrollbar").display,
+			scrolledHorizontally: probe.scrollLeft > 0,
+			scrolledVertically: probe.scrollTop > 0,
+		}
+		probe.remove()
+		return result
+	})
+
+	expect(scrollbarBehavior).toEqual({
+		scrollbarWidth: "none",
+		webkitScrollbarDisplay: "none",
+		scrolledHorizontally: true,
+		scrolledVertically: true,
+	})
+})
+
 test("keeps the canonical MAXION shell functional across core modules", async ({ page }) => {
 	const runtimeErrors: string[] = []
 	page.on("console", (message) => {

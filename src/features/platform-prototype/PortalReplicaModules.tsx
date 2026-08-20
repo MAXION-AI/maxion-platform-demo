@@ -40,6 +40,7 @@ import { useEffect, useMemo, useRef, useState, type CSSProperties, type FormEven
 
 import type { AgentixAttention } from "@/features/agentix/prototype/AgentixPrototypePage"
 import { listDiscoveryJumpRecords } from "@/features/discovery-autonomous/DiscoveryAutonomousPrototypePage"
+import { DELIVERABLES } from "@/features/discovery-autonomous/deliverables"
 
 import { MaxionSpiralMark, PRIMARY_NAVIGATION } from "./PortalChrome"
 import {
@@ -163,7 +164,7 @@ export function DashboardModule({
 			module: "discovery" as const,
 			icon: Compass,
 			title: discoveryReady ? "TPRM decision package generated" : "TPRM owner interview is active",
-			detail: discoveryReady ? "5 deliverables · evidence lineage verified" : "One authority boundary needs review",
+			detail: discoveryReady ? `${DELIVERABLES.length} deliverables · evidence lineage verified` : "One authority boundary needs review",
 			time: since(openedWith.current.discoveryReady !== discoveryReady, "8m"),
 			tone: discoveryReady ? "success" : "attention",
 		},

@@ -341,6 +341,96 @@
 	font-size: 13px;
 }
 
+/* Conversational surfaces should feel like a single calm canvas, not a form
+ * field inside a second focused box. Chromium considers pointer-focused text
+ * inputs `:focus-visible`, so the shell's input-modality class is the reliable
+ * boundary between a quiet click state and keyboard navigation feedback. */
+.maxion-platform-prototype :is(
+	.prototype .command-composer,
+	.apn-composer,
+	.ax3-composer,
+	.aex-prompt,
+	.aex-steer,
+	.exd-composer,
+	.mxp-discovery-composer > div,
+	.mxp-consult-composer > div
+) {
+	position: relative;
+	--mxp-composer-focus-color: var(--mxp-accent);
+}
+
+.maxion-platform-prototype :is(.aex-prompt, .aex-steer, .exd-composer) {
+	--mxp-composer-focus-color: #86dbc3;
+}
+
+.maxion-platform-prototype :is(
+	.prototype .command-composer,
+	.apn-composer,
+	.ax3-composer,
+	.aex-prompt,
+	.aex-steer,
+	.exd-composer,
+	.mxp-discovery-composer > div,
+	.mxp-consult-composer > div
+) textarea:focus-visible {
+	outline: none !important;
+	outline-offset: 0;
+}
+
+.maxion-platform-prototype:not(.mxp-keyboard-navigation) .prototype .command-composer:focus-within {
+	border-color: var(--line-strong);
+	box-shadow: var(--mxp-elevation-composer);
+}
+
+.maxion-platform-prototype:not(.mxp-keyboard-navigation) .apn-composer:focus-within {
+	border-color: var(--apn-line-strong);
+	box-shadow: var(--mxp-elevation-card);
+}
+
+.maxion-platform-prototype:not(.mxp-keyboard-navigation) .ax3-composer:focus-within {
+	border-color: var(--ax3-line-strong);
+	box-shadow: var(--mxp-elevation-composer);
+	transform: none;
+}
+
+.maxion-platform-prototype:not(.mxp-keyboard-navigation) .aex-prompt:focus-within {
+	border-color: var(--aex-line-strong);
+	box-shadow: 0 20px 70px rgba(0, 0, 0, .26), inset 0 1px rgba(255, 255, 255, .025);
+	transform: none;
+}
+
+.maxion-platform-prototype:not(.mxp-keyboard-navigation) .aex-steer:focus-within {
+	border-color: var(--aex-line-strong);
+	box-shadow: 0 16px 54px rgba(0, 0, 0, .25);
+}
+
+.maxion-platform-prototype:not(.mxp-keyboard-navigation) .exd-composer:focus-within {
+	border-color: var(--exd-line-strong);
+	box-shadow: 0 18px 52px rgba(0, 0, 0, .28);
+	transform: none;
+}
+
+.maxion-platform-prototype.mxp-keyboard-navigation :is(
+	.prototype .command-composer,
+	.apn-composer,
+	.ax3-composer,
+	.aex-prompt,
+	.aex-steer,
+	.exd-composer,
+	.mxp-discovery-composer > div,
+	.mxp-consult-composer > div
+):focus-within::after {
+	position: absolute;
+	right: 14px;
+	bottom: 0;
+	left: 14px;
+	height: 2px;
+	border-radius: 2px 2px 0 0;
+	background: var(--mxp-composer-focus-color);
+	content: "";
+	pointer-events: none;
+}
+
 @media (max-width: 860px) {
 	.maxion-platform-prototype .prototype .brief-editor textarea { min-height: 132px; padding: 18px; }
 	.maxion-platform-prototype .prototype .command-composer textarea { min-height: 72px; padding-inline: 16px; }

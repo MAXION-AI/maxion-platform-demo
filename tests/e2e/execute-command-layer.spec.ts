@@ -26,6 +26,36 @@ async function promoteToStaging(page: Page, workspaceName: RegExp) {
 	await expect(page.getByText("Staged", { exact: true }).last()).toBeVisible()
 }
 
+test("keeps pointer-focused composers quiet and keyboard focus precise", async ({ page }) => {
+	await openErpWorkspace(page)
+
+	const shell = page.locator(".maxion-platform-prototype")
+	const composerFrame = page.locator(".exd-composer")
+	const composer = page.getByRole("textbox", { name: "Steer Delivery Orchestrator agent" })
+	const frameStyle = () => composerFrame.evaluate((element) => {
+		const style = getComputedStyle(element)
+		return { borderColor: style.borderColor, boxShadow: style.boxShadow, transform: style.transform }
+	})
+	const restingStyle = await frameStyle()
+
+	await composer.click()
+	await expect(shell).not.toHaveClass(/mxp-keyboard-navigation/)
+	expect(await composer.evaluate((element) => getComputedStyle(element).outlineStyle)).toBe("none")
+	expect(await frameStyle()).toEqual(restingStyle)
+
+	await page.getByRole("heading", { name: "Delivery Orchestrator" }).click()
+	await page.keyboard.press("Tab")
+	await composer.focus()
+	await expect(shell).toHaveClass(/mxp-keyboard-navigation/)
+	const keyboardIndicator = await composerFrame.evaluate((element) => {
+		const style = getComputedStyle(element, "::after")
+		return { content: style.content, height: style.height, backgroundColor: style.backgroundColor }
+	})
+	expect(keyboardIndicator.content).toBe('\"\"')
+	expect(keyboardIndicator.height).toBe("2px")
+	expect(keyboardIndicator.backgroundColor).not.toBe("rgba(0, 0, 0, 0)")
+})
+
 test("scopes the command layer to Execute and makes every workspace keyboard reachable", async ({ page }) => {
 	const runtimeErrors: string[] = []
 	page.on("console", (message) => { if (message.type() === "error") runtimeErrors.push(message.text()) })
