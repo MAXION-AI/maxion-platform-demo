@@ -11,7 +11,7 @@ The prototype mirrors the current MAXION portal shell and connects the product m
 - Discovery — autonomous inquiry, interviews, evidence, exceptions, and verified packages
 - Plan — evidence-linked delivery planning and architecture
 - Execute — development-only engagements, approvals, implementation, testing, and verification
-- Agentix — ongoing operational and role-based agents
+- Agentix — Discovery-led operational initiatives, with one accountable coordinator and the smallest sufficient agent team
 - Consult MAX — cross-platform explanation and routing
 - Integrations — Nango, Merge Unified API, and native connection management with scopes and access history
 
@@ -48,3 +48,16 @@ The browser suite covers the canonical platform shell, module transitions, Plan-
 ## Scope
 
 This repository is a frontend prototype. Agent runs, external-system actions, and provider effects are simulated; it does not contain the future Agentix backend or production integration credentials.
+
+## Discovery → Agentix examples
+
+Open Agentix for the four enterprise journeys, or open Discover and select an operational redesign package. Each package shows current-state findings, approved future-state changes, source references and success checks. Sending a package creates a draft initiative; owner activation is a separate step.
+
+| Example | Team | Demonstrated boundary |
+| --- | --- | --- |
+| ServiceNow incident triage | One coordinator | Straight-through assignment and notification; no incident closure |
+| ERP invoice exception resolution | Coordinator + invoice and receipt analysts | Parallel checks, exact $240 variance approval, decline path, no payment release |
+| Employee onboarding | Coordinator + HR and IT specialists | Scoped context, missing permission, explicit human fulfillment |
+| Inventory replenishment | Coordinator + demand and supply analysts | Scheduled trigger, spending cap, uncertain-write reconciliation without duplicate creation |
+
+Agentix uses simulated Merge Agent Handler bindings only. The unrelated older Integrations demo is not evidence of current production connector availability. No real API, ERP, HRIS, email or Teams action is performed. Demo progress is stored under `maxion-agentix-initiatives-v1` in browser local storage; runs advance only while the page is open. Reloading restores the recorded stage, not a server-side worker.

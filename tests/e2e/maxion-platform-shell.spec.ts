@@ -47,7 +47,7 @@ test("keeps the canonical MAXION shell functional across core modules", async ({
 		await expect(navigation.getByRole("button", { name })).toBeVisible()
 	}
 	await expect(navigation.getByRole("button", { name: /^Execute/ })).toBeVisible()
-	await expect(navigation.getByRole("button", { name: "Agentix 2 pending" })).toBeVisible()
+	await expect(navigation.getByRole("button", { name: "Agentix", exact: true })).toBeVisible()
 	await page.getByRole("button", { name: "Collapse navigation" }).click()
 	await expect(page.getByRole("button", { name: "Expand navigation" })).toHaveAttribute("aria-pressed", "true")
 	await expect(page.locator(".mxp-root")).toHaveClass(/mxp-root--sidebar-collapsed/)
@@ -256,7 +256,7 @@ test("keeps the full MAXION navigation usable on mobile", async ({ page }) => {
 
 	const navigation = page.getByRole("navigation", { name: "Portal sections" })
 	await expect(page.getByRole("img", { name: "MAXION" })).toBeVisible()
-	await expect(navigation.getByRole("button", { name: "Agentix 2 pending" })).toBeVisible()
+	await expect(navigation.getByRole("button", { name: "Agentix", exact: true })).toBeVisible()
 	await navigation.getByRole("button", { name: "Projects" }).click()
 	await expect(page.getByRole("heading", { name: "Projects" })).toBeVisible()
 	await expect(page.getByRole("button", { name: "Open navigation" })).toHaveAttribute("aria-expanded", "false")

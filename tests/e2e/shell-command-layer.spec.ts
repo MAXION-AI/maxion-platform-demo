@@ -33,7 +33,7 @@ test("the global command menu filters, arrow-navigates, and runs the active item
 		await expect(menu.getByRole("button", { name: new RegExp(`^${name}`) }).first()).toBeVisible()
 	}
 	await expect(menu.getByRole("button", { name: /Start a Discovery/ })).toBeVisible()
-	await expect(menu.getByRole("button", { name: /Create an operational Agent/ })).toBeVisible()
+	await expect(menu.getByRole("button", { name: /Explore an Agentix initiative/ })).toBeVisible()
 	await expect(menu.getByText("navigate")).toBeVisible()
 
 	const search = menu.getByRole("textbox", { name: "Search MAXION commands" })
@@ -78,8 +78,8 @@ test("jumps across modules from wherever the viewer already is", async ({ page }
 
 	await page.goto("/maxion-prototype")
 	const navigation = page.getByRole("navigation", { name: "Portal sections" })
-	await navigation.getByRole("button", { name: "Agentix 2 pending" }).click()
-	await expect(page.getByRole("heading", { name: "Two decisions. Three agents working." })).toBeVisible()
+	await navigation.getByRole("button", { name: "Agentix", exact: true }).click()
+	await expect(page.getByRole("heading", { name: "Put better processes to work." })).toBeVisible()
 
 	// From Agentix, "INT-02" lands on the Plan contract — the plan opens itself at L3.
 	let menu = await openShellMenu(page)
@@ -131,29 +131,24 @@ test("gives the newly visible stage its own entrance and clears the Execute scri
 })
 
 test("reports live Agentix attention to the shell badge and the jump registry", async ({ page }) => {
+	await page.emulateMedia({ reducedMotion: "reduce" })
 	await page.goto("/maxion-prototype")
 	const navigation = page.getByRole("navigation", { name: "Portal sections" })
-	await expect(navigation.getByRole("button", { name: "Agentix 2 pending" })).toBeVisible()
-
-	// Both open boundaries are registered while they are open.
+	await expect(navigation.getByRole("button", { name: "Agentix", exact: true })).toBeVisible()
 	let menu = await openShellMenu(page)
-	await expect(menu.getByRole("button", { name: /Answer the waiting question/ })).toBeVisible()
-	await expect(menu.getByRole("button", { name: /Review July close effects/ })).toBeVisible()
+	await expect(menu.getByRole("button", { name: /Review invoice variance/ })).toHaveCount(0)
 	await page.keyboard.press("Escape")
-
-	await navigation.getByRole("button", { name: "Agentix 2 pending" }).click()
-	await page.getByRole("button", { name: "Answer" }).click()
-	await expect(page.getByRole("heading", { name: "Who may receive overdue reminders?" })).toBeVisible()
-	await page.getByRole("button", { name: "Use project team only" }).click()
+	await navigation.getByRole("button", { name: "Agentix", exact: true }).click()
+	await page.getByRole("region", { name: "Enterprise workflow examples" }).getByRole("button", { name: /Invoice exception resolution/ }).click()
+	await page.getByRole("button", { name: "Import Discovery package" }).click()
+	await page.getByRole("button", { name: "Activate initiative" }).click()
+	await page.getByRole("button", { name: "Run sample case" }).click()
+	await expect(page.getByRole("heading", { name: "Approve the $240 price variance?" })).toBeVisible()
 	await expect(navigation.getByRole("button", { name: "Agentix 1 pending" })).toBeVisible()
-
-	// The resolved decision leaves the registry; the open one stays and still routes.
 	menu = await openShellMenu(page)
-	await expect(menu.getByRole("button", { name: /Answer the waiting question/ })).toHaveCount(0)
-	await menu.getByRole("button", { name: /Review July close effects/ }).click()
-	await expect(page.getByRole("heading", { name: "Finance close operator" })).toBeVisible()
-	await page.getByRole("button", { name: "Review exact effects" }).click()
-	await page.getByRole("button", { name: "Approve exact effects" }).click()
+	await menu.getByRole("button", { name: /Review invoice variance/ }).click()
+	await expect(page.getByRole("heading", { name: "Approve the $240 price variance?" })).toBeVisible()
+	await page.getByRole("button", { name: "Approve this variance" }).click()
 	await expect(navigation.getByRole("button", { name: "Agentix", exact: true })).toBeVisible()
 	await expect(navigation.getByRole("button", { name: /Agentix \d pending/ })).toHaveCount(0)
 })

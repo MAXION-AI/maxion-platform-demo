@@ -570,9 +570,10 @@ interface DiscoveryAutonomousPrototypePageProps {
 	setupSignal?: number
 	openSignal?: DiscoveryOpenSignal | null
 	onPackageReady?: () => void
+	operationalPackages?: React.ReactNode
 }
 
-export function DiscoveryAutonomousPrototypePage({ embedded = false, setupSignal = 0, openSignal = null, onPackageReady }: DiscoveryAutonomousPrototypePageProps = {}) {
+export function DiscoveryAutonomousPrototypePage({ embedded = false, setupSignal = 0, openSignal = null, onPackageReady, operationalPackages }: DiscoveryAutonomousPrototypePageProps = {}) {
 	const reducedMotion = Boolean(useReducedMotion())
 	const [records, setRecords] = useState<DiscoveryRecord[]>(readDiscoveryRecords)
 	const [activeRecordId, setActiveRecordId] = useState<string | null>(null)
@@ -1081,6 +1082,7 @@ export function DiscoveryAutonomousPrototypePage({ embedded = false, setupSignal
 		<div ref={rootRef} className={`prototype${dark ? " dark" : ""}${embedded ? " embedded" : ""}`}>
 			{screen === "index" ? (
 				<DiscoveryIndex
+					operationalPackages={operationalPackages}
 					records={records}
 					embedded={embedded}
 					dark={dark}
@@ -1239,6 +1241,7 @@ function discoveryActivity(record: DiscoveryRecord) {
 }
 
 function DiscoveryIndex({
+	operationalPackages,
 	records,
 	embedded,
 	dark,
@@ -1247,6 +1250,7 @@ function DiscoveryIndex({
 	onResume,
 	onReviewDecision,
 }: {
+	operationalPackages?: React.ReactNode
 	records: DiscoveryRecord[]
 	embedded: boolean
 	dark: boolean
@@ -1318,6 +1322,7 @@ function DiscoveryIndex({
 					</div>
 				</header>
 
+				{operationalPackages}
 				<div className="discovery-index-toolbar">
 					<label className="discovery-search">
 						<MagnifyingGlass size={16} aria-hidden="true" />

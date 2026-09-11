@@ -37,7 +37,8 @@ import { Fragment, useEffect, useRef, useState, type ReactNode } from "react"
 import { useLocation } from "react-router-dom"
 
 import { useDocumentTitle } from "@/app/hooks/useDocumentTitle"
-import { AgentixPrototypePage, type AgentixAttention, type AgentixIntent, type AgentixIntentSignal } from "@/features/agentix/prototype/AgentixPrototypePage"
+import { AgentixInitiativesPage, DiscoveryHandoffWorkspace, OperationalDiscoveryEntry, type AgentixAttention, type AgentixIntent, type AgentixIntentSignal } from "@/features/agentix/prototype/AgentixInitiativesPage"
+import { WORKFLOWS, type WorkflowId } from "@/features/agentix/prototype/initiatives"
 import {
 	DiscoveryAutonomousPrototypePage,
 	listDiscoveryJumpRecords,
@@ -898,8 +899,8 @@ function consultDeliveryLine(state: ConsultShellState) {
 
 function consultAttentionAnswer(state: ConsultShellState) {
 	const open: string[] = []
-	if (state.agentix.approval) open.push("the July close exact-effect approval in Agentix")
-	if (state.agentix.audience) open.push("the overdue-reminder audience question in Agentix")
+	if (state.agentix.approval) open.push("the $240 invoice-variance approval in Agentix")
+	if (state.agentix.audience) open.push("the payroll-owner fulfillment in Agentix")
 	if (!state.discoveryReady) open.push("the external-counsel authority boundary in Discovery")
 	const delivery = consultDeliveryLine(state)
 	if (open.length === 0) return `Nothing is waiting on your authority right now. ${delivery} I can still walk any decision back to the evidence it was made on.`
@@ -929,10 +930,10 @@ function consultAnswer(message: string, state: ConsultShellState) {
 			: "Execute has no ERP engagement yet; the plan is approved but has not been sent. Whenever it is, the authority stays files, terminal, and tests — deployment is a separate decision."
 	}
 	if (/\b(agent|agentix|close|approval|approve|effect|effects|finance|quickbooks|sap|reminder|reminders)\b/.test(text)) {
-		if (state.agentix.approval) return "The finance close operator reconciled 164 validated effects worth $184,250 across QuickBooks and SAP and will post none of them until you approve the exact effects — that is the July close exact-effect approval in Agentix."
+		if (state.agentix.approval) return "The invoice initiative is waiting for the AP owner to decide a $240 price variance on invoice v2. The coordinator has joined the invoice and receipt specialists’ findings. No ERP resolution is posted until that exact decision is made. All effects in this demo are simulated."
 		return state.agentix.audience
-			? "The July close effects are posted and reconciled. What is still open is the Atlas program lead's question about who may receive overdue reminders; it will not message anyone outside the project team until you answer."
-			: "All three Agentix agents are inside their authority with nothing waiting on you. The July close effects are posted and reconciled, and every commitment they made is in the activity ledger with its receipt."
+			? "The onboarding initiative is waiting for the payroll owner’s fulfillment reference. HR and IT results are preserved. Agentix cannot provision payroll access through the current connection and does not assume a broader permission."
+			: "Agentix has four illustrative initiatives: incident triage with one agent, and invoice exceptions, employee onboarding and inventory replenishment with coordinated teams. Discovery supplies the approved process; Agentix maps and runs it. No financial outcome is inferred merely because an approval queue is empty."
 	}
 	return consultAttentionAnswer(state)
 }
@@ -979,8 +980,8 @@ function ConsultModule({ state, onCommand, onNavigate }: { state: ConsultShellSt
 		setThinking(false)
 	}
 	const alerts: HeaderAlert[] = []
-	if (state.agentix.approval) alerts.push({ id: "approval", title: "July close needs an exact approval", detail: "Agentix · 164 effects · $184,250 held", onOpen: () => onNavigate("agentix") })
-	if (state.agentix.audience) alerts.push({ id: "audience", title: "Atlas program lead is waiting on an answer", detail: "Agentix · who may receive overdue reminders", onOpen: () => onNavigate("agentix") })
+	if (state.agentix.approval) alerts.push({ id: "approval", title: "Invoice variance needs a decision", detail: "Agentix · $240 · invoice v2", onOpen: () => onNavigate("agentix") })
+	if (state.agentix.audience) alerts.push({ id: "audience", title: "Onboarding needs human fulfillment", detail: "Agentix · payroll owner confirmation", onOpen: () => onNavigate("agentix") })
 	if (!state.discoveryReady) alerts.push({ id: "discovery", title: "An external interview needs your approval", detail: "Discover · third-party onboarding redesign", onOpen: () => onNavigate("discovery") })
 	if (state.executeVerified) alerts.push({ id: "release", title: "A release is waiting on its owner", detail: "Execute · cumulative gate passed", onOpen: () => onNavigate("execute") })
 	return <div className="mxp-consult mxp-module-with-rail"><ContextRail title="Consult MAX" kicker="Cross-platform intelligence" footer={<div className="mxp-rail-user"><span>RA</span><div><strong>Root Admin</strong><small>Authorized tenant context</small></div></div>}><button type="button" className="mxp-rail-primary" onClick={startThread}><Plus size={14} />New conversation</button><div className="mxp-rail-label">Recent</div>{threads.map((thread) => <button type="button" key={thread.id} className={thread.id === activeThread.id ? "is-active" : ""} aria-current={thread.id === activeThread.id ? "true" : undefined} onClick={() => { setActiveThreadId(thread.id); setThinking(false) }}><ChatCircleText size={15} /><span><strong>{thread.title}</strong><small>{thread.time}</small></span></button>)}<div className="mxp-rail-label">Scope</div><button type="button" aria-pressed={scope === "all"} onClick={() => setScope("all")}><Database size={15} /><span>All MAXION context</span>{scope === "all" ? <i className="mxp-success-dot" /> : null}</button><button type="button" aria-pressed={scope === "project"} onClick={() => setScope("project")}><Stack size={15} /><span>ERP modernization only</span>{scope === "project" ? <i className="mxp-success-dot" /> : null}</button></ContextRail><div className="mxp-module-area"><ModuleHeader label="Consult MAX" title="Cross-platform conversation" detail="Answers preserve source, ownership, and authority" onCommand={onCommand} alerts={alerts} /><main className="mxp-consult-main"><header><MaxionMark size={34} /><span>Consult MAX</span><h1>Ask across the work, not around it.</h1><p>Consult MAX explains the current truth across modules. It can route you to work, but it cannot silently approve or execute it.</p></header><div className="mxp-consult-thread">{activeThread.messages.map((message, index) => <article key={`${activeThread.id}-${message.actor}-${index}`} className={message.actor === "You" ? "is-user" : "is-max"}>{message.actor === "MAX" ? <MaxionMark size={27} /> : <span className="mxp-user-avatar">RA</span>}<div><span>{message.actor}<time>Now</time></span><p>{message.stream ? <StreamedText text={message.text} /> : message.text}</p>{message.actor === "MAX" && index > 0 ? <div className="mxp-answer-actions">{state.agentix.approval ? <button type="button" onClick={() => onNavigate("agentix")}><Pulse size={13} />Open Agentix approval</button> : <button type="button" onClick={() => onNavigate("agentix")}><Pulse size={13} />Open Agentix activity</button>}{state.planSent ? <button type="button" onClick={() => onNavigate("execute")}><Cube size={13} />Open the Execute engagement</button> : <button type="button" onClick={() => onNavigate("plan")}><FlowArrow size={13} />Open the ERP plan</button>}{state.discoveryReady ? null : <button type="button" onClick={() => onNavigate("discovery")}><MagnifyingGlass size={13} />Open Discovery boundary</button>}</div> : null}</div></article>)}{thinking ? <article className="is-max mxp-consult-thinking"><MaxionMark size={27} /><div><span>MAX<time>Now</time></span><p><SpinnerGap className="mxp-spin" size={12} />Reading the live workspace…</p></div></article> : null}</div></main><div className="mxp-consult-composer"><div><textarea aria-label="Message Consult MAX" value={input} onChange={(event) => setInput(event.target.value)} onKeyDown={(event) => { if (event.key === "Enter" && !event.shiftKey) { event.preventDefault(); submit() } }} placeholder="Ask what changed, what needs attention, or why a decision was made…" rows={1} /><div><span><button type="button" aria-label="Attach context"><Paperclip size={15} /></button><small><Database size={13} />{scope === "all" ? "All authorized MAXION context" : "ERP modernization project only"}</small></span><button type="button" aria-label="Send to Consult MAX" disabled={!input.trim()} onClick={submit}><ArrowRight size={15} /></button></div></div></div></div></div>
@@ -1013,17 +1014,11 @@ type ShellCommandContext = {
 	openAgentix: (intent: AgentixIntent) => void
 }
 
-const AGENTIX_JUMP_AGENTS = [
-	{ id: "tpm" as const, label: "Atlas program lead", keywords: "erp program modernization steering brief decisions atlas" },
-	{ id: "revenue" as const, label: "Revenue operations partner", keywords: "renewal salesforce revenue pipeline follow-through" },
-	{ id: "finance" as const, label: "Finance close operator", keywords: "close quickbooks sap journal effects reconciliation" },
-]
-
 function buildShellCommandItems(context: ShellCommandContext): ShellCommandItem[] {
 	const items: ShellCommandItem[] = []
 	// Open boundaries lead the list, and disappear from it the moment they are resolved.
-	if (context.agentix.approval) items.push({ id: "decision-approval", group: "Decisions", label: "Review July close effects", hint: "Agentix · 164 effects · $184,250 held", keywords: "approval approve exact effects finance july close agentix", icon: ShieldCheck, run: () => context.openAgentix({ type: "decision", id: "approval" }) })
-	if (context.agentix.audience) items.push({ id: "decision-audience", group: "Decisions", label: "Answer the waiting question", hint: "Agentix · who may receive overdue reminders", keywords: "answer question clarification audience overdue reminders atlas agentix", icon: ChatCircleText, run: () => context.openAgentix({ type: "decision", id: "audience" }) })
+	if (context.agentix.approval) items.push({ id: "decision-approval", group: "Decisions", label: "Review invoice variance", hint: "Agentix · $240 price variance · invoice v2", keywords: "approval approve invoice variance finance agentix", icon: ShieldCheck, run: () => context.openAgentix({ type: "decision", id: "approval" }) })
+	if (context.agentix.audience) items.push({ id: "decision-audience", group: "Decisions", label: "Review onboarding fulfillment", hint: "Agentix · payroll owner confirmation needed", keywords: "onboarding payroll human fulfillment agentix", icon: ChatCircleText, run: () => context.openAgentix({ type: "decision", id: "audience" }) })
 	for (const record of context.discoveries) {
 		if (record.status !== "needs-input") continue
 		items.push({ id: `discovery-decision-${record.id}`, group: "Decisions", label: `Review decision · ${record.title}`, hint: "Discover · a bounded decision is waiting", keywords: `discovery decision approve boundary ${record.keywords}`, icon: Compass, run: () => context.openDiscoveryRecord(record.id, "decision") })
@@ -1040,7 +1035,7 @@ function buildShellCommandItems(context: ShellCommandContext): ShellCommandItem[
 	}
 
 	items.push({ id: "action-discovery", group: "Actions", label: "Start a Discovery", hint: "Autonomous research and interviews", keywords: "new discovery start research interviews brief mission", icon: Plus, run: context.startDiscovery })
-	items.push({ id: "action-agent", group: "Actions", label: "Create an operational Agent", hint: "Activate bounded autonomous work", keywords: "new agent create activate operational autonomy agentix", icon: Lightning, run: () => context.openAgentix({ type: "create" }) })
+	items.push({ id: "action-agent", group: "Actions", label: "Explore an Agentix initiative", hint: "Discovery-led operational outcomes", keywords: "new agent create activate operational autonomy agentix", icon: Lightning, run: () => context.openAgentix({ type: "create" }) })
 
 	EXECUTE_TASKS.forEach((task, index) => items.push({
 		id: `execute-workspace-${task.id}`,
@@ -1059,9 +1054,8 @@ function buildShellCommandItems(context: ShellCommandContext): ShellCommandItem[
 		if (record.status === "completed") items.push({ id: `discovery-package-${record.id}`, group: "Discover", label: `Open package · ${record.title}`, hint: "Deliverables and routing", keywords: `discovery package deliverables outputs ${record.keywords}`, icon: FileText, run: () => context.openDiscoveryRecord(record.id, "package") })
 	}
 
-	for (const agent of AGENTIX_JUMP_AGENTS) {
-		const hint = agent.id === "tpm" && context.agentix.audience ? "Needs input" : agent.id === "finance" && context.agentix.approval ? "Approval waiting" : "Working"
-		items.push({ id: `agentix-agent-${agent.id}`, group: "Agentix", label: `Open ${agent.label}`, hint, keywords: `agentix agent session ${agent.keywords}`, icon: Pulse, run: () => context.openAgentix({ type: "agent", id: agent.id }) })
+	for (const workflow of WORKFLOWS) {
+		items.push({ id: `agentix-agent-${workflow.id}`, group: "Agentix", label: `Open ${workflow.title}`, hint: `${workflow.team.length} agents · ${workflow.category}`, keywords: `agentix initiative ${workflow.title} ${workflow.category}`, icon: Pulse, run: () => context.openAgentix({ type: "workflow", id: workflow.id }) })
 	}
 	items.push({ id: "agentix-today", group: "Agentix", label: "Agentix today", hint: "Decisions and live work", keywords: "agentix today decisions live work needs you", icon: Tray, run: () => context.openAgentix({ type: "surface", id: "today" }) })
 	items.push({ id: "agentix-activity", group: "Agentix", label: "Agentix activity", hint: "Everything Agentix committed", keywords: "agentix activity ledger receipts committed history", icon: Clock, run: () => context.openAgentix({ type: "surface", id: "activity" }) })
@@ -1161,9 +1155,9 @@ export function MaxionPlatformPrototypePage() {
 	const [planSent, setPlanSent] = useState(false)
 	const [planSnapshot, setPlanSnapshot] = useState("v12")
 	const [executeVerified, setExecuteVerified] = useState(false)
-	// Lifted module state: the nav badge and the jump registry both read live attention,
-	// and the seed matches what Agentix reports on mount (two open boundaries).
-	const [agentixAttention, setAgentixAttention] = useState<AgentixAttention>({ count: 2, audience: true, approval: true })
+	// The Agentix simulation reports only actual waiting cases, never seeded alerts.
+	const [agentixAttention, setAgentixAttention] = useState<AgentixAttention>({ count: 0, audience: false, approval: false })
+	const [operationalDiscovery, setOperationalDiscovery] = useState<WorkflowId | null>(null)
 	// One-shot cross-module intents. Each carries a tick so the receiving module consumes it
 	// exactly once — re-entering a module never replays an old jump.
 	const [planJump, setPlanJump] = useState<PlanJumpSignal | null>(null)
@@ -1223,6 +1217,7 @@ export function MaxionPlatformPrototypePage() {
 		setMobileNavOpen(false)
 	}
 	const startDiscoverySetup = () => {
+		setOperationalDiscovery(null)
 		// Signal Discovery to open its setup screen instead of dropping the user
 		// wherever the module last was.
 		setDiscoverySetupSignal((current) => current + 1)
@@ -1232,8 +1227,9 @@ export function MaxionPlatformPrototypePage() {
 	const openPlanArtifact = (artifactId: string) => { setPlanJump({ tick: nextJumpTick(), artifactId }); navigate("plan") }
 	const openExecuteWorkspace = (taskId: ExecuteWorkspaceId) => { setExecuteJump({ tick: nextJumpTick(), target: { kind: "workspace", taskId } }); navigate("execute") }
 	const openExecuteHub = (target: "approvals" | "engagements") => { setExecuteJump({ tick: nextJumpTick(), target: { kind: target } }); navigate("execute") }
-	const openDiscoveryRecord = (recordId: string, jump: DiscoveryJump) => { setDiscoveryOpen({ tick: nextJumpTick(), recordId, jump }); navigate("discovery") }
+	const openDiscoveryRecord = (recordId: string, jump: DiscoveryJump) => { setOperationalDiscovery(null); setDiscoveryOpen({ tick: nextJumpTick(), recordId, jump }); navigate("discovery") }
 	const openAgentix = (intent: AgentixIntent) => { setAgentixIntent({ tick: nextJumpTick(), intent }); navigate("agentix") }
+	const openOperationalDiscovery = (id: WorkflowId) => { setOperationalDiscovery(id); navigate("discovery") }
 	// Saved discoveries live in localStorage, so the registry reads them when the menu opens.
 	const commandContext: ShellCommandContext = {
 		active: activeModule,
@@ -1260,10 +1256,10 @@ export function MaxionPlatformPrototypePage() {
 			<div className="mxp-stage" aria-label={`${currentLabel} module`}>
 				<div className={stageClass("dashboard")} hidden={activeModule !== "dashboard"}><DashboardModule projects={projects} onNavigate={navigate} agentix={agentixAttention} discoveryReady={discoveryReady} planSent={planSent} executeVerified={executeVerified} /></div>
 				<div className={stageClass("projects")} hidden={activeModule !== "projects"}><ProjectsModule projects={projects} onProjectsChange={setProjects} onNavigate={navigate} /></div>
-				<div className={stageClass("discovery", "mxp-stage-view--discovery")} hidden={activeModule !== "discovery"}><DiscoveryAutonomousPrototypePage embedded setupSignal={discoverySetupSignal} openSignal={discoveryOpen} onPackageReady={() => setDiscoveryReady(true)} /></div>
+				<div className={stageClass("discovery", "mxp-stage-view--discovery")} hidden={activeModule !== "discovery"}><div hidden={operationalDiscovery !== null} style={{ height: "100%" }}><DiscoveryAutonomousPrototypePage embedded setupSignal={discoverySetupSignal} openSignal={discoveryOpen} onPackageReady={() => setDiscoveryReady(true)} operationalPackages={<OperationalDiscoveryEntry onOpen={openOperationalDiscovery} />} /></div>{operationalDiscovery ? <DiscoveryHandoffWorkspace workflowId={operationalDiscovery} onBack={() => setOperationalDiscovery(null)} onSend={id => openAgentix({ type: "import", id })} /> : null}</div>
 				<div className={stageClass("plan")} hidden={activeModule !== "plan"}><PlanModule projects={projects} onNavigate={navigate} onCommand={() => setCommandOpen(true)} jumpSignal={planJump} onSendToExecute={(snapshot) => { setPlanSent(true); setPlanSnapshot(snapshot); navigate("execute") }} /></div>
 				<div className={stageClass("execute", "mxp-stage-view--execute")} hidden={activeModule !== "execute"}><ExecuteModule active={activeModule === "execute"} onNavigate={navigate} planHandoff={planSent} planSnapshot={planSnapshot} jumpSignal={executeJump} onVerified={() => setExecuteVerified(true)} /></div>
-				<div className={stageClass("agentix")} hidden={activeModule !== "agentix"}><AgentixPrototypePage embedded intentSignal={agentixIntent} onAttentionChange={setAgentixAttention} /></div>
+				<div className={stageClass("agentix")} hidden={activeModule !== "agentix"}><AgentixInitiativesPage intentSignal={agentixIntent} onAttentionChange={setAgentixAttention} onOpenDiscovery={openOperationalDiscovery} /></div>
 				<div className={stageClass("consult")} hidden={activeModule !== "consult"}><ConsultModule state={{ agentix: agentixAttention, discoveryReady, planSent, planSnapshot, executeVerified }} onCommand={() => setCommandOpen(true)} onNavigate={navigate} /></div>
 				<div className={stageClass("integrations")} hidden={activeModule !== "integrations"}><IntegrationsModule /></div>
 				{(["settings", "approvals", "usage", "help"] as const).map((module) => <div key={module} className={stageClass(module)} hidden={activeModule !== module}><AccountUtilityModule module={module} onNavigate={navigate} approvalOpen={agentixAttention.approval} onOpenApproval={() => openAgentix({ type: "decision", id: "approval" })} /></div>)}
