@@ -1,123 +1,140 @@
 import AxeBuilder from "@axe-core/playwright"
 import { expect, test, type Page } from "@playwright/test"
 
-async function enter(page: Page, name: string) {
-	await page.goto("/agentix-prototype")
-	await page.getByRole("region", { name: "Enterprise workflow examples" }).getByRole("button", { name: new RegExp(name) }).click()
-	await page.getByRole("button", { name: "Import Discovery package", exact: true }).click()
+async function enter(page: Page) { await page.goto("/agentix-prototype"); await expect(page.getByRole("main", { name: "Agentix workspace" })).toBeVisible() }
+async function selectWork(page: Page, title: string) {
+	const show = page.getByRole("button", { name: "Show all work" })
+	if (await show.isVisible()) await show.click()
+	await page.getByRole("navigation", { name: "Initiatives" }).getByRole("button", { name: new RegExp(title) }).click()
 }
-async function activate(page: Page) {
-	await page.getByRole("button", { name: "Activate initiative", exact: true }).click()
-	await page.getByRole("button", { name: "Run sample case", exact: true }).click()
-}
-test.beforeEach(async ({ page }) => { await page.emulateMedia({ reducedMotion: "reduce" }) })
+async function send(page: Page, text: string) { await page.getByLabel("Message Agentix", { exact: true }).fill(text); await page.getByRole("button", { name: "Send message to Agentix" }).click() }
 
-test("Discovery sends a versioned future-state draft to Agentix without activation", async ({ page }) => {
+test("the default workspace shows team, activity and a pinned input without a setup tour", async ({ page }) => {
+	await enter(page)
+	await expect(page.getByRole("region", { name: "Agent team" })).toContainText("AP coordinator")
+	await expect(page.getByRole("region", { name: "Agent activity" })).toContainText("Investigate two evidence paths")
+	await expect(page.getByLabel("Message Agentix", { exact: true })).toBeInViewport()
+	await expect(page.getByText(/sample run|run sample|replay sample/i)).toHaveCount(0)
+	await page.getByRole("button", { name: "Activity 1 of 5 steps complete" }).click()
+	await expect(page.getByRole("region", { name: "Agent activity" }).locator(".agw-timeline")).toBeHidden()
+})
+
+test("owner steering changes work and persists through navigation and reload", async ({ page }) => {
+	await enter(page)
+	await page.getByRole("button", { name: "Pause work", exact: true }).click()
+	await send(page, "Make this high priority")
+	await expect(page.getByRole("region", { name: "Initiative conversation" })).toContainText("Marked high priority")
+	await page.getByLabel("Message Agentix", { exact: true }).fill("An unfinished direction")
+	await page.reload()
+	await expect(page.getByLabel("Message Agentix", { exact: true })).toHaveValue("An unfinished direction")
+	await expect(page.getByRole("button", { name: "Resume work", exact: true })).toBeVisible()
+	await page.getByRole("navigation", { name: "Portal sections" }).getByRole("button", { name: "Dashboard", exact: true }).click()
+	await page.getByRole("navigation", { name: "Portal sections" }).getByRole("button", { name: /^Agentix/ }).click()
+	await expect(page.getByLabel("Message Agentix", { exact: true })).toHaveValue("An unfinished direction")
+	await send(page, "Resume")
+	await expect(page.getByRole("heading", { name: "Approve the $240 price variance?" })).toBeVisible({ timeout: 15000 })
+})
+
+test("one agent completes a verified ServiceNow handoff, not incident resolution", async ({ page }) => {
+	await enter(page)
+	await selectWork(page, "Incident triage")
+	await expect(page.getByRole("region", { name: "Agent team" })).toContainText("1 agent")
+	await page.getByRole("button", { name: "Triage this incident" }).click()
+	await expect(page.getByRole("region", { name: "Verified outcome evidence" })).toContainText("INC-10482 · Workplace support · Open", { timeout: 22000 })
+	await expect(page.getByRole("region", { name: "Agent activity" })).toContainText("4 of 4 steps complete")
+	await page.reload()
+	await expect(page.getByRole("region", { name: "Verified outcome evidence" })).toBeVisible()
+})
+
+test("held notifications remain partial until explicitly released, without repeating completed work", async ({ page }) => {
+	await enter(page)
+	await send(page, "Hold notifications")
+	await expect(page.getByRole("heading", { name: "Approve the $240 price variance?" })).toBeVisible({ timeout: 15000 })
+	await send(page, "Continue")
+	await expect(page.getByRole("button", { name: "Approve $240 variance" })).toBeVisible()
+	await page.getByRole("button", { name: "Approve $240 variance" }).click()
+	await expect(page.getByRole("region", { name: "Held notification" })).toBeVisible({ timeout: 22000 })
+	await expect(page.getByRole("region", { name: "Verified outcome evidence" })).toHaveCount(0)
+	await expect(page.getByRole("region", { name: "Agent activity" })).toContainText("4 of 5 steps complete")
+	await page.getByRole("button", { name: "Allow the notification" }).click()
+	await expect(page.getByRole("region", { name: "Verified outcome evidence" })).toContainText("Payment controls preserved", { timeout: 8000 })
+})
+
+test("declining does not claim success", async ({ page }) => {
+	await enter(page)
+	await page.getByRole("button", { name: "Decline", exact: true }).click({ timeout: 15000 })
+	await expect(page.getByRole("heading", { name: "Variance declined. The exception stays open." })).toBeVisible()
+	await expect(page.getByRole("region", { name: "Verified outcome evidence" })).toHaveCount(0)
+})
+
+test("Discovery landing prioritizes its existing work and hands a design into the same Agentix workspace", async ({ page }) => {
 	await page.goto("/maxion-prototype")
 	await page.getByRole("button", { name: "Discover", exact: true }).click()
+	await expect(page.getByRole("heading", { name: "Continue where MAX left off." })).toBeVisible()
+	const index = page.locator(".discovery-index-results")
 	const packages = page.getByRole("region", { name: "Operational redesign packages" })
-	await expect(packages.getByRole("button")).toHaveCount(4)
-	await packages.getByRole("button", { name: /Invoice exception resolution/ }).click()
-	await expect(page.getByText("AP emails procurement and the warehouse separately.")).toBeVisible()
-	await expect(page.getByText("Investigate invoice and receiving evidence in parallel.")).toBeVisible()
-	await page.getByRole("button", { name: "Send to Agentix", exact: true }).click()
-	await expect(page.getByText("Discovery package INVOICE-v1", { exact: true })).toBeVisible()
-	await expect(page.getByRole("heading", { name: "3 agents, one accountable coordinator" })).toBeVisible()
-	await expect(page.getByRole("button", { name: "Run sample case" })).toHaveCount(0)
-	await page.getByRole("button", { name: "View source", exact: true }).click()
-	await expect(page.getByRole("main", { name: "Agentix initiatives" }).getByText("Bind the approval to this invoice version and exact $240 variance.")).toBeVisible()
+	expect(await index.evaluate(node => !!(node.compareDocumentPosition(document.querySelector('.agw-discovery-packages')!) & Node.DOCUMENT_POSITION_FOLLOWING))).toBe(true)
+	await packages.locator("summary").click()
+	await packages.getByRole("button", { name: /Employee onboarding/ }).click()
+	await page.getByRole("button", { name: "Send to Agentix" }).click()
+	await expect(page.getByRole("region", { name: "Proposed operating plan" })).toBeVisible()
+	await expect(page.getByRole("region", { name: "Agent team" })).toContainText("HR specialist")
+	await page.getByRole("button", { name: "Activate and start" }).click()
+	await expect(page.getByRole("region", { name: "Human fulfillment" })).toBeVisible({ timeout: 18000 })
+	await page.getByRole("button", { name: "Confirm fulfillment" }).click()
+	await expect(page.getByRole("alert")).toContainText("Add a fulfillment reference")
+	await page.getByLabel(/Fulfillment reference/).fill("PAYROLL-306/OWNER-2")
+	await page.getByRole("button", { name: "Confirm fulfillment" }).click()
+	await expect(page.getByRole("region", { name: "Verified outcome evidence" })).toContainText("Day-one readiness verified", { timeout: 16000 })
 })
 
-test("one agent verifies a handoff without claiming incident resolution, and survives refresh", async ({ page }) => {
-	const errors: string[] = []
-	page.on("pageerror", error => errors.push(error.message))
-	await enter(page, "Incident triage")
-	await expect(page.getByRole("heading", { name: "One agent is sufficient" })).toBeVisible()
-	await activate(page)
-	await expect(page.getByRole("heading", { name: "Incident assigned. The right team has the context." })).toBeVisible()
-	await expect(page.getByRole("region", { name: "Verified outcome evidence" })).toContainText("INC-10482 · Workplace support · Open")
-	await expect(page.getByRole("progressbar", { name: "Case completion" })).toHaveAttribute("aria-valuenow", "4")
-	await page.reload()
-	await page.getByRole("region", { name: "Enterprise workflow examples" }).getByRole("button", { name: /Incident triage/ }).click()
-	await expect(page.getByRole("heading", { name: "Incident assigned. The right team has the context." })).toBeVisible()
-	expect(errors).toEqual([])
+test("inventory recovery is autonomous and visible", async ({ page }) => {
+	await enter(page)
+	await selectWork(page, "Inventory replenishment")
+	await page.getByRole("button", { name: "Run stock review now" }).click()
+	await expect(page.locator(".agw-step.is-current")).toContainText("Reconcile an uncertain ERP submission", { timeout: 12000 })
+	await expect(page.getByRole("region", { name: "Verified outcome evidence" })).toContainText("1 create · 0 duplicates", { timeout: 18000 })
+	await expect(page.getByRole("button", { name: /Simulate ERP/ })).toHaveCount(0)
 })
 
-test("financial checks join, wait for exact approval, then verify the scoped outcome", async ({ page }) => {
-	await enter(page, "Invoice exception resolution")
-	await activate(page)
-	await expect(page.getByRole("heading", { name: "Approve the $240 price variance?" })).toBeVisible()
-	await expect(page.getByRole("navigation", { name: "Portal sections" }).getByRole("button", { name: "Agentix 1 pending" })).toBeVisible()
-	await expect(page.getByRole("region", { name: "Verified outcome evidence" })).toHaveCount(0)
-	await page.getByRole("button", { name: "Approve this variance", exact: true }).click()
-	await expect(page.getByRole("heading", { name: "Exception resolved. Payment controls preserved." })).toBeVisible()
-	await expect(page.getByRole("region", { name: "Verified outcome evidence" })).toContainText("payment remains outside this initiative")
-	await expect(page.getByRole("navigation", { name: "Portal sections" }).getByRole("button", { name: "Agentix", exact: true })).toBeVisible()
+test("new work accepts a brief, proposes a scope and preserves unsupported input", async ({ page }) => {
+	await enter(page)
+	await page.getByRole("button", { name: "New work", exact: true }).click()
+	await page.getByLabel("Describe your operational need").fill("Manage something outside this prototype")
+	await page.getByRole("button", { name: "Prepare operating plan" }).click()
+	await expect(page.getByRole("status")).toContainText("Your brief is preserved")
+	await page.getByLabel("Describe your operational need").fill("Coordinate employee onboarding")
+	await page.getByRole("button", { name: "Prepare operating plan" }).click()
+	await expect(page.getByRole("region", { name: "Proposed operating plan" })).toBeVisible()
+	await expect(page.getByRole("region", { name: "Initiative conversation" })).toContainText("Coordinate employee onboarding")
 })
 
-test("declining a variance keeps the exception open", async ({ page }) => {
-	await enter(page, "Invoice exception resolution")
-	await activate(page)
-	await page.getByRole("button", { name: "Decline variance", exact: true }).click()
-	await expect(page.getByRole("heading", { name: "Variance declined. No ERP resolution was posted." })).toBeVisible()
-	await expect(page.getByRole("region", { name: "Verified outcome evidence" })).toHaveCount(0)
-	await expect(page.getByRole("button", { name: "Replay sample case" })).toBeVisible()
-})
-
-test("onboarding uses a human step without widening permissions", async ({ page }) => {
-	await enter(page, "Employee onboarding")
-	await expect(page.getByRole("button", { name: "Activate initiative" })).toBeDisabled()
-	await page.getByRole("button", { name: "Keep payroll access as a human step" }).click()
-	await activate(page)
-	await expect(page.getByRole("heading", { name: "Payroll access needs its human owner" })).toBeVisible()
-	await page.getByRole("button", { name: "Simulate owner fulfillment" }).click()
-	await expect(page.getByRole("heading", { name: "Day-one readiness verified across HR and IT." })).toBeVisible()
-	await expect(page.getByRole("region", { name: "Verified outcome evidence" })).toContainText("PAYROLL-306 · owner confirmation attached")
-})
-
-test("inventory reconciles the original ERP request before resuming", async ({ page }) => {
-	await enter(page, "Inventory replenishment")
-	await activate(page)
-	await expect(page.getByRole("heading", { name: "ERP response lost. No duplicate request sent." })).toBeVisible()
-	await page.getByRole("button", { name: "Simulate ERP read-back" }).click()
-	await expect(page.getByRole("heading", { name: "Replenishment verified. No duplicate requisition." })).toBeVisible()
-	await expect(page.getByRole("region", { name: "Verified outcome evidence" })).toContainText("1 create · 0 duplicates")
-})
-
-test("chat, pause and keyboard ownership preserve the same case", async ({ page }) => {
-	await page.emulateMedia({ reducedMotion: "no-preference" })
-	await enter(page, "Inventory replenishment")
-	await activate(page)
-	await page.getByRole("button", { name: "Pause at next boundary" }).click()
-	await page.keyboard.press("ControlOrMeta+k")
-	await expect(page.getByRole("textbox", { name: "Ask about this initiative" })).toBeFocused()
-	await page.getByRole("textbox", { name: "Ask about this initiative" }).fill("Why are multiple agents needed?")
-	await page.getByRole("button", { name: "Send message to Agentix" }).click()
-	await expect(page.getByRole("region", { name: "Initiative conversation" })).toContainText("One coordinator owns quantity selection")
-	await page.getByRole("button", { name: "Dashboard", exact: true }).click()
-	await page.keyboard.press("ControlOrMeta+k")
-	await expect(page.getByRole("dialog", { name: "MAXION command menu" })).toBeVisible()
-	await page.keyboard.press("Escape")
-	await page.getByRole("button", { name: "Agentix", exact: true }).click()
-	await expect(page.getByRole("button", { name: "Resume case" })).toBeVisible()
-})
-
-for (const width of [320, 375, 768, 1280]) {
-	test(`Agentix is accessible at ${width}px`, async ({ page }) => {
+for (const width of [320, 375, 768, 1280, 1440]) {
+	test(`workspace remains usable and accessible at ${width}px`, async ({ page }) => {
 		await page.setViewportSize({ width, height: 900 })
-		await enter(page, "Invoice exception resolution")
-		await expect(page.getByRole("button", { name: "Activate initiative" })).toBeVisible()
-		expect(await page.locator(".axi-root").evaluate(node => node.scrollWidth > node.clientWidth + 1)).toBe(false)
-		const scan = await new AxeBuilder({ page }).include(".axi-root").analyze()
+		await page.emulateMedia({ reducedMotion: "reduce" })
+		await enter(page)
+		await expect(page.getByLabel("Message Agentix", { exact: true })).toBeInViewport()
+		expect(await page.locator(".agw-root").evaluate(node => node.scrollWidth > node.clientWidth + 1)).toBe(false)
+		await selectWork(page, "Employee onboarding")
+		await expect(page.getByRole("button", { name: "Activate and start" })).toBeVisible()
+		const context = page.getByRole("button", { name: "Show agent context" })
+		if (await context.isVisible()) { await context.click(); await expect(page.getByRole("region", { name: "Agent team" })).toBeVisible(); await page.getByRole("button", { name: "Close agent context" }).click() }
+		const scan = await new AxeBuilder({ page }).include(".agw-root").analyze()
 		expect(scan.violations.filter(v => v.impact === "critical" || v.impact === "serious")).toEqual([])
 	})
 }
 
-test("dark theme preserves contrast and the completed outcome", async ({ page }) => {
+test("dark theme and keyboard controls retain contrast and the same work", async ({ page }) => {
 	await page.emulateMedia({ colorScheme: "dark", reducedMotion: "reduce" })
-	await enter(page, "Incident triage")
-	await activate(page)
-	await expect(page.getByRole("heading", { name: "Incident assigned. The right team has the context." })).toBeVisible()
-	const scan = await new AxeBuilder({ page }).include(".axi-root").analyze()
+	await enter(page)
+	await page.getByRole("button", { name: "Pause work", exact: true }).click()
+	await page.getByLabel("Message Agentix", { exact: true }).fill("Why this team?")
+	await page.getByLabel("Message Agentix", { exact: true }).press("Enter")
+	await expect(page.getByRole("region", { name: "Initiative conversation" })).toContainText("single ERP write")
+	await page.keyboard.press("ControlOrMeta+k")
+	await expect(page.getByRole("dialog", { name: "MAXION command menu" })).toBeVisible()
+	await page.keyboard.press("Escape")
+	const scan = await new AxeBuilder({ page }).include(".agw-root").analyze()
 	expect(scan.violations.filter(v => v.impact === "critical" || v.impact === "serious")).toEqual([])
 })

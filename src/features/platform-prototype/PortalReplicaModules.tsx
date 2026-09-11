@@ -187,8 +187,8 @@ export function DashboardModule({
 		{
 			module: "agentix" as const,
 			icon: Pulse,
-			title: agentix.approval ? "Invoice variance needs one exact approval" : agentix.audience ? "Onboarding needs payroll-owner fulfillment" : "Explore Discovery-led operational initiatives",
-			detail: agentix.approval ? "$240 price variance · invoice v2" : agentix.audience ? "Completed HR and IT work is preserved" : "Four simulated workflows · one agent or a coordinated team",
+			title: agentix.approval ? "Invoice variance needs one exact approval" : agentix.audience ? "Onboarding needs payroll-owner fulfillment" : "Open your Agentix workspace",
+			detail: agentix.approval ? "$240 price variance · invoice v2" : agentix.audience ? "Completed HR and IT work is preserved" : "Agent status, conversation and outcomes in one place",
 			time: since(agentixChanged, "1h"),
 			tone: agentix.count ? "attention" : "success",
 		},

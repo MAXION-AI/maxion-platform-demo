@@ -1035,7 +1035,7 @@ function buildShellCommandItems(context: ShellCommandContext): ShellCommandItem[
 	}
 
 	items.push({ id: "action-discovery", group: "Actions", label: "Start a Discovery", hint: "Autonomous research and interviews", keywords: "new discovery start research interviews brief mission", icon: Plus, run: context.startDiscovery })
-	items.push({ id: "action-agent", group: "Actions", label: "Explore an Agentix initiative", hint: "Discovery-led operational outcomes", keywords: "new agent create activate operational autonomy agentix", icon: Lightning, run: () => context.openAgentix({ type: "create" }) })
+	items.push({ id: "action-agent", group: "Actions", label: "New Agentix work", hint: "Describe an outcome or start from Discovery", keywords: "new agent create activate operational autonomy agentix", icon: Lightning, run: () => context.openAgentix({ type: "create" }) })
 
 	EXECUTE_TASKS.forEach((task, index) => items.push({
 		id: `execute-workspace-${task.id}`,
@@ -1251,7 +1251,7 @@ export function MaxionPlatformPrototypePage() {
 		"MAXION"
 
 	return (
-		<div className={`maxion-platform-prototype mxp-root${activeModule === "execute" ? " mxp-root--execute" : ""}${sidebarCollapsed ? " mxp-root--sidebar-collapsed" : ""}${keyboardNavigation ? " mxp-keyboard-navigation" : ""}`}>
+		<div className={`maxion-platform-prototype mxp-root${activeModule === "execute" ? " mxp-root--execute" : ""}${activeModule === "agentix" ? " mxp-root--agentix" : ""}${sidebarCollapsed ? " mxp-root--sidebar-collapsed" : ""}${keyboardNavigation ? " mxp-keyboard-navigation" : ""}`}>
 			<PortalSidebar active={activeModule} onNavigate={navigate} onCommand={() => setCommandOpen(true)} mobileOpen={mobileNavOpen} onMobileOpenChange={setMobileNavOpen} collapsed={sidebarCollapsed} onCollapsedChange={setSidebarCollapsed} badges={{ agentix: agentixAttention.count, approvals: agentixAttention.approval ? 1 : 0, execute: executeVerified ? 0 : 1 }} />
 			<div className="mxp-stage" aria-label={`${currentLabel} module`}>
 				<div className={stageClass("dashboard")} hidden={activeModule !== "dashboard"}><DashboardModule projects={projects} onNavigate={navigate} agentix={agentixAttention} discoveryReady={discoveryReady} planSent={planSent} executeVerified={executeVerified} /></div>

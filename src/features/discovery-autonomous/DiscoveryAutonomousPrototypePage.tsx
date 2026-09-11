@@ -1322,7 +1322,6 @@ function DiscoveryIndex({
 					</div>
 				</header>
 
-				{operationalPackages}
 				<div className="discovery-index-toolbar">
 					<label className="discovery-search">
 						<MagnifyingGlass size={16} aria-hidden="true" />
@@ -1383,6 +1382,7 @@ function DiscoveryIndex({
 						</section>
 					)}
 				</div>
+				{!query.trim() && (filter === "all" || filter === "completed") ? operationalPackages : null}
 			</main>
 		</div>
 	)

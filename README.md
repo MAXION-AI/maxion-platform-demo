@@ -11,7 +11,7 @@ The prototype mirrors the current MAXION portal shell and connects the product m
 - Discovery — autonomous inquiry, interviews, evidence, exceptions, and verified packages
 - Plan — evidence-linked delivery planning and architecture
 - Execute — development-only engagements, approvals, implementation, testing, and verification
-- Agentix — Discovery-led operational initiatives, with one accountable coordinator and the smallest sufficient agent team
+- Agentix — one persistent workspace for autonomous work, conversation, live agent status, inline decisions and verified outcomes
 - Consult MAX — cross-platform explanation and routing
 - Integrations — Nango, Merge Unified API, and native connection management with scopes and access history
 
@@ -32,7 +32,15 @@ The complete autonomous Discovery experience is also available directly at [http
 
 ## Deploy
 
-Pushes to `main` deploy the production build to GitHub Pages through `.github/workflows/deploy-pages.yml`. The Pages build sets the repository subpath automatically and uses hash routing so module links continue to work when refreshed without returning a GitHub Pages 404.
+Build and publish locally; pushing source code to `main` does not deploy the site.
+
+```bash
+GITHUB_PAGES=true GITHUB_REPOSITORY=MAXION-AI/maxion-platform-demo pnpm build
+```
+
+Publish the generated `dist/` contents to the root of the `gh-pages` branch using a separate temporary checkout. Include an empty `.nojekyll` file and a copy of `index.html` named `404.html`. Preserve the preceding release's hashed assets during CDN propagation so cached HTML can still load. GitHub Pages serves this prebuilt branch; there is no repository-authored Actions deployment workflow.
+
+The Pages build sets the repository subpath automatically and uses hash routing so module links continue to work when refreshed. Verify the live HTML references the new build's asset hashes and smoke-test the hosted Agentix and Discovery journeys before calling a release complete. A rollback republishes the preceding Pages commit's tree as a new commit; it must not rewrite branch history.
 
 ## Verify
 
@@ -51,7 +59,7 @@ This repository is a frontend prototype. Agent runs, external-system actions, an
 
 ## Discovery → Agentix examples
 
-Open Agentix for the four enterprise journeys, or open Discover and select an operational redesign package. Each package shows current-state findings, approved future-state changes, source references and success checks. Sending a package creates a draft initiative; owner activation is a separate step.
+Open Agentix to see an invoice team already working, with its conversation, activity and status together. Switch initiatives in the work list. Use the pinned composer to pause, resume, prioritize or hold notifications. Start new work from a brief or a Discovery design; review and activate the proposed scope in the same workspace. On Discovery's landing page, completed process designs are a secondary disclosure below the existing discoveries.
 
 | Example | Team | Demonstrated boundary |
 | --- | --- | --- |
@@ -60,4 +68,6 @@ Open Agentix for the four enterprise journeys, or open Discover and select an op
 | Employee onboarding | Coordinator + HR and IT specialists | Scoped context, missing permission, explicit human fulfillment |
 | Inventory replenishment | Coordinator + demand and supply analysts | Scheduled trigger, spending cap, uncertain-write reconciliation without duplicate creation |
 
-Agentix uses simulated Merge Agent Handler bindings only. The unrelated older Integrations demo is not evidence of current production connector availability. No real API, ERP, HRIS, email or Teams action is performed. Demo progress is stored under `maxion-agentix-initiatives-v1` in browser local storage; runs advance only while the page is open. Reloading restores the recorded stage, not a server-side worker.
+Agentix uses simulated Merge Agent Handler bindings only. The unrelated older Integrations demo is not evidence of current production connector availability. No real API, ERP, HRIS, email or Teams action is performed. Demo progress and drafts are stored under `maxion-agentix-workspace-v2` in browser local storage; work advances only while the page is open. Reloading restores the recorded stage, not a server-side worker. Prior demo storage is left untouched.
+
+See the [walkthrough](docs/agentix-initiative-demo.md) and [UX contract](docs/agentix-workspace-ux.md).

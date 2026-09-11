@@ -357,7 +357,7 @@ describe("MaxionPlatformPrototypePage", () => {
 
 	it("embeds Agentix and lets Consult MAX route across platform boundaries", async () => {
 		renderPrototype("/agentix-prototype")
-		expect(await screen.findByRole("heading", { name: "Put better processes to work." })).toBeInTheDocument()
+		expect(await screen.findByRole("main", { name: "Agentix workspace" })).toBeInTheDocument()
 		expect(screen.getByRole("complementary", { name: "Main navigation" })).toBeInTheDocument()
 
 		fireEvent.click(screen.getByRole("button", { name: "Consult Max" }))
@@ -366,6 +366,6 @@ describe("MaxionPlatformPrototypePage", () => {
 		fireEvent.click(screen.getByRole("button", { name: "Send to Consult MAX" }))
 		expect(screen.getByText(/Agentix has four illustrative initiatives/)).toBeInTheDocument()
 		fireEvent.click(screen.getByRole("button", { name: "Open Agentix activity" }))
-		expect(await screen.findByRole("heading", { name: "Put better processes to work." })).toBeInTheDocument()
+		expect(await screen.findByRole("main", { name: "Agentix workspace" })).toBeInTheDocument()
 	})
 })
