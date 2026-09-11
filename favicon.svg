@@ -1,0 +1,28 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="MAXION">
+  <defs>
+    <linearGradient id="mg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#5FD3CF"/>
+      <stop offset="1" stop-color="#107070"/>
+    </linearGradient>
+  </defs>
+  <g transform="translate(32 32)" fill="url(#mg)">
+    <path d="M 2 -26 Q -3.5 -18 -0.5 -10 Q 3 -14 2 -26 Z" transform="rotate(0) rotate(20 -0.5 -10)"/>
+    <path d="M 2 -26 Q -3.5 -18 -0.5 -10 Q 3 -14 2 -26 Z" transform="rotate(20) rotate(20 -0.5 -10)"/>
+    <path d="M 2 -26 Q -3.5 -18 -0.5 -10 Q 3 -14 2 -26 Z" transform="rotate(40) rotate(20 -0.5 -10)"/>
+    <path d="M 2 -26 Q -3.5 -18 -0.5 -10 Q 3 -14 2 -26 Z" transform="rotate(60) rotate(20 -0.5 -10)"/>
+    <path d="M 2 -26 Q -3.5 -18 -0.5 -10 Q 3 -14 2 -26 Z" transform="rotate(80) rotate(20 -0.5 -10)"/>
+    <path d="M 2 -26 Q -3.5 -18 -0.5 -10 Q 3 -14 2 -26 Z" transform="rotate(100) rotate(20 -0.5 -10)"/>
+    <path d="M 2 -26 Q -3.5 -18 -0.5 -10 Q 3 -14 2 -26 Z" transform="rotate(120) rotate(20 -0.5 -10)"/>
+    <path d="M 2 -26 Q -3.5 -18 -0.5 -10 Q 3 -14 2 -26 Z" transform="rotate(140) rotate(20 -0.5 -10)"/>
+    <path d="M 2 -26 Q -3.5 -18 -0.5 -10 Q 3 -14 2 -26 Z" transform="rotate(160) rotate(20 -0.5 -10)"/>
+    <path d="M 2 -26 Q -3.5 -18 -0.5 -10 Q 3 -14 2 -26 Z" transform="rotate(180) rotate(20 -0.5 -10)"/>
+    <path d="M 2 -26 Q -3.5 -18 -0.5 -10 Q 3 -14 2 -26 Z" transform="rotate(200) rotate(20 -0.5 -10)"/>
+    <path d="M 2 -26 Q -3.5 -18 -0.5 -10 Q 3 -14 2 -26 Z" transform="rotate(220) rotate(20 -0.5 -10)"/>
+    <path d="M 2 -26 Q -3.5 -18 -0.5 -10 Q 3 -14 2 -26 Z" transform="rotate(240) rotate(20 -0.5 -10)"/>
+    <path d="M 2 -26 Q -3.5 -18 -0.5 -10 Q 3 -14 2 -26 Z" transform="rotate(260) rotate(20 -0.5 -10)"/>
+    <path d="M 2 -26 Q -3.5 -18 -0.5 -10 Q 3 -14 2 -26 Z" transform="rotate(280) rotate(20 -0.5 -10)"/>
+    <path d="M 2 -26 Q -3.5 -18 -0.5 -10 Q 3 -14 2 -26 Z" transform="rotate(300) rotate(20 -0.5 -10)"/>
+    <path d="M 2 -26 Q -3.5 -18 -0.5 -10 Q 3 -14 2 -26 Z" transform="rotate(320) rotate(20 -0.5 -10)"/>
+    <path d="M 2 -26 Q -3.5 -18 -0.5 -10 Q 3 -14 2 -26 Z" transform="rotate(340) rotate(20 -0.5 -10)"/>
+  </g>
+</svg>
