@@ -35,7 +35,7 @@
 	--subtle-strong: #32322e;
 	--ink: #ecece7;
 	--ink-secondary: #b1b1aa;
-	--ink-muted: #8b8c84;
+	--ink-muted: var(--mxp-dark-text-subtle);
 	--line: #31312d;
 	--line-strong: #40403a;
 	--brand: #65aaa3;

@@ -1,0 +1,124 @@
+{
+  "schemaVersion": 1,
+  "updatedAt": "2026-09-13",
+  "authority": "docs/operations/ux-surface-inventory.md",
+  "surfaces": [
+    {
+      "surfaceId": "platform-shell-dashboard",
+      "route": "/maxion-prototype",
+      "routeState": "module=dashboard",
+      "referenceSheet": "platform-shell-dashboard.md",
+      "figma": { "fileKey": "UhLxGyXphdHHNLGMomBq6n", "nodeId": "16:2" },
+      "implementation": [
+        "src/features/platform-prototype/MaxionPlatformPrototypePage.tsx#MaxionPlatformPrototypePage",
+        "src/features/platform-prototype/PortalChrome.tsx#PortalSidebar",
+        "src/features/platform-prototype/PortalReplicaModules.tsx#DashboardModule"
+      ]
+    },
+    {
+      "surfaceId": "projects-workspace",
+      "route": "/maxion-prototype",
+      "routeState": "module=projects",
+      "referenceSheet": "projects-workspace.md",
+      "figma": { "fileKey": "UhLxGyXphdHHNLGMomBq6n", "nodeId": "40:478" },
+      "implementation": ["src/features/platform-prototype/PortalReplicaModules.tsx#ProjectsModule"]
+    },
+    {
+      "surfaceId": "discover-workspace",
+      "route": "/maxion-prototype",
+      "routeState": "module=discover",
+      "referenceSheet": "discover-workspace.md",
+      "figma": { "fileKey": "UhLxGyXphdHHNLGMomBq6n", "nodeId": "18:45" },
+      "implementation": ["src/features/discovery-autonomous/DiscoveryAutonomousPrototypePage.tsx#DiscoveryAutonomousPrototypePage"]
+    },
+    {
+      "surfaceId": "plan-workspace",
+      "route": "/maxion-prototype",
+      "routeState": "module=plan",
+      "referenceSheet": "plan-workspace.md",
+      "figma": { "fileKey": "UhLxGyXphdHHNLGMomBq6n", "nodeId": "19:86" },
+      "implementation": ["src/features/platform-prototype/PlanAgenticModule.tsx#PlanModule"]
+    },
+    {
+      "surfaceId": "execute-workspace",
+      "route": "/maxion-prototype",
+      "routeState": "module=execute",
+      "referenceSheet": "execute-workspace.md",
+      "figma": { "fileKey": "UhLxGyXphdHHNLGMomBq6n", "nodeId": "20:125" },
+      "implementation": [
+        "src/features/platform-prototype/PortalReplicaModules.tsx#ExecuteHubModule",
+        "src/features/platform-prototype/ExecuteDeliveryWorkspace.tsx#ExecuteDeliveryWorkspace"
+      ]
+    },
+    {
+      "surfaceId": "agentix-operations",
+      "route": "/maxion-prototype",
+      "routeState": "module=agentix",
+      "referenceSheet": "agentix-operations.md",
+      "figma": { "fileKey": "UhLxGyXphdHHNLGMomBq6n", "nodeId": "21:175" },
+      "implementation": [
+        "src/features/agentix/prototype/DeployedAgentsPage.tsx#DeployedAgentsPage",
+        "src/features/agentix/prototype/OperationsViews.tsx#Fleet"
+      ]
+    },
+    {
+      "surfaceId": "agentix-run-canvas",
+      "route": "/agentix-prototype",
+      "routeState": "workspace=run-canvas",
+      "referenceSheet": "agentix-run-canvas.md",
+      "figma": { "fileKey": "UhLxGyXphdHHNLGMomBq6n", "nodeId": "46:933" },
+      "implementation": [
+        "src/features/agentix/prototype/DeployedAgentsPage.tsx#DeployedAgentsPage",
+        "src/features/agentix/prototype/OperationsViews.tsx#RunDetail"
+      ]
+    },
+    {
+      "surfaceId": "consult-max-workspace",
+      "route": "/maxion-prototype",
+      "routeState": "module=consult",
+      "referenceSheet": "consult-max-workspace.md",
+      "figma": { "fileKey": "UhLxGyXphdHHNLGMomBq6n", "nodeId": "22:225" },
+      "implementation": ["src/features/platform-prototype/MaxionPlatformPrototypePage.tsx#ConsultModule"]
+    },
+    {
+      "surfaceId": "settings-workspace",
+      "route": "/maxion-prototype",
+      "routeState": "module=settings",
+      "referenceSheet": "settings-workspace.md",
+      "figma": { "fileKey": "UhLxGyXphdHHNLGMomBq6n", "nodeId": "43:559" },
+      "implementation": ["src/features/platform-prototype/PortalReplicaModules.tsx#AccountUtilityModule"]
+    },
+    {
+      "surfaceId": "integrations-workspace",
+      "route": "/maxion-prototype",
+      "routeState": "module=integrations",
+      "referenceSheet": "integrations-workspace.md",
+      "figma": { "fileKey": "UhLxGyXphdHHNLGMomBq6n", "nodeId": "43:786" },
+      "implementation": ["src/features/platform-prototype/PortalReplicaModules.tsx#IntegrationsModule"]
+    },
+    {
+      "surfaceId": "approvals-workspace",
+      "route": "/maxion-prototype",
+      "routeState": "module=approvals",
+      "referenceSheet": "approvals-workspace.md",
+      "figma": { "fileKey": "UhLxGyXphdHHNLGMomBq6n", "nodeId": "43:1013" },
+      "implementation": ["src/features/platform-prototype/PortalReplicaModules.tsx#AccountUtilityModule"]
+    },
+    {
+      "surfaceId": "usage-workspace",
+      "route": "/maxion-prototype",
+      "routeState": "module=usage",
+      "referenceSheet": "usage-workspace.md",
+      "figma": { "fileKey": "UhLxGyXphdHHNLGMomBq6n", "nodeId": "43:1234" },
+      "implementation": ["src/features/platform-prototype/PortalReplicaModules.tsx#AccountUtilityModule"]
+    },
+    {
+      "surfaceId": "help-workspace",
+      "route": "/maxion-prototype",
+      "routeState": "module=help",
+      "referenceSheet": "help-workspace.md",
+      "figma": { "fileKey": "UhLxGyXphdHHNLGMomBq6n", "nodeId": "43:1461" },
+      "implementation": ["src/features/platform-prototype/PortalReplicaModules.tsx#AccountUtilityModule"]
+    }
+  ]
+}

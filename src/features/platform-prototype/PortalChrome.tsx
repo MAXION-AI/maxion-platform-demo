@@ -17,7 +17,7 @@ import {
 	Stack,
 	X,
 } from "@phosphor-icons/react"
-import { useId, useState, type ReactNode } from "react"
+import { useEffect, useId, useRef, useState } from "react"
 
 import { publicAsset } from "@/lib/publicAsset"
 
@@ -25,6 +25,7 @@ import { WORKSPACE_UNITS_PERCENT, type MaxionModuleId } from "./model"
 
 const PETAL = "M 2 -26 Q -3.5 -18 -0.5 -10 Q 3 -14 2 -26 Z"
 const PETAL_COUNT = 18
+const FOCUSABLE_SELECTOR = "button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex='-1'])"
 
 type MaxionSpiralMarkProps = {
 	variant?: "gradient" | "current"
@@ -49,8 +50,8 @@ export function MaxionSpiralMark({
 			{variant === "gradient" ? (
 				<defs>
 					<linearGradient id={gradientId} x1="0" y1="0" x2="0" y2="1">
-						<stop offset="0" stopColor="#5FD3CF" />
-						<stop offset="1" stopColor="#107070" />
+						<stop offset="0" stopColor="var(--mxp-accent-highlight)" />
+						<stop offset="1" stopColor="var(--mxp-accent-hover)" />
 					</linearGradient>
 				</defs>
 			) : null}
@@ -71,7 +72,7 @@ type NavigationItem = {
 	badge?: number
 }
 
-export const PRIMARY_NAVIGATION: NavigationItem[] = [
+export const PRODUCT_NAVIGATION: NavigationItem[] = [
 	{ id: "dashboard", label: "Dashboard", icon: SquaresFour },
 	{ id: "projects", label: "Projects", icon: Stack },
 	{ id: "discovery", label: "Discover", icon: Compass },
@@ -81,7 +82,7 @@ export const PRIMARY_NAVIGATION: NavigationItem[] = [
 	{ id: "consult", label: "Consult Max", spiral: true },
 ]
 
-const ACCOUNT_NAVIGATION: NavigationItem[] = [
+export const ADMINISTRATION_NAVIGATION: NavigationItem[] = [
 	{ id: "settings", label: "Settings", icon: GearSix },
 	{ id: "integrations", label: "Integrations", icon: Plug },
 	// No seeded number here: the approvals badge is only ever the count the approvals
@@ -115,19 +116,72 @@ export function PortalSidebar({
 	badges,
 }: PortalSidebarProps) {
 	const [notice, setNotice] = useState("")
+	const mobileTriggerRef = useRef<HTMLButtonElement>(null)
+	const mobileCloseRef = useRef<HTMLButtonElement>(null)
+	const sidebarRef = useRef<HTMLElement>(null)
+
+	useEffect(() => {
+		if (!mobileOpen) return
+		const sidebar = sidebarRef.current
+		const mobileTrigger = mobileTriggerRef.current
+		const stage = document.querySelector<HTMLElement>(".mxp-stage")
+		if (!sidebar) return
+		stage?.setAttribute("inert", "")
+		stage?.setAttribute("aria-hidden", "true")
+		mobileCloseRef.current?.focus()
+
+		const onKeyDown = (event: KeyboardEvent) => {
+			if (event.key === "Escape") {
+				event.preventDefault()
+				onMobileOpenChange(false)
+				return
+			}
+			if (event.key !== "Tab") return
+			const focusable = Array.from(sidebar.querySelectorAll<HTMLElement>(FOCUSABLE_SELECTOR))
+			if (focusable.length === 0) {
+				event.preventDefault()
+				sidebar.focus()
+				return
+			}
+			const first = focusable[0]
+			const last = focusable[focusable.length - 1]
+			const activeElement = document.activeElement
+			if (event.shiftKey && (activeElement === first || activeElement === sidebar)) {
+				event.preventDefault()
+				last.focus()
+			} else if (!event.shiftKey && activeElement === last) {
+				event.preventDefault()
+				first.focus()
+			} else if (!(activeElement instanceof HTMLElement) || !sidebar.contains(activeElement)) {
+				event.preventDefault()
+				first.focus()
+			}
+		}
+
+		document.addEventListener("keydown", onKeyDown)
+		return () => {
+			document.removeEventListener("keydown", onKeyDown)
+			stage?.removeAttribute("inert")
+			stage?.removeAttribute("aria-hidden")
+			mobileTrigger?.focus()
+		}
+	}, [mobileOpen, onMobileOpenChange])
+
 	const navigate = (module: MaxionModuleId) => {
 		onNavigate(module)
 		onMobileOpenChange(false)
 	}
-	const renderItem = (item: NavigationItem, compact = false) => {
+	const renderItem = (item: NavigationItem, tier: "product" | "administration") => {
 		const Icon = item.icon
 		const isActive = item.id === active
 		const badge = badges?.[item.id] ?? item.badge
+		const isAdministration = tier === "administration"
 		return (
 			<li key={item.id}>
 				<button
 					type="button"
-					className={`mxp-portal-nav-item${compact ? " is-compact" : ""}${isActive ? " is-active" : ""}`}
+					className={`mxp-portal-nav-item is-${tier}${isAdministration ? " is-compact" : ""}${isActive ? " is-active" : ""}`}
+					data-navigation-tier={tier}
 					aria-current={isActive ? "page" : undefined}
 					title={collapsed ? item.label : undefined}
 					onClick={() => navigate(item.id)}>
@@ -146,9 +200,11 @@ export function PortalSidebar({
 	return (
 		<>
 			<button
+				ref={mobileTriggerRef}
 				type="button"
 				className="mxp-mobile-nav-trigger"
 				aria-label="Open navigation"
+				aria-controls="portal-sidebar"
 				aria-expanded={mobileOpen}
 				onClick={() => onMobileOpenChange(true)}>
 				<List size={20} />
@@ -162,8 +218,11 @@ export function PortalSidebar({
 				/>
 			) : null}
 			<aside
+				ref={sidebarRef}
 				id="portal-sidebar"
 				className={`mxp-portal-sidebar${mobileOpen ? " is-mobile-open" : ""}${collapsed ? " is-collapsed" : ""}`}
+				role={mobileOpen ? "dialog" : undefined}
+				aria-modal={mobileOpen ? "true" : undefined}
 				aria-label="Main navigation">
 				<div className="mxp-portal-brand">
 					<button type="button" onClick={() => navigate("dashboard")} aria-label="Open MAXION dashboard" title="Open MAXION dashboard">
@@ -179,21 +238,23 @@ export function PortalSidebar({
 						onClick={() => onCollapsedChange(!collapsed)}>
 						{collapsed ? <CaretRight size={15} /> : <CaretLeft size={15} />}
 					</button>
-					<button type="button" className="mxp-mobile-nav-close" aria-label="Close navigation" onClick={() => onMobileOpenChange(false)}>
+					<button ref={mobileCloseRef} type="button" className="mxp-mobile-nav-close" aria-label="Close navigation" onClick={() => onMobileOpenChange(false)}>
 						<X size={18} />
 					</button>
 				</div>
 
 				<nav className="mxp-portal-sidebar-scroll" aria-label="Portal sections">
-					<ul>{PRIMARY_NAVIGATION.map((item) => renderItem(item))}</ul>
-					<div className="mxp-account-nav">
-						<div className="mxp-account-divider"><span>Account</span><i /></div>
+					<section className="mxp-product-nav" aria-label="Product navigation">
+						<ul aria-label="Product destinations">{PRODUCT_NAVIGATION.map((item) => renderItem(item, "product"))}</ul>
+					</section>
+					<section className="mxp-account-nav mxp-administration-nav" aria-labelledby="mxp-administration-navigation-title">
+						<div className="mxp-account-divider"><span id="mxp-administration-navigation-title">Account</span><i /></div>
 						<button type="button" className="mxp-unit-balance" onClick={() => navigate("usage")}>
 							<span><strong>Workspace units</strong><small>{WORKSPACE_UNITS_PERCENT}% used this cycle</small></span>
 							<span className="mxp-unit-track"><i style={{ width: `${WORKSPACE_UNITS_PERCENT}%` }} /></span>
 						</button>
-						<ul>{ACCOUNT_NAVIGATION.map((item) => renderItem(item, true))}</ul>
-					</div>
+						<ul aria-label="Administrative destinations">{ADMINISTRATION_NAVIGATION.map((item) => renderItem(item, "administration"))}</ul>
+					</section>
 				</nav>
 
 				<footer className="mxp-portal-sidebar-footer">
@@ -207,8 +268,4 @@ export function PortalSidebar({
 			</aside>
 		</>
 	)
-}
-
-export function BrandedEmptyState({ icon, title, children }: { icon: ReactNode; title: string; children: ReactNode }) {
-	return <div className="mxp-branded-empty"><span>{icon}</span><h2>{title}</h2><p>{children}</p></div>
 }

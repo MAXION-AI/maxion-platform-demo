@@ -23,16 +23,42 @@ describe("MaxionPlatformPrototypePage", () => {
 		expect(screen.getByRole("heading", { name: "Good afternoon, Root Admin" })).toBeInTheDocument()
 		expect(screen.getByRole("complementary", { name: "Main navigation" })).toBeInTheDocument()
 		expect(screen.getByRole("img", { name: "MAXION" })).toHaveAttribute("src", "/maxion-logo-lockup-white.svg")
-		for (const module of ["Dashboard", "Projects", "Discover", "Plan", "Consult Max", "Integrations"]) {
-			expect(screen.getByRole("button", { name: module })).toBeInTheDocument()
+		const productDestinations = within(screen.getByRole("list", { name: "Product destinations" }))
+		const administrativeDestinations = within(screen.getByRole("list", { name: "Administrative destinations" }))
+		for (const module of ["Dashboard", "Projects", "Discover", "Plan", "Execute", "Agentix", "Consult Max"]) {
+			expect(productDestinations.getByRole("button", { name: new RegExp(`^${module}`) })).toHaveAttribute("data-navigation-tier", "product")
 		}
-		expect(portalNavigation().getByRole("button", { name: /^Execute/ })).toBeInTheDocument()
-		expect(portalNavigation().getByRole("button", { name: /^Agentix/ })).toBeInTheDocument()
+		for (const utility of ["Settings", "Integrations", "My approvals", "Usage", "Help"]) {
+			expect(administrativeDestinations.getByRole("button", { name: new RegExp(`^${utility}`) })).toHaveAttribute("data-navigation-tier", "administration")
+		}
+		expect(productDestinations.queryByRole("button", { name: "Integrations" })).not.toBeInTheDocument()
 		fireEvent.click(screen.getByRole("button", { name: "Collapse navigation" }))
 		expect(screen.getByRole("button", { name: "Expand navigation" })).toHaveAttribute("aria-pressed", "true")
 		expect(screen.getByRole("complementary", { name: "Main navigation" })).toHaveClass("is-collapsed")
 		fireEvent.click(screen.getByRole("button", { name: "Expand navigation" }))
-		expect(screen.getByRole("button", { name: "Start Discovery" })).toBeInTheDocument()
+		const primaryActions = within(screen.getByRole("group", { name: "Primary workspace actions" }))
+		expect(primaryActions.getAllByRole("button")).toHaveLength(3)
+		expect(primaryActions.getByRole("button", { name: /Review .* waiting items/ })).toHaveClass("mxp-primary")
+		expect(primaryActions.getByRole("button", { name: "Start Discovery" })).toBeInTheDocument()
+	})
+
+	it("contains mobile navigation focus, closes on Escape, and restores the opener", async () => {
+		renderPrototype()
+		const opener = screen.getByLabelText("Open navigation")
+		fireEvent.click(opener)
+
+		const drawer = screen.getByRole("dialog", { name: "Main navigation" })
+		const stage = screen.getByLabelText("Dashboard module")
+		await waitFor(() => expect(screen.getByLabelText("Close navigation", { selector: ".mxp-mobile-nav-close" })).toHaveFocus())
+		expect(drawer).toHaveAttribute("aria-modal", "true")
+		expect(stage).toHaveAttribute("inert")
+		expect(stage).toHaveAttribute("aria-hidden", "true")
+
+		fireEvent.keyDown(document, { key: "Escape" })
+		await waitFor(() => expect(opener).toHaveFocus())
+		expect(screen.queryByRole("dialog", { name: "Main navigation" })).not.toBeInTheDocument()
+		expect(stage).not.toHaveAttribute("inert")
+		expect(stage).not.toHaveAttribute("aria-hidden")
 	})
 
 	it("creates, searches, and opens a project without losing platform context", async () => {
@@ -45,7 +71,7 @@ describe("MaxionPlatformPrototypePage", () => {
 		fireEvent.change(screen.getByLabelText(/Project name/), { target: { value: "Finance controls uplift" } })
 		fireEvent.change(screen.getByLabelText("Description"), { target: { value: "Tighten close controls across finance systems." } })
 		fireEvent.click(within(dialog).getByRole("button", { name: "Create Project" }))
-		const projectCollection = await screen.findByRole("region", { name: "Projects" })
+		const projectCollection = await screen.findByRole("region", { name: /^Projects$/ })
 		expect(within(projectCollection).getByText("Finance controls uplift")).toBeInTheDocument()
 
 		fireEvent.change(screen.getByPlaceholderText("Search projects by name or description"), { target: { value: "Finance controls" } })
@@ -364,8 +390,8 @@ describe("MaxionPlatformPrototypePage", () => {
 		const composer = await screen.findByLabelText("Message Consult MAX")
 		fireEvent.change(composer, { target: { value: "How does Agentix work?" } })
 		fireEvent.click(screen.getByRole("button", { name: "Send to Consult MAX" }))
-		expect(screen.getByText(/Agentix has four illustrative initiatives/)).toBeInTheDocument()
-		fireEvent.click(screen.getByRole("button", { name: "Open Agentix activity" }))
+		expect(screen.getByText(/The deployed invoice agent has one case waiting/)).toBeInTheDocument()
+		fireEvent.click(screen.getByRole("button", { name: "Open Agentix approval" }))
 		expect(await screen.findByRole("main", { name: "Agentix workspace" })).toBeInTheDocument()
 	})
 })

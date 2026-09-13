@@ -10,7 +10,6 @@ import {
 	Check,
 	CheckCircle,
 	CircleNotch,
-	Clock,
 	Compass,
 	Database,
 	DownloadSimple,
@@ -789,13 +788,13 @@ export function DiscoveryAutonomousPrototypePage({ embedded = false, setupSignal
 		window.requestAnimationFrame(() => trigger?.focus({ preventScroll: true }))
 	}
 
-	const requestView = (next: View) => {
+	const requestView = useCallback((next: View) => {
 		if (next === "package" && phase < 6) {
 			setToast("Package unlocks at synthesis · MAX is still preparing the evidence")
 			return
 		}
 		setView(next)
-	}
+	}, [phase])
 
 	const jumpToDecision = () => {
 		setView("thread")
@@ -881,7 +880,7 @@ export function DiscoveryAutonomousPrototypePage({ embedded = false, setupSignal
 		}
 		window.addEventListener("keydown", onKeyDown, { capture: true })
 		return () => window.removeEventListener("keydown", onKeyDown, { capture: true })
-	}, [drawer, paletteOpen, phase, reducedMotion, screen])
+	}, [drawer, paletteOpen, reducedMotion, requestView, screen])
 
 	const resolveDecision = (next: Exclude<DecisionState, "pending">) => {
 		const exception = scenario.exception
@@ -2292,12 +2291,12 @@ function VoiceInterview({
 		setSpokenChars(0)
 	}, [])
 
-	const stopAudio = () => {
+	const stopAudio = useCallback(() => {
 		recognitionRef.current?.abort()
 		recognitionRef.current = null
 		window.speechSynthesis?.cancel()
 		endIntroSpeech()
-	}
+	}, [endIntroSpeech])
 
 	const speakQuestion = (text: string) => {
 		if (typeof window === "undefined" || !("speechSynthesis" in window) || !text.trim()) return
@@ -2327,7 +2326,7 @@ function VoiceInterview({
 		setNotice("")
 		setAwaitingFromCount(null)
 		return stopAudio
-	}, [open])
+	}, [open, stopAudio])
 
 	useEffect(() => {
 		if (!open) return

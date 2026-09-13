@@ -87,13 +87,6 @@ export const INITIAL_PROJECTS: PortalProject[] = [
 	},
 ]
 
-export const PLAN_WORKSTREAMS = [
-	{ id: "foundation", name: "Mission authority foundation", owner: "Platform architecture", items: 18, status: "Ready", confidence: 94 },
-	{ id: "integration", name: "ServiceNow and controls integration", owner: "Enterprise integration", items: 24, status: "In review", confidence: 87 },
-	{ id: "controls", name: "Financial control migration", owner: "Finance operations", items: 16, status: "Ready", confidence: 91 },
-	{ id: "adoption", name: "Operating model and adoption", owner: "Transformation office", items: 12, status: "Needs owner", confidence: 76 },
-] as const
-
 export const EXECUTE_TASKS = [
 	{ id: "orchestrator", title: "Delivery Orchestrator", status: "Working", detail: "Coordinate packages, dependencies, decisions, and release", files: 6 },
 	{ id: "servicenow", title: "ServiceNow", status: "Working", detail: "Publish governed financial-change events and retain delivery status", files: 5 },
@@ -305,7 +298,7 @@ const ERP_WORKSPACE_META: Record<ExecuteWorkspaceId, Omit<ExecuteWorkspaceSpec, 
 		system: "Cross-platform delivery",
 		team: "Engagement leadership",
 		packages: ["SNOW-101", "MULE-201", "MULE-202", "WDAY-301", "INT-401"],
-		repositories: [{ id: "erp-delivery", name: "maxion/erp-modernization-delivery", provider: "GitHub", mode: "existing", role: "Delivery manifest", branch: "execute/erp/orchestrator", defaultBranch: "main", access: "Write", ownerTeam: "Engagement leadership", allowedPaths: [".maxion/execute/**"], checks: 27, changedFiles: 3, changeRequest: "PR #184", status: "review" }],
+		repositories: [{ id: "erp-delivery", name: "maxion/erp-modernization-delivery", provider: "GitHub", mode: "existing", role: "Delivery manifest", branch: "execute/erp/orchestrator", defaultBranch: "main", access: "Write", ownerTeam: "Engagement leadership", allowedPaths: [".maxion/execute/**"], checks: 27, changedFiles: 3, changeRequest: "PR 184", status: "review" }],
 		authority: "Coordinate, pause, route, propose candidates, and request approvals; cannot alter Plan contracts or deploy silently.",
 		members: [ROOT_ADMIN, ANDRE_REYES, ELENA_ORTIZ],
 		environment: { development: "All bound worktrees", staging: "Cross-platform staging control", production: "Approval-gated release control" },
@@ -326,7 +319,7 @@ const ERP_WORKSPACE_META: Record<ExecuteWorkspaceId, Omit<ExecuteWorkspaceSpec, 
 		team: "ServiceNow delivery",
 		packages: ["SNOW-101"],
 		repositories: [
-			{ id: "snow-app", name: "maxion/servicenow-financial-change", provider: "GitHub", mode: "existing", role: "Application source", branch: "execute/erp/servicenow", defaultBranch: "main", access: "Write", ownerTeam: "ServiceNow delivery", allowedPaths: ["servicenow/business-rules/**", "servicenow/script-includes/**"], checks: 24, changedFiles: 2, changeRequest: "PR #218", status: "review" },
+			{ id: "snow-app", name: "maxion/servicenow-financial-change", provider: "GitHub", mode: "existing", role: "Application source", branch: "execute/erp/servicenow", defaultBranch: "main", access: "Write", ownerTeam: "ServiceNow delivery", allowedPaths: ["servicenow/business-rules/**", "servicenow/script-includes/**"], checks: 24, changedFiles: 2, changeRequest: "PR 218", status: "review" },
 			{ id: "snow-atf", name: "maxion/servicenow-atf", provider: "GitHub", mode: "existing", role: "Automated test pack", branch: "execute/erp/servicenow-atf", defaultBranch: "main", access: "Write", ownerTeam: "ServiceNow quality", allowedPaths: ["servicenow/atf/**"], checks: 12, changedFiles: 1, changeRequest: "PR #91", status: "review" },
 		],
 		authority: "Edit the scoped update set, run ATF, request staging, and inspect provider receipts.",
