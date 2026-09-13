@@ -11,6 +11,88 @@
   font-family: Geist, Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
   font-synthesis: none;
   text-rendering: optimizeLegibility;
+
+  /*
+   * MAXION semantic theme. Feature styles consume these values through their
+   * local aliases; raw color, elevation, radius, and motion values live here
+   * only. That keeps every module visually related without forcing identical
+   * information architecture on different jobs.
+   */
+  --mxp-font-sans: Geist, Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --mxp-surface-base: #f7f8f7;
+  --mxp-surface-raised: #ffffff;
+  --mxp-surface-subtle: #fbfcfb;
+  --mxp-surface-muted: #f1f4f3;
+  --mxp-surface-soft: #edf1f0;
+  --mxp-surface-soft-strong: #e2e8e5;
+  --mxp-surface-hover: #e8efed;
+  --mxp-surface-selected: #e6f4f2;
+  --mxp-border-subtle: #e0e5e3;
+  --mxp-border-strong: #cfd9d6;
+  --mxp-border-hover: #b9c4c1;
+  --mxp-text-primary: #17201f;
+  --mxp-text-secondary: #303b39;
+  --mxp-text-muted: #64706e;
+  --mxp-text-subtle: #61706d;
+  --mxp-text-inverse: #edf4f3;
+  --mxp-text-inverse-muted: #9ba8a6;
+  --mxp-accent-primary: #177f7c;
+  --mxp-accent-hover: #0d6967;
+  --mxp-accent-soft: #e6f4f2;
+  --mxp-accent-highlight: #5fd3cf;
+  --mxp-accent-highlight-strong: #b9eeeb;
+  --mxp-accent-border: #b9d9d6;
+  --mxp-accent-soft-alpha: rgba(95, 211, 207, 0.12);
+  --mxp-focus-ring: rgba(23, 127, 124, 0.42);
+  --mxp-focus-ring-soft: rgba(23, 127, 124, 0.09);
+  --mxp-focus-neutral: #92a09d;
+  --mxp-focus-neutral-ring: rgba(45, 60, 56, 0.24);
+  --mxp-status-success: #10716e;
+  --mxp-status-success-soft: #e4f3f1;
+  --mxp-status-warning: #996018;
+  --mxp-status-warning-soft: #fff5df;
+  --mxp-status-danger: #a2463e;
+  --mxp-status-danger-soft: #fbefed;
+  --mxp-status-info: #376b8e;
+  --mxp-status-info-soft: #eaf2f7;
+  --mxp-dark: #0d1213;
+  --mxp-dark-deep: #090e0f;
+  --mxp-dark-raised: #172121;
+  --mxp-dark-panel: #151d1d;
+  --mxp-dark-panel-raised: #1c2727;
+  --mxp-dark-hover: #223030;
+  --mxp-dark-rail: #0a1011;
+  --mxp-dark-line: rgba(255, 255, 255, 0.09);
+  --mxp-dark-line-strong: rgba(255, 255, 255, 0.16);
+  --mxp-dark-text-secondary: #c6d0cf;
+  --mxp-dark-text-subtle: #a7b3b0;
+  --mxp-dark-focus: #86dbc3;
+  --mxp-dark-shadow-prompt: 0 20px 70px rgba(0, 0, 0, 0.26), inset 0 1px rgba(255, 255, 255, 0.025);
+  --mxp-dark-shadow-steer: 0 16px 54px rgba(0, 0, 0, 0.25);
+  --mxp-dark-shadow-composer: 0 18px 52px rgba(0, 0, 0, 0.28);
+  --mxp-shadow-subtle: 0 1px 2px rgba(20, 35, 32, 0.04), 0 4px 12px rgba(20, 35, 32, 0.025);
+  --mxp-space-1: 4px;
+  --mxp-space-2: 8px;
+  --mxp-space-3: 12px;
+  --mxp-space-4: 16px;
+  --mxp-space-5: 24px;
+  --mxp-space-6: 32px;
+  --mxp-radius-sm: 7px;
+  --mxp-radius-control: 8px;
+  --mxp-radius-md: 12px;
+  --mxp-radius-lg: 16px;
+  --mxp-control-sm: 32px;
+  --mxp-control-md: 36px;
+  --mxp-control-lg: 44px;
+  --mxp-shadow-card: 0 1px 2px rgba(20, 35, 32, 0.045), 0 10px 30px rgba(20, 35, 32, 0.055);
+  --mxp-shadow-float: 0 1px 2px rgba(20, 35, 32, 0.05), 0 18px 48px rgba(20, 35, 32, 0.085);
+  --mxp-duration-instant: 100ms;
+  --mxp-duration-fast: 150ms;
+  --mxp-duration-normal: 250ms;
+  --mxp-duration-slow: 400ms;
+  --mxp-ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+  --mxp-ease-in: cubic-bezier(0.55, 0.055, 0.675, 0.19);
+  --mxp-ease-in-out: cubic-bezier(0.65, 0, 0.35, 1);
 }
 
 html,
@@ -24,7 +106,7 @@ body,
 
 body {
   overflow: hidden;
-  background: #f7f7f4;
+  background: var(--mxp-surface-base);
 }
 
 /*
@@ -60,4 +142,15 @@ input {
   clip: rect(0, 0, 0, 0);
   white-space: nowrap;
   border: 0;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .maxion-platform-prototype *,
+  .maxion-platform-prototype *::before,
+  .maxion-platform-prototype *::after {
+    scroll-behavior: auto !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
 }

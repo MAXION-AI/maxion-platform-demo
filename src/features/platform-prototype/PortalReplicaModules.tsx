@@ -9,7 +9,6 @@ import {
 	ChartBar,
 	Check,
 	CheckCircle,
-	Clock,
 	Code,
 	Compass,
 	Cube,
@@ -22,7 +21,6 @@ import {
 	Info,
 	List,
 	MagnifyingGlass,
-	PaperPlaneTilt,
 	Plug,
 	Plus,
 	Question,
@@ -42,7 +40,7 @@ import type { AgentixAttention } from "@/features/agentix/prototype/AgentixIniti
 import { listDiscoveryJumpRecords } from "@/features/discovery-autonomous/DiscoveryAutonomousPrototypePage"
 import { DELIVERABLES } from "@/features/discovery-autonomous/deliverables"
 
-import { MaxionSpiralMark, PRIMARY_NAVIGATION } from "./PortalChrome"
+import { MaxionSpiralMark, PRODUCT_NAVIGATION } from "./PortalChrome"
 import {
 	EXECUTE_TASKS,
 	WORKSPACE_CYCLE_RESET,
@@ -151,9 +149,12 @@ export function DashboardModule({
 	}).format(new Date())
 	// Saved Discoveries are the real record; the dashboard counts them instead of
 	// asserting a number that stops being true the moment one is finished.
-	const discoveries = useMemo(() => listDiscoveryJumpRecords(), [discoveryReady])
+	const discoveries = listDiscoveryJumpRecords()
 	const runningDiscoveries = discoveries.filter((record) => record.status !== "completed").length
 	const discoveriesNeedingInput = discoveries.filter((record) => record.status === "needs-input").length
+	const attentionCount = agentix.count + discoveriesNeedingInput
+	const attentionTarget = agentix.count ? "agentix" : discoveriesNeedingInput ? "discovery" : "projects"
+	const attentionLabel = attentionCount ? `Review ${attentionCount} waiting ${attentionCount === 1 ? "item" : "items"}` : "Continue work"
 	// What was already true when this session opened. Anything that has changed since is
 	// something the viewer just did, and a row that says "41m" about it is a lie.
 	const openedWith = useRef({ discoveryReady, planSent, executeVerified, approval: agentix.approval, audience: agentix.audience })
@@ -187,8 +188,8 @@ export function DashboardModule({
 		{
 			module: "agentix" as const,
 			icon: Pulse,
-			title: agentix.approval ? "Invoice variance needs one exact approval" : agentix.audience ? "Onboarding needs payroll-owner fulfillment" : "Open your Agentix workspace",
-			detail: agentix.approval ? "$240 price variance · invoice v2" : agentix.audience ? "Completed HR and IT work is preserved" : "Agent status, conversation and outcomes in one place",
+			title: agentix.approval ? "Invoice variance needs one exact approval" : agentix.audience ? "Onboarding needs payroll-owner fulfillment" : "View your deployed agents",
+			detail: agentix.approval ? "$240 price variance · invoice v2" : agentix.audience ? "Completed HR and IT work is preserved" : "Active workloads, exceptions and verified outcomes",
 			time: since(agentixChanged, "1h"),
 			tone: agentix.count ? "attention" : "success",
 		},
@@ -208,11 +209,9 @@ export function DashboardModule({
 					<p>{dateLabel}</p>
 					<h1>Good afternoon, Root Admin</h1>
 					<span>You have {activeProjects.length} active projects and {runningDiscoveries} {runningDiscoveries === 1 ? "discovery" : "discoveries"} in progress.</span>
-					<div>
-						<button type="button" onClick={() => onNavigate("projects")}><Stack size={16} />New Project</button>
+					<div role="group" aria-label="Primary workspace actions">
+						<button type="button" className="mxp-primary" onClick={() => onNavigate(attentionTarget)}><ShieldCheck size={16} />{attentionLabel}</button>
 						<button type="button" onClick={() => onNavigate("discovery")}><Compass size={16} />Start Discovery</button>
-						<button type="button" onClick={() => onNavigate("plan")}><FlowArrow size={16} />Create Plan</button>
-						<button type="button" onClick={() => onNavigate("execute")}><Cube size={16} />Open Execute</button>
 						<button type="button" onClick={() => onNavigate("consult")}><MaxionSpiralMark variant="current" className="mxp-inline-spiral" />Ask Max</button>
 					</div>
 				</section>
@@ -262,7 +261,7 @@ export function DashboardModule({
 					<section className="mxp-portal-card mxp-quick-nav">
 						<header><h2>Quick navigation</h2></header>
 						<div>
-							{PRIMARY_NAVIGATION.filter((item) => item.id !== "dashboard" && item.id !== "agentix").map((item) => {
+							{PRODUCT_NAVIGATION.filter((item) => item.id !== "dashboard" && item.id !== "agentix").map((item) => {
 								const Icon = item.icon
 								return <button type="button" key={item.id} onClick={() => onNavigate(item.id)}>{item.spiral ? <MaxionSpiralMark className="mxp-quick-icon" /> : Icon ? <Icon className="mxp-quick-icon" weight="duotone" /> : null}<span><strong>{item.label}</strong><small>{item.id === "projects" ? "Manage projects and members" : item.id === "discovery" ? "Run autonomous discovery work" : item.id === "plan" ? "Create and refine delivery plans" : item.id === "execute" ? "Run governed development workspaces" : "Work with MAX across the platform"}</small></span><CaretRight size={13} /></button>
 							})}
@@ -528,11 +527,11 @@ export function ExecuteHubModule({
 		if (!active || view !== "engagements" || source !== "prompt") return
 		if (!composerRef.current?.offsetParent) return
 		composerRef.current.focus()
-		// Only stage visibility re-triggers the landing focus; view/source are entry-time guards.
-		// eslint-disable-next-line react-hooks/exhaustive-deps
-	}, [active])
+	}, [active, source, view])
 
 	// '/' or N anywhere in the hub returns the user to a fresh, focused composer.
+	const onIntentConsumedRef = useRef(onIntentConsumed)
+	onIntentConsumedRef.current = onIntentConsumed
 	useEffect(() => {
 		if (!focusSignal) return
 		setView("engagements")
@@ -563,10 +562,8 @@ export function ExecuteHubModule({
 			}
 			window.setTimeout(() => handoffChipRef.current?.focus(), 40)
 		}
-		onIntentConsumed()
-		// Consumption callback is a stable-enough shell setter; only the intent drives this.
-		// eslint-disable-next-line react-hooks/exhaustive-deps
-	}, [intent])
+		onIntentConsumedRef.current()
+	}, [intent, prefersReducedMotion])
 	useEffect(() => () => assemblyTimersRef.current.forEach((timer) => window.clearTimeout(timer)), [])
 	const availablePlans = PLAN_LIBRARY.filter((plan) => plan.status !== "completed")
 	const selectedPlan = availablePlans.find((plan) => plan.id === selectedPlanId) ?? availablePlans[0]

@@ -1,6 +1,70 @@
 import AxeBuilder from "@axe-core/playwright"
 import { expect, test } from "@playwright/test"
 
+test("keeps the shell choice, target, response, and accessibility floor measurable", async ({ page }) => {
+	await page.goto("/maxion-prototype")
+
+	const primaryActions = page.getByRole("group", { name: "Primary workspace actions" })
+	await expect(primaryActions.getByRole("button")).toHaveCount(3)
+	await expect(primaryActions.getByRole("button", { name: /Review .* waiting items/ })).toHaveClass(/mxp-primary/)
+
+	const navigation = page.getByRole("navigation", { name: "Portal sections" })
+	const targetHeights = await navigation.locator('[data-navigation-tier="product"]').evaluateAll((controls) =>
+		controls.map((control) => control.getBoundingClientRect().height),
+	)
+	expect(Math.min(...targetHeights)).toBeGreaterThanOrEqual(44)
+	const navigationGeometry = await navigation.evaluate((element) => {
+		const product = element.querySelector<HTMLElement>(".mxp-product-nav")
+		const administration = element.querySelector<HTMLElement>(".mxp-administration-nav")
+		const productIcon = product?.querySelector<HTMLElement>(".mxp-portal-nav-icon")
+		const administrationIcon = administration?.querySelector<HTMLElement>(".mxp-portal-nav-icon")
+		if (!product || !administration || !productIcon || !administrationIcon) throw new Error("Navigation tiers are incomplete")
+		const productRect = product.getBoundingClientRect()
+		const administrationRect = administration.getBoundingClientRect()
+		const shellRect = element.getBoundingClientRect()
+		return {
+			productBottom: productRect.bottom,
+			administrationTop: administrationRect.top,
+			administrationBottomGap: shellRect.bottom - administrationRect.bottom,
+			administrationOffset: administrationRect.top - shellRect.top,
+			shellHeight: shellRect.height,
+			productIcon: productIcon.getBoundingClientRect().width,
+			administrationIcon: administrationIcon.getBoundingClientRect().width,
+			administrationTargets: [...administration.querySelectorAll<HTMLElement>('[data-navigation-tier="administration"]')].map((control) => control.getBoundingClientRect().height),
+		}
+	})
+	// The flexible gap can collapse to zero on a short desktop viewport, but the
+	// tiers must never overlap and the administrative group must stay bottom-anchored.
+	expect(navigationGeometry.productBottom).toBeLessThanOrEqual(navigationGeometry.administrationTop)
+	expect(navigationGeometry.administrationBottomGap).toBeLessThanOrEqual(16)
+	expect(navigationGeometry.administrationOffset).toBeGreaterThan(navigationGeometry.shellHeight / 2)
+	expect(navigationGeometry.productIcon).toBe(20)
+	expect(navigationGeometry.administrationIcon).toBe(16)
+	expect(Math.min(...navigationGeometry.administrationTargets)).toBeGreaterThanOrEqual(24)
+	expect(Math.max(...navigationGeometry.administrationTargets)).toBeLessThan(44)
+
+	const commandResponse = await page.evaluate(async () => {
+		const startedAt = performance.now()
+		window.dispatchEvent(new KeyboardEvent("keydown", { key: "k", ctrlKey: true, bubbles: true }))
+		await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()))
+		return {
+			elapsed: performance.now() - startedAt,
+			visible: Boolean(document.querySelector('[role="dialog"][aria-label="MAXION command menu"]')),
+		}
+	})
+	expect(commandResponse.visible).toBe(true)
+	expect(commandResponse.elapsed).toBeLessThan(400)
+	await page.keyboard.press("Escape")
+
+	const accessibility = await new AxeBuilder({ page }).analyze()
+	expect(accessibility.violations.filter((violation) => violation.impact === "critical" || violation.impact === "serious")).toEqual([])
+
+	await page.emulateMedia({ reducedMotion: "reduce" })
+	await page.getByRole("navigation", { name: "Portal sections" }).getByRole("button", { name: "Projects" }).click()
+	const animationDuration = await page.locator(".mxp-stage-view.is-entering").evaluate((element) => getComputedStyle(element).animationDuration)
+	expect(Number.parseFloat(animationDuration)).toBeLessThanOrEqual(0.001)
+})
+
 test("hides scrollbar chrome without disabling scrolling", async ({ page }) => {
 	await page.goto("/maxion-prototype")
 
@@ -31,6 +95,32 @@ test("hides scrollbar chrome without disabling scrolling", async ({ page }) => {
 	})
 })
 
+test("contains mobile navigation focus and restores it after Escape", async ({ page }) => {
+	await page.setViewportSize({ width: 375, height: 812 })
+	await page.goto("/maxion-prototype")
+
+	const opener = page.getByRole("button", { name: "Open navigation" })
+	await opener.click()
+	const drawer = page.getByRole("dialog", { name: "Main navigation" })
+	await expect(drawer).toBeVisible()
+	await expect(drawer).toHaveAttribute("aria-modal", "true")
+	await expect(drawer.getByRole("button", { name: "Close navigation" })).toBeFocused()
+	expect(await page.locator(".mxp-stage").evaluate((stage) => ({ inert: stage.hasAttribute("inert"), hidden: stage.getAttribute("aria-hidden") }))).toEqual({ inert: true, hidden: "true" })
+
+	const first = drawer.getByRole("button", { name: "Open MAXION dashboard" })
+	const last = drawer.getByRole("button", { name: "Open command menu" })
+	await last.focus()
+	await page.keyboard.press("Tab")
+	await expect(first).toBeFocused()
+	await page.keyboard.press("Shift+Tab")
+	await expect(last).toBeFocused()
+
+	await page.keyboard.press("Escape")
+	await expect(drawer).not.toBeVisible()
+	await expect(opener).toBeFocused()
+	expect(await page.locator(".mxp-stage").evaluate((stage) => ({ inert: stage.hasAttribute("inert"), hidden: stage.hasAttribute("aria-hidden") }))).toEqual({ inert: false, hidden: false })
+})
+
 test("keeps the canonical MAXION shell functional across core modules", async ({ page }) => {
 	const runtimeErrors: string[] = []
 	page.on("console", (message) => {
@@ -47,14 +137,14 @@ test("keeps the canonical MAXION shell functional across core modules", async ({
 		await expect(navigation.getByRole("button", { name })).toBeVisible()
 	}
 	await expect(navigation.getByRole("button", { name: /^Execute/ })).toBeVisible()
-	await expect(navigation.getByRole("button", { name: "Agentix", exact: true })).toBeVisible()
+	await expect(navigation.getByRole("button", { name: /^Agentix/ })).toBeVisible()
 	await page.getByRole("button", { name: "Collapse navigation" }).click()
 	await expect(page.getByRole("button", { name: "Expand navigation" })).toHaveAttribute("aria-pressed", "true")
 	await expect(page.locator(".mxp-root")).toHaveClass(/mxp-root--sidebar-collapsed/)
 
 	await navigation.getByRole("button", { name: "Projects" }).click()
 	await expect(page.getByRole("heading", { name: "Projects" })).toBeVisible()
-	await expect(page.getByRole("region", { name: "Projects" })).toBeVisible()
+	await expect(page.getByRole("region", { name: "Projects", exact: true })).toBeVisible()
 
 	await navigation.getByRole("button", { name: "Discover" }).click()
 	await expect(page.getByRole("heading", { name: "Continue where MAX left off." })).toBeVisible()
@@ -256,7 +346,7 @@ test("keeps the full MAXION navigation usable on mobile", async ({ page }) => {
 
 	const navigation = page.getByRole("navigation", { name: "Portal sections" })
 	await expect(page.getByRole("img", { name: "MAXION" })).toBeVisible()
-	await expect(navigation.getByRole("button", { name: "Agentix", exact: true })).toBeVisible()
+	await expect(navigation.getByRole("button", { name: /^Agentix/ })).toBeVisible()
 	await navigation.getByRole("button", { name: "Projects" }).click()
 	await expect(page.getByRole("heading", { name: "Projects" })).toBeVisible()
 	await expect(page.getByRole("button", { name: "Open navigation" })).toHaveAttribute("aria-expanded", "false")

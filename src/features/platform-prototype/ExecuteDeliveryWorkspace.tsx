@@ -526,15 +526,13 @@ export function ExecuteDeliveryWorkspace({
 		}
 		window.addEventListener("keydown", onKeyDown)
 		return () => window.removeEventListener("keydown", onKeyDown)
-		// Modal visibility owns this short-lived keyboard listener.
-		// eslint-disable-next-line react-hooks/exhaustive-deps
 	}, [repositoryOpen, shareOpen])
 
+	const runAllRef = useRef(runAll)
+	runAllRef.current = runAll
 	useEffect(() => {
-		if (engagement.autoStart && !autoStarted.current) { autoStarted.current = true; runAll() }
-		// The initial launch intent is immutable for this mounted engagement.
-		// eslint-disable-next-line react-hooks/exhaustive-deps
-	}, [])
+		if (engagement.autoStart && !autoStarted.current) { autoStarted.current = true; runAllRef.current() }
+	}, [engagement.autoStart])
 
 	useEffect(() => {
 		if (implementationTotal > 0 && platformVerified === implementationTotal && !verifiedReported.current) {
@@ -543,8 +541,10 @@ export function ExecuteDeliveryWorkspace({
 		}
 	}, [implementationTotal, onVerified, platformVerified])
 
+	const onProgressRef = useRef(onProgress)
+	onProgressRef.current = onProgress
 	useEffect(() => {
-		onProgress({
+		onProgressRef.current({
 			runState: overallRunState,
 			steering: messages,
 			deployRequested,
@@ -559,9 +559,7 @@ export function ExecuteDeliveryWorkspace({
 			candidate,
 			deviation,
 		})
-		// Parent state is a persistence seam; only user-visible delivery state reports upward.
-		// eslint-disable-next-line react-hooks/exhaustive-deps
-	}, [delivery, messages, deployRequested, deployRequestedAt, deployApproved, auditExported, e2eState, releaseState, deviation])
+	}, [delivery, messages, deployRequested, deployRequestedAt, deployApproved, auditExported, e2eState, releaseState, deviation, overallRunState])
 
 	useEffect(() => {
 		registerCommands((command) => {

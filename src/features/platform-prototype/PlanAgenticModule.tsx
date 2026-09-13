@@ -6,14 +6,10 @@ import {
 	ChatCircleText,
 	Check,
 	CheckCircle,
-	CirclesThree,
 	Clock,
-	ClockCounterClockwise,
 	Database,
-	DotsThree,
 	Fingerprint,
 	Lightning,
-	LinkSimple,
 	ListChecks,
 	MagnifyingGlass,
 	ShieldCheck,
@@ -732,24 +728,6 @@ function PlanMaintenanceLine({ entry, onJump, variant }: { entry: string; onJump
 	)
 }
 
-function useCountUp(target: number, started: boolean, animate: boolean, duration = 1400) {
-	const [value, setValue] = useState(started && !animate ? target : 0)
-	useEffect(() => {
-		if (!started) return
-		if (!animate || prefersReducedMotion()) { setValue(target); return }
-		let frame = 0
-		const startedAt = performance.now()
-		const tick = (now: number) => {
-			const progress = Math.min(1, (now - startedAt) / duration)
-			setValue(Math.round(target * (1 - Math.pow(1 - progress, 3))))
-			if (progress < 1) frame = requestAnimationFrame(tick)
-		}
-		frame = requestAnimationFrame(tick)
-		return () => cancelAnimationFrame(frame)
-	}, [target, started, animate, duration])
-	return started ? value : 0
-}
-
 type PlanEvidenceClaim = { id: string; statement: string; confidence: number; fingerprint: string; influences: readonly string[]; excerpt: string }
 
 const PLAN_EVIDENCE_SOURCES: ReadonlyArray<{ name: string; coverage: string; usedBy: string; detail: string; claims: readonly PlanEvidenceClaim[] }> = [
@@ -946,13 +924,11 @@ function PlanCommandPalette({ readyForExecute, runMode = false, onRun, onClose }
 
 export function PlanModule({
 	projects,
-	onCommand,
 	onSendToExecute,
 	onNavigate,
 	jumpSignal = null,
 }: {
 	projects: PortalProject[]
-	onCommand: () => void
 	onSendToExecute: (snapshot: string) => void
 	onNavigate: (module: MaxionModuleId) => void
 	jumpSignal?: PlanJumpSignal | null
@@ -972,10 +948,10 @@ export function PlanModule({
 	if (workspace === "closed") {
 		return <PlanLibraryModule projects={projects} onOpenPlan={() => setWorkspace("resume")} onStartPlan={() => setWorkspace("live")} onNavigate={onNavigate} />
 	}
-	return <PlanWorkspaceModule key={workspace} live={workspace === "live"} onBack={() => setWorkspace("closed")} onCommand={onCommand} onSendToExecute={onSendToExecute} jump={pendingJump} onJumpConsumed={() => setPendingJump(null)} />
+	return <PlanWorkspaceModule key={workspace} live={workspace === "live"} onBack={() => setWorkspace("closed")} onSendToExecute={onSendToExecute} jump={pendingJump} onJumpConsumed={() => setPendingJump(null)} />
 }
 
-function PlanWorkspaceModule({ live, onBack, onCommand, onSendToExecute, jump = null, onJumpConsumed }: { live: boolean; onBack: () => void; onCommand: () => void; onSendToExecute: (snapshot: string) => void; jump?: PlanJumpSignal | null; onJumpConsumed?: () => void }) {
+function PlanWorkspaceModule({ live, onBack, onSendToExecute, jump = null, onJumpConsumed }: { live: boolean; onBack: () => void; onSendToExecute: (snapshot: string) => void; jump?: PlanJumpSignal | null; onJumpConsumed?: () => void }) {
 	const [view, setView] = useState<PlanView>("plan")
 	const [stage, setStage] = useState(live ? 0 : PLAN_RUN_STAGES.length)
 	const [approved, setApproved] = useState(false)
@@ -1145,12 +1121,12 @@ function PlanWorkspaceModule({ live, onBack, onCommand, onSendToExecute, jump = 
 	// rather than dropping the viewer into a half-derived design view.
 	const jumpArrivalRef = useRef(jumpToArtifact)
 	jumpArrivalRef.current = jumpToArtifact
+	const onJumpConsumedRef = useRef(onJumpConsumed)
+	onJumpConsumedRef.current = onJumpConsumed
 	useEffect(() => {
 		if (!jump || !complete) return
 		jumpArrivalRef.current(jump.artifactId)
-		onJumpConsumed?.()
-		// One-shot arrival: the handler is read from a ref so it never re-fires on re-render.
-		// eslint-disable-next-line react-hooks/exhaustive-deps
+		onJumpConsumedRef.current?.()
 	}, [jump, complete])
 
 	useEffect(() => {

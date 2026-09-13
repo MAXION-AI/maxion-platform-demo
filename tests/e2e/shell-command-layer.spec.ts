@@ -33,7 +33,7 @@ test("the global command menu filters, arrow-navigates, and runs the active item
 		await expect(menu.getByRole("button", { name: new RegExp(`^${name}`) }).first()).toBeVisible()
 	}
 	await expect(menu.getByRole("button", { name: /Start a Discovery/ })).toBeVisible()
-	await expect(menu.getByRole("button", { name: /New Agentix work/ })).toBeVisible()
+	await expect(menu.getByRole("button", { name: /New Agentix agent/ })).toBeVisible()
 	await expect(menu.getByText("navigate")).toBeVisible()
 
 	const search = menu.getByRole("textbox", { name: "Search MAXION commands" })
@@ -78,7 +78,7 @@ test("jumps across modules from wherever the viewer already is", async ({ page }
 
 	await page.goto("/maxion-prototype")
 	const navigation = page.getByRole("navigation", { name: "Portal sections" })
-	await navigation.getByRole("button", { name: "Agentix", exact: true }).click()
+	await navigation.getByRole("button", { name: /^Agentix/ }).click()
 	await expect(page.getByRole("main", { name: "Agentix workspace" })).toBeVisible()
 
 	// From Agentix, "INT-02" lands on the Plan contract — the plan opens itself at L3.
@@ -134,19 +134,19 @@ test("reports live Agentix attention to the shell badge and the jump registry", 
 	await page.emulateMedia({ reducedMotion: "reduce" })
 	await page.goto("/maxion-prototype")
 	const navigation = page.getByRole("navigation", { name: "Portal sections" })
-	await expect(navigation.getByRole("button", { name: "Agentix", exact: true })).toBeVisible()
+	await expect(navigation.getByRole("button", { name: /^Agentix/ })).toBeVisible()
 	let menu = await openShellMenu(page)
-	await expect(menu.getByRole("button", { name: /Review invoice variance/ })).toHaveCount(0)
+	await expect(menu.getByRole("button", { name: /Review invoice variance/ })).toBeVisible()
 	await page.keyboard.press("Escape")
-	await navigation.getByRole("button", { name: "Agentix", exact: true }).click()
-	await expect(page.getByRole("heading", { name: "Approve the $240 price variance?" })).toBeVisible({ timeout: 15000 })
-	await expect(navigation.getByRole("button", { name: "Agentix 1 pending" })).toBeVisible()
+	await navigation.getByRole("button", { name: /^Agentix/ }).click()
+	await expect(page.getByRole("heading", { name: "Deployed agents" })).toBeVisible()
+	await expect(navigation.getByRole("button", { name: "Agentix 2 pending" })).toBeVisible()
 	menu = await openShellMenu(page)
 	await menu.getByRole("button", { name: /Review invoice variance/ }).click()
 	await expect(page.getByRole("heading", { name: "Approve the $240 price variance?" })).toBeVisible()
 	await page.getByRole("button", { name: "Approve $240 variance" }).click()
-	await expect(navigation.getByRole("button", { name: "Agentix", exact: true })).toBeVisible()
-	await expect(navigation.getByRole("button", { name: /Agentix \d pending/ })).toHaveCount(0)
+	await page.getByRole("button", { name: "Close details" }).click()
+	await expect(navigation.getByRole("button", { name: "Agentix 1 pending" })).toBeVisible()
 })
 
 test("keeps the global command menu accessible", async ({ page }) => {
