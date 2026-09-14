@@ -21,8 +21,8 @@ import {
 	Stack,
 	Tray,
 } from "@phosphor-icons/react"
-import { AnimatePresence, motion } from "motion/react"
-import { useCallback, useEffect, useRef, useState, type ReactNode } from "react"
+import { motion } from "motion/react"
+import { useCallback, useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "react"
 import { useLocation } from "react-router-dom"
 
 import { useDocumentTitle } from "@/app/hooks/useDocumentTitle"
@@ -486,6 +486,10 @@ type ShellCommandItem = {
 	run: () => void
 }
 
+type CommandCloseReason = "dismiss" | "action"
+
+const COMMAND_FOCUSABLE_SELECTOR = "button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex='-1'])"
+
 type ShellCommandContext = {
 	active: MaxionModuleId
 	agentix: AgentixAttention
@@ -561,9 +565,11 @@ function rankShellCommandItem(item: ShellCommandItem, query: string) {
 	return 4
 }
 
-function CommandMenu({ context, onClose }: { context: ShellCommandContext; onClose: () => void }) {
+function CommandMenu({ context, onClose, onAfterClose }: { context: ShellCommandContext; onClose: (reason: CommandCloseReason) => void; onAfterClose: () => void }) {
 	const [query, setQuery] = useState("")
 	const [active, setActive] = useState(0)
+	const dialogRef = useRef<HTMLElement>(null)
+	const inputRef = useRef<HTMLInputElement>(null)
 	const listRef = useRef<HTMLDivElement>(null)
 	const items = buildShellCommandItems(context)
 	const q = query.trim().toLowerCase()
@@ -580,14 +586,39 @@ function CommandMenu({ context, onClose }: { context: ShellCommandContext; onClo
 	useEffect(() => {
 		listRef.current?.querySelector<HTMLElement>("button.is-active")?.scrollIntoView?.({ block: "nearest" })
 	}, [activeIndex, q])
-	const run = (item: ShellCommandItem) => { item.run(); onClose() }
+	useLayoutEffect(() => {
+		inputRef.current?.focus()
+		return onAfterClose
+	}, [onAfterClose])
+	const run = (item: ShellCommandItem) => {
+		// Mark the close before a command mutates navigation state. Some commands close
+		// the menu as part of navigation, and cleanup must already know this is an action.
+		onClose("action")
+		item.run()
+	}
 	return (
-		<div className="mxp-command-layer" onMouseDown={(event) => { if (event.currentTarget === event.target) onClose() }}>
-			<motion.section role="dialog" aria-modal="true" aria-label="MAXION command menu" initial={prefersReducedMotion() ? false : { opacity: 0, scale: 0.98, y: -6 }} animate={{ opacity: 1, scale: 1, y: 0 }} transition={{ duration: 0.16, ease: [0.16, 1, 0.3, 1] }}>
+		<div
+			className="mxp-command-layer"
+			onMouseDown={(event) => { if (event.currentTarget === event.target) { event.preventDefault(); onClose("dismiss") } }}
+			onKeyDown={(event) => {
+				if (event.key === "Escape") { event.preventDefault(); event.stopPropagation(); onClose("dismiss"); return }
+				if (event.key !== "Tab") return
+				const dialog = dialogRef.current
+				if (!dialog) return
+				const focusable = Array.from(dialog.querySelectorAll<HTMLElement>(COMMAND_FOCUSABLE_SELECTOR)).filter((element) => element.getClientRects().length > 0)
+				if (focusable.length === 0) { event.preventDefault(); dialog.focus(); return }
+				const first = focusable[0]
+				const last = focusable[focusable.length - 1]
+				if (event.shiftKey && (document.activeElement === first || document.activeElement === dialog)) { event.preventDefault(); last.focus() }
+				else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first.focus() }
+				else if (!(document.activeElement instanceof HTMLElement) || !dialog.contains(document.activeElement)) { event.preventDefault(); first.focus() }
+			}}
+		>
+			<motion.section ref={dialogRef} tabIndex={-1} role="dialog" aria-modal="true" aria-label="MAXION command menu" initial={prefersReducedMotion() ? false : { opacity: 0, scale: 0.98, y: -6 }} animate={{ opacity: 1, scale: 1, y: 0 }} transition={{ duration: 0.16, ease: [0.16, 1, 0.3, 1] }}>
 				<div className="mxp-command-search">
 					<MagnifyingGlass size={16} />
 					<input
-						autoFocus
+						ref={inputRef}
 						value={query}
 						aria-label="Search MAXION commands"
 						placeholder="Search modules, work, and actions…"
@@ -596,7 +627,6 @@ function CommandMenu({ context, onClose }: { context: ShellCommandContext; onClo
 							if (event.key === "ArrowDown") { event.preventDefault(); setActive(Math.min(activeIndex + 1, filtered.length - 1)) }
 							if (event.key === "ArrowUp") { event.preventDefault(); setActive(Math.max(activeIndex - 1, 0)) }
 							if (event.key === "Enter" && filtered[activeIndex]) { event.preventDefault(); run(filtered[activeIndex]) }
-							if (event.key === "Escape") { event.preventDefault(); onClose() }
 						}}
 					/>
 					<kbd>Esc</kbd>
@@ -624,6 +654,17 @@ function CommandMenu({ context, onClose }: { context: ShellCommandContext; onClo
 // Shell pages own no keyboard of their own; the modules do. These are the surfaces where
 // '/' is unclaimed, so the shell may map it to the one search the whole platform shares.
 const SHELL_KEYBOARD_MODULES: MaxionModuleId[] = ["dashboard", "projects", "consult", "integrations", "settings", "approvals", "usage", "help"]
+
+function canReceiveMeaningfulFocus(element: HTMLElement | null): element is HTMLElement {
+	if (!element || element === document.body || element === document.documentElement || !element.isConnected) return false
+	if (element.matches(":disabled") || element.closest("[hidden], [inert], [aria-hidden='true']")) return false
+	const style = window.getComputedStyle(element)
+	return style.display !== "none" && style.visibility !== "hidden"
+}
+
+function isMobileShell() {
+	return window.matchMedia("(max-width: 860px)").matches
+}
 
 export function MaxionPlatformPrototypePage() {
 	useDocumentTitle("MAXION · Unified platform prototype")
@@ -656,6 +697,119 @@ export function MaxionPlatformPrototypePage() {
 	// What the sidebar looked like before Execute borrowed the width, so leaving Execute
 	// gives the viewer their own navigation back instead of an icon rail for good.
 	const collapsedBeforeExecuteRef = useRef(sidebarCollapsed)
+	const commandOpenRef = useRef(commandOpen)
+	const commandOpenerRef = useRef<HTMLElement | null>(null)
+	const restoreCommandFocusRef = useRef(false)
+	const commandCloseReasonRef = useRef<CommandCloseReason>("dismiss")
+	const pendingNavigationFocusRef = useRef<MaxionModuleId | null>(null)
+	commandOpenRef.current = commandOpen
+
+	const openCommand = useCallback(() => {
+		if (!commandOpenRef.current && document.activeElement instanceof HTMLElement) {
+			const activeElement = document.activeElement
+			commandOpenerRef.current = activeElement === document.body || activeElement === document.documentElement ? null : activeElement
+		}
+		restoreCommandFocusRef.current = true
+		commandCloseReasonRef.current = "dismiss"
+		setMobileNavOpen(false)
+		setCommandOpen(true)
+	}, [])
+	const restoreCommandFocus = useCallback(() => {
+		window.requestAnimationFrame(() => {
+			if (commandOpenRef.current || !restoreCommandFocusRef.current) return
+			const activeElement = document.activeElement instanceof HTMLElement ? document.activeElement : null
+			// Commands may establish a more useful destination focus (for example, a new
+			// Discovery brief). Never overwrite that intentional hand-off.
+			const actionEstablishedFocus = commandCloseReasonRef.current === "action"
+				&& canReceiveMeaningfulFocus(activeElement)
+				&& !activeElement.closest(".mxp-command-layer")
+			if (!actionEstablishedFocus) {
+				const currentDestination = document.querySelector<HTMLElement>('.mxp-portal-sidebar button[aria-current="page"]')
+				const mobileTrigger = document.querySelector<HTMLElement>(".mxp-mobile-nav-trigger")
+				const opener = commandOpenerRef.current
+				const fallback = commandCloseReasonRef.current === "dismiss" && canReceiveMeaningfulFocus(opener)
+					? opener
+					: isMobileShell() && canReceiveMeaningfulFocus(mobileTrigger)
+						? mobileTrigger
+					: canReceiveMeaningfulFocus(currentDestination)
+					? currentDestination
+					: canReceiveMeaningfulFocus(mobileTrigger)
+						? mobileTrigger
+						: document.querySelector<HTMLElement>(".mxp-stage")
+				if (canReceiveMeaningfulFocus(fallback)) fallback.focus()
+			}
+			commandOpenerRef.current = null
+			restoreCommandFocusRef.current = false
+			commandCloseReasonRef.current = "dismiss"
+		})
+	}, [])
+	const closeCommand = useCallback((reason: CommandCloseReason = "dismiss") => {
+		commandCloseReasonRef.current = reason
+		setCommandOpen(false)
+	}, [])
+	const setMobileNavigationOpen = useCallback((open: boolean) => {
+		setMobileNavOpen(open)
+		if (open) return
+		window.requestAnimationFrame(() => {
+			if (commandOpenRef.current) return
+			const trigger = document.querySelector<HTMLElement>(".mxp-mobile-nav-trigger")
+			// This callback can only come from the mobile drawer. CSS makes the trigger
+			// visible in that mode after close; jsdom has no media-query layout engine.
+			if (trigger?.isConnected && !trigger.closest("[hidden], [inert], [aria-hidden='true']")) trigger.focus()
+		})
+	}, [])
+	// The shell is the only owner of background isolation. Drawer and command-dialog
+	// keyboard effects never restore these attributes, so one overlay cannot undo the
+	// other overlay's safety state during a drawer -> command transition.
+	useLayoutEffect(() => {
+		const sidebar = document.querySelector<HTMLElement>(".mxp-portal-sidebar")
+		const stage = document.querySelector<HTMLElement>(".mxp-stage")
+		const isolate = (element: HTMLElement | null, isolated: boolean) => {
+			if (!element) return
+			if (isolated) {
+				element.setAttribute("inert", "")
+				element.setAttribute("aria-hidden", "true")
+			} else {
+				element.removeAttribute("inert")
+				element.removeAttribute("aria-hidden")
+			}
+		}
+		isolate(sidebar, commandOpen)
+		isolate(stage, commandOpen || mobileNavOpen)
+	}, [commandOpen, mobileNavOpen])
+	useEffect(() => () => {
+		for (const element of document.querySelectorAll<HTMLElement>(".mxp-portal-sidebar, .mxp-stage")) {
+			element.removeAttribute("inert")
+			element.removeAttribute("aria-hidden")
+		}
+	}, [])
+	useEffect(() => {
+		const target = pendingNavigationFocusRef.current
+		if (commandOpen || target === null || target !== activeModule) return
+		const frame = window.requestAnimationFrame(() => {
+			const activeElement = document.activeElement instanceof HTMLElement ? document.activeElement : null
+			if (commandCloseReasonRef.current === "action" && canReceiveMeaningfulFocus(activeElement) && !activeElement.closest(".mxp-command-layer")) {
+				pendingNavigationFocusRef.current = null
+				return
+			}
+			const railDestination = document.querySelector<HTMLElement>(`.mxp-portal-sidebar button[data-navigation-id="${target}"]`)
+			const mobileTrigger = document.querySelector<HTMLElement>(".mxp-mobile-nav-trigger")
+			const stage = document.querySelector<HTMLElement>(".mxp-stage")
+			const destination = isMobileShell() && canReceiveMeaningfulFocus(mobileTrigger)
+				? mobileTrigger
+				: canReceiveMeaningfulFocus(railDestination)
+					? railDestination
+					: canReceiveMeaningfulFocus(stage)
+						? stage
+						: null
+			if (!destination) return
+			destination.focus()
+			// Do not consume a pending hand-off until the browser confirms focus. A
+			// detached or CSS-hidden stale ref must remain retryable, never look done.
+			if (document.activeElement === destination) pendingNavigationFocusRef.current = null
+		})
+		return () => window.cancelAnimationFrame(frame)
+	}, [activeModule, commandOpen])
 
 	useEffect(() => {
 		const onKeyDown = (event: KeyboardEvent) => {
@@ -670,16 +824,17 @@ export function MaxionPlatformPrototypePage() {
 			if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "k") {
 				event.preventDefault()
 				if (document.querySelector(".aop-drawer[open]")) return
-				setCommandOpen((open) => !open)
+				if (commandOpenRef.current) closeCommand()
+				else openCommand()
 			}
-			if (event.key === "Escape") setCommandOpen(false)
+			if (event.key === "Escape" && commandOpenRef.current) closeCommand()
 			// '/' belongs to whichever surface is visible. Inside a module the module's own
 			// capture-phase listener claims it and stops it here; on a shell page nothing
 			// claims it, so it opens the one search this shell has.
 			if (event.key === "/" && SHELL_KEYBOARD_MODULES.includes(activeModuleRef.current)) {
 				if (target && (target.tagName === "INPUT" || target.tagName === "TEXTAREA" || target.isContentEditable)) return
 				event.preventDefault()
-				setCommandOpen(true)
+				openCommand()
 			}
 		}
 		const onPointerDown = () => setKeyboardNavigation(false)
@@ -689,7 +844,7 @@ export function MaxionPlatformPrototypePage() {
 			window.removeEventListener("keydown", onKeyDown)
 			window.removeEventListener("pointerdown", onPointerDown, true)
 		}
-	}, [])
+	}, [closeCommand, openCommand])
 
 	const navigate = (module: MaxionModuleId) => {
 		// Execute is a focused, long-running workspace. Keep MAXION navigation one
@@ -724,7 +879,12 @@ export function MaxionPlatformPrototypePage() {
 		active: activeModule,
 		agentix: agentixAttention,
 		discoveries: commandOpen ? listDiscoveryJumpRecords() : [],
-		navigate,
+		navigate: (module) => {
+			// Execute owns an explicit visible-arrival focus effect for its composer.
+			// Other destinations need the shell's rail/trigger hand-off.
+			pendingNavigationFocusRef.current = module === "execute" ? null : module
+			navigate(module)
+		},
 		startDiscovery: startDiscoverySetup,
 		openPlanArtifact,
 		openExecuteWorkspace,
@@ -740,19 +900,19 @@ export function MaxionPlatformPrototypePage() {
 
 	return (
 		<div className={`maxion-platform-prototype mxp-root${activeModule === "execute" ? " mxp-root--execute" : ""}${activeModule === "agentix" ? " mxp-root--agentix" : ""}${sidebarCollapsed ? " mxp-root--sidebar-collapsed" : ""}${keyboardNavigation ? " mxp-keyboard-navigation" : ""}`}>
-			<PortalSidebar active={activeModule} onNavigate={navigate} onCommand={() => setCommandOpen(true)} mobileOpen={mobileNavOpen} onMobileOpenChange={setMobileNavOpen} collapsed={sidebarCollapsed} onCollapsedChange={setSidebarCollapsed} badges={{ agentix: agentixAttention.count, approvals: agentixAttention.approval ? 1 : 0, execute: executeVerified ? 0 : 1 }} />
-			<div className="mxp-stage" role="region" aria-label={`${currentLabel} module`}>
-				<div className={stageClass("dashboard")} hidden={activeModule !== "dashboard"}><ModuleErrorBoundary moduleName="Dashboard" resetKey={activeModule} onReturnToDashboard={() => navigate("dashboard")}><DashboardModule projects={projects} onNavigate={navigate} agentix={agentixAttention} discoveryReady={discoveryReady} planSent={planSent} executeVerified={executeVerified} /></ModuleErrorBoundary></div>
+			<PortalSidebar active={activeModule} onNavigate={navigate} onCommand={openCommand} mobileOpen={mobileNavOpen} onMobileOpenChange={setMobileNavigationOpen} collapsed={sidebarCollapsed} onCollapsedChange={setSidebarCollapsed} badges={{ agentix: agentixAttention.count, approvals: agentixAttention.approval ? 1 : 0, execute: executeVerified ? 0 : 1 }} />
+			<div className="mxp-stage" role="region" aria-label={`${currentLabel} module`} tabIndex={-1}>
+				<div className={stageClass("dashboard")} hidden={activeModule !== "dashboard"}><ModuleErrorBoundary moduleName="Dashboard" resetKey={activeModule} onReturnToDashboard={() => navigate("dashboard")}><DashboardModule projects={projects} onNavigate={navigate} onCommand={openCommand} agentix={agentixAttention} discoveryReady={discoveryReady} planSent={planSent} executeVerified={executeVerified} /></ModuleErrorBoundary></div>
 				<div className={stageClass("projects")} hidden={activeModule !== "projects"}><ModuleErrorBoundary moduleName="Projects" resetKey={activeModule} onReturnToDashboard={() => navigate("dashboard")}><ProjectsModule projects={projects} onProjectsChange={setProjects} onNavigate={navigate} /></ModuleErrorBoundary></div>
 				<div className={stageClass("discovery", "mxp-stage-view--discovery")} hidden={activeModule !== "discovery"}><ModuleErrorBoundary moduleName="Discover" resetKey={activeModule} onReturnToDashboard={() => navigate("dashboard")}><div hidden={operationalDiscovery !== null} style={{ height: "100%" }}><DiscoveryAutonomousPrototypePage embedded setupSignal={discoverySetupSignal} openSignal={discoveryOpen} onPackageReady={() => setDiscoveryReady(true)} operationalPackages={<OperationalDiscoveryEntry onOpen={openOperationalDiscovery} />} /></div>{operationalDiscovery ? <DiscoveryHandoffWorkspace workflowId={operationalDiscovery} onBack={() => setOperationalDiscovery(null)} onSend={id => openAgentix({ type: "import", id })} /> : null}</ModuleErrorBoundary></div>
 				<div className={stageClass("plan")} hidden={activeModule !== "plan"}><ModuleErrorBoundary moduleName="Plan" resetKey={activeModule} onReturnToDashboard={() => navigate("dashboard")}><PlanModule projects={projects} onNavigate={navigate} jumpSignal={planJump} onSendToExecute={(snapshot) => { setPlanSent(true); setPlanSnapshot(snapshot); navigate("execute") }} /></ModuleErrorBoundary></div>
 				<div className={stageClass("execute", "mxp-stage-view--execute")} hidden={activeModule !== "execute"}><ModuleErrorBoundary moduleName="Execute" resetKey={activeModule} onReturnToDashboard={() => navigate("dashboard")}><ExecuteModule active={activeModule === "execute"} onNavigate={navigate} planHandoff={planSent} planSnapshot={planSnapshot} jumpSignal={executeJump} onVerified={() => setExecuteVerified(true)} /></ModuleErrorBoundary></div>
 				<div className={stageClass("agentix")} hidden={activeModule !== "agentix"}><ModuleErrorBoundary moduleName="Agentix" resetKey={activeModule} onReturnToDashboard={() => navigate("dashboard")}><AgentixInitiativesPage intentSignal={agentixIntent} onAttentionChange={setAgentixAttention} onOpenDiscovery={openOperationalDiscovery} /></ModuleErrorBoundary></div>
-				<div className={stageClass("consult")} hidden={activeModule !== "consult"}><ModuleErrorBoundary moduleName="Consult Max" resetKey={activeModule} onReturnToDashboard={() => navigate("dashboard")}><ConsultModule state={{ agentix: agentixAttention, discoveryReady, planSent, planSnapshot, executeVerified }} onCommand={() => setCommandOpen(true)} onNavigate={navigate} /></ModuleErrorBoundary></div>
+				<div className={stageClass("consult")} hidden={activeModule !== "consult"}><ModuleErrorBoundary moduleName="Consult Max" resetKey={activeModule} onReturnToDashboard={() => navigate("dashboard")}><ConsultModule state={{ agentix: agentixAttention, discoveryReady, planSent, planSnapshot, executeVerified }} onCommand={openCommand} onNavigate={navigate} /></ModuleErrorBoundary></div>
 				<div className={stageClass("integrations")} hidden={activeModule !== "integrations"}><ModuleErrorBoundary moduleName="Integrations" resetKey={activeModule} onReturnToDashboard={() => navigate("dashboard")}><IntegrationsModule /></ModuleErrorBoundary></div>
 				{(["settings", "approvals", "usage", "help"] as const).map((module) => <div key={module} className={stageClass(module)} hidden={activeModule !== module}><ModuleErrorBoundary moduleName={module[0].toUpperCase() + module.slice(1)} resetKey={activeModule} onReturnToDashboard={() => navigate("dashboard")}><AccountUtilityModule module={module} onNavigate={navigate} approvalOpen={agentixAttention.approval} onOpenApproval={() => openAgentix({ type: "decision", id: "approval" })} /></ModuleErrorBoundary></div>)}
 			</div>
-			<AnimatePresence>{commandOpen ? <CommandMenu context={commandContext} onClose={() => setCommandOpen(false)} /> : null}</AnimatePresence>
+			{commandOpen ? <CommandMenu context={commandContext} onClose={closeCommand} onAfterClose={restoreCommandFocus} /> : null}
 		</div>
 	)
 }

@@ -1,6 +1,6 @@
-import { fireEvent, render, screen, waitFor, within } from "@testing-library/react"
+import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react"
 import { MemoryRouter } from "react-router-dom"
-import { describe, expect, it } from "vitest"
+import { afterEach, describe, expect, it, vi } from "vitest"
 
 import { MaxionPlatformPrototypePage } from "../MaxionPlatformPrototypePage"
 
@@ -17,10 +17,14 @@ function portalNavigation() {
 }
 
 describe("MaxionPlatformPrototypePage", () => {
+	afterEach(() => {
+		vi.useRealTimers()
+		vi.restoreAllMocks()
+	})
 	it("opens on the canonical MAXION dashboard and exposes the complete platform shell", () => {
 		renderPrototype()
 
-		expect(screen.getByRole("heading", { name: "Good afternoon, Root Admin" })).toBeInTheDocument()
+		expect(screen.getByRole("heading", { name: "Work that moved. Decisions that wait." })).toBeInTheDocument()
 		expect(screen.getByRole("complementary", { name: "Main navigation" })).toBeInTheDocument()
 		expect(screen.getByRole("img", { name: "MAXION" })).toHaveAttribute("src", "/maxion-logo-lockup-white.svg")
 		const productDestinations = within(screen.getByRole("list", { name: "Product destinations" }))
@@ -36,10 +40,11 @@ describe("MaxionPlatformPrototypePage", () => {
 		expect(screen.getByRole("button", { name: "Expand navigation" })).toHaveAttribute("aria-pressed", "true")
 		expect(screen.getByRole("complementary", { name: "Main navigation" })).toHaveClass("is-collapsed")
 		fireEvent.click(screen.getByRole("button", { name: "Expand navigation" }))
-		const primaryActions = within(screen.getByRole("group", { name: "Primary workspace actions" }))
-		expect(primaryActions.getAllByRole("button")).toHaveLength(3)
-		expect(primaryActions.getByRole("button", { name: /Review .* waiting items/ })).toHaveClass("mxp-primary")
-		expect(primaryActions.getByRole("button", { name: "Start Discovery" })).toBeInTheDocument()
+		expect(screen.getByRole("button", { name: "Search or ask" })).toBeInTheDocument()
+		expect(screen.getByRole("button", { name: "Open Agentix" })).toBeInTheDocument()
+		expect(screen.queryByRole("banner")).not.toBeInTheDocument()
+		expect(document.querySelectorAll(".mxp-needs-you article button")).toHaveLength(3)
+		expect(screen.queryByText("Quick navigation", { exact: true })).not.toBeInTheDocument()
 	})
 
 	it("contains mobile navigation focus, closes on Escape, and restores the opener", async () => {
@@ -48,6 +53,7 @@ describe("MaxionPlatformPrototypePage", () => {
 		fireEvent.click(opener)
 
 		const drawer = screen.getByRole("dialog", { name: "Main navigation" })
+		expect(drawer.tagName).toBe("DIV")
 		const stage = screen.getByLabelText("Dashboard module")
 		await waitFor(() => expect(screen.getByLabelText("Close navigation", { selector: ".mxp-mobile-nav-close" })).toHaveFocus())
 		expect(drawer).toHaveAttribute("aria-modal", "true")
@@ -57,6 +63,43 @@ describe("MaxionPlatformPrototypePage", () => {
 		fireEvent.keyDown(document, { key: "Escape" })
 		await waitFor(() => expect(opener).toHaveFocus())
 		expect(screen.queryByRole("dialog", { name: "Main navigation" })).not.toBeInTheDocument()
+		expect(stage).not.toHaveAttribute("inert")
+		expect(stage).not.toHaveAttribute("aria-hidden")
+	})
+
+	it("transfers mobile drawer ownership to the command dialog without leaking isolation", async () => {
+		vi.spyOn(window, "matchMedia").mockImplementation((query) => ({
+			matches: query.includes("max-width") || query.includes("prefers-reduced-motion"),
+			media: query,
+			onchange: null,
+			addListener: () => undefined,
+			removeListener: () => undefined,
+			addEventListener: () => undefined,
+			removeEventListener: () => undefined,
+			dispatchEvent: () => false,
+		}))
+		renderPrototype()
+		const opener = screen.getByLabelText("Open navigation")
+		opener.style.display = "grid"
+		fireEvent.click(opener)
+		const drawer = screen.getByRole("dialog", { name: "Main navigation" })
+		fireEvent.click(within(drawer).getByRole("button", { name: "Open command menu" }))
+
+		const command = screen.getByRole("dialog", { name: "MAXION command menu" })
+		const search = within(command).getByRole("textbox", { name: "Search MAXION commands" })
+		const sidebar = document.querySelector<HTMLElement>(".mxp-portal-sidebar")
+		const stage = screen.getByLabelText("Dashboard module", { selector: ".mxp-stage" })
+		expect(search).toHaveFocus()
+		expect(sidebar).toHaveAttribute("inert")
+		expect(sidebar).toHaveAttribute("aria-hidden", "true")
+		expect(stage).toHaveAttribute("inert")
+		expect(stage).toHaveAttribute("aria-hidden", "true")
+
+		fireEvent.keyDown(command.parentElement!, { key: "Escape" })
+		await waitFor(() => expect(opener).toHaveFocus())
+		expect(screen.queryByRole("dialog", { name: "MAXION command menu" })).not.toBeInTheDocument()
+		expect(sidebar).not.toHaveAttribute("inert")
+		expect(sidebar).not.toHaveAttribute("aria-hidden")
 		expect(stage).not.toHaveAttribute("inert")
 		expect(stage).not.toHaveAttribute("aria-hidden")
 	})
@@ -161,8 +204,10 @@ describe("MaxionPlatformPrototypePage", () => {
 		for (const workspace of ["Delivery Orchestrator", "ServiceNow", "MuleSoft", "Workday Financials", "Integration verification"]) {
 			expect(workspaces.getByRole("button", { name: new RegExp(workspace) })).toBeInTheDocument()
 		}
+		vi.useFakeTimers()
 		fireEvent.click(screen.getByRole("button", { name: "Coordinating" }))
-		await waitFor(() => expect(screen.getByRole("button", { name: "Workspaces verified" })).toBeInTheDocument(), { timeout: 20_000 })
+		await act(async () => { await vi.runAllTimersAsync() })
+		expect(screen.getByRole("button", { name: "Workspaces verified" })).toBeInTheDocument()
 		expect(screen.getByRole("region", { name: "Delivery environment progression" })).toHaveTextContent("3/3 verified")
 		fireEvent.click(workspaces.getByRole("button", { name: /MuleSoft/ }))
 		expect(screen.getAllByText("mule-journal-api:2.4.1").length).toBeGreaterThan(0)

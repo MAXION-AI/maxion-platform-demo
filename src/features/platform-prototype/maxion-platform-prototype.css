@@ -23,8 +23,8 @@
 	font-family: Geist, Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
 }
 
-.mxp-root,
-.mxp-root * { box-sizing: border-box; }
+:where(.mxp-root),
+:where(.mxp-root *) { box-sizing: border-box; }
 
 .mxp-root {
 	position: fixed;
@@ -37,13 +37,17 @@
 	overflow: hidden;
 }
 
-.mxp-root button,
-.mxp-root textarea,
-.mxp-root input { font: inherit; }
+:where(.mxp-root) :where(button, textarea, input, select) { font: inherit; }
 
-.mxp-root button { color: inherit; }
+:where(.mxp-root) :where(button) { color: inherit; }
+
+:where(.mxp-root) :where(button, a[href], input, textarea, select, summary, [role="button"]) {
+	min-width: 24px;
+	min-height: 24px;
+}
 
 .mxp-root button:focus-visible,
+.mxp-root a[href]:focus-visible,
 .mxp-root textarea:focus-visible,
 .mxp-root input:focus-visible,
 .mxp-root summary:focus-visible {
@@ -51,63 +55,13 @@
 	outline-offset: 2px;
 }
 
-.mxp-platform-rail {
-	position: relative;
-	z-index: 40;
-	display: flex;
-	min-height: 0;
-	flex-direction: column;
-	align-items: center;
-	padding: 13px 9px 10px;
-	background: var(--mxp-black);
-	color: #d9d9d3;
+@media (max-width: 860px) {
+	:where(.mxp-root) :where(button, a[href], input, textarea, select, summary, [role="button"]) {
+		min-width: 44px;
+		min-height: 44px;
+	}
 }
 
-.mxp-brand-button,
-.mxp-platform-rail nav button,
-.mxp-platform-bottom button {
-	display: grid;
-	width: 42px;
-	height: 42px;
-	place-items: center;
-	border: 0;
-	border-radius: 9px;
-	background: transparent;
-	cursor: pointer;
-	transition: background 150ms ease, color 150ms ease, transform 150ms ease;
-}
-
-.mxp-brand-button { margin-bottom: 22px; }
-.mxp-brand-button:hover,
-.mxp-platform-rail nav button:hover,
-.mxp-platform-bottom button:hover { background: rgba(255, 255, 255, 0.09); color: #fff; }
-.mxp-platform-rail nav button:active,
-.mxp-platform-bottom button:active { transform: scale(0.95); }
-
-.mxp-platform-rail nav {
-	display: flex;
-	width: 100%;
-	flex: 1;
-	flex-direction: column;
-	align-items: center;
-	gap: 5px;
-}
-
-.mxp-platform-rail nav button { position: relative; color: #8f8e88; }
-.mxp-platform-rail nav button.is-active { background: #30302d; color: #fff; }
-.mxp-platform-rail nav button.is-active::before {
-	position: absolute;
-	left: -9px;
-	width: 3px;
-	height: 19px;
-	border-radius: 0 4px 4px 0;
-	background: var(--mxp-lime);
-	content: "";
-}
-
-.mxp-platform-bottom { display: flex; flex-direction: column; align-items: center; gap: 5px; }
-.mxp-platform-bottom button { color: #888781; }
-.mxp-platform-bottom > span,
 .mxp-user-avatar,
 .mxp-rail-user > span {
 	display: grid;
@@ -688,7 +642,9 @@
 .mxp-spin { animation: mxp-spin 900ms linear infinite; }
 @keyframes mxp-spin { to { transform: rotate(360deg); } }
 @keyframes mxp-pulse { 50% { opacity: 0.3; transform: scale(0.72); } }
-@keyframes mxp-stage-enter { from { opacity: 0; transform: translateY(3px); } to { opacity: 1; transform: translateY(0); } }
+/* Never animate an ancestor's opacity: doing so temporarily blends every text colour with the
+   canvas and can push otherwise conforming controls below WCAG contrast during the first frame. */
+@keyframes mxp-stage-enter { from { transform: translateY(3px); } to { transform: translateY(0); } }
 @keyframes mxp-stage-scrim { from { opacity: 0.9; } to { opacity: 0; } }
 
 @media (max-width: 980px) {
@@ -710,12 +666,6 @@
 
 @media (max-width: 720px) {
 	.mxp-root { display: block; }
-	.mxp-platform-rail { position: absolute; right: 0; bottom: 0; left: 0; width: auto; height: 56px; min-height: 0; flex-direction: row; padding: 5px 8px; }
-	.mxp-brand-button,
-	.mxp-platform-bottom { display: none; }
-	.mxp-platform-rail nav { display: grid; grid-template-columns: repeat(6, minmax(42px, 1fr)); flex-direction: row; gap: 1px; }
-	.mxp-platform-rail nav button { width: 100%; height: 44px; }
-	.mxp-platform-rail nav button.is-active::before { top: auto; right: 12px; bottom: -5px; left: 12px; width: auto; height: 3px; border-radius: 4px 4px 0 0; }
 	.mxp-stage { position: absolute; inset: 0 0 56px; }
 	.mxp-module-with-rail { grid-template-rows: 50px minmax(0, 1fr); }
 	.mxp-context-rail { grid-template-columns: minmax(0, 1fr); }

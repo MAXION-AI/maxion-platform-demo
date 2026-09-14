@@ -94,7 +94,7 @@ test("scopes the command layer to Execute and makes every workspace keyboard rea
 	await page.keyboard.press("ControlOrMeta+k")
 	await search.fill("Dashboard")
 	await search.press("Enter")
-	await expect(page.getByRole("heading", { name: "Good afternoon, Root Admin" })).toBeVisible()
+	await expect(page.getByRole("heading", { name: "Work that moved. Decisions that wait." })).toBeVisible()
 	expect(runtimeErrors).toEqual([])
 })
 

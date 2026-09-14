@@ -14,6 +14,118 @@ async function openShellMenu(page: import("@playwright/test").Page) {
 	return shellMenu(page)
 }
 
+test("autofocuses, contains focus, inerts the shell, and restores a meaningful opener on every close path", async ({ page }) => {
+	await page.goto("/maxion-prototype")
+	const opener = page.getByRole("button", { name: "Search or ask" })
+	await opener.click()
+	let menu = shellMenu(page)
+	const search = menu.getByRole("textbox", { name: "Search MAXION commands" })
+	await expect(search).toBeFocused()
+	for (const selector of [".mxp-portal-sidebar", ".mxp-stage"]) {
+		await expect(page.locator(selector)).toHaveAttribute("inert", "")
+		await expect(page.locator(selector)).toHaveAttribute("aria-hidden", "true")
+	}
+
+	const last = menu.getByRole("button").last()
+	await last.focus()
+	await page.keyboard.press("Tab")
+	await expect(search).toBeFocused()
+	await page.keyboard.press("Shift+Tab")
+	await expect(last).toBeFocused()
+	await page.keyboard.press("Escape")
+	await expect(menu).toHaveCount(0)
+	await expect(opener).toBeFocused()
+	for (const selector of [".mxp-portal-sidebar", ".mxp-stage"]) {
+		await expect(page.locator(selector)).not.toHaveAttribute("inert", "")
+		await expect(page.locator(selector)).not.toHaveAttribute("aria-hidden", "true")
+	}
+
+	await opener.click()
+	menu = shellMenu(page)
+	await page.locator(".mxp-command-layer").click({ position: { x: 4, y: 4 } })
+	await expect(menu).toHaveCount(0)
+	await expect(opener).toBeFocused()
+
+	await opener.click()
+	menu = shellMenu(page)
+	await menu.getByRole("button", { name: /^Projects/ }).click()
+	await expect(menu).toHaveCount(0)
+	await expect(page.getByRole("heading", { name: "Projects" })).toBeVisible()
+	await expect(page.getByRole("navigation", { name: "Portal sections" }).getByRole("button", { name: "Projects" })).toBeFocused()
+})
+
+test("keeps drawer-to-command ownership and command navigation focus safe on mobile", async ({ page }) => {
+	await page.setViewportSize({ width: 390, height: 844 })
+	await page.goto("/maxion-prototype")
+	const mobileTrigger = page.getByRole("button", { name: "Open navigation" })
+	const openFromDrawer = async () => {
+		await mobileTrigger.click()
+		const drawer = page.getByRole("dialog", { name: "Main navigation" })
+		await drawer.getByRole("button", { name: "Open command menu" }).click()
+		const menu = shellMenu(page)
+		await expect(menu).toBeVisible()
+		await expect(menu.getByRole("textbox", { name: "Search MAXION commands" })).toBeFocused()
+		return menu
+	}
+
+	let menu = await openFromDrawer()
+	for (const selector of [".mxp-portal-sidebar", ".mxp-stage"]) {
+		await expect(page.locator(selector)).toHaveAttribute("inert", "")
+		await expect(page.locator(selector)).toHaveAttribute("aria-hidden", "true")
+	}
+	const search = menu.getByRole("textbox", { name: "Search MAXION commands" })
+	const last = menu.getByRole("button").last()
+	await last.focus()
+	await page.keyboard.press("Tab")
+	await expect(search).toBeFocused()
+	await page.keyboard.press("Shift+Tab")
+	await expect(last).toBeFocused()
+	await page.keyboard.press("Escape")
+	await expect(menu).toHaveCount(0)
+	await expect(mobileTrigger).toBeVisible()
+	await expect(mobileTrigger).toBeFocused()
+	for (const selector of [".mxp-portal-sidebar", ".mxp-stage"]) {
+		await expect(page.locator(selector)).not.toHaveAttribute("inert", "")
+		await expect(page.locator(selector)).not.toHaveAttribute("aria-hidden", "true")
+	}
+
+	// A detached opener and document/body are never accepted as restored focus.
+	await page.evaluate(() => {
+		const stale = document.createElement("button")
+		stale.dataset.testid = "stale-command-opener"
+		document.querySelector(".mxp-stage")?.append(stale)
+		stale.focus()
+	})
+	await page.keyboard.press("ControlOrMeta+k")
+	await expect(shellMenu(page)).toBeVisible()
+	await page.evaluate(() => document.querySelector('[data-testid="stale-command-opener"]')?.remove())
+	await page.keyboard.press("Escape")
+	await expect(mobileTrigger).toBeFocused()
+
+	// Same-module and cross-module command navigation land on the visible trigger,
+	// never the CSS-hidden rail button.
+	for (const destination of ["Dashboard", "Projects"]) {
+		menu = await openFromDrawer()
+		const input = menu.getByRole("textbox", { name: "Search MAXION commands" })
+		await input.fill(destination)
+		await input.press("Enter")
+		await expect(shellMenu(page)).toHaveCount(0)
+		await expect(mobileTrigger).toBeFocused()
+	}
+	await expect(page.getByRole("heading", { name: "Projects" })).toBeVisible()
+
+	// Commands whose destination establishes focus keep that stronger hand-off.
+	menu = await openFromDrawer()
+	await menu.getByRole("textbox", { name: "Search MAXION commands" }).fill("Start a Discovery")
+	await menu.getByRole("textbox", { name: "Search MAXION commands" }).press("Enter")
+	await expect(page.getByRole("textbox", { name: "Discovery brief" })).toBeFocused()
+
+	menu = await openFromDrawer()
+	await menu.getByRole("textbox", { name: "Search MAXION commands" }).fill("Execute")
+	await menu.getByRole("textbox", { name: "Search MAXION commands" }).press("Enter")
+	await expect(page.getByRole("textbox", { name: "What should Execute deliver?" })).toBeFocused()
+})
+
 test("the global command menu filters, arrow-navigates, and runs the active item", async ({ page }) => {
 	const runtimeErrors: string[] = []
 	page.on("console", (message) => {
@@ -22,7 +134,7 @@ test("the global command menu filters, arrow-navigates, and runs the active item
 	page.on("pageerror", (error) => runtimeErrors.push(error.message))
 
 	await page.goto("/maxion-prototype")
-	await expect(page.getByRole("heading", { name: "Good afternoon, Root Admin" })).toBeVisible()
+	await expect(page.getByRole("heading", { name: "Work that moved. Decisions that wait." })).toBeVisible()
 
 	await page.keyboard.press("ControlOrMeta+k")
 	const menu = shellMenu(page)
@@ -114,7 +226,7 @@ test("gives the newly visible stage its own entrance and clears the Execute scri
 	await page.goto("/maxion-prototype")
 	const entering = page.locator(".mxp-stage-view.is-entering")
 	await expect(entering).toHaveCount(1)
-	await expect(entering).toContainText("Good afternoon, Root Admin")
+	await expect(entering).toContainText("Work that moved. Decisions that wait.")
 
 	const navigation = page.getByRole("navigation", { name: "Portal sections" })
 	await navigation.getByRole("button", { name: "Projects" }).click()
@@ -151,7 +263,7 @@ test("reports live Agentix attention to the shell badge and the jump registry", 
 
 test("keeps the global command menu accessible", async ({ page }) => {
 	await page.goto("/maxion-prototype")
-	await expect(page.getByRole("heading", { name: "Good afternoon, Root Admin" })).toBeVisible()
+	await expect(page.getByRole("heading", { name: "Work that moved. Decisions that wait." })).toBeVisible()
 	await page.keyboard.press("ControlOrMeta+k")
 	await expect(shellMenu(page)).toBeVisible()
 	// Contrast is measured on the settled surface, not mid-entrance.

@@ -118,16 +118,12 @@ export function PortalSidebar({
 	const [notice, setNotice] = useState("")
 	const mobileTriggerRef = useRef<HTMLButtonElement>(null)
 	const mobileCloseRef = useRef<HTMLButtonElement>(null)
-	const sidebarRef = useRef<HTMLElement>(null)
+	const sidebarRef = useRef<HTMLDivElement>(null)
 
 	useEffect(() => {
 		if (!mobileOpen) return
 		const sidebar = sidebarRef.current
-		const mobileTrigger = mobileTriggerRef.current
-		const stage = document.querySelector<HTMLElement>(".mxp-stage")
 		if (!sidebar) return
-		stage?.setAttribute("inert", "")
-		stage?.setAttribute("aria-hidden", "true")
 		mobileCloseRef.current?.focus()
 
 		const onKeyDown = (event: KeyboardEvent) => {
@@ -161,9 +157,6 @@ export function PortalSidebar({
 		document.addEventListener("keydown", onKeyDown)
 		return () => {
 			document.removeEventListener("keydown", onKeyDown)
-			stage?.removeAttribute("inert")
-			stage?.removeAttribute("aria-hidden")
-			mobileTrigger?.focus()
 		}
 	}, [mobileOpen, onMobileOpenChange])
 
@@ -182,6 +175,7 @@ export function PortalSidebar({
 					type="button"
 					className={`mxp-portal-nav-item is-${tier}${isAdministration ? " is-compact" : ""}${isActive ? " is-active" : ""}`}
 					data-navigation-tier={tier}
+					data-navigation-id={item.id}
 					aria-current={isActive ? "page" : undefined}
 					title={collapsed ? item.label : undefined}
 					onClick={() => navigate(item.id)}>
@@ -217,11 +211,11 @@ export function PortalSidebar({
 					onClick={() => onMobileOpenChange(false)}
 				/>
 			) : null}
-			<aside
+			<div
 				ref={sidebarRef}
 				id="portal-sidebar"
 				className={`mxp-portal-sidebar${mobileOpen ? " is-mobile-open" : ""}${collapsed ? " is-collapsed" : ""}`}
-				role={mobileOpen ? "dialog" : undefined}
+				role={mobileOpen ? "dialog" : "complementary"}
 				aria-modal={mobileOpen ? "true" : undefined}
 				aria-label="Main navigation">
 				<div className="mxp-portal-brand">
@@ -265,7 +259,7 @@ export function PortalSidebar({
 					</div>
 					<span className="mxp-sidebar-notice" aria-live="polite">{notice}</span>
 				</footer>
-			</aside>
+			</div>
 		</>
 	)
 }
