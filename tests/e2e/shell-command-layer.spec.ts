@@ -123,7 +123,7 @@ test("keeps drawer-to-command ownership and command navigation focus safe on mob
 	menu = await openFromDrawer()
 	await menu.getByRole("textbox", { name: "Search MAXION commands" }).fill("Execute")
 	await menu.getByRole("textbox", { name: "Search MAXION commands" }).press("Enter")
-	await expect(page.getByRole("textbox", { name: "What should Execute deliver?" })).toBeFocused()
+	await expect(page.getByRole("heading", { name: "Approved Plan required" })).toBeVisible()
 })
 
 test("the global command menu filters, arrow-navigates, and runs the active item", async ({ page }) => {
@@ -200,12 +200,11 @@ test("jumps across modules from wherever the viewer already is", async ({ page }
 	await menu.getByRole("textbox", { name: "Search MAXION commands" }).press("Enter")
 	await expect(page.getByRole("heading", { name: "No evidence-backed plan yet" })).toBeVisible()
 
-	// From Plan, an Execute workspace opens directly into its agent session.
+	// Without an approved Plan, an Execute jump fails closed on the intake boundary.
 	menu = await openShellMenu(page)
-	await menu.getByRole("textbox", { name: "Search MAXION commands" }).fill("Workspace 03")
+	await menu.getByRole("textbox", { name: "Search MAXION commands" }).fill("Execute")
 	await menu.getByRole("textbox", { name: "Search MAXION commands" }).press("Enter")
-	await expect(page.getByRole("heading", { name: "MuleSoft" })).toBeVisible()
-	await expect(page.getByRole("textbox", { name: "Steer MuleSoft agent" })).toBeVisible()
+	await expect(page.getByRole("heading", { name: "Approved Plan required" })).toBeVisible()
 
 	// A saved Discovery that needs input is registered too, and resumes at its decision.
 	menu = await openShellMenu(page)
@@ -230,11 +229,11 @@ test("gives the newly visible stage its own entrance and clears the Execute scri
 
 	await navigation.getByRole("button", { name: /^Execute/ }).click()
 	await expect(page.locator(".mxp-stage-view--execute.is-entering")).toHaveCount(1)
-	// The dark scrim is theater only: it must not stay painted over the module.
+	// The stage transition must not stay painted over the module.
 	await expect
 		.poll(async () => page.locator(".mxp-stage-view--execute").evaluate((element) => getComputedStyle(element, "::before").opacity))
 		.toBe("0")
-	await expect(page.getByRole("heading", { name: "What do you want built?", exact: true })).toBeVisible()
+	await expect(page.getByRole("heading", { name: "Approved Plan required" })).toBeVisible()
 })
 
 test("reports live Agentix attention to the shell badge and the jump registry", async ({ page }) => {

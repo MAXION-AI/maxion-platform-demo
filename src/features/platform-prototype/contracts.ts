@@ -1,6 +1,6 @@
 import type { WorkflowId } from "@/features/agentix/prototype/initiatives"
 
-import type { ExecuteWorkspaceId, MaxionModuleId, PortalProject } from "./model"
+import type { MaxionModuleId, PortalProject } from "./model"
 
 export type { MaxionModuleId, PortalProject } from "./model"
 
@@ -65,7 +65,6 @@ export type AgentixIntent =
 	| { type: "create" }
 
 export type PlanJumpSignal = { tick: number; artifactId: string }
-export type ExecuteJumpSignal = { tick: number; target: { kind: "workspace"; taskId: ExecuteWorkspaceId } | { kind: "approvals" | "engagements" } }
 export type DiscoveryOpenSignal = { tick: number; recordId: string; jump: "resume" | "decision" | "package" }
 export type AgentixIntentSignal = { tick: number; intent: AgentixIntent }
 
@@ -96,7 +95,6 @@ export type PlatformState = {
 		discoverySetupSignal: number
 		operationalDiscovery: WorkflowId | null
 		planJump: PlanJumpSignal | null
-		executeJump: ExecuteJumpSignal | null
 		discoveryOpen: DiscoveryOpenSignal | null
 		agentixIntent: AgentixIntentSignal | null
 		nextTick: number
@@ -124,8 +122,6 @@ export type PlatformEvent =
 	| { type: "discovery/operational-closed" }
 	| { type: "plan/artifact-opened"; artifactId: string }
 	| { type: "plan/approved"; artifactRef: PlanArtifactRef }
-	| { type: "execute/workspace-opened"; taskId: ExecuteWorkspaceId }
-	| { type: "execute/hub-opened"; target: "approvals" | "engagements" }
 	| { type: "execute/verified" }
 	| { type: "agentix/attention-changed"; attention: AgentixAttention }
 	| { type: "agentix/opened"; intent: AgentixIntent }
