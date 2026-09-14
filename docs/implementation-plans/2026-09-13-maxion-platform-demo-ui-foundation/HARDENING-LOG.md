@@ -52,6 +52,7 @@ remain only when they do not change implementation behavior or acceptance and ha
 | H-19 | Major | Phase 1 bundle budget had an unowned waiver | Made 250 kB JS / 60 kB CSS a hard merge gate; rebaseline needs prior roadmap-amendment PR | Phase 1 scan |
 | H-20 | Blocker | The first ledger remediation still permitted duplicate phase numbers and pending records in the external authority | External records are accepted-only, exactly ordered `0..N`, chained by prior M→next B, serialized under one lock, and successor bootstrap binds clean HEAD plus target ref to the latest M | Concurrent duplicate, skipped-phase, pending-record, base-continuity, and bootstrap negative tests |
 | H-21 | Blocker | The first hosted run asked `setup-node` to initialize pnpm caching before pnpm existed on PATH, so CI stopped before installation | Removed the order-dependent setup-node cache input; pinned Node is installed first and pinned pnpm is activated explicitly next | Hosted PR check must pass from the revised clean candidate |
+| H-22 | Blocker | The second hosted run used a shallow checkout that omitted the manifest's pinned source commit, so provenance validation correctly stopped | Set the pinned checkout action to `fetch-depth: 0`; source-commit ancestry and tree equality now run against complete repository history | Hosted PR check must pass from the revised clean candidate |
 
 Round 4's Figma review reopened all thirteen mapped frame nodes in file
 `UhLxGyXphdHHNLGMomBq6n` and confirmed the recorded 1440 × 900 frame identities. It did not enumerate
