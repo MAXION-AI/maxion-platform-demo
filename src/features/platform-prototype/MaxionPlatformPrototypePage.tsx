@@ -21,7 +21,7 @@ import {
 	Stack,
 	Tray,
 } from "@phosphor-icons/react"
-import { AnimatePresence, motion } from "motion/react"
+import { motion } from "motion/react"
 import { useCallback, useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "react"
 import { useLocation } from "react-router-dom"
 
@@ -710,6 +710,7 @@ export function MaxionPlatformPrototypePage() {
 	const commandOpenerRef = useRef<HTMLElement | null>(null)
 	const restoreCommandFocusRef = useRef(false)
 	const commandCloseReasonRef = useRef<CommandCloseReason>("dismiss")
+	const pendingNavigationFocusRef = useRef<MaxionModuleId | null>(null)
 	commandOpenRef.current = commandOpen
 
 	const openCommand = useCallback(() => {
@@ -758,6 +759,14 @@ export function MaxionPlatformPrototypePage() {
 		commandCloseReasonRef.current = reason
 		setCommandOpen(false)
 	}, [])
+	useEffect(() => {
+		const target = pendingNavigationFocusRef.current
+		if (commandOpen || target === null || target !== activeModule) return
+		const destination = document.querySelector<HTMLElement>(`.mxp-portal-sidebar button[data-navigation-id="${target}"]`)
+		if (!destination || destination.closest("[hidden], [inert]")) return
+		destination.focus()
+		pendingNavigationFocusRef.current = null
+	}, [activeModule, commandOpen])
 
 	useEffect(() => {
 		const onKeyDown = (event: KeyboardEvent) => {
@@ -794,7 +803,7 @@ export function MaxionPlatformPrototypePage() {
 		}
 	}, [closeCommand, openCommand])
 
-	const navigate = (module: MaxionModuleId, focusDestination = false) => {
+	const navigate = (module: MaxionModuleId) => {
 		// Execute is a focused, long-running workspace. Keep MAXION navigation one
 		// action away without taking meaningful width away from the work surface — and
 		// hand the sidebar back exactly as it was when the viewer leaves again.
@@ -807,13 +816,6 @@ export function MaxionPlatformPrototypePage() {
 		setActiveModule(module)
 		setCommandOpen(false)
 		setMobileNavOpen(false)
-		if (focusDestination) {
-			window.requestAnimationFrame(() => {
-				window.requestAnimationFrame(() => {
-					document.querySelector<HTMLElement>('.mxp-portal-sidebar button[aria-current="page"]')?.focus()
-				})
-			})
-		}
 	}
 	const startDiscoverySetup = () => {
 		setOperationalDiscovery(null)
@@ -834,7 +836,10 @@ export function MaxionPlatformPrototypePage() {
 		active: activeModule,
 		agentix: agentixAttention,
 		discoveries: commandOpen ? listDiscoveryJumpRecords() : [],
-		navigate: (module) => navigate(module, true),
+		navigate: (module) => {
+			pendingNavigationFocusRef.current = module
+			navigate(module)
+		},
 		startDiscovery: startDiscoverySetup,
 		openPlanArtifact,
 		openExecuteWorkspace,
@@ -862,7 +867,7 @@ export function MaxionPlatformPrototypePage() {
 				<div className={stageClass("integrations")} hidden={activeModule !== "integrations"}><ModuleErrorBoundary moduleName="Integrations" resetKey={activeModule} onReturnToDashboard={() => navigate("dashboard")}><IntegrationsModule /></ModuleErrorBoundary></div>
 				{(["settings", "approvals", "usage", "help"] as const).map((module) => <div key={module} className={stageClass(module)} hidden={activeModule !== module}><ModuleErrorBoundary moduleName={module[0].toUpperCase() + module.slice(1)} resetKey={activeModule} onReturnToDashboard={() => navigate("dashboard")}><AccountUtilityModule module={module} onNavigate={navigate} approvalOpen={agentixAttention.approval} onOpenApproval={() => openAgentix({ type: "decision", id: "approval" })} /></ModuleErrorBoundary></div>)}
 			</div>
-			<AnimatePresence>{commandOpen ? <CommandMenu context={commandContext} onClose={closeCommand} onAfterClose={restoreCommandFocus} /> : null}</AnimatePresence>
+			{commandOpen ? <CommandMenu context={commandContext} onClose={closeCommand} onAfterClose={restoreCommandFocus} /> : null}
 		</div>
 	)
 }
