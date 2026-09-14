@@ -49,7 +49,7 @@ export function ExecuteDeliveryWorkspace({ onBack, onPlatform, onPlan, onCommand
 	const [instruction, setInstruction] = useState("")
 	const [inspector, setInspector] = useState<"tests" | "changes" | "audit">("tests")
 	const composerRef = useRef<HTMLTextAreaElement>(null)
-	const reportedComplete = useRef(false)
+	const reportedResultId = useRef<string | null>(null)
 	const verifiedRef = useRef(onVerified)
 	verifiedRef.current = onVerified
 
@@ -67,11 +67,11 @@ export function ExecuteDeliveryWorkspace({ onBack, onPlatform, onPlan, onCommand
 	const readOnly = !run || run.role === "viewer"
 
 	useEffect(() => {
-		if (run?.status === "completed" && !reportedComplete.current) {
-			reportedComplete.current = true
+		if (run?.status === "completed" && run.resultRef && reportedResultId.current !== run.resultRef.id) {
+			reportedResultId.current = run.resultRef.id
 			verifiedRef.current()
 		}
-	}, [run?.status])
+	}, [run?.resultRef, run?.status])
 
 	useEffect(() => {
 		if (!run || run.status !== "running" || !currentStage) return

@@ -286,7 +286,11 @@ export function platformReducer(state: PlatformState, event: PlatformEvent): Pla
 			const next = withIntentTick(state)
 			return { ...state, intents: { ...next.intents, planJump: { tick: next.tick, artifactId: event.artifactId } } }
 		}
-		case "plan/approved": return { ...state, handoffs: { ...state.handoffs, plan: { sent: true, artifactRef: event.artifactRef } } }
+		case "plan/approved": {
+			const current = state.handoffs.plan.artifactRef
+			const replaced = !current || current.id !== event.artifactRef.id || current.artifactVersion !== event.artifactRef.artifactVersion || current.contentDigest !== event.artifactRef.contentDigest
+			return { ...state, handoffs: { ...state.handoffs, plan: { sent: true, artifactRef: event.artifactRef }, execute: replaced ? { ...state.handoffs.execute, verified: false } : state.handoffs.execute } }
+		}
 		case "execute/verified": return state.handoffs.execute.verified ? state : { ...state, handoffs: { ...state.handoffs, execute: { ...state.handoffs.execute, verified: true } } }
 		case "agentix/attention-changed": {
 			const current = state.agentix.attention

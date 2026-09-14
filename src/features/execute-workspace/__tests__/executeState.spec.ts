@@ -44,6 +44,8 @@ describe("Execute state", () => {
 
 	it("enforces persisted project role and stale-command rejection", () => {
 		let state = withRun("viewer")
+		state = executeReducer(state, { type: "plan/ingested", planRef, actorRole: "owner" })
+		expect(selectActiveExecution(state)?.role).toBe("viewer")
 		state = executeReducer(state, { type: "run/started", ...meta(state, "viewer-start", "owner") })
 		expect(selectActiveExecution(state)?.status).toBe("idle")
 		expect(selectActiveExecution(state)?.notice).toMatch(/read-only/i)
@@ -99,5 +101,12 @@ describe("Execute state", () => {
 		expect(performance.now() - started).toBeLessThan(100)
 		const parsed = executeStateCodec.parse(JSON.parse(JSON.stringify(state)))!
 		expect(selectActiveExecution(parsed)?.events).toHaveLength(10_000)
+	})
+
+	it("rejects a persisted completed run without a local simulated result receipt", () => {
+		const state = withRun()
+		const run = selectActiveExecution(state)!
+		const corrupt = { ...state, runs: [{ ...run, status: "completed", resultRef: null }] }
+		expect(executeStateCodec.parse(corrupt)).toBeNull()
 	})
 })

@@ -935,12 +935,6 @@
 	.mxp-plan-list-card time { display: none; }
 	.mxp-autonomy-brief { grid-template-columns: auto minmax(0, 1fr); padding: 15px; }
 	.mxp-autonomy-brief > button { grid-column: 1 / -1; justify-content: center; }
-	.mxp-execute-lane > div > button { grid-template-columns: minmax(0, 1fr) auto; }
-	.mxp-execute-lane button > span:last-child { grid-column: 1 / -1; }
-	.mxp-start-source,
-	.mxp-autonomy-contract ul,
-	.mxp-launch-boundaries dl { grid-template-columns: 1fr; }
-	.mxp-execute-start-dialog { max-height: calc(100vh - 20px); }
 	.mxp-approval-inbox > article { grid-template-columns: auto 1fr; }
 	.mxp-approval-inbox article > div:last-child { grid-column: 1 / -1; justify-content: flex-end; }
 	.mxp-integration-category article { grid-template-columns: auto minmax(0, 1fr); }
@@ -966,32 +960,4 @@
 	.mxp-project-panel,
 	.mxp-integration-panel,
 	.mxp-stage-view:not([hidden]) { animation: none !important; transition-duration: 0.01ms !important; }
-}
-
-@media (max-width: 860px) {
-	.mxp-execute-hub { padding-top: 72px; }
-	.mxp-execute-hub .mxp-portal-page-header { margin-bottom: 34px; }
-}
-
-@media (max-width: 640px) {
-	.mxp-execute-hub .mxp-portal-page-header { gap: 18px; }
-	.mxp-execute-hub .mxp-portal-page-header h1 { font-size: 30px; }
-	.mxp-execute-hub .mxp-portal-page-header p { font-size: 13px; }
-	.mxp-execute-hub .mxp-portal-page-actions { justify-content: flex-end; }
-	.mxp-execute-hub .mxp-portal-page-actions > button:first-child { display: none; }
-	.mxp-execute-delegate-intro { grid-template-columns: 32px minmax(0, 1fr); gap: 12px; }
-	.mxp-execute-delegate-mark { width: 30px; height: 30px; }
-	.mxp-execute-delegate-intro h2 { font-size: 27px; }
-	.mxp-execute-delegate-intro p { font-size: 13px; }
-	.mxp-execute-composer > textarea { min-height: 132px; padding: 18px; font-size: 16px; }
-	.mxp-execute-composer > footer { align-items: stretch; flex-direction: column; padding: 12px; }
-	.mxp-execute-composer > footer > button { width: 100%; }
-	.mxp-execute-delegate-note { align-items: flex-start; font-size: 11px; }
-	.mxp-execute-recents > button { grid-template-columns: 18px minmax(0, 1fr) auto; }
-	.mxp-execute-run-meta small,
-	.mxp-execute-run-meta time { display: none; }
-	.mxp-execute-home-footer > button { grid-template-columns: 22px minmax(0, 1fr) 16px; }
-	.mxp-execute-home-footer > button b { display: none; }
-	.mxp-execute-approval-view > header { grid-template-columns: 1fr auto; }
-	.mxp-execute-approval-view > header > button { grid-column: 1 / -1; justify-self: start; }
 }

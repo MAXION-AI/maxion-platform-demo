@@ -130,9 +130,9 @@ export function executeReducer(state: ExecuteSlice, command: ExecutionCommand): 
 		if (!validPlanRef(command.planRef)) return state
 		const id = `run-${command.planRef.id}`
 		const exact = state.runs.find((run) => run.id === id)
-		if (exact) return { ...state, activeRunId: id, runs: state.runs.map((run) => run.id === id ? { ...run, role: command.actorRole } : run) }
+		if (exact) return { ...state, activeRunId: id }
 		const projectRun = state.runs.find((run) => run.projectId === command.planRef.projectId)
-		if (projectRun && command.actorRole === "viewer") return { ...state, activeRunId: projectRun.id, runs: state.runs.map((run) => run.id === projectRun.id ? denied({ ...run, role: "viewer" }, "Viewer access cannot replace this run's approved Plan input.") : run) }
+		if (projectRun && command.actorRole === "viewer") return { ...state, activeRunId: projectRun.id, runs: state.runs.map((run) => run.id === projectRun.id ? denied(run, "Viewer access cannot replace this run's approved Plan input.") : run) }
 		const next = createRun(command.planRef, command.actorRole)
 		return { version: 1, activeRunId: next.id, runs: [...state.runs.filter((run) => run.projectId !== next.projectId), next].slice(-100) }
 	}
@@ -230,6 +230,7 @@ function parseRun(value: unknown): ExecutionRun | null {
 	if (!id || !projectId || !projectName || !planRef || planRef.projectId !== projectId || !isRole(value.role) || !isStatus(value.status) || !Number.isInteger(value.revision) || Number(value.revision) < 1 || stages.some((stage) => stage === null) || events.some((item) => item === null) || idempotencyKeys.some((key) => key === null) || activeStageId === null && value.activeStageId !== null) return null
 	const resultRef = value.resultRef === null ? null : isRecord(value.resultRef) && value.resultRef.version === 1 && value.resultRef.runId === id && value.resultRef.planArtifactId === planRef.artifactId && value.resultRef.planArtifactVersion === planRef.artifactVersion && value.resultRef.projectId === projectId && value.resultRef.environment === "local-simulation" && value.resultRef.evidenceClass === "simulated" && text(value.resultRef.id, 240) && text(value.resultRef.completedAt, 80) ? value.resultRef as ExecutionResultRef : null
 	if (value.resultRef !== null && resultRef === null) return null
+	if ((value.status === "completed") !== Boolean(resultRef)) return null
 	return { id, projectId, projectName, planRef, role: value.role, status: value.status, revision: Number(value.revision), activeStageId, stages: stages as ExecutionStage[], events: events as ExecutionEvent[], idempotencyKeys: idempotencyKeys as string[], resultRef, notice: value.notice === null ? null : text(value.notice, 500) }
 }
 
