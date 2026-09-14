@@ -37,6 +37,65 @@
 	min-height: 0;
 }
 
+.maxion-platform-prototype .mxp-module-loading {
+	display: grid;
+	width: min(100% - 32px, 720px);
+	margin: clamp(48px, 10vh, 96px) auto;
+	grid-template-columns: repeat(3, minmax(0, 1fr));
+	gap: var(--mxp-space-3);
+}
+
+.maxion-platform-prototype .mxp-module-loading > span {
+	height: 112px;
+	border: 1px solid var(--mxp-border-subtle);
+	border-radius: var(--mxp-radius-md);
+	background: var(--mxp-surface-muted);
+	animation: mxp-loading-pulse 900ms ease-in-out infinite alternate;
+}
+
+.maxion-platform-prototype .mxp-module-loading p {
+	grid-column: 1 / -1;
+	margin: 0;
+	color: var(--mxp-text-muted);
+	font-size: 13px;
+}
+
+.maxion-platform-prototype .mxp-persistence-notice {
+	position: fixed;
+	z-index: 120;
+	right: var(--mxp-space-4);
+	bottom: var(--mxp-space-4);
+	display: flex;
+	max-width: min(440px, calc(100vw - 32px));
+	align-items: center;
+	gap: var(--mxp-space-3);
+	margin: 0;
+	padding: var(--mxp-space-3) var(--mxp-space-4);
+	border: 1px solid var(--mxp-border-strong);
+	border-radius: var(--mxp-radius-md);
+	background: var(--mxp-surface-raised);
+	box-shadow: var(--mxp-shadow-float);
+	color: var(--mxp-text-secondary);
+	font-size: 12px;
+}
+
+.maxion-platform-prototype .mxp-persistence-notice button {
+	min-height: var(--mxp-control-md);
+	border: 0;
+	background: transparent;
+	color: var(--mxp-accent-primary);
+	font-weight: 650;
+	cursor: pointer;
+}
+
+@keyframes mxp-loading-pulse {
+	to { opacity: .55; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+	.maxion-platform-prototype .mxp-module-loading > span { animation: none; }
+}
+
 .maxion-platform-prototype .mxp-module-error {
 	display: grid;
 	width: min(100% - 32px, 560px);

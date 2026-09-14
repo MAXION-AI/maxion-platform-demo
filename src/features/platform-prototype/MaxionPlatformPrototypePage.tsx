@@ -26,19 +26,16 @@ import { useCallback, useEffect, useLayoutEffect, useRef, useState, type ReactNo
 import { useLocation } from "react-router-dom"
 
 import { useDocumentTitle } from "@/app/hooks/useDocumentTitle"
-import { AgentixInitiativesPage, DiscoveryHandoffWorkspace, OperationalDiscoveryEntry, type AgentixAttention, type AgentixIntent, type AgentixIntentSignal } from "@/features/agentix/prototype/AgentixInitiativesPage"
 import { WORKFLOWS, type WorkflowId } from "@/features/agentix/prototype/initiatives"
 import {
-	DiscoveryAutonomousPrototypePage,
-	listDiscoveryJumpRecords,
 	type DiscoveryJump,
 	type DiscoveryJumpRecord,
-	type DiscoveryOpenSignal,
 } from "@/features/discovery-autonomous/DiscoveryAutonomousPrototypePage"
 
-import { PLAN_JUMP_ENTRIES, PlanModule, type PlanJumpSignal } from "./PlanAgenticModule"
+import { PLAN_JUMP_ENTRIES, PlanModule } from "./PlanAgenticModule"
 import { ExecuteDeliveryWorkspace, type ExecuteDeliveryCommand, type ExecuteDeliveryProgress } from "./ExecuteDeliveryWorkspace"
 import { ADMINISTRATION_NAVIGATION, MaxionSpiralMark, PortalSidebar, PRODUCT_NAVIGATION } from "./PortalChrome"
+import { PlatformDemoProvider, usePlatformDispatch, usePlatformSelector } from "./PlatformDemoProvider"
 import { ModuleErrorBoundary } from "./ModuleErrorBoundary"
 import {
 	AccountUtilityModule,
@@ -50,18 +47,35 @@ import {
 import {
 	EXECUTE_FLAGSHIP_ENGAGEMENT,
 	EXECUTE_TASKS,
-	INITIAL_PROJECTS,
 	resolveExecuteBlueprint,
 	type ExecuteLaunchIntent,
 	type ExecuteWorkspaceId,
 	type ExecuteWorkspaceSpec,
-	type MaxionModuleId,
 } from "./model"
+import type { AgentixAttention, AgentixIntent, ExecuteJumpSignal, MaxionModuleId } from "./contracts"
+import type { AgentixModuleProps } from "./modules/AgentixModule"
+import type { DiscoveryModuleProps } from "./modules/DiscoveryModule"
+import {
+	selectActiveModule,
+	selectAgentixAttention,
+	selectDiscoveryReady,
+	selectExecuteVerified,
+	selectPersistenceNotice,
+	selectPlanHandoff,
+	selectPlatformIntents,
+	selectProjects,
+	selectSidebarCollapsed,
+	selectVisitedModules,
+} from "./platformState"
+import { DeferredModule } from "./system/DeferredModule"
 import "./maxion-platform-prototype.css"
 import "./portal-replica.css"
 import "./execute-agentic.css"
 import "./plan-agentic.css"
 import "./platform-design-contract.css"
+
+const loadAgentixModule = () => import("./modules/AgentixModule")
+const loadDiscoveryModule = () => import("./modules/DiscoveryModule")
 
 function MaxionMark({ size = 30 }: { size?: number }) {
 	return <span className="mxp-mark" style={{ width: size, height: size }} aria-hidden="true"><MaxionSpiralMark className="mxp-mark-spiral" /></span>
@@ -211,9 +225,6 @@ function ExecuteCommandPalette({ workspaces, onRun, onClose }: { workspaces: rea
 	)
 }
 
-type ExecuteJumpTarget = { kind: "workspace"; taskId: ExecuteWorkspaceId } | { kind: "approvals" } | { kind: "engagements" }
-type ExecuteJumpSignal = { tick: number; target: ExecuteJumpTarget }
-
 function ExecuteModule({
 	active,
 	planHandoff,
@@ -327,7 +338,7 @@ function ExecuteModule({
 
 	// Cross-module arrival from the shell palette. Workspace jumps ride the existing
 	// dispatch seam, so a jump that lands before the workspace mounts is queued, not lost.
-	const jumpActionsRef = useRef<(target: ExecuteJumpTarget) => void>(() => undefined)
+	const jumpActionsRef = useRef<(target: ExecuteJumpSignal["target"]) => void>(() => undefined)
 	jumpActionsRef.current = (target) => {
 		if (target.kind === "workspace") {
 			// Shell jump targets name the flagship engagement's workspaces. If another
@@ -667,30 +678,33 @@ function isMobileShell() {
 }
 
 export function MaxionPlatformPrototypePage() {
-	useDocumentTitle("MAXION · Unified platform prototype")
 	const location = useLocation()
 	const initialModule: MaxionModuleId = location.pathname.includes("agentix") ? "agentix" : "dashboard"
-	const [activeModule, setActiveModule] = useState<MaxionModuleId>(initialModule)
+	return <PlatformDemoProvider activeModule={initialModule}><MaxionPlatformPrototype /></PlatformDemoProvider>
+}
+
+function MaxionPlatformPrototype() {
+	useDocumentTitle("MAXION · Unified platform prototype")
+	const dispatch = usePlatformDispatch()
+	const activeModule = usePlatformSelector(selectActiveModule)
+	const sidebarCollapsed = usePlatformSelector(selectSidebarCollapsed)
+	const visitedModules = usePlatformSelector(selectVisitedModules)
+	const projects = usePlatformSelector(selectProjects)
+	const discoveryReady = usePlatformSelector(selectDiscoveryReady)
+	const planHandoff = usePlatformSelector(selectPlanHandoff)
+	const executeVerified = usePlatformSelector(selectExecuteVerified)
+	const agentixAttention = usePlatformSelector(selectAgentixAttention)
+	const intents = usePlatformSelector(selectPlatformIntents)
+	const persistenceNotice = usePlatformSelector(selectPersistenceNotice)
 	const [commandOpen, setCommandOpen] = useState(false)
 	const [mobileNavOpen, setMobileNavOpen] = useState(false)
-	const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
 	const [keyboardNavigation, setKeyboardNavigation] = useState(false)
-	const [projects, setProjects] = useState(INITIAL_PROJECTS)
-	const [discoveryReady, setDiscoveryReady] = useState(false)
-	const [discoverySetupSignal, setDiscoverySetupSignal] = useState(0)
-	const [planSent, setPlanSent] = useState(false)
-	const [planSnapshot, setPlanSnapshot] = useState("v12")
-	const [executeVerified, setExecuteVerified] = useState(false)
-	// The Agentix simulation reports only actual waiting cases, never seeded alerts.
-	const [agentixAttention, setAgentixAttention] = useState<AgentixAttention>({ count: 0, audience: false, approval: false })
-	const [operationalDiscovery, setOperationalDiscovery] = useState<WorkflowId | null>(null)
-	// One-shot cross-module intents. Each carries a tick so the receiving module consumes it
-	// exactly once — re-entering a module never replays an old jump.
-	const [planJump, setPlanJump] = useState<PlanJumpSignal | null>(null)
-	const [executeJump, setExecuteJump] = useState<ExecuteJumpSignal | null>(null)
-	const [discoveryOpen, setDiscoveryOpen] = useState<DiscoveryOpenSignal | null>(null)
-	const [agentixIntent, setAgentixIntent] = useState<AgentixIntentSignal | null>(null)
-	const jumpTickRef = useRef(0)
+	const [discoveryJumpRecords, setDiscoveryJumpRecords] = useState<DiscoveryJumpRecord[]>([])
+	const setSidebarCollapsed = useCallback((collapsed: boolean) => dispatch({ type: "navigation/sidebar-collapsed", collapsed }), [dispatch])
+	const setProjects = useCallback((next: typeof projects) => dispatch({ type: "projects/replaced", projects: next }), [dispatch])
+	const setAgentixAttention = useCallback((attention: AgentixAttention) => dispatch({ type: "agentix/attention-changed", attention }), [dispatch])
+	const { discoverySetupSignal, operationalDiscovery, planJump, executeJump, discoveryOpen, agentixIntent } = intents
+	const { sent: planSent, snapshot: planSnapshot } = planHandoff
 	// The shell keyboard reads the current module without re-subscribing the listener.
 	const activeModuleRef = useRef(activeModule)
 	activeModuleRef.current = activeModule
@@ -713,6 +727,10 @@ export function MaxionPlatformPrototypePage() {
 		commandCloseReasonRef.current = "dismiss"
 		setMobileNavOpen(false)
 		setCommandOpen(true)
+		void import("@/features/discovery-autonomous/DiscoveryAutonomousPrototypePage").then(
+			({ listDiscoveryJumpRecords }) => setDiscoveryJumpRecords(listDiscoveryJumpRecords()),
+			() => setDiscoveryJumpRecords([]),
+		)
 	}, [])
 	const restoreCommandFocus = useCallback(() => {
 		window.requestAnimationFrame(() => {
@@ -856,29 +874,24 @@ export function MaxionPlatformPrototypePage() {
 		} else if (activeModuleRef.current === "execute") {
 			setSidebarCollapsed(collapsedBeforeExecuteRef.current)
 		}
-		setActiveModule(module)
+		dispatch({ type: "navigation/opened", module })
 		setCommandOpen(false)
 		setMobileNavOpen(false)
 	}
 	const startDiscoverySetup = () => {
-		setOperationalDiscovery(null)
-		// Signal Discovery to open its setup screen instead of dropping the user
-		// wherever the module last was.
-		setDiscoverySetupSignal((current) => current + 1)
+		dispatch({ type: "discovery/setup-started" })
 		navigate("discovery")
 	}
-	const nextJumpTick = () => { jumpTickRef.current += 1; return jumpTickRef.current }
-	const openPlanArtifact = (artifactId: string) => { setPlanJump({ tick: nextJumpTick(), artifactId }); navigate("plan") }
-	const openExecuteWorkspace = (taskId: ExecuteWorkspaceId) => { setExecuteJump({ tick: nextJumpTick(), target: { kind: "workspace", taskId } }); navigate("execute") }
-	const openExecuteHub = (target: "approvals" | "engagements") => { setExecuteJump({ tick: nextJumpTick(), target: { kind: target } }); navigate("execute") }
-	const openDiscoveryRecord = (recordId: string, jump: DiscoveryJump) => { setOperationalDiscovery(null); setDiscoveryOpen({ tick: nextJumpTick(), recordId, jump }); navigate("discovery") }
-	const openAgentix = (intent: AgentixIntent) => { setAgentixIntent({ tick: nextJumpTick(), intent }); navigate("agentix") }
-	const openOperationalDiscovery = (id: WorkflowId) => { setOperationalDiscovery(id); navigate("discovery") }
-	// Saved discoveries live in localStorage, so the registry reads them when the menu opens.
+	const openPlanArtifact = (artifactId: string) => { dispatch({ type: "plan/artifact-opened", artifactId }); navigate("plan") }
+	const openExecuteWorkspace = (taskId: ExecuteWorkspaceId) => { dispatch({ type: "execute/workspace-opened", taskId }); navigate("execute") }
+	const openExecuteHub = (target: "approvals" | "engagements") => { dispatch({ type: "execute/hub-opened", target }); navigate("execute") }
+	const openDiscoveryRecord = (recordId: string, jump: DiscoveryJump) => { dispatch({ type: "discovery/record-opened", recordId, jump }); navigate("discovery") }
+	const openAgentix = (intent: AgentixIntent) => { dispatch({ type: "agentix/opened", intent }); navigate("agentix") }
+	const openOperationalDiscovery = (id: WorkflowId) => { dispatch({ type: "discovery/operational-opened", workflowId: id }); navigate("discovery") }
 	const commandContext: ShellCommandContext = {
 		active: activeModule,
 		agentix: agentixAttention,
-		discoveries: commandOpen ? listDiscoveryJumpRecords() : [],
+		discoveries: commandOpen ? discoveryJumpRecords : [],
 		navigate: (module) => {
 			// Execute owns an explicit visible-arrival focus effect for its composer.
 			// Other destinations need the shell's rail/trigger hand-off.
@@ -900,17 +913,18 @@ export function MaxionPlatformPrototypePage() {
 
 	return (
 		<div className={`maxion-platform-prototype mxp-root${activeModule === "execute" ? " mxp-root--execute" : ""}${activeModule === "agentix" ? " mxp-root--agentix" : ""}${sidebarCollapsed ? " mxp-root--sidebar-collapsed" : ""}${keyboardNavigation ? " mxp-keyboard-navigation" : ""}`}>
+			{persistenceNotice ? <p className="mxp-persistence-notice" role="status">{persistenceNotice}<button type="button" onClick={() => dispatch({ type: "persistence/notice-cleared" })}>Dismiss</button></p> : null}
 			<PortalSidebar active={activeModule} onNavigate={navigate} onCommand={openCommand} mobileOpen={mobileNavOpen} onMobileOpenChange={setMobileNavigationOpen} collapsed={sidebarCollapsed} onCollapsedChange={setSidebarCollapsed} badges={{ agentix: agentixAttention.count, approvals: agentixAttention.approval ? 1 : 0, execute: executeVerified ? 0 : 1 }} />
 			<div className="mxp-stage" role="region" aria-label={`${currentLabel} module`} tabIndex={-1}>
-				<div className={stageClass("dashboard")} hidden={activeModule !== "dashboard"}><ModuleErrorBoundary moduleName="Dashboard" resetKey={activeModule} onReturnToDashboard={() => navigate("dashboard")}><DashboardModule projects={projects} onNavigate={navigate} onCommand={openCommand} agentix={agentixAttention} discoveryReady={discoveryReady} planSent={planSent} executeVerified={executeVerified} /></ModuleErrorBoundary></div>
-				<div className={stageClass("projects")} hidden={activeModule !== "projects"}><ModuleErrorBoundary moduleName="Projects" resetKey={activeModule} onReturnToDashboard={() => navigate("dashboard")}><ProjectsModule projects={projects} onProjectsChange={setProjects} onNavigate={navigate} /></ModuleErrorBoundary></div>
-				<div className={stageClass("discovery", "mxp-stage-view--discovery")} hidden={activeModule !== "discovery"}><ModuleErrorBoundary moduleName="Discover" resetKey={activeModule} onReturnToDashboard={() => navigate("dashboard")}><div hidden={operationalDiscovery !== null} style={{ height: "100%" }}><DiscoveryAutonomousPrototypePage embedded setupSignal={discoverySetupSignal} openSignal={discoveryOpen} onPackageReady={() => setDiscoveryReady(true)} operationalPackages={<OperationalDiscoveryEntry onOpen={openOperationalDiscovery} />} /></div>{operationalDiscovery ? <DiscoveryHandoffWorkspace workflowId={operationalDiscovery} onBack={() => setOperationalDiscovery(null)} onSend={id => openAgentix({ type: "import", id })} /> : null}</ModuleErrorBoundary></div>
-				<div className={stageClass("plan")} hidden={activeModule !== "plan"}><ModuleErrorBoundary moduleName="Plan" resetKey={activeModule} onReturnToDashboard={() => navigate("dashboard")}><PlanModule projects={projects} onNavigate={navigate} jumpSignal={planJump} onSendToExecute={(snapshot) => { setPlanSent(true); setPlanSnapshot(snapshot); navigate("execute") }} /></ModuleErrorBoundary></div>
-				<div className={stageClass("execute", "mxp-stage-view--execute")} hidden={activeModule !== "execute"}><ModuleErrorBoundary moduleName="Execute" resetKey={activeModule} onReturnToDashboard={() => navigate("dashboard")}><ExecuteModule active={activeModule === "execute"} onNavigate={navigate} planHandoff={planSent} planSnapshot={planSnapshot} jumpSignal={executeJump} onVerified={() => setExecuteVerified(true)} /></ModuleErrorBoundary></div>
-				<div className={stageClass("agentix")} hidden={activeModule !== "agentix"}><ModuleErrorBoundary moduleName="Agentix" resetKey={activeModule} onReturnToDashboard={() => navigate("dashboard")}><AgentixInitiativesPage intentSignal={agentixIntent} onAttentionChange={setAgentixAttention} onOpenDiscovery={openOperationalDiscovery} /></ModuleErrorBoundary></div>
-				<div className={stageClass("consult")} hidden={activeModule !== "consult"}><ModuleErrorBoundary moduleName="Consult Max" resetKey={activeModule} onReturnToDashboard={() => navigate("dashboard")}><ConsultModule state={{ agentix: agentixAttention, discoveryReady, planSent, planSnapshot, executeVerified }} onCommand={openCommand} onNavigate={navigate} /></ModuleErrorBoundary></div>
-				<div className={stageClass("integrations")} hidden={activeModule !== "integrations"}><ModuleErrorBoundary moduleName="Integrations" resetKey={activeModule} onReturnToDashboard={() => navigate("dashboard")}><IntegrationsModule /></ModuleErrorBoundary></div>
-				{(["settings", "approvals", "usage", "help"] as const).map((module) => <div key={module} className={stageClass(module)} hidden={activeModule !== module}><ModuleErrorBoundary moduleName={module[0].toUpperCase() + module.slice(1)} resetKey={activeModule} onReturnToDashboard={() => navigate("dashboard")}><AccountUtilityModule module={module} onNavigate={navigate} approvalOpen={agentixAttention.approval} onOpenApproval={() => openAgentix({ type: "decision", id: "approval" })} /></ModuleErrorBoundary></div>)}
+				{visitedModules.has("dashboard") ? <div className={stageClass("dashboard")} hidden={activeModule !== "dashboard"}><ModuleErrorBoundary moduleName="Dashboard" resetKey={activeModule} onReturnToDashboard={() => navigate("dashboard")}><DashboardModule projects={projects} onNavigate={navigate} onCommand={openCommand} agentix={agentixAttention} discoveryReady={discoveryReady} planSent={planSent} executeVerified={executeVerified} /></ModuleErrorBoundary></div> : null}
+				{visitedModules.has("projects") ? <div className={stageClass("projects")} hidden={activeModule !== "projects"}><ModuleErrorBoundary moduleName="Projects" resetKey={activeModule} onReturnToDashboard={() => navigate("dashboard")}><ProjectsModule projects={projects} onProjectsChange={setProjects} onNavigate={navigate} /></ModuleErrorBoundary></div> : null}
+				{visitedModules.has("discovery") ? <div className={stageClass("discovery", "mxp-stage-view--discovery")} hidden={activeModule !== "discovery"}><DeferredModule<DiscoveryModuleProps> load={loadDiscoveryModule} moduleName="Discover" onReturnToDashboard={() => navigate("dashboard")} moduleProps={{ setupSignal: discoverySetupSignal, openSignal: discoveryOpen, operationalDiscovery, onPackageReady: () => dispatch({ type: "discovery/ready" }), onOpenOperationalDiscovery: openOperationalDiscovery, onCloseOperationalDiscovery: () => dispatch({ type: "discovery/operational-closed" }), onOpenAgentix: openAgentix }} /></div> : null}
+				{visitedModules.has("plan") ? <div className={stageClass("plan")} hidden={activeModule !== "plan"}><ModuleErrorBoundary moduleName="Plan" resetKey={activeModule} onReturnToDashboard={() => navigate("dashboard")}><PlanModule projects={projects} onNavigate={navigate} jumpSignal={planJump} onSendToExecute={(snapshot) => { dispatch({ type: "plan/sent", snapshot }); navigate("execute") }} /></ModuleErrorBoundary></div> : null}
+				{visitedModules.has("execute") ? <div className={stageClass("execute", "mxp-stage-view--execute")} hidden={activeModule !== "execute"}><ModuleErrorBoundary moduleName="Execute" resetKey={activeModule} onReturnToDashboard={() => navigate("dashboard")}><ExecuteModule active={activeModule === "execute"} onNavigate={navigate} planHandoff={planSent} planSnapshot={planSnapshot} jumpSignal={executeJump} onVerified={() => dispatch({ type: "execute/verified" })} /></ModuleErrorBoundary></div> : null}
+				{visitedModules.has("agentix") ? <div className={stageClass("agentix")} hidden={activeModule !== "agentix"}><DeferredModule<AgentixModuleProps> load={loadAgentixModule} moduleName="Agentix" onReturnToDashboard={() => navigate("dashboard")} moduleProps={{ active: activeModule === "agentix", intentSignal: agentixIntent, onAttentionChange: setAgentixAttention, onOpenDiscovery: openOperationalDiscovery }} /></div> : null}
+				{visitedModules.has("consult") ? <div className={stageClass("consult")} hidden={activeModule !== "consult"}><ModuleErrorBoundary moduleName="Consult Max" resetKey={activeModule} onReturnToDashboard={() => navigate("dashboard")}><ConsultModule state={{ agentix: agentixAttention, discoveryReady, planSent, planSnapshot, executeVerified }} onCommand={openCommand} onNavigate={navigate} /></ModuleErrorBoundary></div> : null}
+				{visitedModules.has("integrations") ? <div className={stageClass("integrations")} hidden={activeModule !== "integrations"}><ModuleErrorBoundary moduleName="Integrations" resetKey={activeModule} onReturnToDashboard={() => navigate("dashboard")}><IntegrationsModule /></ModuleErrorBoundary></div> : null}
+				{(["settings", "approvals", "usage", "help"] as const).map((module) => visitedModules.has(module) ? <div key={module} className={stageClass(module)} hidden={activeModule !== module}><ModuleErrorBoundary moduleName={module[0].toUpperCase() + module.slice(1)} resetKey={activeModule} onReturnToDashboard={() => navigate("dashboard")}><AccountUtilityModule module={module} onNavigate={navigate} approvalOpen={agentixAttention.approval} onOpenApproval={() => openAgentix({ type: "decision", id: "approval" })} /></ModuleErrorBoundary></div> : null)}
 			</div>
 			{commandOpen ? <CommandMenu context={commandContext} onClose={closeCommand} onAfterClose={restoreCommandFocus} /> : null}
 		</div>

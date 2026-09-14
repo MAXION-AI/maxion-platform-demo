@@ -1,8 +1,10 @@
 import { act, fireEvent, render, screen } from "@testing-library/react"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
-import { AgentixInitiativesPage, DiscoveryHandoffWorkspace } from "../AgentixInitiativesPage"
+import { AgentixInitiativesPage } from "../AgentixInitiativesPage"
+import { DiscoveryHandoffWorkspace } from "../DiscoveryHandoffWorkspace"
 import { WORKFLOWS } from "../initiatives"
-import { admitOccurrence, initialOperations, messageAgent, measures, nextSchedule, OPERATIONS_KEY, readOperations, readiness, setMapping, tickOperations, updateAgent, updateRun, DEMO_TICK_MS, type OperationsState } from "../operationsState"
+import { admitOccurrence, deriveAgentixAttention, initialOperations, messageAgent, measures, nextSchedule, persistOperations, readAgentixAttention, readOperations, readiness, setMapping, tickOperations, updateAgent, updateRun, DEMO_TICK_MS, type OperationsState } from "../operationsState"
+import { demoStateRepository } from "@/features/platform-prototype/persistence/DemoStateRepository"
 
 beforeEach(() => { localStorage.clear(); vi.useFakeTimers() })
 afterEach(() => vi.useRealTimers())
@@ -116,14 +118,23 @@ describe("deployed operations state", () => {
     expect(advance(initialOperations(), 12).runs.some(r => r.occurrence.startsWith("incoming:"))).toBe(true)
   })
   it("rejects malformed persisted state without modifying previous demo storage", () => {
+    const operationsKey = demoStateRepository.storageKey("agentix-operations")
     localStorage.setItem("maxion-agentix-workspace-v2", "preserved")
     for (const input of ["bad", JSON.stringify({ version: 3 }), JSON.stringify({ ...initialOperations(), runs: [{ ...initialOperations().runs[0], trigger: 42 }] })]) {
-      localStorage.setItem(OPERATIONS_KEY, input)
+      localStorage.setItem(operationsKey, input)
       expect(readOperations()).toEqual(initialOperations())
     }
     expect(localStorage.getItem("maxion-agentix-workspace-v2")).toBe("preserved")
-    localStorage.setItem(OPERATIONS_KEY, JSON.stringify(initialOperations()))
+    expect(persistOperations(initialOperations())).toBe(true)
     expect(readOperations()).toEqual(initialOperations())
+  })
+  it("migrates legacy operations before deriving cross-module attention", () => {
+    const state = updateRun(initialOperations(), "invoice:INV-20841", "decline")
+    localStorage.setItem("maxion-agentix-operations-v3", JSON.stringify(state))
+
+    expect(readAgentixAttention()).toEqual(deriveAgentixAttention(state))
+    expect(localStorage.getItem("maxion-agentix-operations-v3")).toBeNull()
+    expect(localStorage.getItem(demoStateRepository.storageKey("agentix-operations"))).not.toBeNull()
   })
   it("does not turn questions, negations or cross-agent references into authority", () => {
     for (const input of ["What if I pause?", "Don't pause intake", "Give everyone admin access", "Why is this high priority?"]) {

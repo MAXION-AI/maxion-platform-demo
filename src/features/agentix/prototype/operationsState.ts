@@ -1,6 +1,9 @@
 import { WORKFLOWS, type WorkflowId } from "./initiatives"
+import { demoStateRepository, type StateCodec } from "@/features/platform-prototype/persistence/DemoStateRepository"
+import type { AgentixAttention } from "@/features/platform-prototype/contracts"
 
-export const OPERATIONS_KEY = "maxion-agentix-operations-v3"
+const OPERATIONS_SLICE = "agentix-operations"
+const LEGACY_OPERATIONS_KEY = "maxion-agentix-operations-v3"
 export const DEMO_TICK_MS = 4000
 export const workflowFor = (id: WorkflowId) => WORKFLOWS.find(item => item.id === id)!
 export const AGENT_NAMES: Record<WorkflowId, string> = { service: "Service desk agent", invoice: "Invoice operations agent", onboarding: "Employee onboarding agent", inventory: "Inventory operations agent" }
@@ -200,20 +203,40 @@ export function messageAgent(state: OperationsState, id: WorkflowId, text: strin
   const a = next.agents[id]; const key = `${state.clock}-${a.messages.length}`
   return { ...next, agents: { ...next.agents, [id]: { ...a, draft: run ? a.draft : "", caseDrafts: run ? { ...a.caseDrafts, [run.id]: "" } : a.caseDrafts, messages: [...a.messages, { id: `${key}-u`, role: "user" as const, text: input, runId: run?.id }, { id: `${key}-a`, role: "agent" as const, text: response, runId: run?.id }].slice(-60) } } }
 }
-export function readOperations(): OperationsState {
-  const fallback = initialOperations()
+function parseOperations(raw: unknown): OperationsState | null {
   try {
-    const raw: unknown = JSON.parse(localStorage.getItem(OPERATIONS_KEY) ?? "null")
-    if (!raw || typeof raw !== "object") return fallback
+    if (!raw || typeof raw !== "object") return null
     const data = raw as OperationsState
-    if (data.version !== 3 || !Number.isFinite(data.clock) || !Array.isArray(data.runs) || data.runs.length > 200) return fallback
-    if (!WORKFLOWS.every(w => { const a = data.agents?.[w.id]; return a?.id === w.id && ["draft", "active", "paused"].includes(a.status) && typeof a.mapping === "string" && typeof a.draft === "string" && typeof a.brief === "string" && ["ready", "expired"].includes(a.connection) && [a.checked, a.checking, a.automaticPayroll, a.supportRequested, a.repaired, a.holdNotifications].every(v => typeof v === "boolean") && Array.isArray(a.notes) && a.notes.every(n => typeof n === "string") && Array.isArray(a.messages) && a.messages.every(m => m && typeof m.id === "string" && typeof m.text === "string" && ["user", "agent"].includes(m.role)) })) return fallback
+    if (data.version !== 3 || !Number.isFinite(data.clock) || !Array.isArray(data.runs) || data.runs.length > 200) return null
+    if (!WORKFLOWS.every(w => { const a = data.agents?.[w.id]; return a?.id === w.id && ["draft", "active", "paused"].includes(a.status) && typeof a.mapping === "string" && typeof a.draft === "string" && typeof a.brief === "string" && ["ready", "expired"].includes(a.connection) && [a.checked, a.checking, a.automaticPayroll, a.supportRequested, a.repaired, a.holdNotifications].every(v => typeof v === "boolean") && Array.isArray(a.notes) && a.notes.every(n => typeof n === "string") && Array.isArray(a.messages) && a.messages.every(m => m && typeof m.id === "string" && typeof m.text === "string" && ["user", "agent"].includes(m.role)) })) return null
     const phases = ["queued", "working", "approval", "human", "recovering", "verifying", "verified", "partial", "not_completed", "paused"]
-    if (!data.runs.every(r => r && WORKFLOWS.some(w => w.id === r.agentId) && typeof r.id === "string" && typeof r.reference === "string" && typeof r.title === "string" && phases.includes(r.phase) && Number.isInteger(r.step) && r.step >= 0 && r.step <= 5 && Number.isFinite(r.started) && Number.isFinite(r.costCents) && r.costCents >= 0 && [0, 1].includes(r.writes) && typeof r.humanReference === "string" && Number.isFinite(r.verifyTicks) && Array.isArray(r.notes) && r.notes.every(n => typeof n === "string"))) return fallback
-    if (!Object.values(data.agents).every(a => Number.isInteger(a.version) && a.version > 0 && ["discovery", "prompt"].includes(a.origin) && Number.isFinite(Date.parse(a.nextOccurrence)) && a.messages.every(m => !m.runId || data.runs.some(r => r.id === m.runId && r.agentId === a.id)))) return fallback
-    if (!data.runs.every(r => [r.needsApproval, r.approved, r.held, r.recovered].every(v => typeof v === "boolean") && ["Event", "Schedule", "Assignment"].includes(r.trigger) && ["Normal", "High"].includes(r.priority) && typeof r.occurrence === "string" && (!r.beforePause || ["queued", "working", "verifying", "recovering"].includes(r.beforePause)) && (r.finished === undefined || Number.isFinite(r.finished)) && [r.id, r.reference, r.title, r.occurrence, r.humanReference, ...r.notes].every(s => s.length <= 4000))) return fallback
-    if (new Set(data.runs.map(r => r.id)).size !== data.runs.length) return fallback
-    if (!Object.values(data.agents).every(a => !a.caseDrafts || typeof a.caseDrafts === "object" && !Array.isArray(a.caseDrafts) && Object.entries(a.caseDrafts).every(([id, value]) => typeof value === "string" && value.length <= 2000 && data.runs.some(r => r.id === id && r.agentId === a.id)))) return fallback
+    if (!data.runs.every(r => r && WORKFLOWS.some(w => w.id === r.agentId) && typeof r.id === "string" && typeof r.reference === "string" && typeof r.title === "string" && phases.includes(r.phase) && Number.isInteger(r.step) && r.step >= 0 && r.step <= 5 && Number.isFinite(r.started) && Number.isFinite(r.costCents) && r.costCents >= 0 && [0, 1].includes(r.writes) && typeof r.humanReference === "string" && Number.isFinite(r.verifyTicks) && Array.isArray(r.notes) && r.notes.every(n => typeof n === "string"))) return null
+    if (!Object.values(data.agents).every(a => Number.isInteger(a.version) && a.version > 0 && ["discovery", "prompt"].includes(a.origin) && Number.isFinite(Date.parse(a.nextOccurrence)) && a.messages.every(m => !m.runId || data.runs.some(r => r.id === m.runId && r.agentId === a.id)))) return null
+    if (!data.runs.every(r => [r.needsApproval, r.approved, r.held, r.recovered].every(v => typeof v === "boolean") && ["Event", "Schedule", "Assignment"].includes(r.trigger) && ["Normal", "High"].includes(r.priority) && typeof r.occurrence === "string" && (!r.beforePause || ["queued", "working", "verifying", "recovering"].includes(r.beforePause)) && (r.finished === undefined || Number.isFinite(r.finished)) && [r.id, r.reference, r.title, r.occurrence, r.humanReference, ...r.notes].every(s => s.length <= 4000))) return null
+    if (new Set(data.runs.map(r => r.id)).size !== data.runs.length) return null
+    if (!Object.values(data.agents).every(a => !a.caseDrafts || typeof a.caseDrafts === "object" && !Array.isArray(a.caseDrafts) && Object.entries(a.caseDrafts).every(([id, value]) => typeof value === "string" && value.length <= 2000 && data.runs.some(r => r.id === id && r.agentId === a.id)))) return null
     return { ...data, selected: WORKFLOWS.some(w => w.id === data.selected) ? data.selected : null, newBrief: typeof data.newBrief === "string" ? data.newBrief.slice(0, 2000) : "", agents: Object.fromEntries(WORKFLOWS.map(w => { const a = data.agents[w.id]; return [w.id, { ...a, draft: a.draft.slice(0, 2000), brief: a.brief.slice(0, 2000), notes: a.notes.slice(-40), messages: a.messages.slice(-60).map(m => ({ ...m, text: m.text.slice(0, 4000) })) }] })) as OperationsState["agents"] }
-  } catch { return fallback }
+  } catch { return null }
+}
+
+const operationsCodec: StateCodec<OperationsState> = { parse: parseOperations }
+
+export function readOperations(): OperationsState {
+  return demoStateRepository.load(OPERATIONS_SLICE, operationsCodec, initialOperations, undefined, [LEGACY_OPERATIONS_KEY]).value
+}
+
+export function persistOperations(state: OperationsState) {
+  return demoStateRepository.save(OPERATIONS_SLICE, state).ok
+}
+
+export function deriveAgentixAttention(state: OperationsState): AgentixAttention {
+  return {
+    count: state.runs.filter(needsAttention).length + Object.values(state.agents).filter(agent => agent.status === "draft" && readiness(agent) !== "ready").length,
+    approval: state.runs.some(run => run.phase === "approval"),
+    audience: state.runs.some(run => run.phase === "human"),
+  }
+}
+
+export function readAgentixAttention(): AgentixAttention {
+  return deriveAgentixAttention(readOperations())
 }

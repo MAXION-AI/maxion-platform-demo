@@ -3,12 +3,12 @@ import { useEffect, useRef, useState, type KeyboardEvent } from "react"
 import type { AgentixAttention, AgentixIntentSignal } from "./AgentixInitiativesPage"
 import { WORKFLOWS, type WorkflowId } from "./initiatives"
 import { Button } from "./WorkspaceParts"
-import { AGENT_NAMES, DEMO_TICK_MS, OPERATIONS_KEY, admitOccurrence, agentLabel, initialOperations, isTerminal, matchAgent, messageAgent, needsAttention, nextSchedule, readOperations, readiness, setMapping, tickOperations, updateAgent, updateRun, workflowFor, type AgentAction, type OperationRun, type RunAction } from "./operationsState"
+import { AGENT_NAMES, DEMO_TICK_MS, admitOccurrence, agentLabel, deriveAgentixAttention, initialOperations, isTerminal, matchAgent, messageAgent, needsAttention, nextSchedule, persistOperations, readOperations, readiness, setMapping, tickOperations, updateAgent, updateRun, workflowFor, type AgentAction, type OperationRun, type RunAction } from "./operationsState"
 import { AgentMark, Fleet, ReadinessPanel, RunDetail, RunsList, Status, ValueSummary } from "./OperationsViews"
 import "./operations.css"
 
 type Panel = { kind: "case"; runId: string } | { kind: "message"; runId?: string } | { kind: "scope" } | null
-export function DeployedAgentsPage({ intentSignal, onAttentionChange, onOpenDiscovery }: { intentSignal?: AgentixIntentSignal | null; onAttentionChange?: (attention: AgentixAttention) => void; onOpenDiscovery: (id: WorkflowId) => void }) {
+export function DeployedAgentsPage({ active = true, intentSignal, onAttentionChange, onOpenDiscovery }: { active?: boolean; intentSignal?: AgentixIntentSignal | null; onAttentionChange?: (attention: AgentixAttention) => void; onOpenDiscovery: (id: WorkflowId) => void }) {
   const [state, setState] = useState(readOperations)
   const [creating, setCreating] = useState(false)
   const [query, setQuery] = useState("")
@@ -46,9 +46,9 @@ export function DeployedAgentsPage({ intentSignal, onAttentionChange, onOpenDisc
     setState(s => ({ ...s, newBrief: "", agents: { ...s.agents, [id]: s.agents[id].status === "draft" ? { ...s.agents[id], origin, brief, automaticPayroll: origin === "prompt" && /automat.*payroll|payroll.*automat/i.test(brief), checked: false } : s.agents[id] } }))
     setNotice(state.agents[id].status === "draft" ? "Design and context received. Review readiness before deployment; no work has started." : "An agent already owns this responsibility. Its deployment, cases and history are preserved—no duplicate agent was created.")
   }
-  useEffect(() => { try { localStorage.setItem(OPERATIONS_KEY, JSON.stringify(state)); setStorageError(false) } catch { setStorageError(true) } }, [state])
-  useEffect(() => { const timer = window.setInterval(() => setState(tickOperations), DEMO_TICK_MS); return () => window.clearInterval(timer) }, [])
-  useEffect(() => { onAttentionChange?.({ count: state.runs.filter(needsAttention).length + Object.values(state.agents).filter(a => a.status === "draft" && readiness(a) !== "ready").length, approval: state.runs.some(r => r.phase === "approval"), audience: state.runs.some(r => r.phase === "human") }) }, [state.runs, state.agents, onAttentionChange])
+  useEffect(() => { setStorageError(!persistOperations(state)) }, [state])
+  useEffect(() => { if (!active) return; const timer = window.setInterval(() => setState(tickOperations), DEMO_TICK_MS); return () => window.clearInterval(timer) }, [active])
+  useEffect(() => { onAttentionChange?.(deriveAgentixAttention(state)) }, [state, onAttentionChange])
   const intentActions = useRef<(intent: NonNullable<AgentixIntentSignal>["intent"]) => void>(() => undefined)
   intentActions.current = (intent) => {
     if (intent.type === "workflow") openAgent(intent.id)

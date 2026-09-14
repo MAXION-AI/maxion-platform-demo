@@ -1,7 +1,8 @@
 import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react"
 import { MemoryRouter } from "react-router-dom"
-import { afterEach, describe, expect, it, vi } from "vitest"
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
+import { DEMO_TICK_MS, initialOperations, persistOperations } from "@/features/agentix/prototype/operationsState"
 import { MaxionPlatformPrototypePage } from "../MaxionPlatformPrototypePage"
 
 function renderPrototype(path = "/maxion-prototype") {
@@ -17,9 +18,27 @@ function portalNavigation() {
 }
 
 describe("MaxionPlatformPrototypePage", () => {
+	beforeEach(() => localStorage.clear())
 	afterEach(() => {
 		vi.useRealTimers()
 		vi.restoreAllMocks()
+	})
+
+	it("bootstraps persisted Agentix attention without mounting its UI or starting its timer", async () => {
+		expect(persistOperations(initialOperations())).toBe(true)
+		const intervalSpy = vi.spyOn(window, "setInterval")
+		renderPrototype()
+
+		const navigation = portalNavigation()
+		await waitFor(() => expect(navigation.getByRole("button", { name: /^Agentix 2 pending$/ })).toBeInTheDocument())
+		expect(navigation.getByRole("button", { name: /^My approvals 1 pending$/ })).toBeInTheDocument()
+		expect(screen.queryByRole("main", { name: "Agentix workspace" })).not.toBeInTheDocument()
+		expect(intervalSpy.mock.calls.some((call) => call[1] === DEMO_TICK_MS)).toBe(false)
+
+		fireEvent.click(navigation.getByRole("button", { name: /^My approvals/ }))
+		expect(screen.getByRole("heading", { name: "My approvals" })).toBeInTheDocument()
+		expect(screen.getByText("Review a $240 invoice price variance")).toBeInTheDocument()
+		expect(screen.queryByRole("main", { name: "Agentix workspace" })).not.toBeInTheDocument()
 	})
 	it("opens on the canonical MAXION dashboard and exposes the complete platform shell", () => {
 		renderPrototype()
