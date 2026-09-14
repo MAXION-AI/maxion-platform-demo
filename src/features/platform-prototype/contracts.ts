@@ -34,7 +34,7 @@ export type DiscoveryPackageRef = {
 	projectName: string
 	discoveryId: string
 	createdAt: string
-	provenance: Array<{ evidenceId: string; source: string; locator: string }>
+	provenance: Array<{ evidenceId: string; source: string; locator: string; evidenceClass: DiscoveryPackageEvidenceClass }>
 	unresolvedGapIds: string[]
 	authority: { level: "project-owner" | "member"; boundedTo: "planning-input" }
 	evidenceClasses: DiscoveryPackageEvidenceClass[]

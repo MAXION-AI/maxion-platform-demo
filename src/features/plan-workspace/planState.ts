@@ -11,7 +11,13 @@ const PLAN_IDEMPOTENCY_LIMIT = 500
 
 export type PlanRole = "owner" | "member" | "viewer"
 export type PlanSectionStatus = "draft" | "in-review" | "approved"
-export type PlanGeneration = { status: "idle" | "running" | "proposed" | "failed"; proposedBody: string | null; error: string | null }
+export type PlanGeneration = {
+	status: "idle" | "running" | "proposed" | "failed"
+	proposedBody: string | null
+	error: string | null
+	operationId: string | null
+	baseVersion: number | null
+}
 export type PlanSourceRef = { id: string; source: string; locator: string; evidenceClass: DiscoveryPackageEvidenceClass; verified: boolean }
 export type PlanSection = {
 	id: string
@@ -60,6 +66,7 @@ export type PlanArtifact = {
 	authorityBoundary: "planning-input" | null
 	sources: PlanSourceRef[]
 	unresolvedGapIds: string[]
+	gapResolutions: Record<string, string>
 	revisions: PlanRevision[]
 	currentVersion: number
 	approvedVersion: number | null
@@ -72,23 +79,23 @@ export type PlanArtifact = {
 	notice: string | null
 }
 export type PlanQuarantine = { path: string; reason: string }
-export type PlanSlice = { version: 1; activeProjectId: string | null; artifacts: PlanArtifact[]; quarantine: PlanQuarantine[] }
+export type PlanSlice = { version: 1; activeProjectId: string | null; artifacts: PlanArtifact[]; projectRoles: Record<string, PlanRole>; quarantine: PlanQuarantine[] }
 
 export type PlanCommand =
 	| { type: "discovery/ingested"; packageRef: DiscoveryPackageRef; actorRole: PlanRole }
 	| { type: "artifact/opened"; projectId: string }
 	| { type: "section/edit-started"; projectId: string; sectionId: string; actorRole: PlanRole }
 	| { type: "section/draft-changed"; projectId: string; sectionId: string; value: string; actorRole: PlanRole }
-	| { type: "section/edit-cancelled"; projectId: string; sectionId: string }
+	| { type: "section/edit-cancelled"; projectId: string; sectionId: string; actorRole: PlanRole }
 	| { type: "section/saved"; projectId: string; sectionId: string; baseVersion: number; actorRole: PlanRole; idempotencyKey: string; correlationId: string }
-	| { type: "section/regeneration-started"; projectId: string; sectionId: string; baseVersion: number; actorRole: PlanRole; idempotencyKey: string; correlationId: string }
-	| { type: "section/regeneration-failed"; projectId: string; sectionId: string; message: string; actorRole: PlanRole }
-	| { type: "section/regeneration-proposed"; projectId: string; sectionId: string; body: string; actorRole: PlanRole }
-	| { type: "section/regeneration-accepted"; projectId: string; sectionId: string; baseVersion: number; actorRole: PlanRole; idempotencyKey: string; correlationId: string }
-	| { type: "section/regeneration-rejected"; projectId: string; sectionId: string; actorRole: PlanRole }
+	| { type: "section/regeneration-started"; projectId: string; sectionId: string; baseVersion: number; operationId: string; actorRole: PlanRole; idempotencyKey: string; correlationId: string }
+	| { type: "section/regeneration-failed"; projectId: string; sectionId: string; baseVersion: number; operationId: string; message: string; actorRole: PlanRole }
+	| { type: "section/regeneration-proposed"; projectId: string; sectionId: string; baseVersion: number; operationId: string; body: string; actorRole: PlanRole }
+	| { type: "section/regeneration-accepted"; projectId: string; sectionId: string; baseVersion: number; operationId: string; actorRole: PlanRole; idempotencyKey: string; correlationId: string }
+	| { type: "section/regeneration-rejected"; projectId: string; sectionId: string; baseVersion: number; operationId: string; actorRole: PlanRole }
 	| { type: "comment/added"; projectId: string; sectionId: string; body: string; actorRole: PlanRole; idempotencyKey: string; correlationId: string }
 	| { type: "revision/reverted"; projectId: string; targetVersion: number; baseVersion: number; actorRole: PlanRole; idempotencyKey: string; correlationId: string }
-	| { type: "gap/resolved"; projectId: string; gapId: string; actorRole: PlanRole; idempotencyKey: string; correlationId: string }
+	| { type: "gap/resolved"; projectId: string; gapId: string; sourceId: string; actorRole: PlanRole; idempotencyKey: string; correlationId: string }
 	| { type: "artifact/approved"; projectId: string; baseVersion: number; actorRole: PlanRole; idempotencyKey: string; correlationId: string }
 	| { type: "notice/cleared"; projectId: string }
 
@@ -107,7 +114,7 @@ const roleOf = (value: unknown): PlanRole | null => value === "owner" || value =
 const now = () => new Date().toISOString()
 const cloneSections = (sections: readonly PlanSection[]) => sections.map((section) => ({ ...section, sourceIds: [...section.sourceIds], generation: { ...section.generation } }))
 const currentRevision = (artifact: PlanArtifact) => artifact.revisions.find((revision) => revision.version === artifact.currentVersion) ?? artifact.revisions[artifact.revisions.length - 1]
-const commandAllowed = (artifact: PlanArtifact, projectId: string, role: PlanRole) => artifact.projectId === projectId && role !== "viewer"
+const commandAllowed = (artifact: PlanArtifact, projectId: string, assertedRole: PlanRole, authoritativeRole: PlanRole) => artifact.projectId === projectId && assertedRole === authoritativeRole && authoritativeRole !== "viewer"
 const duplicate = (artifact: PlanArtifact, key: string) => artifact.idempotencyKeys.includes(key)
 const remember = (artifact: PlanArtifact, key: string) => [...artifact.idempotencyKeys, key].slice(-PLAN_IDEMPOTENCY_LIMIT)
 
@@ -117,17 +124,13 @@ function fingerprint(input: string) {
 	return `fnv1a-${(hash >>> 0).toString(16).padStart(8, "0")}`
 }
 
-function sourceClass(packageRef: DiscoveryPackageRef, index: number): DiscoveryPackageEvidenceClass {
-	return packageRef.evidenceClasses[index] ?? packageRef.evidenceClasses[0] ?? "operator-statement"
-}
-
 function createPlanArtifact(packageRef: DiscoveryPackageRef, actorRole: PlanRole): PlanArtifact {
-	const sources = packageRef.provenance.slice(0, PLAN_SECTION_LIMIT).map((item, index) => ({
+	const sources = packageRef.provenance.slice(0, PLAN_SECTION_LIMIT).map((item) => ({
 		id: item.evidenceId,
 		source: item.source,
 		locator: item.locator,
-		evidenceClass: sourceClass(packageRef, index),
-		verified: packageRef.evidenceClasses[index] !== "synthetic-demo",
+		evidenceClass: item.evidenceClass,
+		verified: item.evidenceClass !== "synthetic-demo",
 	}))
 	const sections = SECTION_BLUEPRINTS.map(([id, title, body]) => ({
 		id,
@@ -136,7 +139,7 @@ function createPlanArtifact(packageRef: DiscoveryPackageRef, actorRole: PlanRole
 		status: id === "outcome" ? "approved" as const : id === "workstreams" ? "in-review" as const : "draft" as const,
 		provenance: "generated" as const,
 		sourceIds: sources.slice(0, 3).map((source) => source.id),
-		generation: { status: "idle" as const, proposedBody: null, error: null },
+		generation: { status: "idle" as const, proposedBody: null, error: null, operationId: null, baseVersion: null },
 	}))
 	const createdAt = packageRef.createdAt
 	return {
@@ -148,6 +151,7 @@ function createPlanArtifact(packageRef: DiscoveryPackageRef, actorRole: PlanRole
 		authorityBoundary: packageRef.authority.boundedTo,
 		sources,
 		unresolvedGapIds: [...packageRef.unresolvedGapIds],
+		gapResolutions: {},
 		revisions: [{ id: `plan-${packageRef.projectId}-v1`, version: 1, status: "draft", createdAt, createdBy: actorRole, reason: "Discovery package ingested", sections }],
 		currentVersion: 1,
 		approvedVersion: null,
@@ -162,7 +166,7 @@ function createPlanArtifact(packageRef: DiscoveryPackageRef, actorRole: PlanRole
 }
 
 export function createInitialPlanSlice(): PlanSlice {
-	return { version: 1, activeProjectId: null, artifacts: [], quarantine: [] }
+	return { version: 1, activeProjectId: null, artifacts: [], projectRoles: {}, quarantine: [] }
 }
 
 function notice(artifact: PlanArtifact, message: string) {
@@ -216,6 +220,11 @@ function updateSection(artifact: PlanArtifact, sectionId: string, update: (secti
 	return { ...artifact, revisions: artifact.revisions.map((item) => item.version === revision.version ? { ...item, sections: item.sections.map((section) => section.id === sectionId ? update(section) : section) } : item) }
 }
 
+function generationMatches(artifact: PlanArtifact, sectionId: string, operationId: string, baseVersion: number) {
+	const generation = currentRevision(artifact)?.sections.find((section) => section.id === sectionId)?.generation
+	return generation?.operationId === operationId && generation.baseVersion === baseVersion
+}
+
 export function selectPlanReadiness(artifact: PlanArtifact) {
 	const revision = currentRevision(artifact)
 	const requiredSectionsMissing = SECTION_BLUEPRINTS.some(([id]) => !revision?.sections.some((section) => section.id === id))
@@ -251,15 +260,24 @@ export function selectPlanRevision(artifact: PlanArtifact, version = artifact.cu
 export function planReducer(state: PlanSlice, command: PlanCommand): PlanSlice {
 	if (command.type === "discovery/ingested") {
 		const existing = state.artifacts.find((artifact) => artifact.projectId === command.packageRef.projectId && artifact.discoveryPackageId === command.packageRef.id)
-		if (existing) return { ...state, activeProjectId: existing.projectId }
+		const projectRoles = { ...state.projectRoles, [command.packageRef.projectId]: command.actorRole }
+		if (existing) return { ...state, activeProjectId: existing.projectId, projectRoles }
+		if (command.actorRole === "viewer") {
+			return {
+				...state,
+				projectRoles,
+				artifacts: state.artifacts.map((artifact) => artifact.projectId === command.packageRef.projectId ? notice(artifact, "This plan is read-only for your project role.") : artifact),
+			}
+		}
 		const artifact = createPlanArtifact(command.packageRef, command.actorRole)
 		const projectIndex = state.artifacts.findIndex((item) => item.projectId === command.packageRef.projectId)
-		return { ...state, activeProjectId: command.packageRef.projectId, artifacts: projectIndex < 0 ? [...state.artifacts, artifact].slice(-100) : state.artifacts.map((item, index) => index === projectIndex ? artifact : item) }
+		return { ...state, activeProjectId: command.packageRef.projectId, projectRoles, artifacts: projectIndex < 0 ? [...state.artifacts, artifact].slice(-100) : state.artifacts.map((item, index) => index === projectIndex ? artifact : item) }
 	}
 	if (command.type === "artifact/opened") return state.artifacts.some((artifact) => artifact.projectId === command.projectId) ? { ...state, activeProjectId: command.projectId } : state
 	return mutateArtifact(state, command.projectId, (original) => {
 		if (command.type === "notice/cleared") return { ...original, notice: null }
-		if ("actorRole" in command && !commandAllowed(original, command.projectId, command.actorRole)) return notice(original, "This plan is read-only for your project role.")
+		const authoritativeRole = state.projectRoles[command.projectId] ?? "viewer"
+		if ("actorRole" in command && !commandAllowed(original, command.projectId, command.actorRole, authoritativeRole)) return notice(original, "This plan is read-only for your project role.")
 		if ("idempotencyKey" in command && duplicate(original, command.idempotencyKey)) return original
 		if ("baseVersion" in command && command.baseVersion !== original.currentVersion) return notice(original, `This command targeted version ${command.baseVersion}; version ${original.currentVersion} is current. Your draft was preserved.`)
 
@@ -278,23 +296,24 @@ export function planReducer(state: PlanSlice, command: PlanCommand): PlanSlice {
 				const body = original.drafts[command.sectionId]?.trim()
 				if (!body) return notice(original, "Enter section content before saving.")
 				let artifact = withMutableRevision(original, command.actorRole, `Edited ${command.sectionId}`)
-				artifact = updateSection(artifact, command.sectionId, (section) => ({ ...section, body, provenance: "human", status: "in-review", generation: { status: "idle", proposedBody: null, error: null } }))
+				artifact = updateSection(artifact, command.sectionId, (section) => ({ ...section, body, provenance: "human", status: "in-review", generation: { status: "idle", proposedBody: null, error: null, operationId: null, baseVersion: null } }))
 				const drafts = { ...artifact.drafts }
 				delete drafts[command.sectionId]
 				return appendAudit({ ...artifact, drafts }, command, "section.saved", "draft-revision-updated")
 			}
 			case "section/regeneration-started": {
-				const artifact = updateSection(withMutableRevision(original, command.actorRole, `Regenerating ${command.sectionId}`), command.sectionId, (section) => ({ ...section, generation: { status: "running", proposedBody: null, error: null } }))
+				const artifact = updateSection(original, command.sectionId, (section) => ({ ...section, generation: { status: "running", proposedBody: null, error: null, operationId: command.operationId, baseVersion: command.baseVersion } }))
 				return appendAudit(artifact, command, "section.regeneration-started", "prior-content-preserved")
 			}
-			case "section/regeneration-failed": return updateSection(original, command.sectionId, (section) => ({ ...section, generation: { status: "failed", proposedBody: null, error: command.message.slice(0, 240) || "Generation failed." } }))
-			case "section/regeneration-proposed": return command.body.trim() ? updateSection(original, command.sectionId, (section) => ({ ...section, generation: { status: "proposed", proposedBody: command.body.trim().slice(0, PLAN_TEXT_LIMIT), error: null } })) : original
+			case "section/regeneration-failed": return generationMatches(original, command.sectionId, command.operationId, command.baseVersion) ? updateSection(original, command.sectionId, (section) => ({ ...section, generation: { ...section.generation, status: "failed", proposedBody: null, error: command.message.slice(0, 240) || "Generation failed." } })) : original
+			case "section/regeneration-proposed": return command.body.trim() && generationMatches(original, command.sectionId, command.operationId, command.baseVersion) ? updateSection(original, command.sectionId, (section) => ({ ...section, generation: { ...section.generation, status: "proposed", proposedBody: command.body.trim().slice(0, PLAN_TEXT_LIMIT), error: null } })) : original
 			case "section/regeneration-accepted": {
+				if (!generationMatches(original, command.sectionId, command.operationId, command.baseVersion)) return original
 				let artifact = withMutableRevision(original, command.actorRole, `Accepted regeneration for ${command.sectionId}`)
-				artifact = updateSection(artifact, command.sectionId, (section) => section.generation.proposedBody ? { ...section, body: section.generation.proposedBody, provenance: "generated", status: "in-review", generation: { status: "idle", proposedBody: null, error: null } } : section)
+				artifact = updateSection(artifact, command.sectionId, (section) => section.generation.proposedBody ? { ...section, body: section.generation.proposedBody, provenance: "generated", status: "in-review", generation: { status: "idle", proposedBody: null, error: null, operationId: null, baseVersion: null } } : section)
 				return appendAudit(artifact, command, "section.regeneration-accepted", "draft-revision-updated")
 			}
-			case "section/regeneration-rejected": return updateSection(original, command.sectionId, (section) => ({ ...section, generation: { status: "idle", proposedBody: null, error: null } }))
+			case "section/regeneration-rejected": return generationMatches(original, command.sectionId, command.operationId, command.baseVersion) ? updateSection(original, command.sectionId, (section) => ({ ...section, generation: { status: "idle", proposedBody: null, error: null, operationId: null, baseVersion: null } })) : original
 			case "comment/added": {
 				const body = command.body.trim()
 				if (!body) return notice(original, "Enter a review comment first.")
@@ -306,7 +325,12 @@ export function planReducer(state: PlanSlice, command: PlanCommand): PlanSlice {
 				if (!target) return notice(original, "That revision is no longer available.")
 				return appendAudit(forkDraft(original, command.actorRole, `Reverted from version ${target.version}`, target.sections), command, "revision.reverted", "new-draft-created")
 			}
-			case "gap/resolved": return appendAudit({ ...original, unresolvedGapIds: original.unresolvedGapIds.filter((gap) => gap !== command.gapId) }, command, "gap.resolved", "approval-readiness-recomputed")
+			case "gap/resolved": {
+				const source = original.sources.find((item) => item.id === command.sourceId && item.verified)
+				if (!source) return notice(original, "A verified source is required to resolve this evidence gap.")
+				if (!original.unresolvedGapIds.includes(command.gapId)) return notice(original, "That evidence gap is no longer open.")
+				return appendAudit({ ...original, unresolvedGapIds: original.unresolvedGapIds.filter((gap) => gap !== command.gapId), gapResolutions: { ...original.gapResolutions, [command.gapId]: source.id } }, command, "gap.resolved", "verified-source-linked")
+			}
 			case "artifact/approved": {
 				if (command.actorRole !== "owner") return notice(original, "Only a project owner can approve an Execute handoff.")
 				const readiness = selectPlanReadiness(original)
@@ -348,7 +372,13 @@ function parseGeneration(value: unknown): PlanGeneration | null {
 	if (!isRecord(value) || !["idle", "running", "proposed", "failed"].includes(String(value.status))) return null
 	const proposedBody = value.proposedBody === null ? null : boundedText(value.proposedBody)
 	const error = value.error === null ? null : boundedText(value.error, 240)
-	return proposedBody === null && value.proposedBody !== null || error === null && value.error !== null ? null : { status: value.status as PlanGeneration["status"], proposedBody, error }
+	const operationId = value.operationId === null ? null : boundedText(value.operationId, 160)
+	const baseVersion = value.baseVersion === null ? null : Number.isInteger(value.baseVersion) && Number(value.baseVersion) >= 1 ? Number(value.baseVersion) : null
+	if (proposedBody === null && value.proposedBody !== null || error === null && value.error !== null || operationId === null && value.operationId !== null || baseVersion === null && value.baseVersion !== null) return null
+	const status = value.status as PlanGeneration["status"]
+	if (status === "idle" && (operationId !== null || baseVersion !== null)) return null
+	if (status !== "idle" && (!operationId || baseVersion === null)) return null
+	return { status, proposedBody, error, operationId, baseVersion }
 }
 
 function parseSection(value: unknown): PlanSection | null {
@@ -429,6 +459,10 @@ function parseArtifact(value: unknown, path: string, quarantine: PlanQuarantine[
 	const requestedVersion = Number(value.currentVersion)
 	const current = revisions.find((revision) => revision.version === requestedVersion) ?? revisions[revisions.length - 1]
 	const unresolvedGapIds = parseStringArray(value.unresolvedGapIds, PLAN_SECTION_LIMIT, 160) ?? []
+	const gapResolutions = isRecord(value.gapResolutions) ? Object.fromEntries(Object.entries(value.gapResolutions).flatMap(([gapId, rawSourceId]) => {
+		const sourceId = boundedText(rawSourceId, 160)
+		return gapId.length <= 160 && sourceId && sources.some((source) => source.id === sourceId && source.verified) ? [[gapId, sourceId]] : []
+	})) : {}
 	const discoveryPackageId = value.discoveryPackageId === null ? null : boundedText(value.discoveryPackageId, 160)
 	const drafts = isRecord(value.drafts) ? Object.fromEntries(Object.entries(value.drafts).flatMap(([key, raw]) => { const parsed = boundedText(raw); return parsed === null ? [] : [[key.slice(0, 160), parsed]] })) : {}
 	const idempotencyKeys = parseStringArray(value.idempotencyKeys, PLAN_IDEMPOTENCY_LIMIT, 160) ?? []
@@ -459,6 +493,7 @@ function parseArtifact(value: unknown, path: string, quarantine: PlanQuarantine[
 		authorityBoundary: value.authorityBoundary === "planning-input" ? "planning-input" : null,
 		sources,
 		unresolvedGapIds,
+		gapResolutions,
 		revisions,
 		currentVersion: current.version,
 		approvedVersion,
@@ -483,7 +518,12 @@ export const planStateCodec: StateCodec<PlanSlice> = {
 			else quarantine.push({ path: `artifacts[${index}]`, reason: "invalid-artifact" })
 		}
 		const activeProjectId = value.activeProjectId === null ? null : boundedText(value.activeProjectId, 160)
-		return { version: 1, activeProjectId: activeProjectId && artifacts.some((artifact) => artifact.projectId === activeProjectId) ? activeProjectId : artifacts[0]?.projectId ?? null, artifacts, quarantine }
+		const projectRoles = isRecord(value.projectRoles) ? Object.fromEntries(Object.entries(value.projectRoles).flatMap(([projectId, rawRole]) => {
+			const role = roleOf(rawRole)
+			return projectId.length <= 160 && role ? [[projectId, role]] : []
+		})) : {}
+		for (const artifact of artifacts) if (!projectRoles[artifact.projectId]) projectRoles[artifact.projectId] = "viewer"
+		return { version: 1, activeProjectId: activeProjectId && artifacts.some((artifact) => artifact.projectId === activeProjectId) ? activeProjectId : artifacts[0]?.projectId ?? null, artifacts, projectRoles, quarantine }
 	},
 	migrate: (version, value) => version === 0 ? planStateCodec.parse(value) : null,
 }

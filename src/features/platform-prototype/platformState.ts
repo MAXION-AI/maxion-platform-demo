@@ -25,7 +25,8 @@ function parseDiscoveryPackage(value: unknown): DiscoveryPackageRef | null {
 	if (!Array.isArray(item.provenance) || item.provenance.length > 200 || !Array.isArray(item.unresolvedGapIds) || item.unresolvedGapIds.length > 200 || !Array.isArray(item.evidenceClasses) || item.evidenceClasses.length > 3) return null
 	const provenance = item.provenance.map((entry) => {
 		const evidenceId = boundedText(entry?.evidenceId, 160), source = boundedText(entry?.source, 160), locator = boundedText(entry?.locator, 500)
-		return evidenceId && source && locator !== null ? { evidenceId, source, locator } : null
+		const evidenceClass = entry?.evidenceClass
+		return evidenceId && source && locator !== null && (evidenceClass === "connected-source" || evidenceClass === "operator-statement" || evidenceClass === "synthetic-demo") ? { evidenceId, source, locator, evidenceClass } : null
 	})
 	const unresolvedGapIds = item.unresolvedGapIds.map((entry) => boundedText(entry, 160))
 	if (provenance.some((entry) => entry === null) || unresolvedGapIds.some((entry) => entry === null)) return null
