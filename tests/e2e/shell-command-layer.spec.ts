@@ -245,7 +245,7 @@ test("reports live Agentix attention to the shell badge and the jump registry", 
 	await expect(menu.getByRole("button", { name: /Review invoice variance/ })).toBeVisible()
 	await page.keyboard.press("Escape")
 	await navigation.getByRole("button", { name: /^Agentix/ }).click()
-	await expect(page.getByRole("heading", { name: "Deployed agents" })).toBeVisible()
+	await expect(page.getByRole("heading", { name: /decisions\. Everything else is moving\./ })).toBeVisible()
 	await expect(navigation.getByRole("button", { name: "Agentix 2 pending" })).toBeVisible()
 	menu = await openShellMenu(page)
 	await menu.getByRole("button", { name: /Review invoice variance/ }).click()

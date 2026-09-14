@@ -4,6 +4,10 @@ import type { AgentixAttention } from "@/features/platform-prototype/contracts"
 
 const OPERATIONS_SLICE = "agentix-operations"
 const LEGACY_OPERATIONS_KEY = "maxion-agentix-operations-v3"
+const DEFAULT_PROJECT_ID = "northwind-operations"
+const OPERATIONS_MAX_BYTES = 3_500_000
+export const MAX_RUN_RECORDS = 10_000
+export const MAX_MOUNTED_RUNS = 200
 export const DEMO_TICK_MS = 4000
 export const workflowFor = (id: WorkflowId) => WORKFLOWS.find(item => item.id === id)!
 export const AGENT_NAMES: Record<WorkflowId, string> = { service: "Service desk agent", invoice: "Invoice operations agent", onboarding: "Employee onboarding agent", inventory: "Inventory operations agent" }
@@ -13,7 +17,7 @@ export interface OperationRun {
   trigger: "Event" | "Schedule" | "Assignment"; occurrence: string; started: number; finished?: number
   needsApproval: boolean; approved: boolean; humanReference: string; writes: number; costCents: number
   held: boolean; priority: "Normal" | "High"; verifyTicks: number; recovered: boolean
-  beforePause?: RunPhase; notes: string[]
+  beforePause?: RunPhase; notes: string[]; approvalVersion: number
 }
 export interface AgentMessage { id: string; role: "user" | "agent"; text: string; runId?: string }
 export interface Deployment {
@@ -22,25 +26,34 @@ export interface Deployment {
   connection: "ready" | "expired"; repaired: boolean; messages: AgentMessage[]; draft: string; holdNotifications: boolean
   nextOccurrence: string; notes: string[]
   caseDrafts?: Record<string, string>
+  provenance: { projectId: string; sourceArtifactId: string }
+  environment: "local-simulation"; evidenceClass: "simulated"; authority: "bounded-responsibility"
 }
-export interface OperationsState { version: 3; selected: WorkflowId | null; newBrief: string; clock: number; agents: Record<WorkflowId, Deployment>; runs: OperationRun[] }
+export type OperationRole = "owner" | "member" | "viewer"
+export type OperationCommand = { id: string; expectedDeploymentVersion: number }
+export interface OperationsState {
+  version: 4; tenantId: "demo-tenant"; projectId: string; role: OperationRole
+  selected: WorkflowId | null; newBrief: string; clock: number; agents: Record<WorkflowId, Deployment>; runs: OperationRun[]
+  processedCommands: string[]; notice: string | null
+}
 const epoch = Date.parse("2026-09-11T09:00:00Z")
 const minute = 60000
 const makeRun = (agentId: WorkflowId, reference: string, title: string, phase: RunPhase, overrides: Partial<OperationRun> = {}): OperationRun => ({
   id: `${agentId}:${reference}`, agentId, reference, title, phase, step: phase === "verified" ? 5 : 0,
   trigger: agentId === "inventory" ? "Schedule" : "Event", occurrence: reference, started: epoch,
   needsApproval: false, approved: false, humanReference: "", writes: phase === "verified" ? 1 : 0,
-  costCents: phase === "verified" ? 24 : 0, held: false, priority: "Normal", verifyTicks: 0, recovered: false, notes: [], ...overrides,
+  costCents: phase === "verified" ? 24 : 0, held: false, priority: "Normal", verifyTicks: 0, recovered: false, notes: [], approvalVersion: 1, ...overrides,
 })
 
-export function initialOperations(): OperationsState {
+export function initialOperations(projectId = DEFAULT_PROJECT_ID, role: OperationRole = "owner"): OperationsState {
   const agents = Object.fromEntries(WORKFLOWS.map(w => [w.id, {
     id: w.id, status: w.id === "onboarding" ? "draft" : "active", version: 1, origin: "discovery", brief: "",
     mapping: w.id === "onboarding" ? "" : "approved-v1", checked: w.id !== "onboarding", checking: false,
     automaticPayroll: false, supportRequested: false, connection: "ready", repaired: false, messages: [], draft: "", holdNotifications: false,
     nextOccurrence: "2026-09-14T05:00:00Z", notes: ["Discovery design v1 linked. Existing approved boundaries preserved."],
+    provenance: { projectId, sourceArtifactId: `discovery-${w.id}-v1` }, environment: "local-simulation", evidenceClass: "simulated", authority: "bounded-responsibility",
   }])) as unknown as Record<WorkflowId, Deployment>
-  return { version: 3, selected: null, newBrief: "", clock: epoch, agents, runs: [
+  return { version: 4, tenantId: "demo-tenant", projectId, role, selected: null, newBrief: "", clock: epoch, agents, processedCommands: [], notice: null, runs: [
     makeRun("invoice", "INV-20841", "Northwind · $240 price variance", "approval", { step: 2, needsApproval: true, costCents: 14 }),
     makeRun("invoice", "INV-20842", "Contoso · receiving reconciliation", "working", { step: 1, costCents: 6 }),
     makeRun("invoice", "INV-20843", "Fabrikam · duplicate receipt check", "working", { step: 0 }),
@@ -77,9 +90,14 @@ export function runActivity(run: OperationRun) {
   return run.step < 2 ? (run.agentId === "service" ? "Incident coordinator · validating routing context" : "Specialists · independent evidence checks") : "Coordinator · preparing the governed update"
 }
 const addNote = (notes: string[], text: string) => [...notes, text].slice(-40)
+const deny = (state: OperationsState, notice: string): OperationsState => ({ ...state, notice })
+const commandAllowed = (state: OperationsState, version: number, command?: OperationCommand) => !command || command.id.length <= 160 && command.expectedDeploymentVersion === version && !state.processedCommands.includes(command.id)
+const recordCommand = (state: OperationsState, command?: OperationCommand): OperationsState => command ? { ...state, processedCommands: [...state.processedCommands, command.id].slice(-1_000), notice: null } : { ...state, notice: null }
 export type AgentAction = "pause-intake" | "resume-intake" | "deploy" | "recheck" | "use-human-payroll" | "request-payroll" | "support" | "expire" | "reconnect" | "hold-notifications" | "release-notifications"
-export function updateAgent(state: OperationsState, id: WorkflowId, action: AgentAction): OperationsState {
+export function updateAgent(state: OperationsState, id: WorkflowId, action: AgentAction, command?: OperationCommand): OperationsState {
   const old = state.agents[id]
+  if (state.role === "viewer") return deny(state, "Viewer access is read-only for Agentix operations.")
+  if (!commandAllowed(state, old.version, command)) return command && state.processedCommands.includes(command.id) ? state : deny(state, "This command targeted a stale deployment version.")
   let agent = { ...old }
   let runs = state.runs
   if (action === "pause-intake" && old.status === "active") { agent.status = "paused"; agent.notes = addNote(agent.notes, "New intake paused. Already-admitted cases continue; no effects were recalled.") }
@@ -96,17 +114,26 @@ export function updateAgent(state: OperationsState, id: WorkflowId, action: Agen
   else if (action === "hold-notifications") agent.holdNotifications = true
   else if (action === "release-notifications") agent.holdNotifications = false
   else return state
-  return { ...state, agents: { ...state.agents, [id]: agent }, runs }
+  return recordCommand({ ...state, agents: { ...state.agents, [id]: agent }, runs }, command)
 }
 export function setMapping(state: OperationsState, id: WorkflowId, value: string): OperationsState {
+  if (state.role !== "owner") return deny(state, "Only the project owner can change a deployment mapping.")
   if (!["", "london-standard"].includes(value) || state.agents[id].status !== "draft") return state
   return { ...state, agents: { ...state.agents, [id]: { ...state.agents[id], mapping: value, checked: false } } }
 }
-export type RunAction = "approve" | "decline" | "fulfill" | "pause" | "resume" | "prioritize" | "hold" | "release"
-export function updateRun(state: OperationsState, id: string, action: RunAction, evidence = ""): OperationsState {
-  return { ...state, runs: state.runs.map(run => {
+export type RunAction = "approve" | "decline" | "refresh-approval" | "fulfill" | "pause" | "resume" | "prioritize" | "hold" | "release"
+export function updateRun(state: OperationsState, id: string, action: RunAction, evidence = "", command?: OperationCommand): OperationsState {
+  const target = state.runs.find(run => run.id === id)
+  if (!target) return state
+  if (state.role === "viewer") return deny(state, "Viewer access is read-only for Agentix cases.")
+  if ((action === "approve" || action === "decline") && state.role !== "owner") return deny(state, "Only the project owner can resolve this approval.")
+  if ((action === "approve" || action === "decline") && target.approvalVersion !== state.agents[target.agentId].version) return deny(state, "This approval belongs to an older deployment version. Open the current request before deciding.")
+  const commandVersion = action === "refresh-approval" ? state.agents[target.agentId].version : target.approvalVersion
+  if (!commandAllowed(state, commandVersion, command)) return command && state.processedCommands.includes(command.id) ? state : deny(state, "This decision is stale. Open the current deployment version before deciding.")
+  const next: OperationsState = { ...state, runs: state.runs.map(run => {
     if (run.id !== id || isTerminal(run)) return run
     const atCapacity = state.runs.filter(r => r.agentId === run.agentId && ["working", "recovering", "verifying"].includes(r.phase)).length >= 3
+    if (action === "refresh-approval" && run.phase === "approval" && state.role === "owner") return { ...run, approvalVersion: state.agents[run.agentId].version, notes: addNote(run.notes, `Approval request refreshed for deployment v${state.agents[run.agentId].version}; authority and amount are unchanged.`) }
     if (action === "approve" && run.phase === "approval") return { ...run, approved: true, phase: atCapacity ? "queued" : "working", beforePause: atCapacity ? "working" : undefined, step: 3, notes: addNote(run.notes, `${run.reference} v2: AP owner approved the $240 variance only. No payment release.`) }
     if (action === "decline" && run.phase === "approval") return { ...run, phase: "not_completed", finished: state.clock, notes: addNote(run.notes, "Variance declined. ERP exception stays open; no resolution or payment posted.") }
     if (action === "fulfill" && run.phase === "human" && evidence.trim()) return { ...run, humanReference: evidence.trim().slice(0, 120), phase: atCapacity ? "queued" : "working", beforePause: atCapacity ? "working" : undefined, step: 3, notes: addNote(run.notes, `Owner attestation attached: ${evidence.trim().slice(0, 120)}. Verification still required.`) }
@@ -120,6 +147,7 @@ export function updateRun(state: OperationsState, id: string, action: RunAction,
     if (action === "release" && state.agents[run.agentId].checked && state.agents[run.agentId].connection === "ready" && !state.agents[run.agentId].holdNotifications) return { ...run, held: false }
     return run
   }) }
+  return next === state || next.runs.every((run, index) => run === state.runs[index]) ? state : recordCommand(next, command)
 }
 
 export function tickOperations(state: OperationsState): OperationsState {
@@ -164,7 +192,7 @@ export function tickOperations(state: OperationsState): OperationsState {
 
 export function admitOccurrence(state: OperationsState, agentId: WorkflowId, occurrence: string, scheduled = false): OperationsState {
   const agent = state.agents[agentId]
-  if (agent.status === "draft" || state.runs.length >= 200 || state.runs.some(run => run.agentId === agentId && run.occurrence === occurrence)) return state
+  if (agent.status === "draft" || state.runs.length >= MAX_RUN_RECORDS || state.runs.some(run => run.agentId === agentId && run.occurrence === occurrence)) return state
   const count = state.runs.filter(run => run.agentId === agentId).length
   const reference = `${agentId === "inventory" ? "STOCK" : agentId === "service" ? "INC" : agentId === "onboarding" ? "JOIN" : "INV"}-${30000 + count}`
   const run = makeRun(agentId, reference, scheduled ? "London warehouse · scheduled review" : "New incoming work item", "queued", { occurrence, trigger: scheduled ? "Schedule" : "Event", started: state.clock })
@@ -172,7 +200,7 @@ export function admitOccurrence(state: OperationsState, agentId: WorkflowId, occ
 }
 export function nextSchedule(state: OperationsState): OperationsState {
   const agent = state.agents.inventory
-  if (agent.status !== "active" || readiness(agent) !== "ready" || state.runs.length >= 200) return state
+  if (agent.status !== "active" || readiness(agent) !== "ready" || state.runs.length >= MAX_RUN_RECORDS) return state
   const occurrence = agent.nextOccurrence
   const date = new Date(occurrence); do { date.setUTCDate(date.getUTCDate() + 1) } while ([0, 6].includes(date.getUTCDay()))
   const advanced = admitOccurrence({ ...state, clock: Math.max(state.clock, Date.parse(occurrence)) }, "inventory", occurrence, true)
@@ -186,6 +214,7 @@ export function measures(runs: OperationRun[]) {
 }
 export function matchAgent(text: string): WorkflowId | null { return /invoice|payable/i.test(text) ? "invoice" : /onboard|employee|hire|payroll provisioning/i.test(text) ? "onboarding" : /inventory|stock|replenish/i.test(text) ? "inventory" : /incident|servicenow|triage/i.test(text) ? "service" : null }
 export function messageAgent(state: OperationsState, id: WorkflowId, text: string, runId?: string): OperationsState {
+  if (state.role === "viewer") return deny(state, "Viewer access cannot steer deployed responsibilities.")
   const input = text.trim().slice(0, 2000); if (!input) return state
   let next = state; let response = "This demo uses scripted responses. I’ve kept your message, but haven’t applied an unsupported instruction. You can pause/resume intake, or select a case to prioritize, pause or hold its notification."
   const run = runId ? state.runs.find(item => item.id === runId && item.agentId === id) : undefined
@@ -203,30 +232,53 @@ export function messageAgent(state: OperationsState, id: WorkflowId, text: strin
   const a = next.agents[id]; const key = `${state.clock}-${a.messages.length}`
   return { ...next, agents: { ...next.agents, [id]: { ...a, draft: run ? a.draft : "", caseDrafts: run ? { ...a.caseDrafts, [run.id]: "" } : a.caseDrafts, messages: [...a.messages, { id: `${key}-u`, role: "user" as const, text: input, runId: run?.id }, { id: `${key}-a`, role: "agent" as const, text: response, runId: run?.id }].slice(-60) } } }
 }
-function parseOperations(raw: unknown): OperationsState | null {
+function parseOperations(raw: unknown, projectId = DEFAULT_PROJECT_ID, role: OperationRole = "owner"): OperationsState | null {
   try {
     if (!raw || typeof raw !== "object") return null
-    const data = raw as OperationsState
-    if (data.version !== 3 || !Number.isFinite(data.clock) || !Array.isArray(data.runs) || data.runs.length > 200) return null
+    const candidate = raw as Omit<OperationsState, "version" | "runs"> & { version?: 3 | 4; runs?: Array<OperationRun & { approvalVersion?: number }> }
+    if (candidate.version !== 3 && candidate.version !== 4) return null
+    const data = {
+      ...candidate,
+      version: 4 as const,
+      tenantId: candidate.version === 4 ? candidate.tenantId : "demo-tenant",
+      projectId: candidate.version === 4 ? candidate.projectId : projectId,
+      role,
+      processedCommands: candidate.version === 4 && Array.isArray(candidate.processedCommands) ? candidate.processedCommands : [],
+      notice: candidate.version === 4 ? candidate.notice : null,
+      agents: Object.fromEntries(WORKFLOWS.map(w => { const agent = candidate.agents?.[w.id]; return [w.id, agent ? { ...agent, provenance: agent.provenance ?? { projectId, sourceArtifactId: `discovery-${w.id}-v1` }, environment: "local-simulation" as const, evidenceClass: "simulated" as const, authority: "bounded-responsibility" as const } : agent] })) as OperationsState["agents"],
+      runs: Array.isArray(candidate.runs) ? candidate.runs.map(run => ({ ...run, approvalVersion: Number.isInteger(run.approvalVersion) ? run.approvalVersion : 1 })) : candidate.runs,
+    } as OperationsState
+    if (!Number.isFinite(data.clock) || !Array.isArray(data.runs) || data.runs.length > MAX_RUN_RECORDS || data.tenantId !== "demo-tenant" || data.projectId !== projectId) return null
     if (!WORKFLOWS.every(w => { const a = data.agents?.[w.id]; return a?.id === w.id && ["draft", "active", "paused"].includes(a.status) && typeof a.mapping === "string" && typeof a.draft === "string" && typeof a.brief === "string" && ["ready", "expired"].includes(a.connection) && [a.checked, a.checking, a.automaticPayroll, a.supportRequested, a.repaired, a.holdNotifications].every(v => typeof v === "boolean") && Array.isArray(a.notes) && a.notes.every(n => typeof n === "string") && Array.isArray(a.messages) && a.messages.every(m => m && typeof m.id === "string" && typeof m.text === "string" && ["user", "agent"].includes(m.role)) })) return null
     const phases = ["queued", "working", "approval", "human", "recovering", "verifying", "verified", "partial", "not_completed", "paused"]
     if (!data.runs.every(r => r && WORKFLOWS.some(w => w.id === r.agentId) && typeof r.id === "string" && typeof r.reference === "string" && typeof r.title === "string" && phases.includes(r.phase) && Number.isInteger(r.step) && r.step >= 0 && r.step <= 5 && Number.isFinite(r.started) && Number.isFinite(r.costCents) && r.costCents >= 0 && [0, 1].includes(r.writes) && typeof r.humanReference === "string" && Number.isFinite(r.verifyTicks) && Array.isArray(r.notes) && r.notes.every(n => typeof n === "string"))) return null
-    if (!Object.values(data.agents).every(a => Number.isInteger(a.version) && a.version > 0 && ["discovery", "prompt"].includes(a.origin) && Number.isFinite(Date.parse(a.nextOccurrence)) && a.messages.every(m => !m.runId || data.runs.some(r => r.id === m.runId && r.agentId === a.id)))) return null
-    if (!data.runs.every(r => [r.needsApproval, r.approved, r.held, r.recovered].every(v => typeof v === "boolean") && ["Event", "Schedule", "Assignment"].includes(r.trigger) && ["Normal", "High"].includes(r.priority) && typeof r.occurrence === "string" && (!r.beforePause || ["queued", "working", "verifying", "recovering"].includes(r.beforePause)) && (r.finished === undefined || Number.isFinite(r.finished)) && [r.id, r.reference, r.title, r.occurrence, r.humanReference, ...r.notes].every(s => s.length <= 4000))) return null
+    if (!Object.values(data.agents).every(a => Number.isInteger(a.version) && a.version > 0 && ["discovery", "prompt"].includes(a.origin) && Number.isFinite(Date.parse(a.nextOccurrence)) && a.messages.every(m => !m.runId || data.runs.some(r => r.id === m.runId && r.agentId === a.id)) && a.provenance?.projectId === data.projectId && typeof a.provenance.sourceArtifactId === "string" && a.environment === "local-simulation" && a.evidenceClass === "simulated" && a.authority === "bounded-responsibility")) return null
+    if (!data.runs.every(r => [r.needsApproval, r.approved, r.held, r.recovered].every(v => typeof v === "boolean") && Number.isInteger(r.approvalVersion) && r.approvalVersion > 0 && ["Event", "Schedule", "Assignment"].includes(r.trigger) && ["Normal", "High"].includes(r.priority) && typeof r.occurrence === "string" && (!r.beforePause || ["queued", "working", "verifying", "recovering"].includes(r.beforePause)) && (r.finished === undefined || Number.isFinite(r.finished)) && [r.id, r.reference, r.title, r.occurrence, r.humanReference, ...r.notes].every(s => s.length <= 4000))) return null
     if (new Set(data.runs.map(r => r.id)).size !== data.runs.length) return null
     if (!Object.values(data.agents).every(a => !a.caseDrafts || typeof a.caseDrafts === "object" && !Array.isArray(a.caseDrafts) && Object.entries(a.caseDrafts).every(([id, value]) => typeof value === "string" && value.length <= 2000 && data.runs.some(r => r.id === id && r.agentId === a.id)))) return null
-    return { ...data, selected: WORKFLOWS.some(w => w.id === data.selected) ? data.selected : null, newBrief: typeof data.newBrief === "string" ? data.newBrief.slice(0, 2000) : "", agents: Object.fromEntries(WORKFLOWS.map(w => { const a = data.agents[w.id]; return [w.id, { ...a, draft: a.draft.slice(0, 2000), brief: a.brief.slice(0, 2000), notes: a.notes.slice(-40), messages: a.messages.slice(-60).map(m => ({ ...m, text: m.text.slice(0, 4000) })) }] })) as OperationsState["agents"] }
+    if (!Array.isArray(data.processedCommands) || data.processedCommands.length > 1_000 || data.processedCommands.some(id => typeof id !== "string" || id.length > 160) || data.notice !== null && typeof data.notice !== "string") return null
+    return { ...data, processedCommands: data.processedCommands.slice(-1_000), notice: data.notice?.slice(0, 300) ?? null, selected: WORKFLOWS.some(w => w.id === data.selected) ? data.selected : null, newBrief: typeof data.newBrief === "string" ? data.newBrief.slice(0, 2000) : "", agents: Object.fromEntries(WORKFLOWS.map(w => { const a = data.agents[w.id]; return [w.id, { ...a, draft: a.draft.slice(0, 2000), brief: a.brief.slice(0, 2000), notes: a.notes.slice(-40), messages: a.messages.slice(-60).map(m => ({ ...m, text: m.text.slice(0, 4000) })) }] })) as OperationsState["agents"] }
   } catch { return null }
 }
 
-const operationsCodec: StateCodec<OperationsState> = { parse: parseOperations }
+export const operationsCodec: StateCodec<OperationsState> = { parse: parseOperations }
+const scopedOperationsCodec = (projectId: string, role: OperationRole): StateCodec<OperationsState> => ({ parse: (raw) => parseOperations(raw, projectId, role) })
+function operationsSlice(projectId: string) {
+  if (projectId === DEFAULT_PROJECT_ID) return OPERATIONS_SLICE
+  let hash = 2166136261
+  for (const character of projectId) hash = Math.imul(hash ^ character.charCodeAt(0), 16777619)
+  const slug = projectId.toLowerCase().replace(/[^a-z0-9-]+/g, "-").replace(/(^-|-$)/g, "").slice(0, 32) || "project"
+  return `agentix-${slug}-${(hash >>> 0).toString(36)}`
+}
 
-export function readOperations(): OperationsState {
-  return demoStateRepository.load(OPERATIONS_SLICE, operationsCodec, initialOperations, undefined, [LEGACY_OPERATIONS_KEY]).value
+export function readOperations(projectId = DEFAULT_PROJECT_ID, role: OperationRole = "owner"): OperationsState {
+  const slice = operationsSlice(projectId)
+  const legacy = projectId === DEFAULT_PROJECT_ID ? [LEGACY_OPERATIONS_KEY] : []
+  return demoStateRepository.load(slice, scopedOperationsCodec(projectId, role), () => initialOperations(projectId, role), OPERATIONS_MAX_BYTES, legacy).value
 }
 
 export function persistOperations(state: OperationsState) {
-  return demoStateRepository.save(OPERATIONS_SLICE, state).ok
+  return demoStateRepository.save(operationsSlice(state.projectId), state, OPERATIONS_MAX_BYTES).ok
 }
 
 export function deriveAgentixAttention(state: OperationsState): AgentixAttention {
@@ -237,6 +289,6 @@ export function deriveAgentixAttention(state: OperationsState): AgentixAttention
   }
 }
 
-export function readAgentixAttention(): AgentixAttention {
-  return deriveAgentixAttention(readOperations())
+export function readAgentixAttention(projectId = DEFAULT_PROJECT_ID, role: OperationRole = "owner"): AgentixAttention {
+  return deriveAgentixAttention(readOperations(projectId, role))
 }

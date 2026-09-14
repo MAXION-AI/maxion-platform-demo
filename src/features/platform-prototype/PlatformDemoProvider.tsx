@@ -33,12 +33,14 @@ export function PlatformDemoProvider({ activeModule, children }: { activeModule:
 
 	useEffect(() => {
 		let current = true
+		const selectedProject = projects.records.find((project) => project.id === projects.selectedId)
+		const role = selectedProject?.role === "Owner" ? "owner" as const : selectedProject?.role === "Member" ? "member" as const : "viewer" as const
 		void import("@/features/agentix/prototype/operationsState").then(
-			({ readAgentixAttention }) => { if (current) dispatch({ type: "agentix/attention-changed", attention: readAgentixAttention() }) },
+			({ readAgentixAttention }) => { if (current) dispatch({ type: "agentix/attention-changed", attention: readAgentixAttention(selectedProject?.id, role) }) },
 			() => undefined,
 		)
 		return () => { current = false }
-	}, [])
+	}, [projects.records, projects.selectedId])
 
 	useEffect(() => {
 		const result = platformStateRepository.save(PLATFORM_STATE_SLICE, persisted, PLATFORM_STATE_MAX_BYTES)

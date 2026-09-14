@@ -1,16 +1,23 @@
 import AxeBuilder from "@axe-core/playwright"
 import { expect, test, type Page } from "@playwright/test"
 
-const key = "maxion-demo:maxion-demo:agentix-operations:v1"
 async function enter(page: Page) {
   await page.emulateMedia({ reducedMotion: "reduce" })
   await page.clock.install({ time: new Date("2026-09-11T08:00:00Z") })
   await page.clock.pauseAt(new Date("2026-09-11T09:00:00Z"))
   await page.goto("/agentix-prototype")
-  await expect(page.getByRole("heading", { name: "Deployed agents" })).toBeVisible()
+  await expect(page.getByRole("heading", { name: /decisions\. Everything else is moving\./ })).toBeVisible()
 }
 const ticks = (page: Page, n: number) => page.clock.runFor(n * 4000)
-const open = (page: Page, agent: string) => page.locator(".aop-agent-card").filter({ hasText: agent }).click()
+async function open(page: Page, agent: string) {
+  if (agent === "Employee onboarding agent") {
+    await page.getByRole("button", { name: "New agent", exact: true }).click()
+    await page.getByLabel("Describe the responsibility").fill("Coordinate employee onboarding")
+    await page.getByRole("button", { name: "Prepare agent" }).click()
+    return
+  }
+  await page.locator(".aop-agent-line").filter({ hasText: agent }).click()
+}
 const caseRow = (page: Page, id: string) => page.locator(".aop-run-row").filter({ hasText: id })
 const close = (page: Page) => page.getByRole("button", { name: "Close details" }).click()
 async function send(page: Page, text: string) {
@@ -25,10 +32,18 @@ async function repairMapping(page: Page) {
   await ticks(page, 1)
 }
 
-test("fleet opens without chat; cases progress independently and agents stay deployed", async ({ page }) => {
+test("operations portfolio keeps decisions, work, activity, connections and steering in context", async ({ page }) => {
   await enter(page)
-  await expect(page.locator(".aop-agent-card")).toHaveCount(4)
+  await expect(page.getByRole("navigation", { name: "Agentix views" }).getByRole("button")).toHaveCount(5)
+  await expect(page.locator(".aop-agent-line")).toHaveCount(3)
+  await expect(page.getByRole("textbox", { name: "Steer Agentix" })).toBeVisible()
   await expect(page.locator("#aop-message")).toHaveCount(0)
+  const views = page.getByRole("navigation", { name: "Agentix views" })
+  await views.getByRole("button", { name: "Work", exact: true }).click()
+  await expect(page.getByRole("heading", { name: "Work" })).toBeVisible()
+  await views.getByRole("button", { name: /Approvals/ }).click()
+  await expect(page.getByRole("button", { name: "Review" }).first()).toBeVisible()
+  await views.getByRole("button", { name: "Today", exact: true }).click()
   await open(page, "Invoice operations agent")
   await expect(page.locator(".aop-run-row")).toHaveCount(5)
   await expect(caseRow(page, "INV-20844")).toContainText("Verifying")
@@ -162,11 +177,14 @@ test("natural-language entry reuses an existing agent and preserves unsupported 
   await page.getByLabel("Describe the responsibility").fill("Resolve invoice exceptions")
   await page.getByRole("button", { name: "Prepare agent" }).click()
   await expect(page.getByRole("status")).toContainText("no duplicate agent")
-  expect(await page.evaluate(k => JSON.parse(localStorage.getItem(k)!).value.runs.filter((r: {agentId: string}) => r.agentId === "invoice").length, key)).toBe(7)
+  expect(await page.evaluate(() => {
+    const key = Array.from({ length: localStorage.length }, (_, index) => localStorage.key(index)).find((item) => item?.includes(":agentix-erp-modernization-"))
+    return key ? JSON.parse(localStorage.getItem(key)!).value.runs.filter((run: { agentId: string }) => run.agentId === "invoice").length : 0
+  })).toBe(7)
 })
 
 for (const width of [320, 375, 768, 1280, 1440]) {
-  test(`deployed agents and context remain accessible at ${width}px`, async ({ page }) => {
+	test(`Agentix operations and context remain accessible at ${width}px`, async ({ page }) => {
     await page.setViewportSize({ width, height: 900 })
     await enter(page)
     expect(await page.locator(".aop-root").evaluate(n => n.scrollWidth > n.clientWidth + 1)).toBe(false)
