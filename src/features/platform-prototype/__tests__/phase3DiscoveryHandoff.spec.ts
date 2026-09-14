@@ -10,7 +10,7 @@ const packageRef: DiscoveryPackageRef = {
 	projectName: "Project A",
 	discoveryId: "discovery-a",
 	createdAt: "2026-09-14T12:00:00.000Z",
-	provenance: [{ evidenceId: "evidence-a", source: "Policy library", locator: "Controls / v4" }],
+	provenance: [{ evidenceId: "evidence-a", source: "Policy library", locator: "Controls / v4", evidenceClass: "connected-source" }],
 	unresolvedGapIds: [],
 	authority: { level: "project-owner", boundedTo: "planning-input" },
 	evidenceClasses: ["connected-source"],

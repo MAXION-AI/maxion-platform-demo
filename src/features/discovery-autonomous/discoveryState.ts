@@ -272,7 +272,7 @@ function createPackage(session: DiscoverySession, now?: string): DiscoveryPackag
 		projectName: session.projectName,
 		discoveryId: session.id,
 		createdAt: nowIso(now),
-		provenance: session.evidence.filter((item) => item.verified).map((item) => ({ evidenceId: item.id, source: item.source, locator: item.locator })),
+		provenance: session.evidence.filter((item) => item.verified).map((item) => ({ evidenceId: item.id, source: item.source, locator: item.locator, evidenceClass: item.evidenceClass })),
 		unresolvedGapIds: selectOpenDiscoveryGaps(session).map((gap) => gap.id),
 		authority: { level: session.permission === "owner" ? "project-owner" : "member", boundedTo: "planning-input" },
 		evidenceClasses: evidenceClasses.length ? evidenceClasses : ["synthetic-demo"],
@@ -486,9 +486,9 @@ function parsePackageRef(value: unknown, session: Pick<DiscoverySession, "id" | 
 			quarantine.push(quarantineRecord(sessionIndex, "packageRef.provenance", index, "Provenance record failed schema validation."))
 			return
 		}
-		const evidenceId = safeId(item.evidenceId), source = safeText(item.source, 160), locator = safeText(item.locator, 500)
-		if (!evidenceId || !source?.trim() || locator === null) quarantine.push(quarantineRecord(sessionIndex, "packageRef.provenance", index, "Provenance record failed schema validation."))
-		else provenance.push({ evidenceId, source, locator })
+		const evidenceId = safeId(item.evidenceId), source = safeText(item.source, 160), locator = safeText(item.locator, 500), evidenceClass = parseEvidenceClass(item.evidenceClass)
+		if (!evidenceId || !source?.trim() || locator === null || !evidenceClass) quarantine.push(quarantineRecord(sessionIndex, "packageRef.provenance", index, "Provenance record failed schema validation."))
+		else provenance.push({ evidenceId, source, locator, evidenceClass })
 	})
 	if (Array.isArray(value.provenance) && value.provenance.length > 200) quarantine.push(quarantineRecord(sessionIndex, "packageRef.provenance", 200, "Package provenance exceeds the 200 record limit."))
 	const unresolvedGapIds = parseIdList(value.unresolvedGapIds, 200)

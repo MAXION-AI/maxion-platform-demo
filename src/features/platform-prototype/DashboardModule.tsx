@@ -55,7 +55,7 @@ export function DashboardModule({ onNavigate, onCommand }: { onNavigate: Navigat
 
 	const outcomes = [
 		...(executeVerified ? [{ id: "execute", module: "execute" as const, title: "Release evidence verified", detail: "Execute · development gate verified" }] : []),
-		...(plan.sent ? [{ id: "plan", module: "plan" as const, title: "Plan handed to Execute", detail: `Plan · ${plan.snapshot}` }] : []),
+		...(plan.artifactRef ? [{ id: "plan", module: "plan" as const, title: "Plan handed to Execute", detail: `Plan · v${plan.artifactRef.artifactVersion}` }] : []),
 		...(discoveryReady ? [{ id: "discovery", module: "discovery" as const, title: "Discovery package verified", detail: "Discover · evidence package ready" }] : []),
 		...summary.completedProjects.map((project) => ({ id: project.id, module: "projects" as const, project, title: `${project.name} completed`, detail: `Projects · archived ${project.updated}` })),
 	].slice(0, 4)
