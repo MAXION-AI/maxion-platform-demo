@@ -36,8 +36,8 @@ describe("MaxionPlatformPrototypePage", () => {
 		expect(intervalSpy.mock.calls.some((call) => call[1] === DEMO_TICK_MS)).toBe(false)
 
 		fireEvent.click(navigation.getByRole("button", { name: /^My approvals/ }))
-		expect(screen.getByRole("heading", { name: "My approvals" })).toBeInTheDocument()
-		expect(screen.getByText("Review a $240 invoice price variance")).toBeInTheDocument()
+		expect(await screen.findByRole("heading", { name: "Decisions assigned to you" })).toBeInTheDocument()
+		expect(screen.getByText(/Approve a \$240 price variance/)).toBeInTheDocument()
 		expect(screen.queryByRole("main", { name: "Agentix workspace" })).not.toBeInTheDocument()
 	})
 	it("opens on the canonical MAXION dashboard and exposes the complete platform shell", () => {
@@ -149,7 +149,7 @@ describe("MaxionPlatformPrototypePage", () => {
 		expect(within(projectCollection).getByText("Finance controls uplift")).toBeInTheDocument()
 	})
 
-	it("keeps Viewer projects readable while explicitly denying resume authority", () => {
+	it("keeps Viewer projects readable while denying administrative mutations", async () => {
 		renderPrototype()
 		fireEvent.click(screen.getByRole("button", { name: "Projects" }))
 		fireEvent.click(screen.getByRole("button", { name: /Open Customer 360, View only/ }))
@@ -157,6 +157,15 @@ describe("MaxionPlatformPrototypePage", () => {
 		fireEvent.click(screen.getByRole("button", { name: "Request resume access" }))
 		expect(screen.getByRole("status")).toHaveTextContent("Viewer access to Customer 360")
 		expect(screen.getByRole("heading", { name: "Customer 360" })).toBeInTheDocument()
+
+		fireEvent.click(portalNavigation().getByRole("button", { name: "Integrations" }))
+		expect(await screen.findByRole("heading", { name: "Connected systems" })).toBeInTheDocument()
+		expect(screen.getByRole("button", { name: "Reconnect" })).toBeDisabled()
+		expect(screen.getByText(/Viewer and member access is read-only/)).toBeInTheDocument()
+
+		fireEvent.click(portalNavigation().getByRole("button", { name: /^My approvals/ }))
+		expect(await screen.findByText("Owner decision required")).toBeInTheDocument()
+		expect(screen.queryByRole("button", { name: "Approve" })).not.toBeInTheDocument()
 	})
 
 	it("binds the Discover interview package to Plan through shared state", async () => {
@@ -173,16 +182,41 @@ describe("MaxionPlatformPrototypePage", () => {
 		expect(screen.getByRole("heading", { name: "ERP modernization rollout" })).toBeInTheDocument()
 	})
 
-	it("manages an integration connection and exposes its governed access log", async () => {
+	it("recovers and disconnects a project-scoped integration with explicit consequences", async () => {
 		renderPrototype()
 		fireEvent.click(screen.getByRole("button", { name: "Integrations" }))
-		expect(screen.getByRole("heading", { name: "Integrations" })).toBeInTheDocument()
-		fireEvent.change(screen.getByPlaceholderText("Search integrations"), { target: { value: "Workday" } })
-		fireEvent.click(screen.getByRole("button", { name: "Connect" }))
-		expect(await screen.findByText("Workday connected.")).toBeInTheDocument()
-		fireEvent.click(screen.getByRole("button", { name: "Access log" }))
-		expect(screen.getByRole("complementary", { name: "Integration access log" })).toBeInTheDocument()
-		expect(screen.getByText("Salesforce records read")).toBeInTheDocument()
+		expect(await screen.findByRole("heading", { name: "Connected systems" })).toBeInTheDocument()
+		fireEvent.change(screen.getByPlaceholderText("Search systems or principals"), { target: { value: "Slack" } })
+		fireEvent.click(screen.getByRole("button", { name: /Slack/ }))
+		fireEvent.click(screen.getByRole("button", { name: "Reconnect" }))
+		expect(await screen.findByText("Slack reconnected without widening its scope.")).toBeInTheDocument()
+		fireEvent.click(screen.getByRole("button", { name: "Disconnect" }))
+		const confirmation = screen.getByRole("alertdialog", { name: "Disconnect Slack" })
+		expect(within(confirmation).getByText(/loses this project context immediately/i)).toBeInTheDocument()
+		fireEvent.click(within(confirmation).getByRole("button", { name: "Keep connected" }))
+		expect(screen.queryByRole("alertdialog", { name: "Disconnect Slack" })).not.toBeInTheDocument()
+	})
+
+	it("keeps every administrative destination actionable in the bottom cluster", async () => {
+		renderPrototype()
+		const navigation = portalNavigation()
+
+		fireEvent.click(navigation.getByRole("button", { name: "Settings" }))
+		fireEvent.click(await screen.findByRole("button", { name: /Workspace profile/ }))
+		fireEvent.change(screen.getByLabelText("Workspace name"), { target: { value: "  Northwind Operations  " } })
+		fireEvent.click(screen.getAllByRole("button", { name: "Save changes" })[0])
+		expect(screen.getByText(/Saved by Root Admin/)).toBeInTheDocument()
+
+		fireEvent.click(navigation.getByRole("button", { name: "Usage" }))
+		fireEvent.click(await screen.findByRole("button", { name: "View records" }))
+		const records = screen.getByRole("region", { name: "Bounded usage records" })
+		expect(within(records).getByText(/10,000 records · 25 mounted/)).toBeInTheDocument()
+
+		fireEvent.click(navigation.getByRole("button", { name: "Help" }))
+		fireEvent.change(await screen.findByRole("textbox", { name: "Search help" }), { target: { value: "reconnect integration" } })
+		fireEvent.click(screen.getByRole("button", { name: /Reconnect an integration/ }))
+		fireEvent.click(screen.getByRole("button", { name: "Open integrations" }))
+		expect(await screen.findByRole("heading", { name: "Connected systems" })).toBeInTheDocument()
 	})
 
 	it("embeds Agentix and lets Consult MAX route across platform boundaries", async () => {

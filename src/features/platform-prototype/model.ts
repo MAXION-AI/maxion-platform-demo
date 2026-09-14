@@ -83,7 +83,7 @@ export const INITIAL_PROJECTS: PortalProject[] = [
 // Workspace units are one number with one denominator. The sidebar meter, the dashboard
 // stat, and the Usage page all read this — a meter that disagrees with its own rows is the
 // fastest way to lose a viewer's trust in everything else on the surface.
-export const WORKSPACE_USAGE_ROWS = [
+const WORKSPACE_USAGE_ROWS = [
 	{ module: "Discovery", units: 12_480 },
 	{ module: "Plan", units: 8_140 },
 	{ module: "Execute", units: 14_620 },
