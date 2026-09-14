@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-09-13",
+  "updatedAt": "2026-09-14",
   "authority": "docs/operations/ux-surface-inventory.md",
   "surfaces": [
     {
@@ -12,7 +12,7 @@
       "implementation": [
         "src/features/platform-prototype/MaxionPlatformPrototypePage.tsx#MaxionPlatformPrototypePage",
         "src/features/platform-prototype/PortalChrome.tsx#PortalSidebar",
-        "src/features/platform-prototype/PortalReplicaModules.tsx#DashboardModule"
+        "src/features/platform-prototype/DashboardModule.tsx#DashboardModule"
       ]
     },
     {
@@ -21,7 +21,7 @@
       "routeState": "module=projects",
       "referenceSheet": "projects-workspace.md",
       "figma": { "fileKey": "UhLxGyXphdHHNLGMomBq6n", "nodeId": "40:478" },
-      "implementation": ["src/features/platform-prototype/PortalReplicaModules.tsx#ProjectsModule"]
+      "implementation": ["src/features/platform-prototype/ProjectsModule.tsx#ProjectsModule"]
     },
     {
       "surfaceId": "discover-workspace",
@@ -29,7 +29,7 @@
       "routeState": "module=discover",
       "referenceSheet": "discover-workspace.md",
       "figma": { "fileKey": "UhLxGyXphdHHNLGMomBq6n", "nodeId": "18:45" },
-      "implementation": ["src/features/discovery-autonomous/DiscoveryAutonomousPrototypePage.tsx#DiscoveryAutonomousPrototypePage"]
+      "implementation": ["src/features/platform-prototype/modules/DiscoveryModule.tsx#DiscoveryModule"]
     },
     {
       "surfaceId": "plan-workspace",
@@ -46,7 +46,7 @@
       "referenceSheet": "execute-workspace.md",
       "figma": { "fileKey": "UhLxGyXphdHHNLGMomBq6n", "nodeId": "20:125" },
       "implementation": [
-        "src/features/platform-prototype/PortalReplicaModules.tsx#ExecuteHubModule",
+        "src/features/platform-prototype/MaxionPlatformPrototypePage.tsx#ExecuteModule",
         "src/features/platform-prototype/ExecuteDeliveryWorkspace.tsx#ExecuteDeliveryWorkspace"
       ]
     },
@@ -58,7 +58,7 @@
       "figma": { "fileKey": "UhLxGyXphdHHNLGMomBq6n", "nodeId": "21:175" },
       "implementation": [
         "src/features/agentix/prototype/DeployedAgentsPage.tsx#DeployedAgentsPage",
-        "src/features/agentix/prototype/OperationsViews.tsx#Fleet"
+        "src/features/agentix/prototype/OperationsViews.tsx#RunsList"
       ]
     },
     {
@@ -69,7 +69,7 @@
       "figma": { "fileKey": "UhLxGyXphdHHNLGMomBq6n", "nodeId": "46:933" },
       "implementation": [
         "src/features/agentix/prototype/DeployedAgentsPage.tsx#DeployedAgentsPage",
-        "src/features/agentix/prototype/OperationsViews.tsx#RunDetail"
+        "src/features/agentix/prototype/RunCanvas.tsx#RunCanvas"
       ]
     },
     {
@@ -78,7 +78,7 @@
       "routeState": "module=consult",
       "referenceSheet": "consult-max-workspace.md",
       "figma": { "fileKey": "UhLxGyXphdHHNLGMomBq6n", "nodeId": "22:225" },
-      "implementation": ["src/features/platform-prototype/MaxionPlatformPrototypePage.tsx#ConsultModule"]
+      "implementation": ["src/features/platform-prototype/ConsultModule.tsx#ConsultModule"]
     },
     {
       "surfaceId": "settings-workspace",
@@ -86,7 +86,7 @@
       "routeState": "module=settings",
       "referenceSheet": "settings-workspace.md",
       "figma": { "fileKey": "UhLxGyXphdHHNLGMomBq6n", "nodeId": "43:559" },
-      "implementation": ["src/features/platform-prototype/PortalReplicaModules.tsx#AccountUtilityModule"]
+      "implementation": ["src/features/platform-prototype/AdministrationModules.tsx#SettingsModule"]
     },
     {
       "surfaceId": "integrations-workspace",
@@ -94,7 +94,7 @@
       "routeState": "module=integrations",
       "referenceSheet": "integrations-workspace.md",
       "figma": { "fileKey": "UhLxGyXphdHHNLGMomBq6n", "nodeId": "43:786" },
-      "implementation": ["src/features/platform-prototype/PortalReplicaModules.tsx#IntegrationsModule"]
+      "implementation": ["src/features/platform-prototype/AdministrationModules.tsx#IntegrationsModule"]
     },
     {
       "surfaceId": "approvals-workspace",
@@ -102,7 +102,7 @@
       "routeState": "module=approvals",
       "referenceSheet": "approvals-workspace.md",
       "figma": { "fileKey": "UhLxGyXphdHHNLGMomBq6n", "nodeId": "43:1013" },
-      "implementation": ["src/features/platform-prototype/PortalReplicaModules.tsx#AccountUtilityModule"]
+      "implementation": ["src/features/platform-prototype/AdministrationModules.tsx#ApprovalsModule"]
     },
     {
       "surfaceId": "usage-workspace",
@@ -110,7 +110,7 @@
       "routeState": "module=usage",
       "referenceSheet": "usage-workspace.md",
       "figma": { "fileKey": "UhLxGyXphdHHNLGMomBq6n", "nodeId": "43:1234" },
-      "implementation": ["src/features/platform-prototype/PortalReplicaModules.tsx#AccountUtilityModule"]
+      "implementation": ["src/features/platform-prototype/AdministrationModules.tsx#UsageModule"]
     },
     {
       "surfaceId": "help-workspace",
@@ -118,7 +118,7 @@
       "routeState": "module=help",
       "referenceSheet": "help-workspace.md",
       "figma": { "fileKey": "UhLxGyXphdHHNLGMomBq6n", "nodeId": "43:1461" },
-      "implementation": ["src/features/platform-prototype/PortalReplicaModules.tsx#AccountUtilityModule"]
+      "implementation": ["src/features/platform-prototype/AdministrationModules.tsx#HelpModule"]
     }
   ]
 }

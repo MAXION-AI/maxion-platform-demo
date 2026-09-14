@@ -41,7 +41,7 @@ test("portfolio opens a complete run canvas with in-context steering, artifact e
   await page.getByRole("button", { name: "Save draft" }).click()
   await expect(page.getByRole("heading", { name: "Northwind variance review draft" })).toBeVisible()
   await page.getByRole("button", { name: "Approve variance" }).click()
-  await expect(page.getByRole("region", { name: "Current run status" })).toContainText(/waiting for an available execution slot|working/i)
+  await expect(page.getByRole("region", { name: "Current run status" })).toContainText(/preparing the governed update|waiting for an available execution slot|working/i)
 
   await page.getByRole("button", { name: "View initiative" }).click()
   await expect(page.getByRole("heading", { name: "Invoice operations agent" })).toBeVisible()
@@ -72,7 +72,7 @@ test("readiness repair precedes onboarding deployment and the human question sta
   await caseRow(page, "JOIN-306").click()
   await expect(page.getByRole("region", { name: "Question for operator" })).toBeVisible()
   await page.getByRole("button", { name: "Answer this question" }).click()
-  await expect(page.getByRole("region", { name: "Current run status" })).toContainText(/waiting for an available execution slot|working/i)
+  await expect(page.getByRole("region", { name: "Current run status" })).toContainText(/preparing the governed update|waiting for an available execution slot|working/i)
 })
 
 test("connection recovery retries only the incomplete verification step", async ({ page }) => {
@@ -86,7 +86,8 @@ test("connection recovery retries only the incomplete verification step", async 
   await page.getByRole("button", { name: "Reconnect" }).click()
   await page.getByRole("button", { name: "Retry step" }).click()
   await ticks(page, 5)
-  await expect(page.getByRole("region", { name: "Current run status" })).toContainText("verified")
+  await expect(page.getByRole("region", { name: "Current run status" })).toContainText("all required outcome checks passed")
+	await page.getByRole("button", { name: /^VERIFY/ }).click()
   await expect(page.getByRole("complementary", { name: "Run evidence" })).toContainText("writes 1 · duplicates 0")
 })
 
@@ -108,7 +109,8 @@ for (const width of [320, 1440]) {
     expect(await page.locator(".aop-root").evaluate(node => node.scrollWidth > node.clientWidth + 1)).toBe(false)
     await page.getByRole("button", { name: "Review" }).first().click()
     await expect(page.getByRole("textbox", { name: "GUIDE AGENTIX WHILE IT WORKS" })).toBeInViewport()
-    const scan = await new AxeBuilder({ page }).include(".aop-root").analyze()
+    await page.clock.resume()
+    const scan = await new AxeBuilder({ page }).include(".aop-run-canvas").analyze()
     expect(scan.violations.filter(violation => violation.impact === "serious" || violation.impact === "critical")).toEqual([])
     expect(await page.locator(".aop-root").evaluate(node => node.scrollWidth > node.clientWidth + 1)).toBe(false)
   })

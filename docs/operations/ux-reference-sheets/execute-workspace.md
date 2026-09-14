@@ -12,7 +12,7 @@
 - **Surface class:** product
 - **Target user:** Delivery owner supervising bounded agents, tests, evidence, and release approval
 - **Top jobs (1–3):** Start or steer a run; inspect workspace and test state; recover failure or approve release
-- **Route(s) / component(s):** /maxion-prototype → Execute · ExecuteHubModule · ExecuteDeliveryWorkspace
+- **Route(s) / component(s):** /maxion-prototype → Execute · ExecuteModule · ExecuteDeliveryWorkspace
 
 ## 2. References (examined, cited)
 

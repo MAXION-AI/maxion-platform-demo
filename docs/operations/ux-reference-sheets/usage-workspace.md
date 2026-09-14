@@ -12,7 +12,7 @@
 - **Surface class:** product
 - **Target user:** Workspace operator understanding and bounding product consumption
 - **Top jobs (1–3):** See current unit use and pace; find the module or project driving use; set a warning without blocking active work
-- **Route(s) / component(s):** /maxion-prototype · AccountUtilityModule usage state
+- **Route(s) / component(s):** /maxion-prototype · AdministrationModules.UsageModule
 
 ## 2. References (examined, cited)
 

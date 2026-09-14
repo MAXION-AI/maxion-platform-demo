@@ -88,6 +88,7 @@ describe("administration contracts", () => {
 
 	it("ranks contextual help and preserves natural task phrasing", () => {
 		expect(searchHelpResults("  reconnect my Slack integration  ")[0]).toMatchObject({ id: "integration", module: "integrations" })
+		expect(searchHelpResults("usage")[0]).toMatchObject({ id: "usage", module: "usage" })
 		expect(searchHelpResults("unrelated request")).toEqual([])
 		expect(searchHelpResults("", "usage")[0].id).toBe("usage")
 	})

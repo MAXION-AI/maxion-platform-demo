@@ -12,7 +12,7 @@
 - **Surface class:** product
 - **Target user:** Workspace administrator maintaining safe defaults and account controls
 - **Top jobs (1–3):** Update workspace defaults; review security boundaries; confirm saved and audited state
-- **Route(s) / component(s):** /maxion-prototype · AccountUtilityModule settings state
+- **Route(s) / component(s):** /maxion-prototype · AdministrationModules.SettingsModule
 
 ## 2. References (examined, cited)
 

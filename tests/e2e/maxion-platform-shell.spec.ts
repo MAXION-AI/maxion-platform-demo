@@ -98,8 +98,8 @@ test("keeps the shell choice, target, response, and accessibility floor measurab
 	await expect(page.getByRole("button", { name: "Open Agentix" })).toHaveClass(/mxp-primary/)
 	await expect(page.getByRole("heading", { name: "Needs you" })).toBeVisible()
 	await expect(page.getByRole("heading", { name: "Recent outcomes" })).toBeVisible()
-	await expect(page.locator(".mxp-needs-you article")).toHaveCount(3)
-	await expect(page.locator(".mxp-recent-outcomes button")).toHaveCount(4)
+	await expect(page.locator(".mxp-needs-you article")).toHaveCount(1)
+	await expect(page.locator(".mxp-recent-outcomes button")).toHaveCount(1)
 
 	const navigation = page.getByRole("navigation", { name: "Portal sections" })
 	const targetHeights = await navigation.locator('[data-navigation-tier="product"]').evaluateAll((controls) =>
@@ -236,7 +236,7 @@ test("keeps the canonical MAXION shell functional across core modules", async ({
 	await expect(page.locator(".mxp-root")).toHaveClass(/mxp-root--sidebar-collapsed/)
 
 	await navigation.getByRole("button", { name: "Projects" }).click()
-	await expect(page.getByRole("heading", { name: "Projects" })).toBeVisible()
+	await expect(page.getByRole("heading", { name: "Projects", exact: true })).toBeVisible()
 	await expect(page.getByRole("region", { name: "Projects", exact: true })).toBeVisible()
 
 	await navigation.getByRole("button", { name: "Discover" }).click()
@@ -258,10 +258,10 @@ test("keeps the canonical MAXION shell functional across core modules", async ({
 	expect(executeAccessibility.violations.filter((violation) => violation.impact === "critical" || violation.impact === "serious")).toEqual([])
 
 	await navigation.getByRole("button", { name: "Integrations" }).click()
-	await expect(page.getByRole("heading", { name: "Integrations" })).toBeVisible()
-	await page.getByRole("textbox", { name: "Search integrations" }).fill("Workday")
-	await page.getByRole("button", { name: "Connect" }).click()
-	await expect(page.getByText("Workday connected.")).toBeVisible()
+	await expect(page.getByRole("heading", { name: "Connected systems" })).toBeVisible()
+	await page.getByPlaceholder("Search systems or principals").fill("Slack")
+	await page.getByRole("button", { name: "Reconnect" }).click()
+	await expect(page.getByText("Slack reconnected without widening its scope.")).toBeVisible()
 
 	const accessibility = await new AxeBuilder({ page }).analyze()
 	expect(accessibility.violations.filter((violation) => violation.impact === "critical" || violation.impact === "serious")).toEqual([])
@@ -278,7 +278,7 @@ test("keeps the full MAXION navigation usable on mobile", async ({ page }) => {
 	await expect(page.getByRole("img", { name: "MAXION" })).toBeVisible()
 	await expect(navigation.getByRole("button", { name: /^Agentix/ })).toBeVisible()
 	await navigation.getByRole("button", { name: "Projects" }).click()
-	await expect(page.getByRole("heading", { name: "Projects" })).toBeVisible()
+	await expect(page.getByRole("heading", { name: "Projects", exact: true })).toBeVisible()
 	await expect(page.getByRole("button", { name: "Open navigation" })).toHaveAttribute("aria-expanded", "false")
 
 	await page.getByRole("button", { name: "Open navigation" }).click()
@@ -289,10 +289,10 @@ test("keeps the full MAXION navigation usable on mobile", async ({ page }) => {
 
 	await page.getByRole("button", { name: "Open navigation" }).click()
 	await navigation.getByRole("button", { name: /^Execute/ }).click()
-	await expect(page.getByRole("heading", { name: "What do you want built?", exact: true })).toBeVisible()
-	const engagementComposer = page.getByRole("region", { name: "What should MAX deliver?" })
-	await expect(engagementComposer).toBeVisible()
-	const composerBox = await engagementComposer.boundingBox()
+	await expect(page.getByRole("heading", { name: "Approved Plan required" })).toBeVisible()
+	const executeBoundary = page.getByRole("region", { name: "Execute requires an approved Plan" })
+	await expect(executeBoundary).toBeVisible()
+	const composerBox = await executeBoundary.boundingBox()
 	expect(composerBox).not.toBeNull()
 	expect(composerBox!.x).toBeGreaterThanOrEqual(0)
 	expect(composerBox!.x + composerBox!.width).toBeLessThanOrEqual(390)

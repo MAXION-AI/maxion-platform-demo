@@ -1,6 +1,6 @@
 import { act, fireEvent, render, screen } from "@testing-library/react"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
-import { AgentixInitiativesPage } from "../AgentixInitiativesPage"
+import { DeployedAgentsPage } from "../DeployedAgentsPage"
 import { DiscoveryHandoffWorkspace } from "../DiscoveryHandoffWorkspace"
 import { WORKFLOWS } from "../initiatives"
 import { admitOccurrence, deriveAgentixAttention, initialOperations, messageAgent, measures, nextSchedule, operationsCodec, persistOperations, readAgentixAttention, readOperations, readiness, runEvents, setMapping, tickOperations, updateAgent, updateRun, DEMO_TICK_MS, MAX_RUN_RECORDS, type OperationsState } from "../operationsState"
@@ -270,7 +270,7 @@ describe("deployed operations state", () => {
 
 describe("agent-first workspace", () => {
   it("lands on the Agentix operating portfolio with its five work views", () => {
-    render(<AgentixInitiativesPage onOpenDiscovery={vi.fn()} />)
+    render(<DeployedAgentsPage onOpenDiscovery={vi.fn()} />)
     expect(screen.getByRole("heading", { name: /decisions\. Everything else is moving\./ })).toBeInTheDocument()
     expect(screen.getByRole("navigation", { name: "Agentix views" }).querySelectorAll("button")).toHaveLength(5)
     expect(screen.getByRole("textbox", { name: "Steer Agentix" })).toBeInTheDocument()
@@ -278,7 +278,7 @@ describe("agent-first workspace", () => {
     expect(screen.queryByText(/sample run/i)).not.toBeInTheDocument()
   })
   it("keeps work, approvals, activity and connection recovery actionable", () => {
-    render(<AgentixInitiativesPage onOpenDiscovery={vi.fn()} />)
+    render(<DeployedAgentsPage onOpenDiscovery={vi.fn()} />)
     fireEvent.click(screen.getByRole("button", { name: "Work" }))
     expect(screen.getByRole("heading", { name: "Work" })).toBeInTheDocument()
     expect(screen.getByRole("button", { name: /INV-20841/ })).toBeInTheDocument()
@@ -294,7 +294,7 @@ describe("agent-first workspace", () => {
     expect(screen.getByRole("region", { name: "Deployment readiness" })).toBeInTheDocument()
   })
   it("renders viewer projects as read-only", () => {
-    render(<AgentixInitiativesPage project={{ id: "customer-viewer", role: "viewer" }} onOpenDiscovery={vi.fn()} />)
+    render(<DeployedAgentsPage project={{ id: "customer-viewer", role: "viewer" }} onOpenDiscovery={vi.fn()} />)
     expect(screen.getByRole("button", { name: "New agent" })).toBeDisabled()
     expect(screen.getByRole("textbox", { name: "Steer Agentix" })).toBeInTheDocument()
     expect(screen.getByRole("button", { name: "Send" })).toBeDisabled()
@@ -303,14 +303,14 @@ describe("agent-first workspace", () => {
     const stale = initialOperations()
     stale.agents.invoice.version = 2
     persistOperations(stale)
-    render(<AgentixInitiativesPage onOpenDiscovery={vi.fn()} />)
+    render(<DeployedAgentsPage onOpenDiscovery={vi.fn()} />)
     fireEvent.click(screen.getAllByRole("button", { name: "Review" })[0])
     expect(screen.getByRole("region", { name: "Stale approval request" })).toBeInTheDocument()
     fireEvent.click(screen.getByRole("button", { name: "Refresh request" }))
     expect(screen.getByRole("region", { name: "Approval request" })).toBeInTheDocument()
   })
   it("opens a live run canvas and keeps steering, approval, evidence and object edits in context", () => {
-    render(<AgentixInitiativesPage onOpenDiscovery={vi.fn()} />)
+    render(<DeployedAgentsPage onOpenDiscovery={vi.fn()} />)
     fireEvent.click(screen.getAllByRole("button", { name: "Review" })[0])
     expect(screen.getByRole("region", { name: "Agentix run canvas" })).toBeInTheDocument()
     expect(screen.getByRole("main", { name: "Run timeline" })).toBeInTheDocument()
@@ -331,7 +331,7 @@ describe("agent-first workspace", () => {
     expect(readOperations().runs.find(item => item.id === "invoice:INV-20841")?.approved).toBe(true)
   })
   it("shows concurrent cases and progresses without an open conversation", () => {
-    render(<AgentixInitiativesPage onOpenDiscovery={vi.fn()} />)
+    render(<DeployedAgentsPage onOpenDiscovery={vi.fn()} />)
     fireEvent.click(screen.getByRole("button", { name: /Invoice operations agent An evidence-backed/ }))
     expect(screen.getByRole("region", { name: "Current work" }).querySelectorAll("button")).toHaveLength(5)
     tick(10)
@@ -339,7 +339,7 @@ describe("agent-first workspace", () => {
     expect(screen.getByRole("region", { name: "Current work" })).toHaveTextContent("Needs approval")
   })
   it("imports Discovery into a readiness proposal without starting work", () => {
-    render(<AgentixInitiativesPage intentSignal={{ tick: 1, intent: { type: "import", id: "onboarding" } }} onOpenDiscovery={vi.fn()} />)
+    render(<DeployedAgentsPage intentSignal={{ tick: 1, intent: { type: "import", id: "onboarding" } }} onOpenDiscovery={vi.fn()} />)
     expect(screen.getByRole("region", { name: "Proposed operating plan" })).toBeInTheDocument()
     expect(screen.getByRole("button", { name: "Deploy agent in demo" })).toBeDisabled()
     expect(readOperations().agents.onboarding.status).toBe("draft")
@@ -350,12 +350,12 @@ describe("agent-first workspace", () => {
     expect(screen.getByRole("button", { name: "Deploy agent in demo" })).toBeEnabled()
   })
   it("reuses a deployed responsibility when its Discovery is imported again", () => {
-    render(<AgentixInitiativesPage intentSignal={{ tick: 1, intent: { type: "import", id: "invoice" } }} onOpenDiscovery={vi.fn()} />)
+    render(<DeployedAgentsPage intentSignal={{ tick: 1, intent: { type: "import", id: "invoice" } }} onOpenDiscovery={vi.fn()} />)
     expect(screen.getByRole("status")).toHaveTextContent("no duplicate agent")
     expect(readOperations().runs.filter(r => r.agentId === "invoice")).toHaveLength(7)
   })
   it("preserves unsupported natural-language input without fabricating a deployment", () => {
-    render(<AgentixInitiativesPage onOpenDiscovery={vi.fn()} />)
+    render(<DeployedAgentsPage onOpenDiscovery={vi.fn()} />)
     fireEvent.click(screen.getByRole("button", { name: "New agent" }))
     fireEvent.change(screen.getByLabelText("Describe the responsibility"), { target: { value: "A completely different responsibility" } })
     fireEvent.click(screen.getByRole("button", { name: "Prepare agent" }))

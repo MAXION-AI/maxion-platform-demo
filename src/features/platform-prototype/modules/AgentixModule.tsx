@@ -1,4 +1,4 @@
-import { AgentixInitiativesPage } from "@/features/agentix/prototype/AgentixInitiativesPage"
+import { DeployedAgentsPage } from "@/features/agentix/prototype/DeployedAgentsPage"
 import type { WorkflowId } from "@/features/agentix/prototype/initiatives"
 
 import { usePlatformSelector } from "../PlatformDemoProvider"
@@ -18,5 +18,5 @@ export default function AgentixModule(props: AgentixModuleProps) {
 		id: selectedProject.id,
 		role: selectedProject.role === "Owner" ? "owner" as const : selectedProject.role === "Member" ? "member" as const : "viewer" as const,
 	} : undefined
-	return <AgentixInitiativesPage key={project ? `${project.id}:${project.role}` : "unscoped"} {...props} project={project} />
+	return <DeployedAgentsPage key={project ? `${project.id}:${project.role}` : "unscoped"} {...props} project={project} />
 }

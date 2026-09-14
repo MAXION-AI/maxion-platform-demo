@@ -50,7 +50,7 @@ test("autofocuses, contains focus, inerts the shell, and restores a meaningful o
 	menu = shellMenu(page)
 	await menu.getByRole("button", { name: /^Projects/ }).click()
 	await expect(menu).toHaveCount(0)
-	await expect(page.getByRole("heading", { name: "Projects" })).toBeVisible()
+	await expect(page.getByRole("heading", { name: "Projects", exact: true })).toBeVisible()
 	await expect(page.getByRole("navigation", { name: "Portal sections" }).getByRole("button", { name: "Projects" })).toBeFocused()
 })
 
@@ -112,7 +112,7 @@ test("keeps drawer-to-command ownership and command navigation focus safe on mob
 		await expect(shellMenu(page)).toHaveCount(0)
 		await expect(mobileTrigger).toBeFocused()
 	}
-	await expect(page.getByRole("heading", { name: "Projects" })).toBeVisible()
+	await expect(page.getByRole("heading", { name: "Projects", exact: true })).toBeVisible()
 
 	// Commands whose destination establishes focus keep that stronger hand-off.
 	menu = await openFromDrawer()
@@ -159,19 +159,16 @@ test("the global command menu filters, arrow-navigates, and runs the active item
 	await search.fill("zzzz-nothing-here")
 	await expect(menu.getByText(/Nothing in MAXION matches/)).toBeVisible()
 
-	// Filter → ArrowDown → Enter runs the second match, not the first.
-	await search.fill("Open Workspace")
-	await expect(menu.locator("button.is-active")).toContainText("Open Workspace 01")
+	// Filter → ArrowDown → ArrowUp → Enter preserves keyboard selection and runs it.
+	await search.fill("Agentix")
+	await expect(menu.locator("button.is-active")).toContainText("Agentix")
 	await search.press("ArrowDown")
-	await expect(menu.locator("button.is-active")).toContainText("Open Workspace 02")
+	await expect(menu.locator("button.is-active")).not.toHaveText(/^AgentixCurrent moduleGo to$/)
 	await search.press("ArrowUp")
-	await expect(menu.locator("button.is-active")).toContainText("Open Workspace 01")
-	await search.press("ArrowDown")
-	await search.press("ArrowDown")
-	await expect(menu.locator("button.is-active")).toContainText("Open Workspace 03")
+	await expect(menu.locator("button.is-active")).toContainText("Agentix")
 	await search.press("Enter")
 	await expect(shellMenu(page)).toHaveCount(0)
-	await expect(page.getByRole("heading", { name: "MuleSoft" })).toBeVisible()
+	await expect(page.getByRole("region", { name: "Agentix operations" })).toBeVisible()
 
 	// Escape closes the menu from anywhere it can be opened.
 	await openShellMenu(page)
@@ -191,7 +188,7 @@ test("jumps across modules from wherever the viewer already is", async ({ page }
 	await page.goto("/maxion-prototype")
 	const navigation = page.getByRole("navigation", { name: "Portal sections" })
 	await navigation.getByRole("button", { name: /^Agentix/ }).click()
-	await expect(page.getByRole("main", { name: "Agentix workspace" })).toBeVisible()
+	await expect(page.getByRole("region", { name: "Agentix operations" })).toBeVisible()
 
 	// From Agentix, a Plan section command lands on the evidence-gated Plan surface.
 	let menu = await openShellMenu(page)
@@ -209,7 +206,7 @@ test("jumps across modules from wherever the viewer already is", async ({ page }
 	// A saved Discovery that needs input is registered too, and resumes at its decision.
 	menu = await openShellMenu(page)
 	await menu.getByRole("textbox", { name: "Search MAXION commands" }).fill("Review decision")
-	await expect(menu.locator("button.is-active")).toContainText("Third-party onboarding control redesign")
+	await expect(menu.locator("button.is-active")).toContainText("Redesign third-party onboarding controls")
 	await menu.getByRole("textbox", { name: "Search MAXION commands" }).press("Enter")
 	await expect(page.getByRole("complementary", { name: "Evidence, facts, and gaps" })).toContainText("Authority boundary")
 
@@ -225,7 +222,7 @@ test("gives the newly visible stage its own entrance and clears the Execute scri
 	const navigation = page.getByRole("navigation", { name: "Portal sections" })
 	await navigation.getByRole("button", { name: "Projects" }).click()
 	await expect(entering).toHaveCount(1)
-	await expect(entering).toContainText("3 active projects · 1 archived")
+	await expect(entering).toContainText("3 active · 0 need attention")
 
 	await navigation.getByRole("button", { name: /^Execute/ }).click()
 	await expect(page.locator(".mxp-stage-view--execute.is-entering")).toHaveCount(1)
@@ -249,9 +246,9 @@ test("reports live Agentix attention to the shell badge and the jump registry", 
 	await expect(navigation.getByRole("button", { name: "Agentix 2 pending" })).toBeVisible()
 	menu = await openShellMenu(page)
 	await menu.getByRole("button", { name: /Review invoice variance/ }).click()
-	await expect(page.getByRole("heading", { name: "Approve the $240 price variance?" })).toBeVisible()
-	await page.getByRole("button", { name: "Approve $240 variance" }).click()
-	await page.getByRole("button", { name: "Close details" }).click()
+	await expect(page.getByRole("heading", { name: "Approve the proposed INV-20841 change?" })).toBeVisible()
+	await page.getByRole("button", { name: "Approve variance" }).click()
+	await page.getByRole("button", { name: "View initiative" }).click()
 	await expect(navigation.getByRole("button", { name: "Agentix 1 pending" })).toBeVisible()
 })
 

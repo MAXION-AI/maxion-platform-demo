@@ -109,9 +109,11 @@
 }
 
 @media (max-width: 640px) {
-	.adm-header { min-height: 72px; align-items: flex-start; padding: 12px 16px; }
-	.adm-header > div { padding-top: 2px; }
-	.adm-header span { max-width: 180px; }
+	.adm-header { min-height: 72px; align-items: center; gap: var(--mxp-space-2); padding: 12px 16px 12px 68px; }
+	.adm-header > div { display: block; }
+	.adm-header small, .adm-header span { display: none; }
+	.adm-header h2 { font-size: 15px; }
+	.adm-header > button { padding-inline: var(--mxp-space-3); }
 	.adm-body { padding: 20px 16px 40px; }
 	.adm-toolbar { align-items: stretch; flex-wrap: wrap; }
 	.adm-toolbar > label { flex-basis: 100%; }
