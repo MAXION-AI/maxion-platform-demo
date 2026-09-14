@@ -774,13 +774,14 @@
 	.mxp-portal-sidebar { position: fixed; inset: 0 auto 0 0; width: min(286px, 88vw); transform: translateX(-102%); transition: transform 220ms var(--portal-ease); visibility: hidden; }
 	.mxp-portal-sidebar.is-mobile-open { transform: translateX(0); visibility: visible; }
 	.mxp-portal-nav-item.is-administration { height: 44px; min-height: 44px; }
+	.mxp-unit-balance { display: none; }
 	.mxp-sidebar-actions button,
 	.mxp-dashboard-search { min-height: 44px; }
 	.mxp-sidebar-collapse { display: none; }
-	.mxp-mobile-nav-trigger { position: fixed; z-index: 70; top: 10px; left: 10px; display: grid; width: 38px; height: 38px; place-items: center; border: 1px solid var(--portal-border-strong); border-radius: 9px; background: rgba(255,255,255,.94); color: var(--portal-text); box-shadow: var(--portal-shadow-sm); backdrop-filter: blur(10px); cursor: pointer; }
+	.mxp-mobile-nav-trigger { position: fixed; z-index: 70; top: 10px; left: 10px; display: grid; width: 44px; height: 44px; place-items: center; border: 1px solid var(--portal-border-strong); border-radius: 9px; background: rgba(255,255,255,.94); color: var(--portal-text); box-shadow: var(--portal-shadow-sm); backdrop-filter: blur(10px); cursor: pointer; }
 	.mxp-mobile-nav-trigger[aria-expanded="true"] { opacity: 0; pointer-events: none; }
 	.mxp-mobile-nav-scrim { position: fixed; z-index: 55; inset: 0; display: block; border: 0; background: rgba(8,13,13,.42); backdrop-filter: blur(2px); }
-	.mxp-mobile-nav-close { display: grid; width: 32px; height: 32px; place-items: center; }
+	.mxp-mobile-nav-close { display: grid; width: 44px; height: 44px; place-items: center; }
 	.mxp-portal-page:not(.mxp-dashboard-page) { padding-top: 64px; }
 	.mxp-dashboard-module-header { align-items: flex-start; flex-direction: column; padding: 12px 14px 12px 58px; }
 	.mxp-dashboard-module-header > div:last-child { width: 100%; }

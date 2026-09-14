@@ -123,11 +123,7 @@ export function PortalSidebar({
 	useEffect(() => {
 		if (!mobileOpen) return
 		const sidebar = sidebarRef.current
-		const mobileTrigger = mobileTriggerRef.current
-		const stage = document.querySelector<HTMLElement>(".mxp-stage")
 		if (!sidebar) return
-		stage?.setAttribute("inert", "")
-		stage?.setAttribute("aria-hidden", "true")
 		mobileCloseRef.current?.focus()
 
 		const onKeyDown = (event: KeyboardEvent) => {
@@ -161,9 +157,6 @@ export function PortalSidebar({
 		document.addEventListener("keydown", onKeyDown)
 		return () => {
 			document.removeEventListener("keydown", onKeyDown)
-			stage?.removeAttribute("inert")
-			stage?.removeAttribute("aria-hidden")
-			mobileTrigger?.focus()
 		}
 	}, [mobileOpen, onMobileOpenChange])
 

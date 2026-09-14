@@ -1,6 +1,96 @@
 import AxeBuilder from "@axe-core/playwright"
 import { expect, test } from "@playwright/test"
 
+test("preserves text contrast throughout dashboard and sidebar entrance frames", async ({ page }) => {
+	await page.goto("/maxion-prototype", { waitUntil: "domcontentloaded" })
+	await page.getByRole("heading", { name: "Work that moved. Decisions that wait." }).waitFor({ state: "attached" })
+
+	for (let frame = 0; frame < 12; frame += 1) {
+		const result = await new AxeBuilder({ page })
+			.include(".mxp-root")
+			.withRules(["color-contrast"])
+			.analyze()
+		expect(result.violations, `contrast at entrance sample ${frame}`).toEqual([])
+		await page.waitForTimeout(20)
+	}
+
+	const inverseText = await page.locator(".mxp-account-divider span, .mxp-sidebar-user small").evaluateAll((elements) =>
+		elements.map((element) => getComputedStyle(element).color),
+	)
+	expect(new Set(inverseText)).toEqual(new Set(["rgb(168, 179, 177)"]))
+})
+
+test("keeps product and administration geometry exact at every acceptance viewport", async ({ page }) => {
+	for (const viewport of [
+		{ width: 375, height: 812 },
+		{ width: 768, height: 900 },
+		{ width: 1280, height: 720 },
+		{ width: 1280, height: 900 },
+		{ width: 1536, height: 864 },
+		{ width: 1536, height: 900 },
+	]) {
+		await page.setViewportSize(viewport)
+		await page.goto("/maxion-prototype")
+		const opener = page.getByRole("button", { name: "Open navigation" })
+		if (await opener.isVisible()) await opener.click()
+		const navigation = page.getByRole("navigation", { name: "Portal sections" })
+		const geometry = await navigation.evaluate((element) => ({
+			productRows: [...element.querySelectorAll<HTMLElement>('[data-navigation-tier="product"]')]
+				.map((control) => control.getBoundingClientRect().height),
+			adminRows: [...element.querySelectorAll<HTMLElement>('[data-navigation-tier="administration"]')]
+				.map((control) => control.getBoundingClientRect().height),
+			productIcons: [...element.querySelectorAll<HTMLElement>('[data-navigation-tier="product"] .mxp-portal-nav-icon')]
+				.map((icon) => icon.getBoundingClientRect().width),
+			adminIcons: [...element.querySelectorAll<HTMLElement>('[data-navigation-tier="administration"] .mxp-portal-nav-icon')]
+				.map((icon) => icon.getBoundingClientRect().width),
+			productGap: Number.parseFloat(getComputedStyle(element.querySelector(".mxp-product-nav ul")!).rowGap),
+			adminGap: Number.parseFloat(getComputedStyle(element.querySelector(".mxp-administration-nav ul")!).rowGap),
+			sidebarWidth: element.closest(".mxp-portal-sidebar")!.getBoundingClientRect().width,
+			productBottom: element.querySelector<HTMLElement>(".mxp-product-nav")!.getBoundingClientRect().bottom,
+			administrationTop: element.querySelector<HTMLElement>(".mxp-administration-nav")!.getBoundingClientRect().top,
+			administrationBottom: element.querySelector<HTMLElement>(".mxp-administration-nav")!.getBoundingClientRect().bottom,
+			scrollTop: element.getBoundingClientRect().top,
+			scrollBottom: element.getBoundingClientRect().bottom,
+			scrollOffset: element.scrollTop,
+			unitBalanceDisplay: getComputedStyle(element.querySelector<HTMLElement>(".mxp-unit-balance")!).display,
+			adminBounds: [...element.querySelectorAll<HTMLElement>('[data-navigation-tier="administration"]')]
+				.map((control) => ({ top: control.getBoundingClientRect().top, bottom: control.getBoundingClientRect().bottom })),
+		}))
+		expect(geometry.productRows, `${viewport.width}px product rows`).toEqual(Array(7).fill(44))
+		expect(geometry.adminRows, `${viewport.width}px administrative rows`).toEqual(Array(5).fill(viewport.width <= 860 ? 44 : 36))
+		expect(geometry.productIcons, `${viewport.width}px product icons`).toEqual(Array(7).fill(24))
+		expect(geometry.adminIcons, `${viewport.width}px administrative icons`).toEqual(Array(5).fill(16))
+		expect(geometry.productGap).toBe(4)
+		expect(geometry.adminGap).toBe(2)
+		expect(geometry.sidebarWidth).toBe(viewport.width <= 860 ? Math.min(286, viewport.width * 0.88) : 232)
+		expect(geometry.scrollBottom - geometry.administrationBottom, `${viewport.width}×${viewport.height} bottom gap`).toBeGreaterThanOrEqual(0)
+		expect(geometry.scrollBottom - geometry.administrationBottom, `${viewport.width}×${viewport.height} bottom gap`).toBeLessThanOrEqual(16)
+		for (const bounds of geometry.adminBounds) {
+			expect(bounds.top, `${viewport.width}×${viewport.height} admin row top`).toBeGreaterThanOrEqual(geometry.scrollTop)
+			expect(bounds.bottom, `${viewport.width}×${viewport.height} admin row bottom`).toBeLessThanOrEqual(geometry.scrollBottom)
+		}
+		if (viewport.width <= 860) {
+			expect(geometry.scrollOffset, `${viewport.width}×${viewport.height} initial drawer scroll`).toBe(0)
+			expect(geometry.unitBalanceDisplay, `${viewport.width}×${viewport.height} optional units card`).toBe("none")
+		} else {
+			expect(geometry.administrationTop - geometry.productBottom, `${viewport.width}×${viewport.height} tier gap`).toBeGreaterThanOrEqual(24)
+		}
+
+		const undersizedTargets = await page.locator(".mxp-root").evaluate((root, minimum) => {
+			const selector = 'button, a[href], input, textarea, select, summary, [role="button"]'
+			return [...root.querySelectorAll<HTMLElement>(selector)].flatMap((element) => {
+				const style = getComputedStyle(element)
+				const rect = element.getBoundingClientRect()
+				if (style.display === "none" || style.visibility === "hidden" || rect.width === 0 || rect.height === 0) return []
+				return rect.width + 0.01 < minimum || rect.height + 0.01 < minimum
+					? [{ label: element.getAttribute("aria-label") || element.textContent?.trim().slice(0, 50), width: rect.width, height: rect.height }]
+					: []
+			})
+		}, viewport.width <= 860 ? 44 : 24)
+		expect(undersizedTargets, `${viewport.width}px interactive target floor`).toEqual([])
+	}
+})
+
 test("keeps the shell choice, target, response, and accessibility floor measurable", async ({ page }) => {
 	await page.goto("/maxion-prototype")
 

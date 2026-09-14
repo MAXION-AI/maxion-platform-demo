@@ -17,7 +17,10 @@ function portalNavigation() {
 }
 
 describe("MaxionPlatformPrototypePage", () => {
-	afterEach(() => vi.useRealTimers())
+	afterEach(() => {
+		vi.useRealTimers()
+		vi.restoreAllMocks()
+	})
 	it("opens on the canonical MAXION dashboard and exposes the complete platform shell", () => {
 		renderPrototype()
 
@@ -60,6 +63,43 @@ describe("MaxionPlatformPrototypePage", () => {
 		fireEvent.keyDown(document, { key: "Escape" })
 		await waitFor(() => expect(opener).toHaveFocus())
 		expect(screen.queryByRole("dialog", { name: "Main navigation" })).not.toBeInTheDocument()
+		expect(stage).not.toHaveAttribute("inert")
+		expect(stage).not.toHaveAttribute("aria-hidden")
+	})
+
+	it("transfers mobile drawer ownership to the command dialog without leaking isolation", async () => {
+		vi.spyOn(window, "matchMedia").mockImplementation((query) => ({
+			matches: query.includes("max-width") || query.includes("prefers-reduced-motion"),
+			media: query,
+			onchange: null,
+			addListener: () => undefined,
+			removeListener: () => undefined,
+			addEventListener: () => undefined,
+			removeEventListener: () => undefined,
+			dispatchEvent: () => false,
+		}))
+		renderPrototype()
+		const opener = screen.getByLabelText("Open navigation")
+		opener.style.display = "grid"
+		fireEvent.click(opener)
+		const drawer = screen.getByRole("dialog", { name: "Main navigation" })
+		fireEvent.click(within(drawer).getByRole("button", { name: "Open command menu" }))
+
+		const command = screen.getByRole("dialog", { name: "MAXION command menu" })
+		const search = within(command).getByRole("textbox", { name: "Search MAXION commands" })
+		const sidebar = document.querySelector<HTMLElement>(".mxp-portal-sidebar")
+		const stage = screen.getByLabelText("Dashboard module", { selector: ".mxp-stage" })
+		expect(search).toHaveFocus()
+		expect(sidebar).toHaveAttribute("inert")
+		expect(sidebar).toHaveAttribute("aria-hidden", "true")
+		expect(stage).toHaveAttribute("inert")
+		expect(stage).toHaveAttribute("aria-hidden", "true")
+
+		fireEvent.keyDown(command.parentElement!, { key: "Escape" })
+		await waitFor(() => expect(opener).toHaveFocus())
+		expect(screen.queryByRole("dialog", { name: "MAXION command menu" })).not.toBeInTheDocument()
+		expect(sidebar).not.toHaveAttribute("inert")
+		expect(sidebar).not.toHaveAttribute("aria-hidden")
 		expect(stage).not.toHaveAttribute("inert")
 		expect(stage).not.toHaveAttribute("aria-hidden")
 	})
