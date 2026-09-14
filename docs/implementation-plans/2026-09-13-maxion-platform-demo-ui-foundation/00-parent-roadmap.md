@@ -245,7 +245,7 @@ object/evidence. Surface-specific references and stricter numbers live in each r
 | Client data scale | 10,000 logical rows/cases with no more than 200 mounted DOM rows; virtualize beyond 100 | load-shaped browser fixtures |
 | Interaction latency | INP p75 ≤200 ms; visible acknowledgement <400 ms | Chromium throttled 4× CPU and Slow 4G |
 | Loading stability | CLS ≤0.1; LCP ≤2.5 s on representative entry routes | Lighthouse/Playwright profile |
-| Bundle | initial JS ≤250 kB gzip and CSS ≤60 kB gzip; modules lazy-loaded | build artifact gate; current 380.62/86.11 kB are debt |
+| Bundle | initial JS ≤250 kB gzip and CSS ≤60 kB gzip; modules lazy-loaded | build artifact gate; current 387.56/85.90 kB are debt |
 | Availability | No new availability claim in the static demo | The adoption package records required MaxAI SLO dependencies; it does not inherit or prove them |
 
 ### Security and threat review
