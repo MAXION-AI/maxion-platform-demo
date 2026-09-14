@@ -427,10 +427,10 @@
 
 .mxp-dashboard-grid { display: grid; grid-template-columns: minmax(0, 1.96fr) minmax(300px, 1fr); gap: 20px; align-items: start; }
 .mxp-dashboard-panel { min-height: 500px; overflow: hidden; border: 1px solid var(--portal-border); border-radius: var(--portal-radius); background: var(--portal-card); box-shadow: var(--portal-shadow-sm); }
-.mxp-dashboard-panel > header { display: flex; min-height: 68px; align-items: center; justify-content: space-between; gap: 16px; padding: 14px 18px; border-bottom: 1px solid var(--portal-border); }
-.mxp-dashboard-panel > header h2 { margin: 0; color: var(--portal-text); font-size: 20px; font-weight: 680; line-height: 26px; }
-.mxp-dashboard-panel > header p { margin: 4px 0 0; color: var(--portal-muted); font-size: 12px; line-height: 16px; }
-.mxp-needs-you > header > span { display: grid; width: 24px; height: 24px; place-items: center; border-radius: 50%; background: var(--portal-warning-soft); color: var(--portal-warning); font-size: 10px; font-weight: 750; }
+.mxp-dashboard-panel > .mxp-dashboard-panel-header { display: flex; min-height: 68px; align-items: center; justify-content: space-between; gap: 16px; padding: 14px 18px; border-bottom: 1px solid var(--portal-border); }
+.mxp-dashboard-panel > .mxp-dashboard-panel-header h2 { margin: 0; color: var(--portal-text); font-size: 20px; font-weight: 680; line-height: 26px; }
+.mxp-dashboard-panel > .mxp-dashboard-panel-header p { margin: 4px 0 0; color: var(--portal-muted); font-size: 12px; line-height: 16px; }
+.mxp-needs-you > .mxp-dashboard-panel-header > span { display: grid; width: 24px; height: 24px; place-items: center; border-radius: 50%; background: var(--portal-warning-soft); color: var(--portal-warning); font-size: 10px; font-weight: 750; }
 .mxp-needs-you > div { display: grid; }
 .mxp-needs-you article { display: grid; min-height: 126px; grid-template-columns: 8px minmax(0, 1fr) auto; align-items: center; gap: 14px; padding: 18px; border-bottom: 1px solid var(--portal-border); }
 .mxp-needs-you article:last-child { border-bottom: 0; }

@@ -118,7 +118,7 @@ export function PortalSidebar({
 	const [notice, setNotice] = useState("")
 	const mobileTriggerRef = useRef<HTMLButtonElement>(null)
 	const mobileCloseRef = useRef<HTMLButtonElement>(null)
-	const sidebarRef = useRef<HTMLElement>(null)
+	const sidebarRef = useRef<HTMLDivElement>(null)
 
 	useEffect(() => {
 		if (!mobileOpen) return
@@ -217,11 +217,11 @@ export function PortalSidebar({
 					onClick={() => onMobileOpenChange(false)}
 				/>
 			) : null}
-			<aside
+			<div
 				ref={sidebarRef}
 				id="portal-sidebar"
 				className={`mxp-portal-sidebar${mobileOpen ? " is-mobile-open" : ""}${collapsed ? " is-collapsed" : ""}`}
-				role={mobileOpen ? "dialog" : undefined}
+				role={mobileOpen ? "dialog" : "complementary"}
 				aria-modal={mobileOpen ? "true" : undefined}
 				aria-label="Main navigation">
 				<div className="mxp-portal-brand">
@@ -265,7 +265,7 @@ export function PortalSidebar({
 					</div>
 					<span className="mxp-sidebar-notice" aria-live="polite">{notice}</span>
 				</footer>
-			</aside>
+			</div>
 		</>
 	)
 }
