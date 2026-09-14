@@ -59,7 +59,23 @@
 | Pareto | Put the top three jobs ahead of secondary metadata. | All 3 top jobs reachable in first viewport | Desktop and mobile screenshot audit |
 | Interactivity floor | Composer in context; every state actionable; live state; no dead ends. | Static-report test passes in all declared states | Walk the flow and act on each state |
 
-## 5. State matrix
+## 5. State matrices
+
+### 5.1 Semantic surface-state matrix
+
+| State ID | Fixture / event | Visible content | Permitted actions | Recovery / next state | Responsive evidence | Figma / textual authority |
+| --- | --- | --- | --- | --- | --- | --- |
+| discover.new | New project without session | Intake context, expected duration, and one start action | Start interview or return to project | discover.active | Four viewport captures | Figma 18:45 |
+| discover.active | Interview has an unanswered prompt | Transcript, evidence rail, progress, and persistent composer | Answer, attach source, pause, or use voice | discover.awaiting-answer, discover.paused, or discover.active | Four viewports | §2 Fireflies and Codecademy |
+| discover.paused | Operator pauses an active interview | Preserved draft, pause reason, and progress | Resume or return to project | discover.active | Mobile and desktop captures | Textual authority: Zeigarnik row |
+| discover.awaiting-answer | Agent asks a bounded question | Numbered question, options, and progress | Choose, enter another answer, or skip when allowed | discover.active | Four viewports | §2 Perplexity |
+| discover.insufficient-evidence | Package rules find a source gap | Missing fact, source requirement, and impact | Attach source, ask owner, or defer with reason | discover.active or discover.read-only | Four viewports | Textual authority: evidence laws |
+| discover.degraded | Provider/offline fixture | Preserved transcript and draft with honest provider state | Retry or continue manually | discover.active | 375 and 1280 px recovery captures | Textual authority: no fabricated success |
+| discover.recoverable-error | Invalid record or failed command | Isolated failure, preserved valid work, and error ID | Retry, remove invalid record, or return | Prior safe state | Four viewports | Textual authority: Postel's row |
+| discover.complete | Package readiness rules pass | Source-bound package, unresolved gaps, authority, and Plan handoff | Review evidence or send to Plan | plan.draft | Four viewports | Figma 18:45 and §2 Fireflies |
+| discover.read-only | Viewer role or historical version | Complete transcript/evidence without mutation controls | Inspect sources or return | Project or owning current session | Mobile and desktop captures | Textual authority: permission contract |
+
+### 5.2 Control interaction-state matrix
 
 | Control / region | default | hover | focus-visible | active | disabled | loading | empty | error |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- |

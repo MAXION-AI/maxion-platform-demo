@@ -62,6 +62,17 @@ class ReferenceSheetGateTests(unittest.TestCase):
         findings = sheet_gate.check_sheet(path)
         self.assertTrue(any("missing law row 'Zeigarnik'" in finding for finding in findings), findings)
 
+    def test_sheet_allows_a_valid_subset_for_manifest_to_enforce(self) -> None:
+        path = self.mutated(r"^\| run\.failed\s+\|.*\n", "")
+        findings = sheet_gate.check_sheet(path)
+        self.assertEqual(len(sheet_gate.semantic_state_ids(path.read_text(encoding="utf-8"))), 6)
+        self.assertEqual(findings, [])
+
+    def test_malformed_semantic_surface_state_is_a_finding(self) -> None:
+        path = self.mutated(r"^\| run\.failed\s+\|", "| failed |")
+        findings = sheet_gate.check_sheet(path)
+        self.assertTrue(any("invalid semantic state id" in finding for finding in findings), findings)
+
     def test_bare_na_needs_a_reason(self) -> None:
         path = self.mutated(r"^\| Pareto\s+\|.*$", "| Pareto | N/A | N/A | N/A |")
         findings = sheet_gate.check_sheet(path)
@@ -188,14 +199,22 @@ class ContractCoverageGateTests(unittest.TestCase):
 
     def test_missing_surface_is_a_finding(self) -> None:
         findings = self.check_mutation(lambda value: value["surfaces"].pop())
-        self.assertTrue(any("missing required surface" in finding for finding in findings), findings)
+        self.assertTrue(any("surface set does not match" in finding for finding in findings), findings)
 
-    def test_duplicate_route_state_is_a_finding(self) -> None:
+    def test_omitted_production_route_is_a_finding(self) -> None:
+        findings = self.check_mutation(lambda value: value["routes"].pop())
+        self.assertTrue(any("declared routes do not match" in finding for finding in findings), findings)
+
+    def test_fictional_url_state_is_a_finding(self) -> None:
         def mutate(value) -> None:
-            value["surfaces"][1]["routeState"] = value["surfaces"][0]["routeState"]
+            value["surfaces"][1]["addressing"] = {
+                "mode": "url",
+                "canonicalUrl": "/maxion-prototype?module=projects",
+                "sourceMarker": "fictional-project-route-codec",
+            }
 
         findings = self.check_mutation(mutate)
-        self.assertTrue(any("duplicate routeState" in finding for finding in findings), findings)
+        self.assertTrue(any("fictional URL address" in finding for finding in findings), findings)
 
     def test_stale_figma_node_is_a_finding(self) -> None:
         def mutate(value) -> None:
@@ -206,19 +225,50 @@ class ContractCoverageGateTests(unittest.TestCase):
 
     def test_missing_implementation_symbol_is_a_finding(self) -> None:
         def mutate(value) -> None:
-            owner = value["surfaces"][0]["implementation"][0]
+            owner = value["surfaces"][0]["implementation"]["owners"][0]
             path, _ = owner.split("#", 1)
-            value["surfaces"][0]["implementation"][0] = f"{path}#MissingRuntimeOwner"
+            value["surfaces"][0]["implementation"]["owners"][0] = f"{path}#MissingRuntimeOwner"
 
         findings = self.check_mutation(mutate)
         self.assertTrue(any("symbol 'MissingRuntimeOwner' missing" in finding for finding in findings), findings)
 
     def test_test_only_file_cannot_be_a_runtime_owner(self) -> None:
         def mutate(value) -> None:
-            value["surfaces"][0]["implementation"][0] = "src/test/setup.ts#cleanup"
+            value["surfaces"][0]["implementation"]["owners"][0] = "src/test/setup.ts#cleanup"
 
         findings = self.check_mutation(mutate)
-        self.assertTrue(any("not reachable from src/main.tsx" in finding for finding in findings), findings)
+        self.assertTrue(any("not production-reachable" in finding for finding in findings), findings)
+
+    def test_duplicate_exclusive_owner_is_a_finding(self) -> None:
+        def mutate(value) -> None:
+            value["surfaces"][1]["implementation"] = {
+                "ownershipMode": "exclusive",
+                "owners": [value["surfaces"][0]["implementation"]["owners"][0]],
+            }
+
+        findings = self.check_mutation(mutate)
+        self.assertTrue(any("duplicate exclusive runtime owner" in finding for finding in findings), findings)
+
+    def test_stale_css_selector_growth_is_a_finding(self) -> None:
+        def mutate(value) -> None:
+            value["sourceOwnership"]["staleSelectorBaseline"]["count"] = 0
+
+        findings = self.check_mutation(mutate)
+        self.assertTrue(any("stale CSS selector debt grew" in finding for finding in findings), findings)
+
+    def test_semantic_state_manifest_drift_is_a_finding(self) -> None:
+        def mutate(value) -> None:
+            value["surfaces"][0]["requiredStateIds"].pop()
+
+        findings = self.check_mutation(mutate)
+        self.assertTrue(any("semantic state IDs do not exactly match" in finding for finding in findings), findings)
+
+    def test_source_tree_identity_drift_is_a_finding(self) -> None:
+        def mutate(value) -> None:
+            value["implementationTree"]["srcGitTreeSha1"] = "0" * 40
+
+        findings = self.check_mutation(mutate)
+        self.assertTrue(any("src tree does not match" in finding for finding in findings), findings)
 
 
 class ProductionSourceGateTests(unittest.TestCase):

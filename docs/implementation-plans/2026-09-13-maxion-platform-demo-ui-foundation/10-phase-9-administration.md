@@ -18,12 +18,17 @@ panels with one accepted contract per destination and does not add billing, iden
 - [ ] Phase 0-created exact Figma frames for all five destinations are frozen and fetched before code.
 - [ ] The sidebar information architecture is accepted: Dashboard, Projects, and product modules above the flexible spacer; Settings, Integrations, My approvals, Usage, and Help below it.
 
-These are **product** surfaces. Binding references are the apps named in each Phase 0 sheet; the expected
-job families include Linear for settings/account patterns, Firecrawl and Relevance AI for integrations
-and usage, and established enterprise approval/inbox patterns. Every sheet must name at least three
-examined links and include its full laws/state table. Page controls use 44 px targets; the compact rail
-may use 32 px rows only when the whole row is clickable and remains above the 24 px hard floor. One
+These are **product** surfaces. Each reference sheet §2 is the sole binding Mobbin authority; this
+phase must not carry or substitute another app list. Every sheet must name three to five examined links
+and include its full laws/state tables. Page controls use 44 px targets; the compact rail uses an
+immutable 36 px row with a 16 px icon and remains above the 24 px hard floor. One
 primary action, no more than seven controls per group, and acknowledgement under 400 ms remain mandatory.
+
+- **Required surface state IDs (`settings-workspace`):** `settings.clean`, `settings.dirty`, `settings.saving`, `settings.saved`, `settings.error`, `settings.permission-denied`
+- **Required surface state IDs (`integrations-workspace`):** `integrations.connected`, `integrations.degraded`, `integrations.connecting`, `integrations.reconnecting`, `integrations.disconnect-confirmation`, `integrations.empty`, `integrations.error`, `integrations.permission-denied`
+- **Required surface state IDs (`approvals-workspace`):** `approvals.queue`, `approvals.review`, `approvals.submitting`, `approvals.resolved`, `approvals.stale`, `approvals.empty`, `approvals.error`, `approvals.permission-denied`
+- **Required surface state IDs (`usage-workspace`):** `usage.ready`, `usage.loading`, `usage.empty`, `usage.error`, `usage.alert-editing`, `usage.permission-denied`
+- **Required surface state IDs (`help-workspace`):** `help.ready`, `help.searching`, `help.results`, `help.empty`, `help.error`, `help.recovery`, `help.support-handoff`, `help.offline`
 
 ## Architecture, scale, security, and reliability
 
@@ -67,6 +72,15 @@ failure states, reload, keyboard-only, mobile overlay, focus return, and large-l
 
 Rollback reverts the Phase 9 candidate and restores the accepted Phase 8 shell; typed administrative
 records remain backward-readable and no actual external connection is changed.
+
+## Files, outputs, commands, evidence, and PR closure
+
+| Kind | Exact files / outputs / commands | Passing evidence |
+| --- | --- | --- |
+| Production | Replace `AccountUtilityModule`/`IntegrationsModule` with `src/features/platform-prototype/admin/{settings,integrations,approvals,usage,help}/**`; preserve `PortalChrome` geometry; delete catch-all owners/styles | Five exclusive route/state owners; admin rows exactly 36 px/16 px |
+| Tests/fixtures | Admin domain/unit/browser specs; invalid/stale/denied/outage and 10,000 approval/usage fixtures | Exact five sheet state-ID sets; ≤200 rows |
+| Evidence/commands | `artifacts/ux-audits/phase-9/**`; five admin sheets; standard program/test/build/E2E/audit/diff plus computed rail geometry at 375/768/1280/1536 | State/Figma/axe/timing/geometry evidence and independent reports |
+| PR lifecycle | Verify prior M as B; create isolated `phase-9/**` branch/worktree; commit C; push and open one PR; independent UX/QA audit clean C; optional evidence-only E; require program/build/audit/phase/E2E checks; merge; verify C ancestry in M; rerun clean-M gates; atomically update ledger | PR URL, B/C/E/M, source-tree equality, merge ancestry, post-merge results, successor pin |
 
 ## Definition of Done
 

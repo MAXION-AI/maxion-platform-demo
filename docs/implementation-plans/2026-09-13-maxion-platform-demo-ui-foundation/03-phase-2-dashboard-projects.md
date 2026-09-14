@@ -17,11 +17,14 @@ filter, empty, loading, error, permission, and open/resume states without duplic
 - [ ] Phase 0-created `projects-workspace.md` and its exact Figma node are accepted.
 - [ ] Before code, fetch design context and screenshots for both exact nodes and record them.
 
-This is a **product** surface for an enterprise operator. References: Dashboard uses Cursor,
-Microsoft Copilot, and v0; Projects uses ClickUp, Height, Airtable, folk, and Clay. The full one-row-
-per-law tables and state matrices in both sheets are binding. Additional hard numbers: one filled
+These are **product** surfaces. Each reference sheet §2 is the sole binding Mobbin authority; this
+phase must not carry or substitute another app list. The full one-row-per-law tables and state
+matrices in both sheets are binding. Additional hard numbers: one filled
 action per view, 44 px primary targets, 4–8/16–32 px spacing, no more than four top-level regions,
 acknowledgement under 400 ms, and all first value paths within three actions.
+
+- **Required surface state IDs (`platform-shell-dashboard`):** `shell.attention`, `shell.clear`, `shell.destination-error`, `shell.mobile-navigation`
+- **Required surface state IDs (`projects-workspace`):** `projects.ready`, `projects.loading`, `projects.empty`, `projects.error`, `projects.permission-denied`, `projects.create-review`, `projects.selected`
 
 ## Architecture and non-functional impact
 
@@ -52,6 +55,15 @@ mobile overlay, and throttled acknowledgement. At 10,000 logical projects mounte
 | Visual parity conflicts with accessibility | accessibility wins; document measured variance in the sheet |
 
 Rollback reverts only Phase 2 while retaining Phase 1 contracts. No new dependency is planned.
+
+## Files, outputs, commands, evidence, and PR closure
+
+| Kind | Exact files / outputs / commands | Passing evidence |
+| --- | --- | --- |
+| Production | Modify `PortalReplicaModules.tsx#DashboardModule/#ProjectsModule`; create project domain/selectors under `src/features/platform-prototype/projects/`; delete superseded dashboard/project owners and selectors | One runtime owner per surface; manifest and sheet hashes updated |
+| Tests/fixtures | Co-located project/selector tests; platform shell unit spec; `tests/e2e/maxion-platform-shell.spec.ts`; deterministic 0/1/10,000 fixtures | Create→Dashboard→open, denial, empty, keyboard/mobile, ≤200 mounted rows |
+| Evidence/commands | `artifacts/ux-audits/phase-2/**`; both sheets §7/§8; `pnpm check:program && pnpm test && pnpm build && pnpm test:e2e && pnpm audit --audit-level high`; `git diff --check` | Exact exit codes, viewport/Figma diffs, timing/axe reports |
+| PR lifecycle | Verify prior M as B; create isolated `phase-2/**` branch/worktree; commit C; push and open one PR; independent UX/QA audit clean C; optional evidence-only E; require program/build/audit/phase/E2E checks; merge; verify C ancestry in M; rerun clean-M gates; atomically update ledger | PR URL, B/C/E/M, source-tree equality, merge ancestry, post-merge results, successor pin |
 
 ## Definition of Done
 

@@ -1,25 +1,25 @@
 # Maxion platform demo UI foundation — implementation roadmap
 
-- **Source:** `.impl-cadence/STATE.md`, `docs/operations/ux-surface-inventory.md`, all UX reference sheets, editable Figma file `UhLxGyXphdHHNLGMomBq6n` including Agentix run node `46:933`, and the current demo/production portal source trees
+- **Source:** `docs/operations/program-phase-ledger.json`, `docs/operations/phase-acceptance-protocol.md`, `docs/operations/ux-surface-inventory.md`, all UX reference sheets, editable Figma file `UhLxGyXphdHHNLGMomBq6n` including Agentix run node `46:933`, and the inspected demo/production portal source trees
 - **Date:** 2026-09-13
 - **Author:** Codex planning session 2026-09-13
-- **Status:** Execution active — Phase 0 independently accepted; full-roadmap independent hardening pending
+- **Status:** PLAN GATE remediation in progress — Phase 0 PR merged, clean-SHA independent acceptance pending
 - **Plan directory:** `docs/implementation-plans/2026-09-13-maxion-platform-demo-ui-foundation/`
 - **Execution handoff:** `implementation-cadence`; every phase uses its own isolated implementation
-  session and worktree, independent UX and engineering gates, and one merged PR before its successor
-  begins. Phase 1 waits for independent plan review and the merged Phase 0 SHA.
+  session and worktree, independent UX and engineering gates pinned to the candidate SHA, and one
+  verified merged PR before its successor begins. Phase 1 waits for independent plan convergence and
+  clean-SHA Phase 0 acceptance under `docs/operations/phase-acceptance-protocol.md`.
 
 ## 1. Executive summary
 
-The program turns `maxion-platform-demo` into the executable UX reference for the Maxion product,
-then ports the accepted contract into `max-ai-platform` without making production depend on demo
-React code. It has twelve dependency-ordered phases: accept and complete the design contracts,
-extract the shared UI/state kernel, transform Dashboard/Projects and each product module as a vertical
-slice, finish the administrative surfaces, qualify the whole demo, then run a production-native shell
-pilot in `max-user-portal`. Fully complete means every user-facing state is interactive and independently
-gated against its reference sheet, the demo has deterministic cross-module continuity and bounded
-performance, and the production pilot reproduces the accepted contract using MaxAI's own tokens,
-components, auth, tenancy, and query layer.
+The program turns `maxion-platform-demo` into the executable UX reference for the Maxion product and
+freezes a machine-checkable adoption package for a later, separately approved `max-ai-platform`
+program. It has twelve dependency-ordered phases: accept and complete the design contracts, extract
+the shared UI/state kernel, transform Dashboard/Projects and each product module as a vertical slice,
+finish the administrative surfaces, qualify the whole demo, and publish the adoption package. Fully
+complete means every user-facing state is interactive and independently gated against its reference
+sheet, the demo has deterministic cross-module continuity and bounded performance, and the package
+records exact production mapping decisions and open gaps without changing or qualifying MaxAI runtime.
 
 ## 2. Grounding
 
@@ -27,29 +27,30 @@ components, auth, tenancy, and query layer.
 
 | Claim | Status | Evidence |
 | --- | --- | --- |
-| The isolated implementation worktree and branch exist and preserve the owner checkout | Verified | `.impl-cadence/STATE.md`; current `git worktree list` |
-| Phase 0 gates pass and separate UX and engineering reviewers accepted the shell and foundation candidate | Verified | `.impl-cadence/STATE.md`; independent Phase 0 audit reports |
+| The isolated implementation worktree and branch existed for Phase 0 and preserved the owner checkout | Verified | `docs/operations/program-phase-ledger.json`; Phase 0 PR #2 history |
+| Phase 0 PR #2 merged as `beae208b30ad31202c4ff92abbfbd6c1ef51af18` | Verified | `docs/operations/program-phase-ledger.json` |
+| Existing Phase 0 UX/QA reports bind to the merged implementation SHA | False | Reports explicitly audited a dirty tree over `c381e7e`; clean detached reruns at `beae208` remain required |
 | Thirteen editable 1440 × 900 product and administration frames exist | Verified | `docs/operations/figma-ux-reference-program-2026-09-13.md`; `figma-code-map.json` |
 | Projects and the five administrative destinations have standalone contract-stage sheets and exact Figma frames | Verified | `docs/operations/ux-surface-inventory.md`; `docs/operations/ux-reference-sheets/` |
 | The demo shell uses lifted booleans while Discover and Agentix also persist separate local state | Verified | `MaxionPlatformPrototypePage.tsx`, `DiscoveryAutonomousPrototypePage.tsx`, `operationsState.ts` |
 | Core module implementations remain monolithic and CSS is split across large surface files | Verified | Discovery 2,707 TSX lines; Plan 1,972; Execute 724; production CSS inventory exceeds 12,000 lines combined |
 | The current production portal already owns the real shell, primitives, auth/query boundary, and compact bottom navigation | Verified | `max-ai-platform/apps/max-user-portal/src/app/components/layout/PortalSidebar.tsx`, `components/ui/*`, `shell/usePortalCommands.ts` |
 | Current local `max-ai-platform/main` is behind its `origin/main` by 19 commits and has owner untracked paths | Verified | read-only fetch/status on 2026-09-13 |
-| Phase 0 validation passes program gates, build, 38/38 unit tests, and 45/45 Chromium E2E journeys | Verified | `.impl-cadence/STATE.md`; independent engineering audit |
+| Historical Phase 0 validation passed program gates, build, 38/38 unit tests, and 45/45 Chromium E2E journeys on a dirty pre-commit tree | Verified but non-accepting | Phase 0 evidence reports; clean detached reruns at `beae208` remain required |
 
 ### Inferred constraints
 
 | Claim | Status | Resolution |
 | --- | --- | --- |
 | The thirteen candidate frames remain accessible from the merged Phase 0 revision | Inferred | Every later phase reopens its exact Figma node and records fresh evidence before build |
-| Production APIs already expose every state the final UI requires | Inferred | Phase 11 pins fresh `origin/main` and performs an API/query contract gap analysis before code |
+| Production APIs expose every state the accepted demo contract requires | Unknown | Phase 11 records this as an open adoption question; the separate MaxAI program pins fresh `origin/main` and answers it before production code |
 | Existing demo behavior can be decomposed without changing every scenario at once | Inferred | Phase 1 characterization tests freeze current behavior before state extraction |
 
 ## 3. Root-cause and requirements register
 
 | ID | Severity | What is needed and why | Evidence | Type | Status |
 | --- | --- | --- | --- | --- | --- |
-| RC-01 | Blocker | Candidate foundation and shell work requires independent acceptance plus a merged immutable SHA before later phases can inherit it | `.impl-cadence/STATE.md` | governance | Independent UX and QA accepted; Phase 0 PR pending |
+| RC-01 | Blocker | Candidate foundation and shell work requires independent clean-SHA acceptance plus a verified merged immutable SHA before later phases can inherit it | `program-phase-ledger.json`; Phase 0 reports | governance | Open — PR #2 merged at `beae208`; clean-SHA UX/QA reruns pending |
 | RC-02 | Blocker | Projects, Settings, Integrations, My approvals, Usage, and Help are user-facing but lack standalone sheets and Figma frames | `ux-surface-inventory.md` | missing capability | Closed in Phase 0 candidate |
 | RC-03 | Major | Shared visual primitives are not yet a portable contract; 1,357 raw colour literals remain under a ratchet | token baseline and large CSS surfaces | technical debt | Open |
 | RC-04 | Major | Multi-thousand-line components and styles couple layout, state, copy, and scenarios, making reuse and review unsafe | module line counts and symbol inventory | architecture | Open |
@@ -84,7 +85,7 @@ demo has server concurrency.
   rejected; treating Figma alone as authority loses interaction and failure behavior and is rejected.
 - **Trade-off:** the production port has deliberate translation work, but avoids prototype/runtime
   coupling and forces every production state to meet real API, auth, and tenant contracts.
-- **Monitoring:** contract-map coverage, visual comparison, and production pilot E2E drift reports.
+- **Monitoring:** contract-map coverage, visual comparison, and adoption-package drift reports.
 
 ### ADR-2: reference sheet + exact Figma node + live state matrix is the screen contract
 
@@ -135,18 +136,19 @@ demo has server concurrency.
 - **Trade-off:** more explicit metadata; substantially stronger trust and safer production adoption.
 - **Monitoring:** state-transition tests and a source scan for misleading completion/deployment copy.
 
-### ADR-6: production adoption starts with a shell and primitive pilot
+### ADR-6: the demo chain ends with a versioned MaxAI adoption package
 
 - **Serves:** RC-03, RC-16, RC-17.
-- **Decision:** after demo qualification, create a fresh `max-ai-platform` worktree from fetched
-  `origin/main`, map demo tokens/components to production-native primitives, then pilot only the
-  shared shell plus Dashboard/Projects behind a default-off feature flag. Module ports follow in
-  separately approved production plans.
-- **Alternatives:** a big-bang portal rewrite is rejected; copying screenshots without interaction
-  contracts is rejected.
-- **Trade-off:** two-stage adoption; contains production risk and provides a measurable compatibility
-  seam.
-- **Monitoring:** flag exposure, visual/interaction parity, production telemetry, and rollback drill.
+- **Decision:** after demo qualification, this repository emits a versioned, machine-checked package
+  containing accepted tokens, component/state mappings, evidence pointers, and open API/auth/tenancy
+  gaps. A separate MaxAI program, ledger, plan, worktree chain, and PR lifecycle may later consume it
+  from fetched `origin/main`; no MaxAI source change belongs to this demo chain.
+- **Alternatives:** a cross-repository phase pretending to descend from the demo merge is rejected;
+  copying screenshots without interaction contracts is also rejected.
+- **Trade-off:** production adoption requires a second approval and gate sequence, but repository and
+  rollback authority remain truthful.
+- **Monitoring:** adoption-package schema/hash checks in this repository; production telemetry and
+  rollback drills belong to the separate MaxAI program.
 
 ### ADR-7: every cutover has one runtime owner and deletes its predecessor
 
@@ -163,14 +165,30 @@ demo has server concurrency.
 - **Monitoring:** strict unused checks, route/import/export/dependency/style ownership checks, focused
   characterization tests, browser route traversal, and a zero-exemption source-quality report.
 
+### ADR-8: candidate-SHA review, evidence-only closure, and commit-revert rollback
+
+- **Serves:** RC-01, RC-16, RC-19.
+- **Decision:** every phase follows `docs/operations/phase-acceptance-protocol.md`: independent
+  reviewers audit a clean implementation commit C; a later E is evidence-only and preserves C's
+  source tree; merge M is ancestry-verified and post-merge qualified. Demo rollback uses a reviewed
+  revert PR, never a hidden predecessor UI or dual runtime.
+- **Alternatives:** branch-name review, dirty-tree review, and feature-flagged old/new UI ownership
+  are rejected because none binds evidence to the merged implementation.
+- **Trade-off:** evidence may require a second commit and post-merge checks; the reviewed code identity
+  remains unambiguous and each accepted SHA has one runtime owner.
+- **Monitoring:** tracked and external hash-chained ledgers, source-tree equality C→E, PR checks,
+  merge ancestry verification, and clean-M post-merge gates.
+
 ## 5. Cross-cutting contracts
 
 - **State:** `PlatformDemoState@v1`, typed events, pure reducers, bounded lists, stable selectors, and
   validated persistence. No source module may infer another module's completion from UI presence.
 - **Objects:** `WorkObjectRef`, `EvidenceRef`, `DecisionRequest`, `ProgressState`, `AuthorityBoundary`,
   and `ExecutionEnvironment` use the same vocabulary across modules.
-- **Figma mapping:** a checked-in manifest maps each route/state to frame ID, component IDs, reference
-  sheet, implementation symbol, and evidence artifact.
+- **Figma mapping:** schema-v2 `figma-code-map.json` maps each classified production route,
+  truthful URL or interaction-only address, stable state ID, frame and component IDs (or an explicit
+  frame-level ownership reason), sheet hash, implementation tree, runtime/style/timer owners, evidence,
+  and last connector attestation.
 - **Figma operation:** any execution session loads the repository Figma workflow before using Figma,
   fetches design context and a screenshot for the exact node before code, and records node/component IDs
   rather than relying on a visual memory or file-level link.
@@ -178,13 +196,14 @@ demo has server concurrency.
   differs by no more than 2 px, text baselines by no more than 1 px, and screenshot pixel mismatch by no
   more than 1.5%, with zero tolerance for clipped content, missing states, wrong hierarchy, or accessibility
   regressions. Intentional differences are measured and signed in the owning sheet.
-- **API/schema:** Phases 0–10 add no server API or schema. Phase 11 may only map to existing `/v1/`
-  contracts in the production pilot; any missing endpoint becomes a separate backend plan with
+- **API/schema:** Phases 0–11 add no server API or schema. The separate MaxAI adoption stream may only
+  map to existing `/v1/` contracts; any missing endpoint becomes a separate backend plan with
   backward-compatible schema and authorization work.
 - **Auth/tenancy:** the demo uses synthetic tenant-scoped scenarios only. Production uses existing
   server-side authorization and tenant-scoped queries; client state never grants authority.
-- **Rollback:** every phase has a candidate commit, before/after evidence, and a default path that can
-  be restored by reverting that phase commit. No phase deletes accepted evidence.
+- **Rollback:** every demo phase has one merged runtime and is restored through a reviewed revert PR.
+  A provider-behavior flag may remain only when both modes share the same UI/route/state/style owners.
+  No phase deletes accepted evidence.
 - **Source integrity:** `tsc` runs with unused-local and unused-parameter checks; the source-quality gate
   inventories entry routes, exports, imports, packages, styles, suppressions, and obsolete markers. A
   deletion is accepted only after route/import/runtime/test evidence identifies the replacement owner.
@@ -222,12 +241,12 @@ object/evidence. Surface-specific references and stricter numbers live in each r
 
 | Dimension | Target | Scope boundary |
 | --- | --- | --- |
-| Production concurrency | 10,000 concurrent users | The demo proves bounded client behavior only; Phase 11 must map to already-qualified MaxAI APIs or open a backend plan |
+| Production concurrency | 10,000 concurrent users | The demo proves bounded client behavior only; Phase 11 records which MaxAI APIs require separate production qualification |
 | Client data scale | 10,000 logical rows/cases with no more than 200 mounted DOM rows; virtualize beyond 100 | load-shaped browser fixtures |
 | Interaction latency | INP p75 ≤200 ms; visible acknowledgement <400 ms | Chromium throttled 4× CPU and Slow 4G |
 | Loading stability | CLS ≤0.1; LCP ≤2.5 s on representative entry routes | Lighthouse/Playwright profile |
 | Bundle | initial JS ≤250 kB gzip and CSS ≤60 kB gzip; modules lazy-loaded | build artifact gate; current 380.62/86.11 kB are debt |
-| Availability | No new availability claim in the static demo | production pilot inherits MaxAI service SLOs; no UI work may weaken them |
+| Availability | No new availability claim in the static demo | The adoption package records required MaxAI SLO dependencies; it does not inherit or prove them |
 
 ### Security and threat review
 
@@ -236,9 +255,9 @@ object/evidence. Surface-specific references and stricter numbers live in each r
   treated as untrusted input.
 - Approval, publish, activate, stop, rollback, recipient, and permission actions show the exact object
   and consequence. UI actions cannot widen authority; production authorization remains server-side.
-- The production pilot introduces no new public endpoint. It reuses existing auth, CSRF, tenant
-  headers, request IDs, retry policy, and React Query defaults. Any required API gap blocks the UI
-  pilot and becomes a separate versioned backend plan.
+- The adoption package introduces no endpoint and makes no production authorization claim. It records
+  required auth, CSRF, tenant, request-ID, retry, and query contracts as verified mappings or explicit
+  open gaps; any gap is owned by a separate versioned MaxAI plan.
 - No new package is adopted without a pinned version, license check, and dependency vulnerability
   scan. Logs and screenshots use synthetic fixtures only.
 
@@ -258,8 +277,10 @@ pnpm audit --audit-level high
 git diff --check
 ```
 
-The execution session records command, exit code, duration, candidate SHA, PR URL, merged SHA, and
-evidence path in `.impl-cadence/STATE.md`. A successor phase may begin only from that merged SHA.
+The execution session records command, exit code, duration, B/C/E/M identities, PR URL, and evidence
+path under `docs/operations/phase-acceptance-protocol.md`. `.impl-cadence/` is disposable local
+scratch, not cross-worktree authority. A successor begins only from the checksum-verified external
+ledger record whose M is the fetched target-branch ancestor.
 Phase 10 also records browser/version, CPU/network profile, viewport, fixture, Figma node, and sheet
 hash for every visual or performance result.
 
@@ -278,7 +299,7 @@ hash for every visual or performance result.
 | 8 | Transform Consult Max and prove cross-module provenance/authority continuity | RC-12, RC-14 | 7 | high × high |
 | 9 | Complete Settings, Integrations, My approvals, Usage, and Help | RC-13 | 8 | medium × medium |
 | 10 | Run whole-product accessibility, responsive, performance, state, drift, security, and zero-legacy qualification | RC-15, RC-18, RC-19 | 9 | high × medium |
-| 11 | Produce the MaxAI adoption contract and run a production-native shell/Dashboard/Projects pilot | RC-17 | 10 | high × high |
+| 11 | Freeze the qualified demo into a complete MaxAI adoption package; no MaxAI source changes | RC-17 | 10 | medium × high |
 
 ```text
 0 → 1 → 2 → 3 → 4 → 5 → 6 → 7 → 8 → 9 → 10 → 11
@@ -310,21 +331,22 @@ There are zero uncovered register rows and no deferred requirements.
 
 ## 8. Global risks, dependencies, and rollback
 
-- **Dirty-state risk:** the implementation worktree contains a copied owner snapshot plus candidate
-  work. Phase 0 must create a reviewable checkpoint commit without mutating the owner checkout.
-- **Reference risk:** six frames are candidate, not approved; six more screen contracts are missing.
+- **Acceptance-identity risk:** Phase 0's historical reports audited a dirty tree. Clean-`beae208`
+  independent reruns are mandatory before Phase 1.
+- **Reference risk:** all thirteen contract frames exist, but every later phase must re-attest its
+  exact node and attach state-specific implementation evidence.
 - **Bundle risk:** the current single-route bundle exceeds the target; Phase 1 must lazy-load by module
   before visual phases add code.
-- **Production drift risk:** local `main` was stale at planning time. Phase 11 starts only from a fresh fetched
-  detached pin and a separate worktree.
+- **Production drift risk:** the demo chain cannot govern a different repository. Phase 11 emits only
+  the demo-owned adoption package; a separately approved MaxAI plan starts from fresh `origin/main`.
 - **Dependencies:** no new runtime package is assumed. Prefer current React, Motion, Phosphor, Vite,
   Vitest, Playwright, and axe stack.
 - **Source-integrity risk:** static analysis can produce false positives and cannot prove route or timer
   reachability. Every removal is paired with an active-owner trace plus focused and browser coverage;
   final qualification requires zero accepted exemptions, not a hidden allowlist.
-- **Rollback:** retain one accepted commit per phase, never squash evidence before final acceptance,
-  and revert only the current phase when its gate fails. Production pilot remains default-off and
-  must prove the off path is byte/behavior equivalent.
+- **Rollback:** retain B/C/E/M per phase and revert only through a reviewed PR. No accepted merge
+  keeps a dormant predecessor UI. Production feature-flag and deployment rollback belong to the
+  separate MaxAI adoption plan.
 
 ## 9. Definition of fully transformed
 
@@ -338,6 +360,6 @@ There are zero uncovered register rows and no deferred requirements.
 - No blocker/major independent audit finding remains; residual minors are recorded.
 - No superseded runtime path, dead export/import/package/style, hook-rule suppression, or source-quality
   exemption remains. The accepted route graph has one implementation owner per job.
-- The MaxAI pilot uses production-native primitives and real server-side authorization/tenancy,
-  remains behind a default-off flag, and has a tested rollback.
+- The MaxAI adoption package is complete, internally hashed, machine-checked, and contains no claim
+  that production code, authorization, tenancy, deployment, or rollback has been qualified.
 - The demo is described honestly as an executable UX contract, not 10,000-user runtime proof.

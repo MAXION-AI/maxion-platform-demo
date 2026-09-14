@@ -1,49 +1,49 @@
 #!/usr/bin/env python3
-"""Gate the inventory -> reference-sheet -> Figma-node -> implementation contract.
-
-This is an offline structural gate. Figma node accessibility is verified through the Figma connector
-and recorded in the program ledger; this script prevents the checked-in identities from drifting.
-"""
+"""Gate route, state, Figma, runtime, style, timer, and legacy ownership."""
 
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import re
+import subprocess
 import sys
 from collections import Counter
 from pathlib import Path
 from typing import Any
 
+import check_ux_reference_sheet as sheet_gate
+
 ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_MANIFEST = ROOT / "docs" / "operations" / "figma-code-map.json"
 DEFAULT_INVENTORY = ROOT / "docs" / "operations" / "ux-surface-inventory.md"
 SHEETS_DIR = ROOT / "docs" / "operations" / "ux-reference-sheets"
-
+PLAN_DIR = ROOT / "docs" / "implementation-plans" / "2026-09-13-maxion-platform-demo-ui-foundation"
 EXPECTED_SURFACE_IDS = {
-    "platform-shell-dashboard",
-    "projects-workspace",
-    "discover-workspace",
-    "plan-workspace",
-    "execute-workspace",
-    "agentix-operations",
-    "agentix-run-canvas",
-    "consult-max-workspace",
-    "settings-workspace",
-    "integrations-workspace",
-    "approvals-workspace",
-    "usage-workspace",
+    "platform-shell-dashboard", "projects-workspace", "discover-workspace", "plan-workspace",
+    "execute-workspace", "agentix-operations", "agentix-run-canvas", "consult-max-workspace",
+    "settings-workspace", "integrations-workspace", "approvals-workspace", "usage-workspace",
     "help-workspace",
 }
-
 SHEET_ID_RE = re.compile(r"^- \*\*Sheet id:\*\*\s*([^\s]+)\s*$", re.M)
 STATUS_RE = re.compile(r"^- \*\*Status:\*\*\s*(contract|built|gated)\s*$", re.M)
-FIGMA_RE = re.compile(r"file `([0-9A-Za-z]{22,128})`.*?node `(\d+:\d+)`", re.S)
-SYMBOL_RE_TEMPLATE = r"(?<![A-Za-z0-9_$]){}(?![A-Za-z0-9_$])"
+FIGMA_RE = re.compile(r"file \x60([0-9A-Za-z]{22,128})\x60.*?node \x60(\d+:\d+)\x60", re.S)
 IMPORT_RE = re.compile(
-    r"(?:import|export)\s+(?:[^;\"']*?\s+from\s+)?[\"']([^\"']+)[\"']|import\(\s*[\"']([^\"']+)[\"']\s*\)",
-    re.M,
+    r"(?:import|export)\s+(?:[^;\"']*?\s+from\s+)?[\"']([^\"']+)[\"']|"
+    r"import\(\s*[\"']([^\"']+)[\"']\s*\)", re.M
 )
+ROUTE_RE = re.compile(r"<Route\s+path=[\"']([^\"']+)[\"']")
+TIMER_RE = re.compile(r"\b(?:window\.)?(?:setTimeout|setInterval|requestAnimationFrame)\s*\(")
+SUPPRESSION_RE = re.compile(
+    r"eslint-disable|@ts-ignore|@ts-expect-error|biome-ignore|prettier-ignore|istanbul\s+ignore"
+)
+CSS_CLASS_RE = re.compile(r"\.([A-Za-z_][A-Za-z0-9_-]*)")
+SOURCE_TOKEN_RE = re.compile(r"[A-Za-z_][A-Za-z0-9_-]*")
+PHASE_STATE_RE = re.compile(
+    r"^- \*\*Required surface state IDs \(\x60([^\x60]+)\x60\):\*\*\s*(.+)$", re.M
+)
+STATE_TOKEN_RE = re.compile(r"\x60([a-z][a-z0-9-]*(?:\.[a-z][a-z0-9-]*)+)\x60")
 
 
 def _load_json(path: Path) -> tuple[dict[str, Any] | None, list[str]]:
@@ -51,9 +51,7 @@ def _load_json(path: Path) -> tuple[dict[str, Any] | None, list[str]]:
         value = json.loads(path.read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError) as exc:
         return None, [f"{path}: cannot load manifest ({exc})"]
-    if not isinstance(value, dict):
-        return None, [f"{path}: manifest root must be an object"]
-    return value, []
+    return (value, []) if isinstance(value, dict) else (None, [f"{path}: root must be an object"])
 
 
 def _inventory_rows(path: Path) -> tuple[dict[str, tuple[str, str]], list[str]]:
@@ -61,7 +59,6 @@ def _inventory_rows(path: Path) -> tuple[dict[str, tuple[str, str]], list[str]]:
         text = path.read_text(encoding="utf-8")
     except OSError as exc:
         return {}, [f"{path}: cannot read inventory ({exc})"]
-
     rows: dict[str, tuple[str, str]] = {}
     findings: list[str] = []
     for line in text.splitlines():
@@ -70,54 +67,41 @@ def _inventory_rows(path: Path) -> tuple[dict[str, tuple[str, str]], list[str]]:
         cells = [cell.strip() for cell in line.strip().strip("|").split("|")]
         if len(cells) < 7 or not cells[0].isdigit():
             continue
-        surface_id = cells[1]
-        sheet = cells[4].strip("`")
-        frame_status = cells[6]
-        if surface_id in rows:
-            findings.append(f"{path}: duplicate inventory surface id {surface_id!r}")
-        rows[surface_id] = (sheet, frame_status)
-    if not rows:
-        findings.append(f"{path}: no surface rows found in seven-column inventory table")
+        if cells[1] in rows:
+            findings.append(f"{path}: duplicate inventory surface id {cells[1]!r}")
+        rows[cells[1]] = (cells[4].strip(chr(96)), cells[6])
     return rows, findings
 
 
 def _duplicates(values: list[str]) -> list[str]:
-    return sorted(value for value, count in Counter(values).items() if count > 1)
+    return sorted(value for value, count in Counter(values).items() if value and count > 1)
 
 
 def _safe_source_path(relative: str) -> Path | None:
     candidate = (ROOT / relative).resolve()
-    source_root = (ROOT / "src").resolve()
     try:
-        candidate.relative_to(source_root)
+        candidate.relative_to((ROOT / "src").resolve())
     except ValueError:
         return None
     return candidate
 
 
-def _resolve_source_import(source: Path, specifier: str) -> Path | None:
+def _resolve_import(source: Path, specifier: str) -> Path | None:
     if specifier.startswith("@/"):
         base = ROOT / "src" / specifier[2:]
     elif specifier.startswith("."):
         base = source.parent / specifier
     else:
         return None
-
     candidates = [base]
     if not base.suffix:
-        candidates.extend(base.with_suffix(suffix) for suffix in (".ts", ".tsx", ".js", ".jsx", ".css"))
-        candidates.extend(base / f"index{suffix}" for suffix in (".ts", ".tsx", ".js", ".jsx"))
-    for candidate in candidates:
-        resolved = candidate.resolve()
-        if resolved.is_file():
-            return resolved
-    return None
+        candidates += [base.with_suffix(s) for s in (".ts", ".tsx", ".js", ".jsx", ".css")]
+        candidates += [base / f"index{s}" for s in (".ts", ".tsx", ".js", ".jsx")]
+    return next((p.resolve() for p in candidates if p.resolve().is_file()), None)
 
 
-def _production_source_graph(entry: Path | None = None) -> set[Path]:
-    """Return files reachable from the browser production entry, excluding test-only reachability."""
-
-    pending = [(entry or (ROOT / "src" / "main.tsx")).resolve()]
+def _production_graph(entry: Path | None = None) -> set[Path]:
+    pending = [(entry or ROOT / "src" / "main.tsx").resolve()]
     reachable: set[Path] = set()
     while pending:
         source = pending.pop()
@@ -126,148 +110,232 @@ def _production_source_graph(entry: Path | None = None) -> set[Path]:
         reachable.add(source)
         if source.suffix not in {".ts", ".tsx", ".js", ".jsx"}:
             continue
-        text = source.read_text(encoding="utf-8")
-        for match in IMPORT_RE.finditer(text):
-            target = _resolve_source_import(source, match.group(1) or match.group(2))
+        for match in IMPORT_RE.finditer(source.read_text(encoding="utf-8")):
+            target = _resolve_import(source, match.group(1) or match.group(2))
             if target is not None and target not in reachable:
                 pending.append(target)
     return reachable
 
 
+def _phase_states(path: Path, surface_id: str) -> list[str]:
+    try:
+        text = path.read_text(encoding="utf-8")
+    except OSError:
+        return []
+    return next(
+        (STATE_TOKEN_RE.findall(body) for sid, body in PHASE_STATE_RE.findall(text) if sid == surface_id),
+        [],
+    )
+
+
+def _stale_selector_count(sources: set[Path]) -> int:
+    css = "\n".join(p.read_text(encoding="utf-8") for p in sources if p.suffix == ".css")
+    code = "\n".join(
+        p.read_text(encoding="utf-8") for p in sources if p.suffix in {".ts", ".tsx", ".js", ".jsx"}
+    )
+    return len(set(CSS_CLASS_RE.findall(css)) - set(SOURCE_TOKEN_RE.findall(code)))
+
+
 def check_contract(
     manifest_path: Path = DEFAULT_MANIFEST,
     inventory_path: Path = DEFAULT_INVENTORY,
+    entry_path: Path | None = None,
 ) -> list[str]:
     manifest, findings = _load_json(manifest_path)
     inventory, inventory_findings = _inventory_rows(inventory_path)
-    findings.extend(inventory_findings)
+    findings += inventory_findings
     if manifest is None:
         return findings
-
-    if manifest.get("schemaVersion") != 1:
-        findings.append(f"{manifest_path}: schemaVersion must be 1")
+    if manifest.get("schemaVersion") != 2:
+        findings.append(f"{manifest_path}: schemaVersion must be 2")
     if manifest.get("authority") != "docs/operations/ux-surface-inventory.md":
         findings.append(f"{manifest_path}: authority must name the UX surface inventory")
+    sources = _production_graph(entry_path)
+    source_ownership = manifest.get("sourceOwnership", {})
+    main_path = (entry_path or ROOT / "src" / "main.tsx").resolve()
+    main_text = main_path.read_text(encoding="utf-8") if main_path.is_file() else ""
 
-    surfaces = manifest.get("surfaces")
-    if not isinstance(surfaces, list):
+    route_entries = manifest.get("routes")
+    routes = route_entries if isinstance(route_entries, list) else []
+    declared_routes = [str(item.get("path", "")) for item in routes if isinstance(item, dict)]
+    actual_routes = ROUTE_RE.findall(main_text)
+    if Counter(declared_routes) != Counter(actual_routes):
+        findings.append(f"{manifest_path}: declared routes do not match production routes")
+    for item in routes:
+        if not isinstance(item, dict):
+            findings.append(f"{manifest_path}: every route entry must be an object")
+            continue
+        kind = item.get("classification")
+        if kind not in {"canonical", "redirect", "compatibility-alias"}:
+            findings.append(f"{manifest_path}: route {item.get('path')!r} has invalid classification")
+        if kind == "compatibility-alias" and (
+            not isinstance(item.get("removeByPhase"), int) or not item.get("reason")
+        ):
+            findings.append(f"{manifest_path}: compatibility alias needs removal phase and reason")
+
+    raw_surfaces = manifest.get("surfaces")
+    if not isinstance(raw_surfaces, list):
         return findings + [f"{manifest_path}: surfaces must be an array"]
+    surfaces = [item for item in raw_surfaces if isinstance(item, dict)]
+    ids = [str(item.get("surfaceId", "")) for item in surfaces]
+    if set(ids) != EXPECTED_SURFACE_IDS:
+        findings.append(f"{manifest_path}: surface set does not match the 13 required surfaces")
+    for duplicate in _duplicates(ids):
+        findings.append(f"{manifest_path}: duplicate surfaceId {duplicate!r}")
+    exclusive: list[str] = []
 
-    objects = [surface for surface in surfaces if isinstance(surface, dict)]
-    production_sources = _production_source_graph()
-    if len(objects) != len(surfaces):
-        findings.append(f"{manifest_path}: every surface entry must be an object")
-
-    ids = [str(surface.get("surfaceId", "")) for surface in objects]
-    route_states = [str(surface.get("routeState", "")) for surface in objects]
-    sheets = [str(surface.get("referenceSheet", "")) for surface in objects]
-    figma_pairs: list[str] = []
-    for surface in objects:
-        figma = surface.get("figma")
-        if isinstance(figma, dict):
-            figma_pairs.append(f"{figma.get('fileKey', '')}:{figma.get('nodeId', '')}")
-
-    for label, values in (
-        ("surfaceId", ids),
-        ("routeState", route_states),
-        ("referenceSheet", sheets),
-        ("Figma file/node", figma_pairs),
-    ):
-        for duplicate in _duplicates(values):
-            findings.append(f"{manifest_path}: duplicate {label} {duplicate!r}")
-
-    actual_ids = set(ids)
-    for missing in sorted(EXPECTED_SURFACE_IDS - actual_ids):
-        findings.append(f"{manifest_path}: missing required surface {missing!r}")
-    for unexpected in sorted(actual_ids - EXPECTED_SURFACE_IDS):
-        findings.append(f"{manifest_path}: unexpected surface {unexpected!r}")
-
-    for surface in objects:
-        surface_id = str(surface.get("surfaceId", ""))
-        route = surface.get("route")
-        route_state = surface.get("routeState")
+    for surface in surfaces:
+        sid = str(surface.get("surfaceId", ""))
         sheet_name = surface.get("referenceSheet")
-        figma = surface.get("figma")
-        implementation = surface.get("implementation")
-
-        if not isinstance(route, str) or not route.startswith("/"):
-            findings.append(f"{manifest_path}: {surface_id}: route must start with '/'")
-        if not isinstance(route_state, str) or not route_state:
-            findings.append(f"{manifest_path}: {surface_id}: routeState is required")
-        if not isinstance(sheet_name, str) or not sheet_name.endswith(".md"):
-            findings.append(f"{manifest_path}: {surface_id}: referenceSheet must be a markdown filename")
+        if not isinstance(sheet_name, str):
+            findings.append(f"{manifest_path}: {sid}: referenceSheet is required")
             continue
-
         sheet_path = SHEETS_DIR / sheet_name
-        try:
-            sheet_text = sheet_path.read_text(encoding="utf-8")
-        except OSError as exc:
-            findings.append(f"{manifest_path}: {surface_id}: cannot read {sheet_path} ({exc})")
+        if not sheet_path.is_file():
+            findings.append(f"{manifest_path}: {sid}: reference sheet missing")
             continue
+        sheet_text = sheet_path.read_text(encoding="utf-8")
+        match = SHEET_ID_RE.search(sheet_text)
+        if not match or match.group(1) != sid or not STATUS_RE.search(sheet_text):
+            findings.append(f"{sheet_path}: id/status does not match manifest")
+        if surface.get("referenceSheetSha256") != hashlib.sha256(sheet_path.read_bytes()).hexdigest():
+            findings.append(f"{manifest_path}: {sid}: reference-sheet hash drift")
+        sheet_states = sheet_gate.semantic_state_ids(sheet_text)
+        if surface.get("requiredStateIds") != sheet_states:
+            findings.append(f"{manifest_path}: {sid}: semantic state IDs do not exactly match sheet")
+        phase_name = surface.get("phaseDocument")
+        if not isinstance(phase_name, str) or _phase_states(PLAN_DIR / phase_name, sid) != sheet_states:
+            findings.append(f"{manifest_path}: {sid}: phase state IDs do not exactly match sheet")
 
-        sheet_id_match = SHEET_ID_RE.search(sheet_text)
-        if not sheet_id_match or sheet_id_match.group(1) != surface_id:
-            found = sheet_id_match.group(1) if sheet_id_match else "none"
-            findings.append(f"{sheet_path}: Sheet id {found!r} does not match {surface_id!r}")
-        if not STATUS_RE.search(sheet_text):
-            findings.append(f"{sheet_path}: missing recognized contract status")
+        address = surface.get("addressing")
+        if not isinstance(address, dict) or address.get("mode") not in {"url", "interaction-only"}:
+            findings.append(f"{manifest_path}: {sid}: invalid addressing mode")
+        elif address["mode"] == "url":
+            url = address.get("canonicalUrl")
+            marker = address.get("sourceMarker")
+            if not isinstance(url, str) or url.split("?", 1)[0] not in actual_routes:
+                findings.append(f"{manifest_path}: {sid}: URL address is not registered")
+            if not isinstance(marker, str) or marker not in main_text:
+                findings.append(f"{manifest_path}: {sid}: fictional URL address source marker")
+        elif not address.get("entryRoute") or not address.get("action"):
+            findings.append(f"{manifest_path}: {sid}: interaction-only address needs entryRoute/action")
 
+        figma = surface.get("figma")
         if not isinstance(figma, dict):
-            findings.append(f"{manifest_path}: {surface_id}: figma must be an object")
+            findings.append(f"{manifest_path}: {sid}: figma is required")
         else:
-            file_key = figma.get("fileKey")
-            node_id = figma.get("nodeId")
-            sheet_figma = FIGMA_RE.search(sheet_text)
-            if not isinstance(file_key, str) or not re.fullmatch(r"[0-9A-Za-z]{22,128}", file_key):
-                findings.append(f"{manifest_path}: {surface_id}: invalid Figma file key")
-            if not isinstance(node_id, str) or not re.fullmatch(r"\d+:\d+", node_id):
-                findings.append(f"{manifest_path}: {surface_id}: invalid Figma node id")
-            if not sheet_figma or sheet_figma.groups() != (file_key, node_id):
-                found = sheet_figma.groups() if sheet_figma else None
-                findings.append(
-                    f"{sheet_path}: Figma mapping {found!r} does not match manifest {(file_key, node_id)!r}"
-                )
+            figma_match = FIGMA_RE.search(sheet_text)
+            pair = (figma.get("fileKey"), figma.get("nodeId"))
+            if not figma_match or figma_match.groups() != pair:
+                findings.append(f"{sheet_path}: Figma mapping does not match manifest")
+            if figma.get("ownershipMode") == "components":
+                if not figma.get("componentNodeIds"):
+                    findings.append(f"{manifest_path}: {sid}: component IDs are required")
+            elif figma.get("ownershipMode") == "frame":
+                if figma.get("componentNodeIds") != [] or not figma.get("frameOwnershipReason"):
+                    findings.append(f"{manifest_path}: {sid}: frame-level ownership is incomplete")
+            else:
+                findings.append(f"{manifest_path}: {sid}: invalid Figma ownership mode")
 
-        inventory_entry = inventory.get(surface_id)
-        if inventory_entry is None:
-            findings.append(f"{inventory_path}: missing surface {surface_id!r}")
-        else:
-            inventory_sheet, frame_status = inventory_entry
-            if inventory_sheet != sheet_name:
-                findings.append(
-                    f"{inventory_path}: {surface_id}: sheet {inventory_sheet!r} does not match {sheet_name!r}"
-                )
-            node_id = figma.get("nodeId") if isinstance(figma, dict) else ""
-            if node_id and f"`{node_id}`" not in frame_status and node_id not in frame_status:
-                findings.append(f"{inventory_path}: {surface_id}: frame status omits node {node_id}")
+        inv = inventory.get(sid)
+        if inv is None or inv[0] != sheet_name:
+            findings.append(f"{inventory_path}: {sid}: inventory/sheet mismatch")
+        elif isinstance(figma, dict) and str(figma.get("nodeId", "")) not in inv[1]:
+            findings.append(f"{inventory_path}: {sid}: frame node is missing")
 
-        if not isinstance(implementation, list) or not implementation:
-            findings.append(f"{manifest_path}: {surface_id}: implementation must be a non-empty array")
+        implementation = surface.get("implementation")
+        if not isinstance(implementation, dict):
+            findings.append(f"{manifest_path}: {sid}: implementation object is required")
             continue
-        for owner in implementation:
+        mode, owners = implementation.get("ownershipMode"), implementation.get("owners")
+        if mode not in {"exclusive", "shared-discriminated"} or not isinstance(owners, list) or not owners:
+            findings.append(f"{manifest_path}: {sid}: invalid implementation ownership")
+            continue
+        if mode == "shared-discriminated" and not implementation.get("stateDiscriminator"):
+            findings.append(f"{manifest_path}: {sid}: shared owner needs stateDiscriminator")
+        if mode == "exclusive":
+            exclusive += owners
+        for owner in owners:
             if not isinstance(owner, str) or owner.count("#") != 1:
-                findings.append(f"{manifest_path}: {surface_id}: invalid implementation owner {owner!r}")
+                findings.append(f"{manifest_path}: {sid}: invalid owner {owner!r}")
                 continue
-            relative, symbol = owner.split("#", 1)
-            source_path = _safe_source_path(relative)
-            if source_path is None:
-                findings.append(f"{manifest_path}: {surface_id}: owner escapes src/ ({relative!r})")
+            relative, symbol = owner.split("#")
+            path = _safe_source_path(relative)
+            if path is None or not path.is_file():
+                findings.append(f"{manifest_path}: {sid}: owner file missing or outside src")
                 continue
-            if not source_path.is_file():
-                findings.append(f"{manifest_path}: {surface_id}: owner file missing ({relative})")
-                continue
-            if source_path not in production_sources:
+            if path not in sources:
+                findings.append(f"{manifest_path}: {sid}: owner is not production-reachable")
+            if not re.search(r"(?<![A-Za-z0-9_$])" + re.escape(symbol) + r"(?![A-Za-z0-9_$])", path.read_text()):
+                findings.append(f"{manifest_path}: {sid}: symbol {symbol!r} missing")
+        evidence = surface.get("evidencePaths")
+        if not isinstance(evidence, list):
+            findings.append(f"{manifest_path}: {sid}: evidencePaths must be an array")
+        elif any(not (ROOT / item).is_file() for item in evidence):
+            findings.append(f"{manifest_path}: {sid}: evidence path missing")
+
+    for duplicate in _duplicates(exclusive):
+        findings.append(f"{manifest_path}: duplicate exclusive runtime owner {duplicate!r}")
+    if set(inventory) != set(ids):
+        findings.append(f"{inventory_path}: inventory and manifest surface sets differ")
+
+    styles = source_ownership.get("styles", []) if isinstance(source_ownership, dict) else []
+    style_paths = [item.get("path") for item in styles if isinstance(item, dict)]
+    actual_styles = sorted(str(p.relative_to(ROOT)) for p in sources if p.suffix == ".css")
+    if sorted(style_paths) != actual_styles or len(style_paths) != len(set(style_paths)):
+        findings.append(f"{manifest_path}: style ownership does not exactly match production CSS graph")
+    for item in styles:
+        if not item.get("surfaceIds") or not set(item["surfaceIds"]).issubset(set(ids)):
+            findings.append(f"{manifest_path}: invalid style ownership for {item.get('path')!r}")
+    timers = sorted(
+        str(p.relative_to(ROOT)) for p in sources
+        if p.suffix in {".ts", ".tsx", ".js", ".jsx"} and TIMER_RE.search(p.read_text())
+    )
+    if source_ownership.get("timerOwnerFiles") != timers:
+        findings.append(f"{manifest_path}: timer ownership does not exactly match production source")
+    baseline = source_ownership.get("staleSelectorBaseline", {})
+    stale_count = _stale_selector_count(sources)
+    if not isinstance(baseline, dict) or stale_count > baseline.get("count", -1):
+        findings.append(f"{manifest_path}: stale CSS selector debt grew to {stale_count}")
+    if baseline.get("mustBeZeroByPhase") != 1:
+        findings.append(f"{manifest_path}: stale selector baseline must expire in Phase 1")
+    markers = source_ownership.get("forbiddenLegacyMarkers", [])
+    for path in sources:
+        if path.suffix not in {".ts", ".tsx", ".js", ".jsx"}:
+            continue
+        text = path.read_text(encoding="utf-8")
+        if SUPPRESSION_RE.search(text):
+            findings.append(f"{path}: production suppression is forbidden")
+        for marker in markers:
+            if marker in text:
+                findings.append(f"{path}: forbidden legacy marker {marker!r}")
+
+    attestation = manifest.get("remoteFigmaAttestation")
+    if not isinstance(attestation, dict) or not all(
+        attestation.get(key) for key in ("verifiedAt", "verifier", "evidencePath", "scope")
+    ):
+        findings.append(f"{manifest_path}: remote Figma attestation is incomplete")
+    elif not (ROOT / attestation["evidencePath"]).is_file():
+        findings.append(f"{manifest_path}: remote Figma attestation evidence is missing")
+    tree = manifest.get("implementationTree")
+    if not isinstance(tree, dict) or not re.fullmatch(r"[0-9a-f]{40}", str(tree.get("srcGitTreeSha1", ""))):
+        findings.append(f"{manifest_path}: implementation tree identity is incomplete")
+    else:
+        try:
+            actual_tree = subprocess.run(
+                ["git", "-C", str(ROOT), "rev-parse", "HEAD:src"],
+                check=True,
+                capture_output=True,
+                text=True,
+                timeout=10,
+            ).stdout.strip()
+        except (OSError, subprocess.SubprocessError) as exc:
+            findings.append(f"{manifest_path}: cannot resolve checked-out src tree ({exc})")
+        else:
+            if tree["srcGitTreeSha1"] != actual_tree:
                 findings.append(
-                    f"{manifest_path}: {surface_id}: owner is not reachable from src/main.tsx ({relative})"
+                    f"{manifest_path}: implementation src tree does not match checked-out HEAD:src"
                 )
-            source = source_path.read_text(encoding="utf-8")
-            if not re.search(SYMBOL_RE_TEMPLATE.format(re.escape(symbol)), source):
-                findings.append(f"{manifest_path}: {surface_id}: symbol {symbol!r} missing from {relative}")
-
-    inventory_ids = set(inventory)
-    for orphan in sorted(inventory_ids - actual_ids):
-        findings.append(f"{inventory_path}: surface {orphan!r} is absent from the manifest")
-
     return findings
 
 
@@ -276,14 +344,13 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--manifest", type=Path, default=DEFAULT_MANIFEST)
     parser.add_argument("--inventory", type=Path, default=DEFAULT_INVENTORY)
     args = parser.parse_args(argv)
-
     findings = check_contract(args.manifest.resolve(), args.inventory.resolve())
     if findings:
         print(f"UX contract coverage gate: {len(findings)} finding(s)")
         for finding in findings:
             print(f"  - {finding}")
         return 1
-    print(f"UX contract coverage gate: {len(EXPECTED_SURFACE_IDS)} surface(s) pass")
+    print(f"UX contract coverage gate: {len(EXPECTED_SURFACE_IDS)} surface(s) pass (schema v2)")
     return 0
 
 

@@ -61,7 +61,22 @@
 | Pareto | Prioritize the current task, likely recovery, and system status before topic browsing. | All 3 top jobs in first viewport | Responsive screenshot audit |
 | Interactivity floor | Search, select, open, recover, retry, inspect status, and hand off in place. | Static-report test passes for 8 declared states | Walk every state and act on it |
 
-## 5. State matrix
+## 5. State matrices
+
+### 5.1 Semantic surface-state matrix
+
+| State ID | Fixture / event | Visible content | Permitted actions | Recovery / next state | Responsive evidence | Figma / textual authority |
+| --- | --- | --- | --- | --- | --- | --- |
+| help.ready | Current module context available | Context, suggested task-shaped help, health, and search | Search, choose suggestion, or return | help.searching or owning module | Four viewport captures | Figma 43:1461 |
+| help.searching | Valid query submitted | Preserved query and bounded progress | Refine, cancel, or wait | help.results, help.empty, or help.error | Four viewports | Textual authority: Doherty row |
+| help.results | Ranked help available | Task, outcome, expected time, and owning-object links | Open guidance or owner | help.recovery or owning module | Four viewports | §2 Customer.io |
+| help.empty | No result matches | Preserved query, suggested scopes, and support boundary | Broaden query or prepare support handoff | help.searching or help.support-handoff | Four viewports | Textual authority: empty-state law |
+| help.error | Search/guidance request fails | Preserved query/context, error ID, and retry | Retry or return | help.searching or help.ready | Four viewports | Textual authority: no-dead-end law row |
+| help.recovery | Known failed workflow selected | Passed work, failed step, exact safe recovery, and owner | Retry only failed step or open owner | Owning module or help.results | Four viewports | §2 GitHub Actions |
+| help.support-handoff | Automated recovery insufficient | Redacted context preview, recipient, and consequence | Send, edit, or cancel | help.ready | Mobile and desktop captures | Textual authority: support boundary |
+| help.offline | Network unavailable | Cached guidance if safe, unavailable status, and return path | Retry connectivity or return | help.ready | 375 and 1280 px captures | Textual authority: graceful degradation |
+
+### 5.2 Control interaction-state matrix
 
 | Control / region | default | hover | focus-visible | active | disabled | loading | empty | error |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- |

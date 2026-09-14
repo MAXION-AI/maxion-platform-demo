@@ -62,7 +62,22 @@
 | Pareto | Prioritize due approvals, exact consequence, and evidence before history. | All 3 top jobs in first viewport | Responsive screenshot audit |
 | Interactivity floor | Filter, select, inspect, approve, amend, reject, recover, and return to owner in place. | Static-report test passes for 8 declared states | Walk every state and act on it |
 
-## 5. State matrix
+## 5. State matrices
+
+### 5.1 Semantic surface-state matrix
+
+| State ID | Fixture / event | Visible content | Permitted actions | Recovery / next state | Responsive evidence | Figma / textual authority |
+| --- | --- | --- | --- | --- | --- | --- |
+| approvals.queue | Seeded assigned decisions | Status, object, owner, due state, and consequence summary | Filter or open one request | approvals.review | Four viewport captures | Figma 43:1013 and §2 Contractbook |
+| approvals.review | Authorized request selected | Exact object/version/consequence, evidence, and actor scope | Approve, amend, reject, or return | approvals.submitting or approvals.queue | Four viewports | §2 Higgsfield and Asana |
+| approvals.submitting | Idempotent decision accepted | Pending decision, preserved context, and progress | Wait or cancel only when safe | approvals.resolved or approvals.error | Four viewports | Textual authority: Doherty row |
+| approvals.resolved | Decision succeeds | Receipt, actor, timestamp, result, and next request | Open owner, undo only if supported, or continue | approvals.queue | Four viewports | §2 Descript |
+| approvals.stale | Object version changed during review | Reviewed/current versions and blocked submission | Open current request or return | approvals.review or approvals.queue | Four viewports | Textual authority: stale safety |
+| approvals.empty | No assigned decisions | Honest queue state and owning-work links | Return to product work | shell.attention | Four viewports | Textual authority: empty-state law |
+| approvals.error | Decision or list request fails | Last safe queue/draft, error ID, and no effect claim | Retry or return | approvals.queue or approvals.review | Four viewports | Textual authority: no duplicate effect |
+| approvals.permission-denied | Unauthorized object/request | No inaccessible metadata; role reason | Return or request access | approvals.queue | Mobile and desktop captures | Textual authority: fail-closed rule |
+
+### 5.2 Control interaction-state matrix
 
 | Control / region | default | hover | focus-visible | active | disabled | loading | empty | error |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- |

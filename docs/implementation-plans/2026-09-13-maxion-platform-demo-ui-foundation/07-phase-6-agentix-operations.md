@@ -17,11 +17,13 @@ single-run canvas delivered in Phase 7.
 - [ ] `docs/operations/ux-reference-sheets/agentix-operations.md` is independently accepted.
 - [ ] Figma frame `UhLxGyXphdHHNLGMomBq6n:21:175` is frozen and fetched before code.
 
-This is a **product** surface. Binding references are Relevance AI, Lindy, Stack AI, Copy.ai, and
-Databricks. The sheet's complete laws-check and state matrix apply. Top navigation contains only product
+This is a **product** surface. The reference sheet §2 is the sole binding Mobbin authority; phase
+prose must not declare a second app set. The sheet's complete laws-check and state matrices apply. Top navigation contains only product
 modules plus Dashboard and Projects; Agentix views stay within one workspace; administrative destinations
 remain in the compact bottom cluster. Queues acknowledge under 400 ms, virtualize beyond 100 rows, use
 44 px primary controls, and expose one blocking decision per approval card.
+
+- **Required surface state IDs (`agentix-operations`):** `agentix-ops.today`, `agentix-ops.work`, `agentix-ops.approvals`, `agentix-ops.activity`, `agentix-ops.connections`, `agentix-ops.empty`, `agentix-ops.degraded`, `agentix-ops.permission-denied`
 
 ## Architecture, scale, security, and reliability
 
@@ -65,6 +67,15 @@ permission denial, empty/loading/error, keyboard, mobile, and 10,000-row fixture
 
 Rollback reverts the Phase 6 candidate while preserving a backward-readable persisted snapshot and all
 accepted upstream artifacts.
+
+## Files, outputs, commands, evidence, and PR closure
+
+| Kind | Exact files / outputs / commands | Passing evidence |
+| --- | --- | --- |
+| Production | Refactor `DeployedAgentsPage.tsx`, `OperationsViews.tsx`, `operationsState.ts`; create Agentix domain/selectors/commands/components; delete replaced storage, timers, owners, selectors | One discriminated operations owner per view/state |
+| Tests/fixtures | Agentix unit/browser specs; migration/stale/degraded/permission and 10,000-row fixtures | Exact eight state IDs, upstream provenance, ≤200 rows |
+| Evidence/commands | `artifacts/ux-audits/phase-6/**`; operations sheet; standard program/test/build/E2E/audit/diff plus focused Agentix specs | State/viewport/Figma/axe/timing evidence and independent reports |
+| PR lifecycle | Verify prior M as B; create isolated `phase-6/**` branch/worktree; commit C; push and open one PR; independent UX/QA audit clean C; optional evidence-only E; require program/build/audit/phase/E2E checks; merge; verify C ancestry in M; rerun clean-M gates; atomically update ledger | PR URL, B/C/E/M, source-tree equality, merge ancestry, post-merge results, successor pin |
 
 ## Definition of Done
 

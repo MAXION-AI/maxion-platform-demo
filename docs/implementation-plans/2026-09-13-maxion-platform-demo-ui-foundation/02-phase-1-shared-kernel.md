@@ -13,6 +13,7 @@ loading, and a checked Figma-to-code manifest. Module-specific recomposition rem
 ## Entry criteria
 
 - [ ] Phase 0 DoD rerun passes from its accepted SHA.
+- [ ] External ledger proves clean-`beae208` Phase 0 acceptance and supplies merge SHA B.
 - [ ] Characterization screenshots and top-job E2E pass before refactoring.
 - [ ] No unreviewed changes overlap `src/styles.css`, `MaxionPlatformPrototypePage.tsx`, or shared shell files.
 
@@ -61,7 +62,13 @@ the semantic-token authority. The checked manifest lives at `docs/operations/fig
 4. **Create bounded persistence port (1.4).** Consolidate module storage behind `DemoStateRepository`; add version migration, tenant key, length caps, malformed/cross-slice rejection, and replay tests.
 5. **Extract shared primitives and tokens (1.5).** Move recurring status, decision, progress, composer, evidence, and empty/error patterns into `system/`; migrate callers before deleting duplicates; reduce raw-colour count.
 6. **Split route/module bundles (1.6).** Lazy-load heavy module entry points with stable skeletons and error boundaries; assert hidden modules do not run timers.
-7. **Extend the Figma/code contract map (1.7).** Extend Phase 0's route/sheet/node manifest with component IDs, route states, implementation symbols, and evidence paths; extend the gate to reject missing or duplicate code/evidence mappings.
+7. **Close schema-v2 address and ownership debt (1.7).** Replace every `interaction-only` address
+   with a canonical URL codec/source marker; remove `/agentix-prototype` and
+   `/discovery-prototype`; make the Agentix run address encode responsibility/case IDs; attach
+   independently attested component IDs or retain explicit frame ownership; require zero stale
+   selectors, aliases, suppressions, obsolete markers, unowned timers/styles/routes, unreachable
+   owners, and duplicate owners. Preserve negative tests for omitted routes, fictional address
+   states, test-only reachability, stale selectors, and duplicate owners.
 8. **Complete single-owner cutovers (1.8).** For every migrated state, primitive, route, and stylesheet,
    prove the new runtime owner, then delete the predecessor and its tests/exports/imports/dependencies in
    the same task. Remove hook-rule suppressions by fixing effect ownership and callback stability, not by
@@ -72,8 +79,9 @@ the semantic-token authority. The checked manifest lives at `docs/operations/fig
 Unit tests cover reducers, selectors, migrations, invalid/cross-tenant state, caps, and exhaustive event
 handling. Integration tests replay Discover→Plan→Execute→Agentix→Consult before and after extraction.
 Playwright asserts accepted copy and the roadmap's measured visual tolerances where the reference is unchanged,
-no serious axe violations, and no console/page errors. Build artifacts meet the bundle target or the
-phase remains open with an explicit accepted exception from the owner.
+no serious axe violations, and no console/page errors. Build artifacts must meet initial-route
+≤250 kB gzip JS and ≤60 kB gzip CSS. There is no phase-local waiver. Rebaseline requires a separately
+reviewed and merged roadmap-amendment PR with measured module budgets before implementation restarts.
 
 ## Failure modes and degraded behavior
 
@@ -87,8 +95,18 @@ phase remains open with an explicit accepted exception from the owner.
 ## Observability and rollback
 
 Emit synthetic structured events for state rejection, migration, replay, module-load failure, and
-interaction timing without values or PII. Ship as one phase-level feature flag inside the demo; off
-uses the Phase 0 path. Rollback reverts Phase 1 and its persisted-schema version.
+interaction timing without values or PII. The merge has exactly one UI, route, state, persistence,
+timer, and style owner. Rollback is a reviewed PR reverting Phase 1; no flag may retain the Phase 0
+UI. A provider-behavior flag is allowed only when both values use the same owners.
+
+## Files, outputs, commands, evidence, and PR closure
+
+| Kind | Exact ownership | Required output / command | Passing evidence |
+| --- | --- | --- | --- |
+| Production | `src/features/platform-prototype/{contracts.ts,platformState.ts,PlatformDemoProvider.tsx,persistence/DemoStateRepository.ts,system/**}`; migrated owners; deleted aliases/predecessors/styles | Tasks 1.2–1.8; no compatibility UI survives | C source tree and zero-debt ownership report |
+| Tests/fixtures | Co-located domain/system tests, `scripts/tests/test_ux_gates.py`, shell/cross-module Playwright specs, deterministic 10,000-object fixtures | `pnpm test`; `pnpm test:e2e`; negative ownership suite | Counts, traces, fixture/mounted-node metrics |
+| Contracts/evidence | Schema-v2 manifest, affected sheets, `artifacts/ux-audits/phase-1/**` | `pnpm check:program`; `pnpm build`; `pnpm audit --audit-level high`; `git diff --check` | Hashes, 250/60 bundle proof, Figma attestation, UX/QA reports |
+| PR lifecycle | One Phase 1 branch/worktree from B | Protocol: C, clean-C UX/QA, optional evidence-only E, PR, M, clean-M gates, ledger update | PR URL, B/C/E/M, ancestry/source-tree equality, successor pin |
 
 ## Definition of Done
 
@@ -98,6 +116,8 @@ uses the Phase 0 path. Rollback reverts Phase 1 and its persisted-schema version
 - [ ] Raw-color debt shrinks; no new literals or dependencies appear.
 - [ ] Every migrated responsibility has one runtime owner; no duplicate component, route alias, CSS
   normalizer, stale export, or hook-rule suppression remains from the cutover.
+- [ ] Both compatibility aliases are removed; all thirteen surfaces and the Agentix run are URL-addressable.
+- [ ] Stale-selector baseline is zero and initial-route bundles are ≤250 kB JS / ≤60 kB CSS gzip.
 - [ ] Characterization, cross-module, accessibility, bundle, and program gates pass.
 - [ ] Separate reviewer records no blocker/major finding.
 

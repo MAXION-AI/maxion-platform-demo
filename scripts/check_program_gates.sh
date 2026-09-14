@@ -7,6 +7,7 @@ cd "$repo_root"
 pnpm check:ux:sheets
 pnpm check:ux:coverage
 pnpm check:ux:tokens
+pnpm check:program-ledger
 pnpm test:ux-gates
 pnpm check:source-quality
 

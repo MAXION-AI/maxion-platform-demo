@@ -17,11 +17,13 @@ machine details, pull requests, spend, or production evidence.
 - [ ] `docs/operations/ux-reference-sheets/agentix-run-canvas.md` is independently accepted.
 - [ ] Editable Figma node `UhLxGyXphdHHNLGMomBq6n:46:933` and its local component mappings are frozen and fetched before code.
 
-This is a **product** surface. Devin is the primary Jakob reference; Manus, Relevance AI, Cofounder, and
-Lindy are secondary references. The sheet's nineteen-row laws/interactivity table and seven-row state
-matrix are binding. The composer remains in context, the live focus has one filled primary control,
+This is a **product** surface. The reference sheet §2 is the sole binding Mobbin authority; phase
+prose must not declare a second app set. The sheet's nineteen-row laws/interactivity table and two state
+matrices are binding. The composer remains in context, the live focus has one filled primary control,
 targets are at least 44 px, acknowledgement is under 400 ms, and every terminal state ends on an object,
 its evidence, and a next action.
+
+- **Required surface state IDs (`agentix-run-canvas`):** `run.idle`, `run.live`, `run.question`, `run.approval`, `run.failed`, `run.disconnected`, `run.completed`
 
 ## Architecture, scale, security, and reliability
 
@@ -65,6 +67,15 @@ recovery, reconnect, refresh, keyboard-only, mobile, reduced motion, and large-e
 
 Rollback reverts the Phase 7 candidate, retains Phase 6 summaries, and leaves all readable run history
 available through the prior operations experience.
+
+## Files, outputs, commands, evidence, and PR closure
+
+| Kind | Exact files / outputs / commands | Passing evidence |
+| --- | --- | --- |
+| Production | Refactor `DeployedAgentsPage.tsx` and `OperationsViews.tsx#RunDetail`; create Agentix run domain/selectors/commands/components; delete direct timers/local-state/predecessor styles | Canonical URL-addressed RunRef opens one run owner |
+| Tests/fixtures | Run unit/browser specs; race/stale/disconnect/hostile/10,000-event fixtures | Exact seven state IDs, authority-safe endings, ≤200 events |
+| Evidence/commands | `artifacts/ux-audits/phase-7/**`; run sheet; standard program/test/build/E2E/audit/diff plus focused run specs | State/viewport/Figma/axe/timing evidence and independent reports |
+| PR lifecycle | Verify prior M as B; create isolated `phase-7/**` branch/worktree; commit C; push and open one PR; independent UX/QA audit clean C; optional evidence-only E; require program/build/audit/phase/E2E checks; merge; verify C ancestry in M; rerun clean-M gates; atomically update ledger | PR URL, B/C/E/M, source-tree equality, merge ancestry, post-merge results, successor pin |
 
 ## Definition of Done
 

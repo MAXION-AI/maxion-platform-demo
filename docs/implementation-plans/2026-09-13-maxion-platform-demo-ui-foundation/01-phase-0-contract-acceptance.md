@@ -1,7 +1,7 @@
 # Phase 0: Contract acceptance and missing-surface closure
 
 - **Parent:** [00-parent-roadmap.md](./00-parent-roadmap.md)
-- **Closes:** RC-01, RC-02; establishes RC-19 enforcement | **Risk:** high × medium | **Status:** Accepted candidate; PR pending
+- **Closes:** RC-02; advances RC-01 and RC-19 | **Risk:** high × medium | **Status:** PR #2 merged; clean-SHA independent acceptance pending
 - **Depends on:** none
 
 ## Objective and scope
@@ -23,6 +23,15 @@ development dependencies are permitted foundation work.
 - **Scale:** no runtime hot path changes. Reference states must include a 10,000-logical-row fixture and the bounded rendering rule used in Phase 10.
 - **Robustness:** Figma access failure degrades to `BLOCKED`; no screen may proceed with a guessed node.
 - **Threat surface:** no new runtime surface. Evidence uses synthetic data and contains no secrets or PII.
+
+## Immutable acceptance rerun required
+
+PR #2 head `dfc0347c876b36dc9932808b786d219c2cb8c949` merged as
+`beae208b30ad31202c4ff92abbfbd6c1ef51af18`. The existing UX and QA reports are historical
+evidence, not immutable acceptance: both audited a dirty tree based on `c381e7e`. Before Phase 1,
+fresh independent UX and engineering sessions audit a clean detached worktree at `beae208`, record
+the identities and hashes required by `docs/operations/phase-acceptance-protocol.md`, and append
+evidence under its evidence-only rule. Until then RC-01 and Phase 0 remain open.
 - **Source integrity:** critical/high dependency findings, unused TypeScript symbols, and the lack of a
   repeatable dead-code gate block the visual phases. Static findings are leads until route/import/runtime/
   test ownership confirms deletion.
@@ -30,7 +39,7 @@ development dependencies are permitted foundation work.
 
 ## Ordered tasks
 
-1. **Freeze the candidate identity (0.1).** Record branch, HEAD, dirty paths, commands, screenshots, Figma file/node IDs, and token baseline in `.impl-cadence/STATE.md`; verify with `git status`, `git diff --check`, and `pnpm check:program`.
+1. **Freeze the candidate identity (0.1).** Record branch, B/C/E/M identities, dirty paths, commands, screenshots, Figma file/node IDs, and token baseline in `docs/operations/program-phase-ledger.json` and the external program ledger defined by `docs/operations/phase-acceptance-protocol.md`; verify with `git status`, `git diff --check`, and `pnpm check:program`.
 2. **Independently audit the current foundation/shell (0.2).** Run `docs/operations/ux-independent-audit-prompt.md` from a separate session against the live 375, 768, 1280, and 1536 px states and Figma `UhLxGyXphdHHNLGMomBq6n:16:2`; record every finding by law and reference. Acceptance requires exactly seven large top destinations—Dashboard, Projects, Discover, Plan, Execute, Agentix, Consult—with 44 px rows and 20–24 px icons, a desktop product cluster occupying no more than half the rail, a flexible spacer of at least 24 px, and exactly five compact bottom destinations—Settings, Integrations, My approvals, Usage, Help—with 36 px rows.
 3. **Expand the surface inventory (0.3).** Add Projects, Settings, Integrations, My approvals, Usage, and Help to `docs/operations/ux-surface-inventory.md`; verify every visible route has exactly one owner sheet.
 4. **Create six missing reference sheets (0.4).** Use `ux-reference-sheet.template.md`, examined Mobbin decisions, full laws tables, state matrices, production-component mappings, and distinct owner/verifier/QA fields.
@@ -70,17 +79,26 @@ The disk record is the inventory, sheets, Figma ledger, source-quality evidence,
 candidate SHA. Rollback reverts the Phase 0 dependency, source, documentation, gate, and Figma changes
 together; it never resets or mutates the owner's dirty checkout.
 
+## Files, outputs, commands, evidence, and PR closure
+
+| Kind | Exact files / outputs / commands | Passing evidence |
+| --- | --- | --- |
+| Candidate | PR #2 head `dfc0347c876b36dc9932808b786d219c2cb8c949`; merge `beae208b30ad31202c4ff92abbfbd6c1ef51af18` | Merge ancestry and clean source tree verified |
+| Clean-SHA rerun | Detached clean `beae208`; all Phase 0 program/build/unit/E2E/audit/diff commands; all thirteen Figma nodes and shell viewports | New reports bind exact SHA/tree/lock/manifest/sheet hashes |
+| Evidence-only closure | UX/QA reports plus tracked/external ledger updates only; no source/test/script/contract change | C→E source tree unchanged and allowlist diff passes |
+| PR lifecycle | Existing PR URL/head/M recorded; if rerun exposes a defect, create a remediation PR from M and restart clean-C review | Verified final M and atomic external-ledger successor pin |
+
 ## Definition of Done
 
-- [x] Current foundation/shell has an independent pass or all findings are remediated and re-audited.
+- [ ] Clean-`beae208` independent UX and engineering reports accept the immutable merged source tree.
 - [x] Inventory contains every user-facing route, including Projects and five administrative surfaces.
 - [x] Every inventory row resolves to a valid sheet and exact accessible Figma node.
 - [x] The coverage gate fails for a missing/duplicate route, sheet, or Figma node and is registered in `pnpm check:program`.
 - [x] All sheet/token/program gates pass; no builder self-signs verifier or QA.
 - [x] `pnpm audit --audit-level high` reports zero critical/high findings and strict TypeScript reports no unused symbols.
 - [x] `pnpm check:source-quality` is deterministic, registered in the program gate, and has no unreviewed finding.
-- [x] `.impl-cadence/STATE.md` records the accepted candidate evidence; the PR head and merged SHA are
-  recorded immediately after Git creates them.
+- [ ] PR URL, head, merge SHA, audit paths, hashes, and Figma inventory are recorded in both tracked
+  and external durable ledgers.
 
 ## Hand-off
 

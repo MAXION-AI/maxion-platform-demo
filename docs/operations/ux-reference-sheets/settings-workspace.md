@@ -61,7 +61,20 @@
 | Pareto | Put workspace identity, time zone, and security status before rare controls. | Top 3 jobs in first viewport | Responsive screenshot audit |
 | Interactivity floor | Fields edit, validate, save, fail, recover, and expose attributable state in place. | Static-report test passes for 8 declared states | Walk every state and act on it |
 
-## 5. State matrix
+## 5. State matrices
+
+### 5.1 Semantic surface-state matrix
+
+| State ID | Fixture / event | Visible content | Permitted actions | Recovery / next state | Responsive evidence | Figma / textual authority |
+| --- | --- | --- | --- | --- | --- | --- |
+| settings.clean | Current settings loaded | Current values, security boundary, and history | Edit a permitted field | settings.dirty | Four viewport captures | Figma 43:559 |
+| settings.dirty | Valid field changed | Dirty marker, validation, consequence, and Save | Save, reset, or cancel | settings.saving or settings.clean | Four viewports | §2 Notion |
+| settings.saving | Save accepted | Current values retained and bounded progress | Wait or cancel only when safe | settings.saved or settings.error | Four viewports | Textual authority: Doherty row |
+| settings.saved | Idempotent save succeeds | Receipt, actor, timestamp, and recovery/history path | Continue editing or open receipt | settings.clean | Four viewports | §2 Notion history |
+| settings.error | Validation or save fails | Field/global reason, error ID, and preserved valid draft | Correct or retry | settings.dirty or settings.saving | Four viewports | Textual authority: Postel's row |
+| settings.permission-denied | Non-admin opens settings | Safe read-only values or no protected detail plus role reason | Return or request access | shell.attention | Mobile and desktop captures | Textual authority: security boundary |
+
+### 5.2 Control interaction-state matrix
 
 | Control / region | default | hover | focus-visible | active | disabled | loading | empty | error |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- |

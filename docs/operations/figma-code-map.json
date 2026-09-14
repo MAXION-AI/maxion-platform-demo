@@ -1,124 +1,187 @@
 {
-  "schemaVersion": 1,
+  "schemaVersion": 2,
   "updatedAt": "2026-09-13",
   "authority": "docs/operations/ux-surface-inventory.md",
+  "implementationTree": {"sourceCommit": "beae208b30ad31202c4ff92abbfbd6c1ef51af18", "srcGitTreeSha1": "83505e42c24a39654c072f7d36991fad4db80f40"},
+  "remoteFigmaAttestation": {"verifiedAt": "2026-09-13", "verifier": "roadmap_independent_hardening", "evidencePath": "docs/implementation-plans/2026-09-13-maxion-platform-demo-ui-foundation/HARDENING-LOG.md", "scope": "All 13 frame nodes reopened; component-node ownership was not independently enumerated."},
+  "routes": [
+    {"path": "/maxion-prototype", "classification": "canonical", "owner": "platform-shell-dashboard"},
+    {"path": "/agentix-prototype", "classification": "compatibility-alias", "owner": "agentix-operations", "removeByPhase": 1, "reason": "Direct Agentix path selects Agentix but is not the final canonical address contract."},
+    {"path": "/discovery-prototype", "classification": "compatibility-alias", "owner": "discover-workspace", "removeByPhase": 1, "reason": "Direct Discover path bypasses the platform shell and duplicates the canonical module entry."},
+    {"path": "/", "classification": "redirect", "target": "/maxion-prototype"},
+    {"path": "*", "classification": "redirect", "target": "/maxion-prototype"}
+  ],
+  "sourceOwnership": {
+    "styles": [
+      {"path": "src/styles.css", "kind": "shared", "surfaceIds": ["platform-shell-dashboard"]},
+      {"path": "src/features/platform-prototype/maxion-platform-prototype.css", "kind": "shared", "surfaceIds": ["platform-shell-dashboard", "consult-max-workspace"]},
+      {"path": "src/features/platform-prototype/portal-replica.css", "kind": "shared", "surfaceIds": ["platform-shell-dashboard", "projects-workspace", "execute-workspace", "settings-workspace", "integrations-workspace", "approvals-workspace", "usage-workspace", "help-workspace"]},
+      {"path": "src/features/platform-prototype/platform-design-contract.css", "kind": "shared", "surfaceIds": ["platform-shell-dashboard", "projects-workspace", "discover-workspace", "plan-workspace", "execute-workspace", "agentix-operations", "agentix-run-canvas", "consult-max-workspace", "settings-workspace", "integrations-workspace", "approvals-workspace", "usage-workspace", "help-workspace"]},
+      {"path": "src/features/platform-prototype/execute-agentic.css", "kind": "surface", "surfaceIds": ["execute-workspace"]},
+      {"path": "src/features/platform-prototype/plan-agentic.css", "kind": "surface", "surfaceIds": ["plan-workspace"]},
+      {"path": "src/features/platform-prototype/plan-behavior-flow.css", "kind": "surface", "surfaceIds": ["plan-workspace"]},
+      {"path": "src/features/discovery-autonomous/styles.css", "kind": "surface", "surfaceIds": ["discover-workspace"]},
+      {"path": "src/features/discovery-autonomous/frontier.css", "kind": "surface", "surfaceIds": ["discover-workspace"]},
+      {"path": "src/features/discovery-autonomous/deliverable-reader.css", "kind": "surface", "surfaceIds": ["discover-workspace"]},
+      {"path": "src/features/agentix/prototype/agentix-initiatives.css", "kind": "surface", "surfaceIds": ["agentix-operations"]},
+      {"path": "src/features/agentix/prototype/workspace.css", "kind": "surface", "surfaceIds": ["agentix-operations"]},
+      {"path": "src/features/agentix/prototype/operations.css", "kind": "shared", "surfaceIds": ["agentix-operations", "agentix-run-canvas"]}
+    ],
+    "timerOwnerFiles": [
+      "src/features/agentix/prototype/DeployedAgentsPage.tsx",
+      "src/features/discovery-autonomous/DiscoveryAutonomousPrototypePage.tsx",
+      "src/features/platform-prototype/ExecuteDeliveryWorkspace.tsx",
+      "src/features/platform-prototype/MaxionPlatformPrototypePage.tsx",
+      "src/features/platform-prototype/PlanAgenticModule.tsx",
+      "src/features/platform-prototype/PortalReplicaModules.tsx"
+    ],
+    "suppressionPolicy": "zero-production-suppressions",
+    "staleSelectorBaseline": {"count": 339, "mustBeZeroByPhase": 1},
+    "forbiddenLegacyMarkers": ["@deprecated", "legacyOwner", "obsoleteRoute", "compatibilityShim"]
+  },
   "surfaces": [
     {
       "surfaceId": "platform-shell-dashboard",
-      "route": "/maxion-prototype",
-      "routeState": "module=dashboard",
+      "addressing": {"mode":"url","canonicalUrl":"/maxion-prototype","sourceMarker":"path=\"/maxion-prototype\""},
       "referenceSheet": "platform-shell-dashboard.md",
-      "figma": { "fileKey": "UhLxGyXphdHHNLGMomBq6n", "nodeId": "16:2" },
-      "implementation": [
-        "src/features/platform-prototype/MaxionPlatformPrototypePage.tsx#MaxionPlatformPrototypePage",
-        "src/features/platform-prototype/PortalChrome.tsx#PortalSidebar",
-        "src/features/platform-prototype/PortalReplicaModules.tsx#DashboardModule"
-      ]
+      "referenceSheetSha256": "35311a5645a15d59d95929d4dc167e09cb713b089f239b4d73b28ef2a2a5dabc",
+      "phaseDocument": "03-phase-2-dashboard-projects.md",
+      "requiredStateIds": ["shell.attention","shell.clear","shell.destination-error","shell.mobile-navigation"],
+      "figma": {"fileKey": "UhLxGyXphdHHNLGMomBq6n", "nodeId": "16:2", "ownershipMode": "frame", "componentNodeIds": [], "frameOwnershipReason": "The contract is frame-level; no component node set has been independently attested."},
+      "implementation": {"ownershipMode": "exclusive", "owners": ["src/features/platform-prototype/MaxionPlatformPrototypePage.tsx#MaxionPlatformPrototypePage","src/features/platform-prototype/PortalChrome.tsx#PortalSidebar","src/features/platform-prototype/PortalReplicaModules.tsx#DashboardModule"]},
+      "evidencePaths": []
     },
     {
       "surfaceId": "projects-workspace",
-      "route": "/maxion-prototype",
-      "routeState": "module=projects",
+      "addressing": {"mode":"interaction-only","entryRoute":"/maxion-prototype","action":"Activate Projects in the product navigation.","targetPhase":1},
       "referenceSheet": "projects-workspace.md",
-      "figma": { "fileKey": "UhLxGyXphdHHNLGMomBq6n", "nodeId": "40:478" },
-      "implementation": ["src/features/platform-prototype/PortalReplicaModules.tsx#ProjectsModule"]
+      "referenceSheetSha256": "3d50935d6c65225fe3fde219cd91e64b822dcb72cfe4897270e332764791b879",
+      "phaseDocument": "03-phase-2-dashboard-projects.md",
+      "requiredStateIds": ["projects.ready","projects.loading","projects.empty","projects.error","projects.permission-denied","projects.create-review","projects.selected"],
+      "figma": {"fileKey": "UhLxGyXphdHHNLGMomBq6n", "nodeId": "40:478", "ownershipMode": "frame", "componentNodeIds": [], "frameOwnershipReason": "The contract is frame-level; no component node set has been independently attested."},
+      "implementation": {"ownershipMode": "exclusive", "owners": ["src/features/platform-prototype/PortalReplicaModules.tsx#ProjectsModule"]},
+      "evidencePaths": []
     },
     {
       "surfaceId": "discover-workspace",
-      "route": "/maxion-prototype",
-      "routeState": "module=discover",
+      "addressing": {"mode":"interaction-only","entryRoute":"/maxion-prototype","action":"Activate Discover in the product navigation.","targetPhase":1},
       "referenceSheet": "discover-workspace.md",
-      "figma": { "fileKey": "UhLxGyXphdHHNLGMomBq6n", "nodeId": "18:45" },
-      "implementation": ["src/features/discovery-autonomous/DiscoveryAutonomousPrototypePage.tsx#DiscoveryAutonomousPrototypePage"]
+      "referenceSheetSha256": "99a1fa3e1d69b37b05d6a54a16685992b706fd6eb693823924752f39c5e2694c",
+      "phaseDocument": "04-phase-3-discover.md",
+      "requiredStateIds": ["discover.new","discover.active","discover.paused","discover.awaiting-answer","discover.insufficient-evidence","discover.degraded","discover.recoverable-error","discover.complete","discover.read-only"],
+      "figma": {"fileKey": "UhLxGyXphdHHNLGMomBq6n", "nodeId": "18:45", "ownershipMode": "frame", "componentNodeIds": [], "frameOwnershipReason": "The contract is frame-level; no component node set has been independently attested."},
+      "implementation": {"ownershipMode": "exclusive", "owners": ["src/features/discovery-autonomous/DiscoveryAutonomousPrototypePage.tsx#DiscoveryAutonomousPrototypePage"]},
+      "evidencePaths": []
     },
     {
       "surfaceId": "plan-workspace",
-      "route": "/maxion-prototype",
-      "routeState": "module=plan",
+      "addressing": {"mode":"interaction-only","entryRoute":"/maxion-prototype","action":"Activate Plan in the product navigation.","targetPhase":1},
       "referenceSheet": "plan-workspace.md",
-      "figma": { "fileKey": "UhLxGyXphdHHNLGMomBq6n", "nodeId": "19:86" },
-      "implementation": ["src/features/platform-prototype/PlanAgenticModule.tsx#PlanModule"]
+      "referenceSheetSha256": "7660455d6bc3feb4ab1ef6a58c3cc3502572dac6b4ebcf212143da3fd880f701",
+      "phaseDocument": "05-phase-4-plan.md",
+      "requiredStateIds": ["plan.draft","plan.section-editing","plan.regenerating","plan.approval-required","plan.stale-review","plan.approved","plan.generation-error","plan.read-only"],
+      "figma": {"fileKey": "UhLxGyXphdHHNLGMomBq6n", "nodeId": "19:86", "ownershipMode": "frame", "componentNodeIds": [], "frameOwnershipReason": "The contract is frame-level; no component node set has been independently attested."},
+      "implementation": {"ownershipMode": "exclusive", "owners": ["src/features/platform-prototype/PlanAgenticModule.tsx#PlanModule"]},
+      "evidencePaths": []
     },
     {
       "surfaceId": "execute-workspace",
-      "route": "/maxion-prototype",
-      "routeState": "module=execute",
+      "addressing": {"mode":"interaction-only","entryRoute":"/maxion-prototype","action":"Activate Execute in the product navigation.","targetPhase":1},
       "referenceSheet": "execute-workspace.md",
-      "figma": { "fileKey": "UhLxGyXphdHHNLGMomBq6n", "nodeId": "20:125" },
-      "implementation": [
-        "src/features/platform-prototype/PortalReplicaModules.tsx#ExecuteHubModule",
-        "src/features/platform-prototype/ExecuteDeliveryWorkspace.tsx#ExecuteDeliveryWorkspace"
-      ]
+      "referenceSheetSha256": "f9a6fbedf21f9ac2476987b4b4acfe774a95141dbb719d28637b6c8886c5cce6",
+      "phaseDocument": "06-phase-5-execute.md",
+      "requiredStateIds": ["execute.queued","execute.running","execute.paused","execute.blocked","execute.failed","execute.rolling-back","execute.completed"],
+      "figma": {"fileKey": "UhLxGyXphdHHNLGMomBq6n", "nodeId": "20:125", "ownershipMode": "frame", "componentNodeIds": [], "frameOwnershipReason": "The contract is frame-level; no component node set has been independently attested."},
+      "implementation": {"ownershipMode": "exclusive", "owners": ["src/features/platform-prototype/PortalReplicaModules.tsx#ExecuteHubModule","src/features/platform-prototype/ExecuteDeliveryWorkspace.tsx#ExecuteDeliveryWorkspace"]},
+      "evidencePaths": []
     },
     {
       "surfaceId": "agentix-operations",
-      "route": "/maxion-prototype",
-      "routeState": "module=agentix",
+      "addressing": {"mode":"url","canonicalUrl":"/agentix-prototype","sourceMarker":"path=\"/agentix-prototype\"","targetPhase":1},
       "referenceSheet": "agentix-operations.md",
-      "figma": { "fileKey": "UhLxGyXphdHHNLGMomBq6n", "nodeId": "21:175" },
-      "implementation": [
-        "src/features/agentix/prototype/DeployedAgentsPage.tsx#DeployedAgentsPage",
-        "src/features/agentix/prototype/OperationsViews.tsx#Fleet"
-      ]
+      "referenceSheetSha256": "1816c797ee0ca86d224897415ebcbeb99bf293ac156ae497f7a1c6f19699ed8a",
+      "phaseDocument": "07-phase-6-agentix-operations.md",
+      "requiredStateIds": ["agentix-ops.today","agentix-ops.work","agentix-ops.approvals","agentix-ops.activity","agentix-ops.connections","agentix-ops.empty","agentix-ops.degraded","agentix-ops.permission-denied"],
+      "figma": {"fileKey": "UhLxGyXphdHHNLGMomBq6n", "nodeId": "21:175", "ownershipMode": "frame", "componentNodeIds": [], "frameOwnershipReason": "The contract is frame-level; no component node set has been independently attested."},
+      "implementation": {"ownershipMode": "shared-discriminated", "stateDiscriminator": "panel=fleet", "owners": ["src/features/agentix/prototype/DeployedAgentsPage.tsx#DeployedAgentsPage","src/features/agentix/prototype/OperationsViews.tsx#Fleet"]},
+      "evidencePaths": []
     },
     {
       "surfaceId": "agentix-run-canvas",
-      "route": "/agentix-prototype",
-      "routeState": "workspace=run-canvas",
+      "addressing": {"mode":"interaction-only","entryRoute":"/agentix-prototype","action":"Open a deployed responsibility, then activate an individual case row.","targetPhase":1,"currentLimitation":"The run canvas is not URL-addressable; the route initially renders Fleet with panel=null."},
       "referenceSheet": "agentix-run-canvas.md",
-      "figma": { "fileKey": "UhLxGyXphdHHNLGMomBq6n", "nodeId": "46:933" },
-      "implementation": [
-        "src/features/agentix/prototype/DeployedAgentsPage.tsx#DeployedAgentsPage",
-        "src/features/agentix/prototype/OperationsViews.tsx#RunDetail"
-      ]
+      "referenceSheetSha256": "78c5e02428763364537a869832c1791de5a2d505d07c6e5b135a371a2d62c718",
+      "phaseDocument": "08-phase-7-agentix-run-canvas.md",
+      "requiredStateIds": ["run.idle","run.live","run.question","run.approval","run.failed","run.disconnected","run.completed"],
+      "figma": {"fileKey": "UhLxGyXphdHHNLGMomBq6n", "nodeId": "46:933", "ownershipMode": "frame", "componentNodeIds": [], "frameOwnershipReason": "The contract is frame-level; no component node set has been independently attested."},
+      "implementation": {"ownershipMode": "shared-discriminated", "stateDiscriminator": "panel=run-detail", "owners": ["src/features/agentix/prototype/DeployedAgentsPage.tsx#DeployedAgentsPage","src/features/agentix/prototype/OperationsViews.tsx#RunDetail"]},
+      "evidencePaths": []
     },
     {
       "surfaceId": "consult-max-workspace",
-      "route": "/maxion-prototype",
-      "routeState": "module=consult",
+      "addressing": {"mode":"interaction-only","entryRoute":"/maxion-prototype","action":"Activate Consult MAX in the product navigation.","targetPhase":1},
       "referenceSheet": "consult-max-workspace.md",
-      "figma": { "fileKey": "UhLxGyXphdHHNLGMomBq6n", "nodeId": "22:225" },
-      "implementation": ["src/features/platform-prototype/MaxionPlatformPrototypePage.tsx#ConsultModule"]
+      "referenceSheetSha256": "a2d12ba306ab7c6ce7f8cdceb94f567ba5f900c76abca7c4890275b107613b05",
+      "phaseDocument": "09-phase-8-consult-continuity.md",
+      "requiredStateIds": ["consult.empty","consult.asking","consult.streaming","consult.grounded","consult.conflicting-source","consult.insufficient-source","consult.stale-source","consult.error","consult.permission-denied"],
+      "figma": {"fileKey": "UhLxGyXphdHHNLGMomBq6n", "nodeId": "22:225", "ownershipMode": "frame", "componentNodeIds": [], "frameOwnershipReason": "The contract is frame-level; no component node set has been independently attested."},
+      "implementation": {"ownershipMode": "exclusive", "owners": ["src/features/platform-prototype/MaxionPlatformPrototypePage.tsx#ConsultModule"]},
+      "evidencePaths": []
     },
     {
       "surfaceId": "settings-workspace",
-      "route": "/maxion-prototype",
-      "routeState": "module=settings",
+      "addressing": {"mode":"interaction-only","entryRoute":"/maxion-prototype","action":"Activate Settings in the administrative navigation.","targetPhase":1},
       "referenceSheet": "settings-workspace.md",
-      "figma": { "fileKey": "UhLxGyXphdHHNLGMomBq6n", "nodeId": "43:559" },
-      "implementation": ["src/features/platform-prototype/PortalReplicaModules.tsx#AccountUtilityModule"]
+      "referenceSheetSha256": "cc63d7e730c28a85079351be6fb3c83e598c88a360058958f495c0e10b110b70",
+      "phaseDocument": "10-phase-9-administration.md",
+      "requiredStateIds": ["settings.clean","settings.dirty","settings.saving","settings.saved","settings.error","settings.permission-denied"],
+      "figma": {"fileKey": "UhLxGyXphdHHNLGMomBq6n", "nodeId": "43:559", "ownershipMode": "frame", "componentNodeIds": [], "frameOwnershipReason": "The contract is frame-level; no component node set has been independently attested."},
+      "implementation": {"ownershipMode": "shared-discriminated", "stateDiscriminator": "module=settings", "owners": ["src/features/platform-prototype/PortalReplicaModules.tsx#AccountUtilityModule"]},
+      "evidencePaths": []
     },
     {
       "surfaceId": "integrations-workspace",
-      "route": "/maxion-prototype",
-      "routeState": "module=integrations",
+      "addressing": {"mode":"interaction-only","entryRoute":"/maxion-prototype","action":"Activate Integrations in the administrative navigation.","targetPhase":1},
       "referenceSheet": "integrations-workspace.md",
-      "figma": { "fileKey": "UhLxGyXphdHHNLGMomBq6n", "nodeId": "43:786" },
-      "implementation": ["src/features/platform-prototype/PortalReplicaModules.tsx#IntegrationsModule"]
+      "referenceSheetSha256": "48f035e91775d536672d2f41bc8d774e2ee1fd56f5e54b7df84c37ae468888f6",
+      "phaseDocument": "10-phase-9-administration.md",
+      "requiredStateIds": ["integrations.connected","integrations.degraded","integrations.connecting","integrations.reconnecting","integrations.disconnect-confirmation","integrations.empty","integrations.error","integrations.permission-denied"],
+      "figma": {"fileKey": "UhLxGyXphdHHNLGMomBq6n", "nodeId": "43:786", "ownershipMode": "frame", "componentNodeIds": [], "frameOwnershipReason": "The contract is frame-level; no component node set has been independently attested."},
+      "implementation": {"ownershipMode": "exclusive", "owners": ["src/features/platform-prototype/PortalReplicaModules.tsx#IntegrationsModule"]},
+      "evidencePaths": []
     },
     {
       "surfaceId": "approvals-workspace",
-      "route": "/maxion-prototype",
-      "routeState": "module=approvals",
+      "addressing": {"mode":"interaction-only","entryRoute":"/maxion-prototype","action":"Activate My approvals in the administrative navigation.","targetPhase":1},
       "referenceSheet": "approvals-workspace.md",
-      "figma": { "fileKey": "UhLxGyXphdHHNLGMomBq6n", "nodeId": "43:1013" },
-      "implementation": ["src/features/platform-prototype/PortalReplicaModules.tsx#AccountUtilityModule"]
+      "referenceSheetSha256": "aea0a59f9456feccaa3cb04eef49a582a4cafd757847ac51bc9a4b89a73b0735",
+      "phaseDocument": "10-phase-9-administration.md",
+      "requiredStateIds": ["approvals.queue","approvals.review","approvals.submitting","approvals.resolved","approvals.stale","approvals.empty","approvals.error","approvals.permission-denied"],
+      "figma": {"fileKey": "UhLxGyXphdHHNLGMomBq6n", "nodeId": "43:1013", "ownershipMode": "frame", "componentNodeIds": [], "frameOwnershipReason": "The contract is frame-level; no component node set has been independently attested."},
+      "implementation": {"ownershipMode": "shared-discriminated", "stateDiscriminator": "module=approvals", "owners": ["src/features/platform-prototype/PortalReplicaModules.tsx#AccountUtilityModule"]},
+      "evidencePaths": []
     },
     {
       "surfaceId": "usage-workspace",
-      "route": "/maxion-prototype",
-      "routeState": "module=usage",
+      "addressing": {"mode":"interaction-only","entryRoute":"/maxion-prototype","action":"Activate Usage in the administrative navigation.","targetPhase":1},
       "referenceSheet": "usage-workspace.md",
-      "figma": { "fileKey": "UhLxGyXphdHHNLGMomBq6n", "nodeId": "43:1234" },
-      "implementation": ["src/features/platform-prototype/PortalReplicaModules.tsx#AccountUtilityModule"]
+      "referenceSheetSha256": "b3f87f2a42f4012864640edb88b33bb648bf43cb7c8260a978abeb54b15c15f4",
+      "phaseDocument": "10-phase-9-administration.md",
+      "requiredStateIds": ["usage.ready","usage.loading","usage.empty","usage.error","usage.alert-editing","usage.permission-denied"],
+      "figma": {"fileKey": "UhLxGyXphdHHNLGMomBq6n", "nodeId": "43:1234", "ownershipMode": "frame", "componentNodeIds": [], "frameOwnershipReason": "The contract is frame-level; no component node set has been independently attested."},
+      "implementation": {"ownershipMode": "shared-discriminated", "stateDiscriminator": "module=usage", "owners": ["src/features/platform-prototype/PortalReplicaModules.tsx#AccountUtilityModule"]},
+      "evidencePaths": []
     },
     {
       "surfaceId": "help-workspace",
-      "route": "/maxion-prototype",
-      "routeState": "module=help",
+      "addressing": {"mode":"interaction-only","entryRoute":"/maxion-prototype","action":"Activate Help in the administrative navigation.","targetPhase":1},
       "referenceSheet": "help-workspace.md",
-      "figma": { "fileKey": "UhLxGyXphdHHNLGMomBq6n", "nodeId": "43:1461" },
-      "implementation": ["src/features/platform-prototype/PortalReplicaModules.tsx#AccountUtilityModule"]
+      "referenceSheetSha256": "77023792ab9f7bb90b8513884476a3f5d6849f623cfbacdc8d7a2f58b50717c6",
+      "phaseDocument": "10-phase-9-administration.md",
+      "requiredStateIds": ["help.ready","help.searching","help.results","help.empty","help.error","help.recovery","help.support-handoff","help.offline"],
+      "figma": {"fileKey": "UhLxGyXphdHHNLGMomBq6n", "nodeId": "43:1461", "ownershipMode": "frame", "componentNodeIds": [], "frameOwnershipReason": "The contract is frame-level; no component node set has been independently attested."},
+      "implementation": {"ownershipMode": "shared-discriminated", "stateDiscriminator": "module=help", "owners": ["src/features/platform-prototype/PortalReplicaModules.tsx#AccountUtilityModule"]},
+      "evidencePaths": []
     }
   ]
 }

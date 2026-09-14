@@ -56,7 +56,7 @@ REQUIRED_SECTIONS = [
     "## 2. References",
     "## 3. Token and component mapping",
     "## 4. Laws-check",
-    "## 5. State matrix",
+    "## 5. State",
     "## 6. Interactivity floor",
     "## 7. Evidence",
     "## 8. Sign-off",
@@ -74,7 +74,9 @@ EVIDENCE_CHECKS = [
 
 STAGES = ("contract", "built", "gated")
 MIN_MOBBIN_LINKS = 3
-STATE_MATRIX_COLUMNS = 9  # control + 8 states
+SEMANTIC_STATE_COLUMNS = 7
+CONTROL_STATE_COLUMNS = 9  # control + 8 interaction states
+STATE_ID_RE = re.compile(r"^[a-z][a-z0-9-]*(?:\.[a-z][a-z0-9-]*)+$")
 
 PLACEHOLDER_RE = re.compile(r"<[^>\n]{1,120}>|\bTODO\b|\bTBD\b")
 HTML_COMMENT_RE = re.compile(r"<!--.*?-->", re.S)
@@ -125,6 +127,24 @@ def _table_rows(body: str) -> list[list[str]]:
             continue  # header row
         rows.append(cells)
     return rows
+
+
+def _subsection(body: str, heading: str) -> str:
+    """Return a level-three subsection body, stopping at the next level-three heading."""
+
+    marker = f"### {heading}"
+    if marker not in body:
+        return ""
+    remainder = body.split(marker, 1)[1]
+    return remainder.split("\n### ", 1)[0]
+
+
+def semantic_state_ids(text: str) -> list[str]:
+    """Return the stable semantic state IDs declared by a sheet."""
+
+    states = _section(_sections(HTML_COMMENT_RE.sub("", text)), "## 5. State") or ""
+    semantic = _subsection(states, "5.1 Semantic surface-state matrix")
+    return [row[0] for row in _table_rows(semantic) if row]
 
 
 def check_sheet(path: Path, stage_override: str | None = None) -> list[str]:
@@ -193,13 +213,35 @@ def check_sheet(path: Path, stage_override: str | None = None) -> list[str]:
             if cell.strip().upper() == "N/A":
                 findings.append(f"{rel}: §4 row {law!r}: 'N/A' needs a reason ('N/A because …')")
 
-    states = _section(parts, "## 5. State matrix") or ""
-    state_rows = _table_rows(states)
-    if not state_rows:
-        findings.append(f"{rel}: §5 state matrix has no rows")
-    for row in state_rows:
-        if len(row) < STATE_MATRIX_COLUMNS or not all(row[:STATE_MATRIX_COLUMNS]):
-            findings.append(f"{rel}: §5 state row incomplete ({len(row)}/{STATE_MATRIX_COLUMNS} cells): {row[:1]}")
+    states = _section(parts, "## 5. State") or ""
+    semantic_rows = _table_rows(_subsection(states, "5.1 Semantic surface-state matrix"))
+    if not semantic_rows:
+        findings.append(f"{rel}: §5.1 semantic surface-state matrix has no rows")
+    semantic_ids = [row[0] for row in semantic_rows if row]
+    for duplicate in sorted({state_id for state_id in semantic_ids if semantic_ids.count(state_id) > 1}):
+        findings.append(f"{rel}: §5.1 duplicate semantic state id {duplicate!r}")
+    for row in semantic_rows:
+        if len(row) < SEMANTIC_STATE_COLUMNS or not all(row[:SEMANTIC_STATE_COLUMNS]):
+            findings.append(
+                f"{rel}: §5.1 semantic state row incomplete "
+                f"({len(row)}/{SEMANTIC_STATE_COLUMNS} cells): {row[:1]}"
+            )
+            continue
+        if not STATE_ID_RE.fullmatch(row[0]):
+            findings.append(f"{rel}: §5.1 invalid semantic state id {row[0]!r}")
+        for cell in row[1:SEMANTIC_STATE_COLUMNS]:
+            if cell.strip().upper() == "N/A":
+                findings.append(f"{rel}: §5.1 state {row[0]!r}: 'N/A' needs a reason ('N/A because …')")
+
+    control_rows = _table_rows(_subsection(states, "5.2 Control interaction-state matrix"))
+    if not control_rows:
+        findings.append(f"{rel}: §5.2 control interaction-state matrix has no rows")
+    for row in control_rows:
+        if len(row) < CONTROL_STATE_COLUMNS or not all(row[:CONTROL_STATE_COLUMNS]):
+            findings.append(
+                f"{rel}: §5.2 control state row incomplete "
+                f"({len(row)}/{CONTROL_STATE_COLUMNS} cells): {row[:1]}"
+            )
 
     floor = _section(parts, "## 6. Interactivity floor") or ""
     for item in (

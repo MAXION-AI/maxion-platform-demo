@@ -19,10 +19,12 @@ was externally verified.
 - [ ] Figma frame `UhLxGyXphdHHNLGMomBq6n:18:45` and its component references are frozen in the mapping manifest.
 - [ ] The executor fetches the exact-node design context and screenshot before changing code.
 
-This is a **product** surface. The binding Jakob references are Fireflies, Grain, Otter, Emergent,
-Perplexity, and Elicit. The sheet's complete laws-check and state matrix apply. Discover must expose no
+This is a **product** surface. The reference sheet §2 is the sole binding Mobbin authority; phase
+prose must not declare a second app set. The sheet's complete laws-check and state matrices apply. Discover must expose no
 more than four regions, acknowledge input within 400 ms, keep the composer available in every active
 state, preserve valid drafts, and place the next unresolved gap ahead of secondary evidence controls.
+
+- **Required surface state IDs (`discover-workspace`):** `discover.new`, `discover.active`, `discover.paused`, `discover.awaiting-answer`, `discover.insufficient-evidence`, `discover.degraded`, `discover.recoverable-error`, `discover.complete`, `discover.read-only`
 
 ## Architecture, scale, security, and reliability
 
@@ -39,7 +41,7 @@ degraded state with retry and manual continuation, never as a fabricated success
 1. **Characterize and model Discover (3.1).** Freeze current happy/unhappy behavior, then define typed events and invariants for interview turns, transcript entries, evidence, facts, decisions, gaps, and package readiness.
 2. **Extract domain ownership (3.2).** Move persistence and transition logic out of `DiscoveryAutonomousPrototypePage.tsx` into pure reducers/selectors and the shared repository port.
 3. **Implement the accepted composition (3.3).** Build the frame's conversation workspace, evidence/fact rail, progress model, persistent composer, and shared loading/empty/error primitives without one-off tokens.
-4. **Complete the state matrix (3.4).** Implement new, active, paused, awaiting-answer, insufficient-evidence, offline/degraded, recoverable-error, complete, and read-only states in place.
+4. **Complete the state matrices (3.4).** Implement the exact stable IDs above plus every control interaction state in sheet §5; no prose-only synonym counts as coverage.
 5. **Bind the Plan handoff (3.5).** Emit one versioned `DiscoveryPackageRef` with project, provenance, unresolved gaps, authority, and evidence class; never infer readiness from a completion badge.
 6. **Break it at scale and at trust boundaries (3.6).** Test hostile paste, oversized transcript, duplicate/out-of-order turns, corrupt persistence, refresh/resume, provider timeout, permission denial, and the 10,000-item fixture.
 7. **Attach evidence and gate (3.7).** Capture 375/768/1280/1536 views, Figma comparison, keyboard/axe/reduced-motion results, timing, state-matrix journeys, and separate verifier/QA sign-offs.
@@ -68,6 +70,15 @@ remain under 400 ms under the phase throttle profile.
 
 Rollback reverts the Phase 3 candidate commit and repository migration while retaining the Phase 2
 kernel. The migration must remain backward-readable until the next accepted release.
+
+## Files, outputs, commands, evidence, and PR closure
+
+| Kind | Exact files / outputs / commands | Passing evidence |
+| --- | --- | --- |
+| Production | Refactor `DiscoveryAutonomousPrototypePage.tsx`; create `src/features/discovery-autonomous/domain/**`; migrate/delete direct storage, timers, stale selectors/styles | One canonical Discover state/repository/view owner |
+| Tests/fixtures | Co-located domain/repository tests; existing Discovery Playwright specs; hostile/corrupt/offline and 10,000-entry fixtures | Exact nine state IDs, package handoff, reload/isolation, ≤200 rows |
+| Evidence/commands | `artifacts/ux-audits/phase-3/**`; Discover sheet; standard program/test/build/E2E/audit/diff commands plus focused Discovery specs | State/viewport/Figma/axe/timing evidence and independent reports |
+| PR lifecycle | Verify prior M as B; create isolated `phase-3/**` branch/worktree; commit C; push and open one PR; independent UX/QA audit clean C; optional evidence-only E; require program/build/audit/phase/E2E checks; merge; verify C ancestry in M; rerun clean-M gates; atomically update ledger | PR URL, B/C/E/M, source-tree equality, merge ancestry, post-merge results, successor pin |
 
 ## Definition of Done
 

@@ -59,7 +59,21 @@
 | Pareto | Put the top three jobs ahead of secondary metadata. | All 3 top jobs reachable in first viewport | Desktop and mobile screenshot audit |
 | Interactivity floor | Composer in context; every state actionable; live state; no dead ends. | Static-report test passes in all declared states | Walk the flow and act on each state |
 
-## 5. State matrix
+## 5. State matrices
+
+### 5.1 Semantic surface-state matrix
+
+| State ID | Fixture / event | Visible content | Permitted actions | Recovery / next state | Responsive evidence | Figma / textual authority |
+| --- | --- | --- | --- | --- | --- | --- |
+| execute.queued | Approved plan accepted but not started | Source plan, environment, evidence class, and start boundary | Start or return to Plan | execute.running | Four viewport captures | Figma 20:125 |
+| execute.running | Deterministic stage timer active | Current stage, expected duration, progress, evidence, and composer | Pause, steer, or stop | execute.paused, execute.blocked, execute.failed, or execute.completed | Four viewports | Textual authority: live-progress laws |
+| execute.paused | Operator pauses run | Preserved current stage, reason, and resume action | Resume, amend, or stop | execute.running or execute.blocked | Mobile and desktop captures | Textual authority: Zeigarnik row |
+| execute.blocked | Decision or authority is required | Exact blocking object, consequence, and one decision | Approve, amend, reject, or stop | execute.running or execute.failed | Four viewports | Textual authority: attached-decision contract |
+| execute.failed | A stage fails | Passed work, failed stage, evidence, and scoped recovery | Retry failed work or begin rollback | execute.running or execute.rolling-back | Four viewports | §2 GitHub Actions |
+| execute.rolling-back | Rollback command accepted | Target snapshot, retained evidence, and bounded progress | Observe or stop only if defined safe | execute.queued or execute.blocked | Four viewports | Textual authority: environment safety |
+| execute.completed | Final deterministic stage succeeds | Produced object, simulated evidence, verification, and next action | Inspect result or send to Agentix | agentix-ops.today | Four viewports | Figma 20:125 |
+
+### 5.2 Control interaction-state matrix
 
 | Control / region | default | hover | focus-visible | active | disabled | loading | empty | error |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- |

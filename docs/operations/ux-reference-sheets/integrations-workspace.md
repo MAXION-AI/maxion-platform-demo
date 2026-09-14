@@ -61,7 +61,22 @@
 | Pareto | Put connected identity, scope, health, and recovery ahead of catalog browsing. | All 3 top jobs in first viewport | Responsive screenshot audit |
 | Interactivity floor | Search, filter, select, test, reconnect, and disconnect act in place with recovery. | Static-report test passes for 8 declared states | Walk every state and act on it |
 
-## 5. State matrix
+## 5. State matrices
+
+### 5.1 Semantic surface-state matrix
+
+| State ID | Fixture / event | Visible content | Permitted actions | Recovery / next state | Responsive evidence | Figma / textual authority |
+| --- | --- | --- | --- | --- | --- | --- |
+| integrations.connected | Healthy synthetic connections | Principal, scopes, health, dependencies, and last check | Inspect, add, reconnect, or disconnect | integrations.connecting or integrations.disconnect-confirmation | Four viewport captures | Figma 43:786 and §2 Relevance AI |
+| integrations.degraded | Expired or unhealthy connection | Affected work, dependency, last safe state, and recovery | Reconnect, diagnose, or hand off | integrations.reconnecting | Four viewports | §2 Linear |
+| integrations.connecting | Add connection initiated | Provider, requested scopes, and Step N of M | Continue, go back, or cancel | integrations.connected or integrations.error | Four viewports | §2 Firecrawl |
+| integrations.reconnecting | Reconnect accepted without scope widening | Existing principal/scopes and bounded progress | Cancel before provider handoff or wait | integrations.connected or integrations.error | Four viewports | §2 MagicPath |
+| integrations.disconnect-confirmation | Disconnect selected | Exact principal, dependents, and consequence | Confirm or cancel | integrations.empty or integrations.connected | Mobile and desktop dialog captures | Textual authority: sensitive-action rule |
+| integrations.empty | No connection fixture | Why connections matter and one add action | Add connection or return | integrations.connecting | Four viewports | Textual authority: empty-state law |
+| integrations.error | Provider or validation fails | Prior connection state, scoped reason, and error ID | Retry or return without mutation | Prior safe state | Four viewports | Textual authority: no-dead-end law row |
+| integrations.permission-denied | Non-admin attempts mutation | No secret metadata; role reason and return | Return or request access | integrations.connected | Mobile and desktop captures | Textual authority: least privilege |
+
+### 5.2 Control interaction-state matrix
 
 | Control / region | default | hover | focus-visible | active | disabled | loading | empty | error |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- |

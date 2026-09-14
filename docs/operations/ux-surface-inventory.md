@@ -4,6 +4,22 @@ This inventory is the build boundary for the platform-wide UX system change. The
 demo shell, but each top-level workspace has a distinct job, state model, and reference contract.
 Nested dialogs and panels inherit the parent contract unless they introduce a new end-to-end job.
 
+## Route and address ownership at Phase 0
+
+- `/maxion-prototype` is the canonical shell route.
+- `/agentix-prototype` is a classified compatibility alias. It selects Agentix but does not address
+  an individual run; Phase 1 removes it after canonical shell URL-state exists.
+- `/discovery-prototype` is a classified compatibility alias that bypasses the shell while rendering
+  the same Discover owner. Phase 1 removes it after canonical shell URL-state exists.
+- Agentix run canvas is currently interaction-only: enter Agentix, open a deployed responsibility,
+  then open a case. It is not truthfully URL-addressable while `DeployedAgentsPage` initializes
+  `panel=null`. Phase 1 must encode responsibility and case IDs in canonical shell URL state.
+- `/` and `*` are redirects to `/maxion-prototype`.
+
+Schema-v2 `figma-code-map.json` is the executable route/address/runtime/style/timer authority. Its
+compatibility-alias and stale-selector baselines are disclosed Phase 0 debt, not zero-legacy proof;
+both must be zero before Phase 1 can merge.
+
 | Order | Surface id | Surface | Primary implementation | Reference sheet | Contract status | Frame status |
 | --- | --- | --- | --- | --- | --- | --- |
 | 1 | platform-shell-dashboard | Platform shell and operating dashboard | `MaxionPlatformPrototypePage`, `PortalChrome` | `platform-shell-dashboard.md` | contract | Candidate frame `16:2`; audit pending |

@@ -17,10 +17,12 @@ deployment, provider call, production verification, or rollback.
 - [ ] `docs/operations/ux-reference-sheets/execute-workspace.md` is independently accepted.
 - [ ] Figma frame `UhLxGyXphdHHNLGMomBq6n:20:125` is frozen and its exact context/screenshot fetched before code.
 
-This is a **product** surface. Binding references are Devin, Manus, Vercel, Attio, and Hers. The full
-sheet laws-check/state matrix apply. One blocking decision appears at a time; consequential controls are
+This is a **product** surface. The reference sheet §2 is the sole binding Mobbin authority; phase
+prose must not declare a second app set. The full sheet laws-check/state matrices apply. One blocking decision appears at a time; consequential controls are
 at least 44 px and name the exact object/environment/consequence; every command acknowledges within
 400 ms; long stages show real deterministic progress and expected duration.
+
+- **Required surface state IDs (`execute-workspace`):** `execute.queued`, `execute.running`, `execute.paused`, `execute.blocked`, `execute.failed`, `execute.rolling-back`, `execute.completed`
 
 ## Architecture, scale, security, and reliability
 
@@ -64,6 +66,15 @@ motion journeys under throttling.
 
 Rollback restores the accepted Phase 4 UI and retains the source plan plus any readable execution event
 history. There is no infrastructure rollback because this phase performs no deployment.
+
+## Files, outputs, commands, evidence, and PR closure
+
+| Kind | Exact files / outputs / commands | Passing evidence |
+| --- | --- | --- |
+| Production | Refactor `ExecuteDeliveryWorkspace.tsx` and `ExecuteHubModule`; create `src/features/platform-prototype/execute/{machine,selectors,commands,components}/**`; delete replaced timers/styles/owners | One Execute state machine and one owner per command |
+| Tests/fixtures | State-machine/command tests; Execute unit/browser specs; stale/race/failure/rollback/10,000-event fixtures | Exact seven state IDs; evidence-class safety; ≤200 events |
+| Evidence/commands | `artifacts/ux-audits/phase-5/**`; Execute sheet; standard program/test/build/E2E/audit/diff commands plus focused Execute specs | State/viewport/Figma/axe/timing evidence and independent reports |
+| PR lifecycle | Verify prior M as B; create isolated `phase-5/**` branch/worktree; commit C; push and open one PR; independent UX/QA audit clean C; optional evidence-only E; require program/build/audit/phase/E2E checks; merge; verify C ancestry in M; rerun clean-M gates; atomically update ledger | PR URL, B/C/E/M, source-tree equality, merge ancestry, post-merge results, successor pin |
 
 ## Definition of Done
 

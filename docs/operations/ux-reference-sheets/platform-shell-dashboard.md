@@ -60,7 +60,18 @@
 | Pareto | Put the top three jobs ahead of secondary metadata. | All 3 top jobs reachable in first viewport | Desktop and mobile screenshot audit |
 | Interactivity floor | Composer in context; every state actionable; live state; no dead ends. | Static-report test passes in all declared states | Walk the flow and act on each state |
 
-## 5. State matrix
+## 5. State matrices
+
+### 5.1 Semantic surface-state matrix
+
+| State ID | Fixture / event | Visible content | Permitted actions | Recovery / next state | Responsive evidence | Figma / textual authority |
+| --- | --- | --- | --- | --- | --- | --- |
+| shell.attention | Seeded blocking decision | Prioritized attention object, owner, status, and consequence | Open the owning module or dismiss only when policy permits | Owning module; browser Back returns to Dashboard | 375, 768, 1280, and 1536 px captures | Figma 16:2 and §2 Cursor decision |
+| shell.clear | No actionable work fixture | Honest zero-attention explanation and recent verified outcomes | Start a project or enter a product module | Project creation or selected module | Same four viewports; no blank region | §2 Cursor and v0 decisions |
+| shell.destination-error | Selected module throws through its boundary | Scoped failure, correlation label, rail, and Dashboard recovery | Retry or return to Dashboard | Recovered destination or shell.attention | Mobile drawer and desktop rail remain operable | Textual authority: no-dead-end law row |
+| shell.mobile-navigation | Viewport below desktop breakpoint and menu opened | Modal product/admin navigation; page content inert | Choose destination, close, Escape, or reverse-tab | Selected surface or prior focused opener | 375 and 768 px focus trace | Phase 0 independent UX audit |
+
+### 5.2 Control interaction-state matrix
 
 | Control / region | default | hover | focus-visible | active | disabled | loading | empty | error |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- |

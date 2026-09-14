@@ -72,7 +72,21 @@
 | Pareto                | The three top jobs (see now / act in place / reach evidence) are the largest, first and fastest elements                                                                                                      | jobs mapped to the three regions                                     | review                              |
 | Interactivity floor   | Composer in context; every shown state actionable in place (question → answer, proposal → approve/amend, run → steer/stop, exception → assign/escalate, artifact → open/regenerate); live state; no dead ends | static-report test passes on every state                             | walk the flow and act on each state |
 
-## 5. State matrix
+## 5. State matrices
+
+### 5.1 Semantic surface-state matrix
+
+| State ID | Fixture / event | Visible content | Permitted actions | Recovery / next state | Responsive evidence | Figma / textual authority |
+| --- | --- | --- | --- | --- | --- | --- |
+| run.idle | Run selected before work starts | Brief, authority, evidence scope, and one start action | Start or return to operations | run.live | Four viewport captures | §2 Devin full-session flow |
+| run.live | Active deterministic run | Presence, timeline, current step, evidence tabs, details, and composer | Steer, stop, expand step, or inspect evidence | run.question, run.approval, run.failed, or run.completed | Four viewports | Figma 46:933 and §2 Devin |
+| run.question | Agent needs irreducible input | Question card, progress, recommended option, and other-answer path | Answer one, answer all when safe, or stop | run.live | Four viewports | §2 Cofounder |
+| run.approval | Proposed bounded action needs authority | Full object/version/consequence and explicit decision controls | Approve, amend, reject, or stop | run.live or run.failed | Four viewports | §2 Higgsfield |
+| run.failed | Tool or verification fails | Plain error, retained passed work, evidence, and one recovery | Retry, reconnect, or hand off | run.live or run.disconnected | Four viewports | §2 Zapier |
+| run.disconnected | Connection drops | Stale status, preserved draft, last event time, and reconnect | Reconnect, copy draft, or return | run.live or agentix-ops.today | Mobile and desktop captures | Textual authority: connection-loss contract |
+| run.completed | Valid terminal event includes object/evidence | Produced object, verification, evidence, feedback, and next action | Edit, regenerate, inspect evidence, or return | Artifact owner or agentix-ops.today | Four viewports | Figma 46:933 and §2 Devin |
+
+### 5.2 Control interaction-state matrix
 
 | Control / region | default                       | hover              | focus-visible    | active                     | disabled                                                | loading                              | empty                                  | error                                                |
 | ---------------- | ----------------------------- | ------------------ | ---------------- | -------------------------- | ------------------------------------------------------- | ------------------------------------ | -------------------------------------- | ---------------------------------------------------- |

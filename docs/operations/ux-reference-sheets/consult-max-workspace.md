@@ -59,7 +59,23 @@
 | Pareto | Put the top three jobs ahead of secondary metadata. | All 3 top jobs reachable in first viewport | Desktop and mobile screenshot audit |
 | Interactivity floor | Composer in context; every state actionable; live state; no dead ends. | Static-report test passes in all declared states | Walk the flow and act on each state |
 
-## 5. State matrix
+## 5. State matrices
+
+### 5.1 Semantic surface-state matrix
+
+| State ID | Fixture / event | Visible content | Permitted actions | Recovery / next state | Responsive evidence | Figma / textual authority |
+| --- | --- | --- | --- | --- | --- | --- |
+| consult.empty | New thread | Source scope, suggested questions, and composer | Ask or choose suggestion | consult.asking | Four viewport captures | Figma 22:225 |
+| consult.asking | Valid question submitted | Preserved question and immediate acknowledgement | Stop or continue browsing sources | consult.streaming or consult.error | Four viewports | §2 Perplexity |
+| consult.streaming | Deterministic answer stream | Partial answer, activity, source count, and stop | Stop or inspect available source | consult.grounded or consult.insufficient-source | Four viewports | §2 ChatGPT |
+| consult.grounded | Sources support answer | Answer with attached citations and one routed next action | Open source, ask follow-up, or route to owner | Owning module | Four viewports | Figma 22:225 and §2 Sana AI |
+| consult.conflicting-source | Two current sources disagree | Both sources, dates, selected interpretation, and uncertainty | Choose source or open owner for resolution | consult.grounded | Four viewports | Textual authority: source-conflict rule |
+| consult.insufficient-source | Available evidence cannot support answer | Bounded answer, missing evidence, and recovery path | Narrow question or open Discover | discover.active or consult.asking | Four viewports | Textual authority: honest grounding |
+| consult.stale-source | Cited version was superseded | Stale label, current owner/version, and retained citation | Open current object or refresh answer | consult.asking or owning module | Four viewports | Textual authority: version integrity |
+| consult.error | Answer command fails | Preserved question, available sources, and error ID | Retry or return to prior answer | consult.asking or consult.empty | Four viewports | Textual authority: no-dead-end law row |
+| consult.permission-denied | Source is outside current project/role | No inaccessible metadata; plain denial | Return or request access | consult.empty | Mobile and desktop captures | Textual authority: tenant boundary |
+
+### 5.2 Control interaction-state matrix
 
 | Control / region | default | hover | focus-visible | active | disabled | loading | empty | error |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- |

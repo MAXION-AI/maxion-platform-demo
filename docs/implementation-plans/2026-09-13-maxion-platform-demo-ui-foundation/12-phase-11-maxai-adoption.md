@@ -1,97 +1,88 @@
-# Phase 11: MaxAI adoption contract and production-native pilot
+# Phase 11: Freeze the MaxAI adoption package
 
 - **Parent:** [00-parent-roadmap.md](./00-parent-roadmap.md)
-- **Closes:** RC-17 | **Risk:** high × high | **Status:** Not started
-- **Depends on:** Phase 10 accepted demo SHA
+- **Closes:** RC-17 | **Risk:** medium × high | **Status:** Not started
+- **Depends on:** Phase 10 accepted demo merge SHA
 
 ## Objective and scope
 
-Translate the qualified demo contract into an adoption map for `max-ai-platform`, then pilot only the
-shared shell, Dashboard, and Projects inside `apps/max-user-portal` using production-native tokens,
-components, routing, queries, authentication, authorization, and tenant boundaries. The production portal
-must not import demo React, CSS, storage, scenarios, or simulated authority. Product-module ports require
-their own later production plans and are outside this phase.
+Package the qualified demo UX contract into a complete, immutable, demo-owned handoff for a separate
+`max-ai-platform` production-adoption program. This phase changes only this repository. It does not
+create a MaxAI worktree, change MaxAI source, pilot production UI, deploy, or claim production
+qualification. That work requires its own plan, base SHA, ledger, phase chain, reviewers, and PRs in
+the MaxAI repository.
 
-## Entry criteria and UX contract
+## Entry criteria and authority
 
-- [ ] Phase 10 independently qualifies one pinned demo SHA with explicit proof limitations.
-- [ ] Fetch `max-ai-platform` and create a fresh isolated worktree from the then-current `origin/main`; record remote, branch, SHA, dirty state, and listener identity before interpretation.
-- [ ] Do not use or modify the current owner checkout, which was behind `origin/main` and contained owner untracked paths at planning time.
-- [ ] Reinspect production `theme.css`, `tailwind.css`, `PortalSidebar.tsx`, `PortalHeader`, `ContentWrapper`, `ModuleWorkspace`, `components/ui/*`, `usePortalCommands.ts`, `App.tsx`, API client, and query provider at the pinned SHA.
+- [ ] Phase 10 has a verified merge SHA M, clean-M post-merge qualification, and a checksum-valid
+  external ledger record.
+- [ ] All thirteen sheets are gated with exact semantic state IDs, three distinct sign-offs, and
+  implementation evidence.
+- [ ] Schema-v2 Figma map has current hashes, evidence paths, and a fresh remote connector attestation.
 
-The shell, Dashboard, and Projects are **product** surfaces. Their accepted demo sheets and Figma nodes
-remain the behavioral/visual source, while MaxAI's current accessibility, security, auth, tenancy, and
-component contracts take precedence. The rail must retain large top-half destinations only for Dashboard,
-Projects, and product modules; Settings, Integrations, My approvals, Usage, and Help remain compact below
-the spacer. Page actions retain 44 px targets and <400 ms acknowledgement; existing portal keyboard,
-command-menu, and navigation conventions cannot regress.
+The reference sheet for each surface is the sole Mobbin authority. Figma frame and component ownership
+comes only from the schema-v2 manifest and its remote attestation; this phase may not guess missing
+component IDs.
 
 ## Architecture, scale, security, and reliability
 
-Create `docs/operations/maxion-demo-ui-adoption-map.md` mapping every accepted demo token, primitive,
-route/state, Figma node, and object/event concept to a production-native owner or an explicit gap. Implement
-the pilot behind the repository's existing feature-flag mechanism, default off; if the pinned revision has
-no suitable mechanism, add one explicit environment/configuration flag with typed parsing, default-off
-behavior, and tests rather than inventing an implicit toggle. Data stays in existing
-React Query/API seams; authorization remains server-side; every query, cache key, and route is tenant-
-scoped. No new endpoint or schema is authorized here. If a required `/v1/` contract, pagination field,
-authorization rule, audit event, or observability seam is missing, stop that behavior and open a separate
-backend plan rather than mocking it in production.
+Create a versioned adoption-package directory containing machine-readable and human-readable contracts.
+It maps each demo token, primitive, route/address, semantic state, object/event, evidence class, authority
+boundary, responsive rule, accessibility rule, and measured budget to the production responsibility it
+will require. Production paths are recorded only as inspection targets, never asserted as compatible
+without a fresh MaxAI audit. The package contains synthetic/redacted evidence only, has no secrets or
+PII, and does not copy demo runtime code.
 
-The pilot must retain existing production SLOs for 10,000 concurrent users: paginated queries, bounded
-client rendering, request timeouts/retry policy, correlation IDs, graceful optional-service degradation,
-and no unbounded dashboard/project fetch. Any new dependency requires a pinned version, license/CVE review,
-and measured bundle justification.
+The package explicitly carries the demo's proof boundary: deterministic browser fixtures do not prove
+10,000 concurrent users, API authorization, tenant isolation, databases, queues, providers, deployment,
+or production SLOs. Those become mandatory MaxAI plan inputs.
 
 ## Ordered tasks
 
-1. **Pin and baseline production (11.1).** Fetch, create the fresh worktree, record identities, run current portal gates, and capture off-path UI/performance/API/query behavior before changes.
-2. **Write the adoption map (11.2).** Map qualified demo decisions to production tokens, primitives, routes, commands, queries, auth/tenant checks, observability, Figma nodes, and proof; classify every gap as UI, API, authorization, data, or operations.
-3. **Create the production-native shared seam (11.3).** Add only necessary token/primitive/layout adaptations behind the existing default-off flag; preserve the flag-off DOM, behavior, and bundle path.
-4. **Port the sidebar and shell (11.4).** Implement the accepted top/bottom information architecture with existing portal navigation, command menu, account/balance behavior, responsive overlay, keyboard, and focus semantics.
-5. **Port Dashboard and Projects (11.5).** Rebuild accepted interactions on real production queries and server-authorized actions; include pagination, loading/empty/error/permission/degraded states, and audit/correlation behavior already supported by the backend.
-6. **Break security, scale, and rollback (11.6).** Test tenant-ID substitution, unauthorized routes/actions, stale query/cache, 429/timeout/5xx, 10,000-user load assumptions against existing service evidence, large datasets, flag transitions, dependency outage, and rollback.
-7. **Qualify the pilot independently (11.7).** Run unit/integration/E2E/security/accessibility/responsive/performance/visual gates, compare exact frames and accepted demo behaviors, deploy locally only, exercise flag on/off, and require separate production reviewer/QA sign-off.
+1. **Freeze demo inputs (11.1).** Record Phase 10 M, source tree, lockfile, schema-v2 manifest, every
+   sheet hash, evidence index, bundle/performance results, and remote Figma attestation.
+2. **Write the adoption contract (11.2).** Create
+   `docs/operations/maxai-ui-foundation-adoption/{README.md,contract.json,traceability.md,open-gaps.md}`
+   with one entry per surface/state/token/primitive/object/authority/evidence/responsive contract.
+3. **Verify package integrity (11.3).** Add `scripts/check_maxai_adoption_package.py` plus negative
+   tests for an omitted state, mismatched sheet hash, missing evidence, guessed component ID,
+   unclassified API/auth/tenant gap, and demo-code import.
+4. **Define the separate-stream bootstrap (11.4).** Document that the MaxAI coordinator fetches
+   `max-ai-platform/origin/main`, creates a new external ledger and plan in that repository, audits
+   real tokens/components/routes/queries/auth/tenancy, and maps every adoption-package row before code.
+5. **Audit and close the package (11.5).** Independent UX and engineering reviewers audit clean C;
+   evidence-only E and merge M follow the phase acceptance protocol; rerun clean-M package/program gates.
 
-## Contracts, observability, and migration
+## Files, outputs, commands, evidence, and PR closure
 
-The UI may add view models and adapters but cannot change public API fields. It reuses versioned `/v1/`
-contracts, production request/correlation IDs, structured logging, auth refresh, tenant keys, pagination,
-and query invalidation. Sensitive mutations must use existing server audit logging; absence is a blocker.
-No database migration is planned. If one is required after inspection, it needs a separate backward-
-compatible migration/release plan and is not smuggled into the pilot.
+| Kind | Exact files / outputs / commands | Passing evidence |
+| --- | --- | --- |
+| Package | `docs/operations/maxai-ui-foundation-adoption/{README.md,contract.json,traceability.md,open-gaps.md}` | Every demo surface/state/contract maps to a production responsibility or explicit gap |
+| Gate/tests | `scripts/check_maxai_adoption_package.py`; `scripts/tests/test_maxai_adoption_package.py`; register in `check_program_gates.sh` | All six negative fixtures fail for the intended reason; committed package passes |
+| Evidence/commands | `artifacts/ux-audits/phase-11/**`; `pnpm check:program`; `pnpm build`; `pnpm audit --audit-level high`; package self-tests; `git diff --check` | C-bound UX/QA reports, hashes, exact exit codes, no demo runtime import |
+| PR lifecycle | Verify Phase 10 M as B; isolated `phase-11/adoption-package` branch/worktree; commit C; push/open one demo PR; independent clean-C audits; optional evidence-only E; required checks; merge; verify ancestry; clean-M gates; atomic demo-ledger close | Demo PR URL and B/C/E/M; source-tree equality; verified final demo M |
 
-## Test and failure plan
+## Test, failure, and rollback
 
-Unit tests cover adapters, feature-flag selection, route mapping, pagination view models, and safe error
-copy. Integration tests cover real query/auth/tenant seams with mocked transport, 401/403/404/409/429/5xx,
-timeouts, retries, stale data, and cancellation. Local Playwright covers flag off/on, shell navigation,
-Dashboard attention, Projects create/search/filter/resume/permission states, keyboard/mobile/reduced motion,
-and tenant isolation. Load and query evidence must confirm bounded pagination/caches; current service proof
-is reused only when pinned to compatible endpoints and revision.
+Package validation is deterministic and offline. A missing or mismatched row blocks completion; the
+package never invents a production mapping. If MaxAI cannot satisfy a contract, `open-gaps.md` names
+the missing UI, API, authorization, data, observability, capacity, migration, or release work and the
+future production plan owns it.
 
-| Failure | Required fallback |
-| --- | --- |
-| Required production API/auth/audit contract is absent | Block that behavior and create a separate backend plan; do not fake it |
-| Flag-on shell or route fails | Default-off flag returns users to the unchanged production path |
-| Optional query/service is unavailable | Preserve primary navigation/work; show scoped retry/degraded state |
-| Tenant or permission validation fails | Fail closed server-side and verify no inaccessible metadata is revealed |
-| Local pilot cannot meet bundle/performance/accessibility budget | Do not promote the flag; remediate or revert the pilot |
-
-Rollback is the tested default-off feature flag plus a clean revert of the isolated pilot commits. The
-flag-off path must remain behaviorally equivalent to the production baseline; no deploy outside the local
-environment is authorized by this plan.
+Rollback is a reviewed revert PR for this package only. The Phase 10 qualified demo remains coherent and
+unchanged. There is no production flag or deployment rollback in this phase.
 
 ## Definition of Done
 
-- [ ] The adoption map covers every pilot route/state/token/primitive/object/query/security/observability seam with no implicit code-copy dependency.
-- [ ] Sidebar, Dashboard, and Projects match the accepted UX contract using production-native code and real authorized query paths.
-- [ ] Flag off restores the unchanged baseline; rollback is exercised locally and recorded.
-- [ ] Unit, integration, security, tenant-isolation, E2E, responsive, accessibility, performance, bundle, visual, and local-deployment gates pass.
-- [ ] Independent production reviewer and QA report no blocker/major finding; no module beyond the pilot scope is changed.
+- [ ] The adoption package covers all thirteen surfaces and every stable semantic state exactly once.
+- [ ] All hashes/evidence/attestations point to Phase 10 M and no guessed Figma or production claim exists.
+- [ ] Package negative tests and program/build/security/diff gates pass.
+- [ ] Independent clean-C UX and engineering reports pass; demo PR is merged and clean-M verified.
+- [ ] External demo ledger closes at M and names the separate MaxAI plan/ledger bootstrap without
+  creating or modifying that stream.
 
 ## Hand-off
 
-The accepted pilot and adoption map become inputs to separate, one-module-at-a-time MaxAI production
-plans for Discover, Plan, Execute, Agentix, Consult, and administration. Demo acceptance alone never
-authorizes those ports or substitutes for their backend/release qualification.
+The demo repository is immutable after this accepted merge except for reviewed corrections. A new,
+separately approved implementation plan in `max-ai-platform` consumes this package from a fetched
+`origin/main` base. Its SHAs and PRs are unrelated to the demo ancestry chain.

@@ -17,10 +17,12 @@ approve, stop, publish, or otherwise mutate module work implicitly.
 - [ ] `docs/operations/ux-reference-sheets/consult-max-workspace.md` is independently accepted.
 - [ ] Figma frame `UhLxGyXphdHHNLGMomBq6n:22:225` is frozen and fetched before code.
 
-This is a **product** surface. Binding references are ChatGPT, Perplexity, Sana, Claude, and Gemini.
-The sheet's complete laws-check and state matrix apply. The composer is persistent, sources remain
+This is a **product** surface. The reference sheet §2 is the sole binding Mobbin authority; phase
+prose must not declare a second app set. The sheet's complete laws-check and state matrices apply. The composer is persistent, sources remain
 inspectable, one best next action is highlighted, all input acknowledges under 400 ms, and an answer
 with insufficient grounding says so and provides a recovery path instead of manufacturing certainty.
+
+- **Required surface state IDs (`consult-max-workspace`):** `consult.empty`, `consult.asking`, `consult.streaming`, `consult.grounded`, `consult.conflicting-source`, `consult.insufficient-source`, `consult.stale-source`, `consult.error`, `consult.permission-denied`
 
 ## Architecture, scale, security, and reliability
 
@@ -65,6 +67,15 @@ five-module continuity journey.
 
 Rollback reverts the Phase 8 candidate while preserving prior objects and typed handoffs. Consult history
 remains readable if its schema version is valid; invalid records recover without affecting source objects.
+
+## Files, outputs, commands, evidence, and PR closure
+
+| Kind | Exact files / outputs / commands | Passing evidence |
+| --- | --- | --- |
+| Production | Extract `ConsultModule` from `MaxionPlatformPrototypePage.tsx`; create `src/features/platform-prototype/consult/{domain,index,selectors,components}/**`; delete shell-local Consult state/styles | Read-only grounded owner with explicit route intents |
+| Tests/fixtures | Consult unit/browser specs; conflict/stale/denied/injection-shaped/10,000-source fixtures; full continuity fixture | Exact nine state IDs and canonical five-module trace |
+| Evidence/commands | `artifacts/ux-audits/phase-8/**`; Consult sheet; standard program/test/build/E2E/audit/diff plus focused/cross-module specs | State/viewport/Figma/axe/timing evidence and independent reports |
+| PR lifecycle | Verify prior M as B; create isolated `phase-8/**` branch/worktree; commit C; push and open one PR; independent UX/QA audit clean C; optional evidence-only E; require program/build/audit/phase/E2E checks; merge; verify C ancestry in M; rerun clean-M gates; atomically update ledger | PR URL, B/C/E/M, source-tree equality, merge ancestry, post-merge results, successor pin |
 
 ## Definition of Done
 

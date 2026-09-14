@@ -76,7 +76,18 @@ Rules:
 
 "N/A because <reason>" is a valid cell. An empty cell is not.
 
-## 5. State matrix
+## 5. State matrices
+
+### 5.1 Semantic surface-state matrix
+
+These stable IDs are the binding screen states. The owning phase document and
+`figma-code-map.json` must list this exact set; a control-state table cannot substitute for it.
+
+| State ID | Fixture / event | Visible content | Permitted actions | Recovery / next state | Responsive evidence | Figma / textual authority |
+| --- | --- | --- | --- | --- | --- | --- |
+| <surface.state> | <deterministic fixture or triggering event> | <what the user sees> | <actions available in this state> | <recovery or next state> | <required viewport evidence> | <frame node or reference decision> |
+
+### 5.2 Control interaction-state matrix
 
 | Control / region | default | hover | focus-visible | active | disabled | loading | empty | error |
 | ---------------- | ------- | ----- | ------------- | ------ | -------- | ------- | ----- | ----- |

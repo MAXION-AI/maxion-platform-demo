@@ -17,10 +17,12 @@ and its domain seams; it does not add autonomous publishing or production execut
 - [ ] `docs/operations/ux-reference-sheets/plan-workspace.md` is independently accepted.
 - [ ] Figma frame `UhLxGyXphdHHNLGMomBq6n:19:86` is frozen in the mapping manifest and fetched before code.
 
-This is a **product** surface. Binding references are Obvious, Langdock, Craft, ClickUp Brain, Upwork,
-Descript, and Cofounder. The reference sheet's full laws table and state matrix apply. The artifact is
+This is a **product** surface. The reference sheet §2 is the sole binding Mobbin authority; phase
+prose must not declare a second app set. The reference sheet's full laws table and state matrices apply. The artifact is
 the dominant region; one version-level primary action is allowed; edit/regenerate targets are at least
 44 px; all long operations acknowledge within 400 ms and expose progress after one second.
+
+- **Required surface state IDs (`plan-workspace`):** `plan.draft`, `plan.section-editing`, `plan.regenerating`, `plan.approval-required`, `plan.stale-review`, `plan.approved`, `plan.generation-error`, `plan.read-only`
 
 ## Architecture, scale, security, and reliability
 
@@ -64,6 +66,15 @@ permission denial, refresh recovery, keyboard use, and responsive layouts.
 
 Rollback reverts the Phase 4 candidate while keeping Phase 3 packages readable. No accepted plan version
 may be deleted by rollback.
+
+## Files, outputs, commands, evidence, and PR closure
+
+| Kind | Exact files / outputs / commands | Passing evidence |
+| --- | --- | --- |
+| Production | Refactor `PlanAgenticModule.tsx`; create `src/features/platform-prototype/plan/{domain,selectors,commands,components}/**`; delete replaced Plan state/styles/exports | One Plan owner; immutable approved artifact handoff |
+| Tests/fixtures | Co-located version/command tests; Plan browser spec; stale/failed/permission/1,000-section fixtures | Exact eight state IDs; no duplicate revision; ≤200 mounted sections |
+| Evidence/commands | `artifacts/ux-audits/phase-4/**`; Plan sheet; standard program/test/build/E2E/audit/diff commands plus focused Plan specs | State/viewport/Figma/axe/timing evidence and independent reports |
+| PR lifecycle | Verify prior M as B; create isolated `phase-4/**` branch/worktree; commit C; push and open one PR; independent UX/QA audit clean C; optional evidence-only E; require program/build/audit/phase/E2E checks; merge; verify C ancestry in M; rerun clean-M gates; atomically update ledger | PR URL, B/C/E/M, source-tree equality, merge ancestry, post-merge results, successor pin |
 
 ## Definition of Done
 

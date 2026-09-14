@@ -18,7 +18,7 @@
 
 | Job the reference proves | App | Mobbin link | Decision taken (words, not pixels) |
 | --- | --- | --- | --- |
-| Edit a structured plan | Coda | https://mobbin.com/screens/1f36e597-7677-4b85-a4bb-9a3825820cec | Keep outline, document actions, and generated artifacts in one workspace. |
+| Edit a structured plan | Obvious | https://mobbin.com/screens/1f36e597-7677-4b85-a4bb-9a3825820cec | Keep outline, document actions, and generated artifacts in one workspace. |
 | Inspect plan structure | Craft | https://mobbin.com/screens/f19df619-ca6e-4757-8866-fabe606c16a3 | Use a stable outline rail and connected cards rather than a flat report. |
 | Approve a plan | Descript | https://mobbin.com/screens/58151c1c-fa16-45ec-92a3-f778e57c5080 | Show the proposal in full with one primary approval and a reversible amendment path. |
 
@@ -41,7 +41,7 @@
 | --- | --- | --- | --- |
 | Hick's | Keep the primary job set bounded and move rare actions into contextual menus. | At most 5 primary choices in one region | Count visible choices at desktop and mobile widths |
 | Fitts's | Primary and frequent targets are large and close to the object they affect. | Primary targets at least 44 px; no target under 24 px | Computed-style and pointer review |
-| Jakob's | Follow the familiar product patterns examined in Coda, Craft, and Descript. | 3 named references applied; no novel core control | Side-by-side interaction audit |
+| Jakob's | Follow the familiar product patterns examined in Obvious, Craft, and Descript. | 3 named references applied; no novel core control | Side-by-side interaction audit |
 | Proximity | Keep labels, state, and actions with the object they describe. | 8 px within a group; at least 16 px between groups | Screenshot measurement |
 | Miller's | Chunk dense work into named, scannable groups. | 5 to 7 items per uncollapsed group | DOM and screenshot count |
 | Doherty | Acknowledge every interaction immediately and show durable progress for longer work. | Visual response within 400 ms | Playwright timing assertion |
@@ -59,7 +59,22 @@
 | Pareto | Put the top three jobs ahead of secondary metadata. | All 3 top jobs reachable in first viewport | Desktop and mobile screenshot audit |
 | Interactivity floor | Composer in context; every state actionable; live state; no dead ends. | Static-report test passes in all declared states | Walk the flow and act on each state |
 
-## 5. State matrix
+## 5. State matrices
+
+### 5.1 Semantic surface-state matrix
+
+| State ID | Fixture / event | Visible content | Permitted actions | Recovery / next state | Responsive evidence | Figma / textual authority |
+| --- | --- | --- | --- | --- | --- | --- |
+| plan.draft | Accepted Discovery package opened | Artifact canvas, outline, provenance, gaps, and version | Edit section, regenerate, comment, or review | plan.section-editing, plan.regenerating, or plan.approval-required | Four viewport captures | Figma 19:86 and §2 Obvious/Craft |
+| plan.section-editing | Operator selects a section | Editable bounded section with source markers and dirty state | Save, cancel, compare, or undo | plan.draft | 375 stacked and desktop split captures | §2 Obvious |
+| plan.regenerating | Regenerate command accepted | Prior content retained with progress and source scope | Cancel when safe or continue elsewhere | plan.draft or plan.generation-error | Four viewports; zero layout shift | §2 Obvious |
+| plan.approval-required | Draft satisfies readiness gates | Full proposal, consequence, evidence, and one primary approval | Approve, amend, reject, or inspect source | plan.approved or plan.draft | Four viewports | §2 Descript |
+| plan.stale-review | Approval targets an older version | Stale warning, reviewed/current versions, and preserved note | Open current version or return to draft | plan.approval-required | Mobile and desktop captures | Textual authority: version invariant |
+| plan.approved | Current version explicitly approved | Immutable version receipt, evidence, and Execute handoff | Open Execute or fork amendment | execute.queued or plan.draft | Four viewports | Figma 19:86 |
+| plan.generation-error | Generation fails or times out | Prior section, preserved draft, failure reason, and retry | Retry or keep prior content | plan.regenerating or plan.draft | Four viewports | Textual authority: no-dead-end law row |
+| plan.read-only | Viewer role or historical approved version | Artifact and provenance without mutation controls | Inspect sources or return | Owning project | Mobile and desktop captures | Textual authority: permission contract |
+
+### 5.2 Control interaction-state matrix
 
 | Control / region | default | hover | focus-visible | active | disabled | loading | empty | error |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- |

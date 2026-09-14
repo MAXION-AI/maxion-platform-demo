@@ -61,7 +61,21 @@
 | Pareto | Prioritize resume, attention, and create over administration and secondary metadata. | All 3 top jobs in first viewport | Desktop and mobile screenshot audit |
 | Interactivity floor | Search, filter, create, select, open, and ask in place; every state has recovery. | Static-report test passes for 8 declared states | Walk every state and act on it |
 
-## 5. State matrix
+## 5. State matrices
+
+### 5.1 Semantic surface-state matrix
+
+| State ID | Fixture / event | Visible content | Permitted actions | Recovery / next state | Responsive evidence | Figma / textual authority |
+| --- | --- | --- | --- | --- | --- | --- |
+| projects.ready | Seeded accessible projects | Search, filters, bounded rows, attention, and resume action | Search, filter, select, resume, or create | projects.selected or projects.create-review | Four viewport captures | Figma 40:478 and §2 Relevance AI |
+| projects.loading | Delayed repository read | Layout-matched skeleton and retained query | Cancel navigation or wait | projects.ready, projects.empty, or projects.error | Zero-CLS capture at four viewports | Textual authority: control matrix loading cells |
+| projects.empty | Authorized tenant with zero projects | Why the list is empty and one create action | Create project or clear filters | projects.create-review or projects.ready | Four viewports | §2 Cursor decision |
+| projects.error | Repository read fails | Last safe scope, error ID, and retry | Retry or return to Dashboard | projects.loading or shell.attention | Four viewports | Textual authority: no-dead-end law row |
+| projects.permission-denied | Project exists outside current role | No protected metadata; plain denial and return path | Return to list or request access | projects.ready | Mobile and desktop denial captures | Textual authority: threat boundary |
+| projects.create-review | Valid outcome draft submitted | Normalized project definition and what will be created | Confirm, amend, or cancel | projects.selected or projects.ready | Mobile stacked and desktop dialog captures | §2 Clay decision |
+| projects.selected | Authorized row opened | Project context, current status, evidence, and MAX composer | Resume module work, ask MAX, or return | Owning module or projects.ready | Four viewports | Figma 40:478 |
+
+### 5.2 Control interaction-state matrix
 
 | Control / region | default | hover | focus-visible | active | disabled | loading | empty | error |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- |

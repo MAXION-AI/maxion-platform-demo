@@ -59,7 +59,22 @@
 | Pareto | Put the top three jobs ahead of secondary metadata. | All 3 top jobs reachable in first viewport | Desktop and mobile screenshot audit |
 | Interactivity floor | Composer in context; every state actionable; live state; no dead ends. | Static-report test passes in all declared states | Walk the flow and act on each state |
 
-## 5. State matrix
+## 5. State matrices
+
+### 5.1 Semantic surface-state matrix
+
+| State ID | Fixture / event | Visible content | Permitted actions | Recovery / next state | Responsive evidence | Figma / textual authority |
+| --- | --- | --- | --- | --- | --- | --- |
+| agentix-ops.today | Seeded current responsibilities | Needs-you work, active runs, outcomes, and composer | Resolve item, inspect run, or start bounded work | agentix-ops.approvals or run.live | Four viewport captures | Figma 21:175 |
+| agentix-ops.work | Work queue selected | Filtered runs with status, owner, and next action | Filter, open run, or return to Today | run.live or agentix-ops.today | Four viewports | §2 Relevance AI |
+| agentix-ops.approvals | Approval queue selected | Exact request summaries, due state, and assignee | Open and decide one request | run.approval or agentix-ops.today | Four viewports | Textual authority: attached approvals |
+| agentix-ops.activity | Activity selected | Bounded chronological events and object links | Filter or open owning object | Corresponding surface | Four viewports | Figma 21:175 |
+| agentix-ops.connections | Connections selected | Principal, scopes, health, and dependencies | Diagnose or reconnect | agentix-ops.today or integrations.degraded | Four viewports | Textual authority: connection contract |
+| agentix-ops.empty | No deployed responsibility fixture | Explanation and one deploy/create path | Start deployment or return to project | agentix-ops.today | Four viewports | Textual authority: empty-state law |
+| agentix-ops.degraded | Connection or provider degraded | Affected work, last safe state, and recovery action | Retry, reconnect, or hand off | agentix-ops.connections or run.failed | Four viewports | §2 Databricks |
+| agentix-ops.permission-denied | Viewer opens restricted operation | No protected detail; role explanation and return | Return or request access | agentix-ops.today | Mobile and desktop captures | Textual authority: permission contract |
+
+### 5.2 Control interaction-state matrix
 
 | Control / region | default | hover | focus-visible | active | disabled | loading | empty | error |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- |

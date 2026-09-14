@@ -60,7 +60,20 @@
 | Pareto | Put capacity, driver, and warning before detailed historical records. | All 3 top jobs in first viewport | Responsive screenshot audit |
 | Interactivity floor | Filter, inspect, drill into records, set an alert, recover, and return in place. | Static-report test passes for 8 declared states | Walk every state and act on it |
 
-## 5. State matrix
+## 5. State matrices
+
+### 5.1 Semantic surface-state matrix
+
+| State ID | Fixture / event | Visible content | Permitted actions | Recovery / next state | Responsive evidence | Figma / textual authority |
+| --- | --- | --- | --- | --- | --- | --- |
+| usage.ready | Bounded period has records | Units, remaining capacity, pace, and module/project breakdown | Change period, open records, or edit alert | usage.alert-editing | Four viewport captures | Figma 43:1234 |
+| usage.loading | Delayed usage read | Stable summary/list skeleton and retained scope | Change route or wait | usage.ready, usage.empty, or usage.error | Zero-CLS captures at four viewports | Textual authority: loading control states |
+| usage.empty | Period has zero records | Zero-use explanation and reset-period action | Change period or return | usage.ready | Four viewports | §2 Firecrawl |
+| usage.error | Usage source fails | Last known value/time, scoped reason, and retry | Retry or continue product work | usage.loading or shell.attention | Four viewports | Textual authority: optional-service degradation |
+| usage.alert-editing | Authorized alert change | Current threshold, valid range, and consequence | Save, reset, or cancel | usage.ready or usage.error | Mobile and desktop form captures | §2 Langdock |
+| usage.permission-denied | Restricted detail requested | Allowed aggregate or no protected detail plus role reason | Return or request access | usage.ready | Mobile and desktop captures | Textual authority: permission contract |
+
+### 5.2 Control interaction-state matrix
 
 | Control / region | default | hover | focus-visible | active | disabled | loading | empty | error |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- |

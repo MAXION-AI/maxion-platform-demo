@@ -1,13 +1,17 @@
 # Maxion platform demo — Figma UX reference program
 
-- **Status:** contract-complete; independent Phase 0 UX audit passed; built/gated evidence remains pending
+- **Status:** contract-complete; Phase 0 PR merged; clean-SHA independent acceptance and built/gated evidence pending
 - **Date:** 2026-09-13
 - **Source worktree:** `/Users/abhinavshankar/GitHub_Repos/maxion-platform-demo-ux-system-20260913`
 - **Branch:** `codex/maxion-demo-ux-system-20260913`
-- **Source HEAD:** `c381e7e50b6cc7e71138fbf4b9c348efc2194df9`
+- **Historical build base:** `c381e7e50b6cc7e71138fbf4b9c348efc2194df9`
+- **Phase 0 PR head / merge:** `dfc0347c876b36dc9932808b786d219c2cb8c949` / `beae208b30ad31202c4ff92abbfbd6c1ef51af18`
+- **Acceptance caveat:** existing reports audited a dirty pre-commit tree; they do not accept the PR
+  head or merge SHA. Clean-`beae208` independent reruns remain required.
 - **Figma file:** [Maxion Platform Demo — UX Reference Program](https://www.figma.com/design/UhLxGyXphdHHNLGMomBq6n/Maxion-Platform-Demo-UX-Reference-Program)
 - **Figma file key:** `UhLxGyXphdHHNLGMomBq6n`
-- **Run ledger:** `/tmp/design-system-state-maxion-platform-demo-20260913.json`
+- **Tracked ledger:** `docs/operations/program-phase-ledger.json`
+- **Operational authority:** `/Users/abhinavshankar/.codex/program-ledgers/maxion-platform-demo-ui-foundation/ledger.json` under the atomic/hash-chain protocol
 
 ## Why a new file exists
 

@@ -66,6 +66,15 @@ journeys rerun from fresh state; evidence is never edited into a pass.
 Rollback reverts only qualification remediations to the Phase 9 accepted SHA. Evidence artifacts are
 append-only so failed runs remain inspectable.
 
+## Files, outputs, commands, evidence, and PR closure
+
+| Kind | Exact files / outputs / commands | Passing evidence |
+| --- | --- | --- |
+| Production | No planned feature owner; qualification fixes name exact existing files and delete, never waive, the superseded owner | Final source graph has zero alias/stale-selector/suppression/legacy exemptions |
+| Tests/fixtures | All unit and Playwright specs; WebKit project; deterministic every-state and 10,000-object fixtures | Every manifest state ID and cross-module recovery runs fresh |
+| Evidence/commands | `artifacts/ux-audits/phase-10/**`; all sheets; standard program/test/build/E2E/audit/diff plus bundle/INP/LCP/CLS/DOM measurements | Fresh C-bound reports and every numeric threshold |
+| PR lifecycle | Verify prior M as B; create isolated `phase-10/**` branch/worktree; commit C; push and open one PR; independent UX/QA audit clean C; optional evidence-only E; require program/build/audit/phase/E2E checks; merge; verify C ancestry in M; rerun clean-M gates; atomically update ledger | PR URL, B/C/E/M, source-tree equality, merge ancestry, post-merge results, successor pin |
+
 ## Definition of Done
 
 - [ ] Every accepted sheet, Figma mapping, state, law, and primary/recovery journey has fresh evidence against one pinned SHA.
@@ -78,4 +87,5 @@ append-only so failed runs remain inspectable.
 ## Hand-off
 
 Phase 11 may use only the Phase 10 accepted SHA, frozen Figma/code manifest, accepted sheets, and fresh
-qualification evidence as the production adoption source.
+qualification evidence as inputs to the demo-owned MaxAI adoption package. Production implementation
+requires its own approved MaxAI plan, ledger, worktree chain, independent gates, and PR lifecycle.
