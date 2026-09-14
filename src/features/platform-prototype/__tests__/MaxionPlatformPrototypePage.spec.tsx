@@ -39,6 +39,7 @@ describe("MaxionPlatformPrototypePage", () => {
 		fireEvent.click(screen.getByRole("button", { name: "Expand navigation" }))
 		expect(screen.getByRole("button", { name: "Search or ask" })).toBeInTheDocument()
 		expect(screen.getByRole("button", { name: "Open Agentix" })).toBeInTheDocument()
+		expect(screen.queryByRole("banner")).not.toBeInTheDocument()
 		expect(document.querySelectorAll(".mxp-needs-you article button")).toHaveLength(3)
 		expect(screen.queryByText("Quick navigation", { exact: true })).not.toBeInTheDocument()
 	})
@@ -49,6 +50,7 @@ describe("MaxionPlatformPrototypePage", () => {
 		fireEvent.click(opener)
 
 		const drawer = screen.getByRole("dialog", { name: "Main navigation" })
+		expect(drawer.tagName).toBe("DIV")
 		const stage = screen.getByLabelText("Dashboard module")
 		await waitFor(() => expect(screen.getByLabelText("Close navigation", { selector: ".mxp-mobile-nav-close" })).toHaveFocus())
 		expect(drawer).toHaveAttribute("aria-modal", "true")

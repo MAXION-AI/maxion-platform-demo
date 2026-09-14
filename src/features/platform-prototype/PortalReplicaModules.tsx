@@ -215,19 +215,19 @@ export function DashboardModule({
 
 	return (
 		<div className="mxp-dashboard-shell">
-			<header className="mxp-dashboard-module-header">
+			<div className="mxp-dashboard-module-header">
 				<div><small>Operating overview</small><strong>Good morning, Root Admin</strong><span>{needsYou.length} decisions need you</span></div>
 				<div>
 					<button type="button" className="mxp-dashboard-search" aria-label="Search or ask" onClick={onCommand}><MagnifyingGlass size={16} /><span>Search or ask</span><kbd>⌘K</kbd></button>
 					<button type="button" className="mxp-primary" onClick={() => onNavigate("agentix")}><Pulse size={17} />Open Agentix</button>
 				</div>
-			</header>
+			</div>
 			<div className="mxp-portal-page mxp-dashboard-page">
-				<header className="mxp-dashboard-intro">
+				<div className="mxp-dashboard-intro">
 					<small>{dateLabel}</small>
 					<h1>Work that moved. Decisions that wait.</h1>
 					<p>A live operating view of outcomes, exceptions, and the next decisions only you can make.</p>
-				</header>
+				</div>
 
 				<section className="mxp-dashboard-metrics" aria-label="Workspace summary">
 					<article><small>Active projects</small><strong>{activeProjects.length}</strong><span>Across this workspace</span></article>
@@ -238,7 +238,7 @@ export function DashboardModule({
 
 				<div className="mxp-dashboard-grid">
 					<section className="mxp-dashboard-panel mxp-needs-you" aria-labelledby="mxp-needs-you-title">
-						<header><div><h2 id="mxp-needs-you-title">Needs you</h2><p>Decisions that require accountable authority</p></div><span>{needsYou.length}</span></header>
+						<div className="mxp-dashboard-panel-header"><div><h2 id="mxp-needs-you-title">Needs you</h2><p>Decisions that require accountable authority</p></div><span>{needsYou.length}</span></div>
 						<div>
 							{needsYou.map((item) => (
 								<article key={item.eyebrow}>
@@ -251,7 +251,7 @@ export function DashboardModule({
 					</section>
 
 					<section className="mxp-dashboard-panel mxp-recent-outcomes" aria-labelledby="mxp-recent-outcomes-title">
-						<header><div><h2 id="mxp-recent-outcomes-title">Recent outcomes</h2><p>Verified work completed across MAXION</p></div></header>
+						<div className="mxp-dashboard-panel-header"><div><h2 id="mxp-recent-outcomes-title">Recent outcomes</h2><p>Verified work completed across MAXION</p></div></div>
 						<div>
 							{outcomes.map((item) => {
 								const Icon = item.icon
