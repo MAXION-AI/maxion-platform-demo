@@ -40,7 +40,7 @@ describe("platform state kernel", () => {
 
 	it("does not rerender provider consumers for identical derived attention", () => {
 		const state = createInitialPlatformState("dashboard")
-		const unchanged = platformReducer(state, { type: "agentix/attention-changed", attention: selectAgentixAttention(state) })
+		const unchanged = platformReducer(state, { type: "agentix/attention-changed", attention: selectAgentixAttention(state), projectId: null })
 		expect(unchanged).toBe(state)
 	})
 

@@ -311,8 +311,7 @@
 .maxion-platform-prototype :is(
 	.prototype .command-composer,
 	.apn-composer,
-	.mxp-discovery-composer > div,
-	.mxp-consult-composer > div
+	.mxp-discovery-composer > div
 ) {
 	position: relative;
 	--mxp-composer-focus-color: var(--mxp-accent);
@@ -321,8 +320,7 @@
 .maxion-platform-prototype :is(
 	.prototype .command-composer,
 	.apn-composer,
-	.mxp-discovery-composer > div,
-	.mxp-consult-composer > div
+	.mxp-discovery-composer > div
 ) textarea:focus-visible {
 	outline: none !important;
 	outline-offset: 0;
@@ -341,8 +339,7 @@
 .maxion-platform-prototype.mxp-keyboard-navigation :is(
 	.prototype .command-composer,
 	.apn-composer,
-	.mxp-discovery-composer > div,
-	.mxp-consult-composer > div
+	.mxp-discovery-composer > div
 ):focus-within::after {
 	position: absolute;
 	right: 14px;

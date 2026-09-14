@@ -269,8 +269,6 @@
 }
 
 .mxp-stage { background: var(--portal-bg); }
-.mxp-mark { border-radius: 0; background: transparent; box-shadow: none; }
-.mxp-mark-spiral { width: 100%; height: 100%; }
 .mxp-command-spiral { width: 16px; height: 16px; }
 .mxp-stage-view:not([hidden]) { animation-duration: 220ms; }
 .mxp-portal-page {
@@ -900,7 +898,6 @@
 	.mxp-projects-workspace { grid-template-columns: 1fr; }
 	.mxp-project-list,
 	.mxp-project-context { min-height: 0; }
-	.mxp-module-header { padding-left: 58px; }
 }
 
 @media (max-width: 640px) {

@@ -90,7 +90,7 @@ export type PlatformState = {
 		plan: { sent: boolean; artifactRef: PlanArtifactRef | null }
 		execute: { verified: boolean; environment: PlatformEnvironment }
 	}
-	agentix: { attention: AgentixAttention }
+	agentix: { attention: AgentixAttention; projectId: string | null }
 	intents: {
 		discoverySetupSignal: number
 		operationalDiscovery: WorkflowId | null
@@ -123,7 +123,7 @@ export type PlatformEvent =
 	| { type: "plan/artifact-opened"; artifactId: string }
 	| { type: "plan/approved"; artifactRef: PlanArtifactRef }
 	| { type: "execute/verified" }
-	| { type: "agentix/attention-changed"; attention: AgentixAttention }
+	| { type: "agentix/attention-changed"; attention: AgentixAttention; projectId: string | null }
 	| { type: "agentix/opened"; intent: AgentixIntent }
 	| { type: "persistence/failed" }
 	| { type: "persistence/notice-cleared" }
