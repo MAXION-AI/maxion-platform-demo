@@ -62,7 +62,7 @@ describe("MaxionPlatformPrototypePage", () => {
 		expect(screen.getByRole("button", { name: "Search or ask" })).toBeInTheDocument()
 		expect(screen.getByRole("button", { name: "Open Agentix" })).toBeInTheDocument()
 		expect(screen.queryByRole("banner")).not.toBeInTheDocument()
-		expect(document.querySelectorAll(".mxp-needs-you article button")).toHaveLength(3)
+		expect(screen.getByText("Nothing needs your decision")).toBeInTheDocument()
 		expect(screen.queryByText("Quick navigation", { exact: true })).not.toBeInTheDocument()
 	})
 
@@ -123,23 +123,40 @@ describe("MaxionPlatformPrototypePage", () => {
 		expect(stage).not.toHaveAttribute("aria-hidden")
 	})
 
-	it("creates, searches, and opens a project without losing platform context", async () => {
+	it("reviews and creates a project, reads it back on Dashboard, and reopens its context", async () => {
 		renderPrototype()
 		fireEvent.click(screen.getByRole("button", { name: "Projects" }))
 		expect(screen.getByRole("heading", { name: "Projects" })).toBeInTheDocument()
 
-		fireEvent.click(screen.getByRole("button", { name: "Create Project" }))
-		const dialog = screen.getByRole("dialog", { name: "Create new project" })
+		fireEvent.click(screen.getByRole("button", { name: "New project" }))
+		let dialog = screen.getByRole("dialog", { name: "Define the outcome" })
 		fireEvent.change(screen.getByLabelText(/Project name/), { target: { value: "Finance controls uplift" } })
-		fireEvent.change(screen.getByLabelText("Description"), { target: { value: "Tighten close controls across finance systems." } })
-		fireEvent.click(within(dialog).getByRole("button", { name: "Create Project" }))
+		fireEvent.change(screen.getByLabelText(/Description/), { target: { value: "Tighten close controls across finance systems." } })
+		fireEvent.click(within(dialog).getByRole("button", { name: "Review project" }))
+		dialog = screen.getByRole("dialog", { name: "Review new project" })
+		expect(within(dialog).getByText("Finance controls uplift")).toBeInTheDocument()
+		fireEvent.click(within(dialog).getByRole("button", { name: "Create project" }))
 		const projectCollection = await screen.findByRole("region", { name: /^Projects$/ })
 		expect(within(projectCollection).getByText("Finance controls uplift")).toBeInTheDocument()
 
-		fireEvent.change(screen.getByPlaceholderText("Search projects by name or description"), { target: { value: "Finance controls" } })
-		fireEvent.click(within(projectCollection).getByRole("button", { name: /Finance controls uplift active/ }))
-		expect(screen.getByRole("complementary", { name: "Finance controls uplift project details" })).toBeInTheDocument()
-		expect(screen.getByRole("button", { name: "Start Discovery" })).toBeInTheDocument()
+		fireEvent.click(portalNavigation().getByRole("button", { name: "Dashboard" }))
+		const workspaceSummary = screen.getByRole("region", { name: "Workspace summary" })
+		expect(within(within(workspaceSummary).getByText("Active projects").closest("article")!).getByText("4")).toBeInTheDocument()
+		const attention = screen.getByText("Complete Finance controls uplift's operating context").closest("article")!
+		fireEvent.click(within(attention).getByRole("button", { name: "Review" }))
+		expect(screen.getByRole("heading", { name: "Finance controls uplift" })).toBeInTheDocument()
+		fireEvent.change(screen.getByRole("textbox", { name: "Search projects, owners, or outcomes" }), { target: { value: "Finance controls" } })
+		expect(within(projectCollection).getByText("Finance controls uplift")).toBeInTheDocument()
+	})
+
+	it("keeps Viewer projects readable while explicitly denying resume authority", () => {
+		renderPrototype()
+		fireEvent.click(screen.getByRole("button", { name: "Projects" }))
+		fireEvent.click(screen.getByRole("button", { name: /Open Customer 360, View only/ }))
+		expect(screen.getByRole("heading", { name: "Customer 360" })).toBeInTheDocument()
+		fireEvent.click(screen.getByRole("button", { name: "Request resume access" }))
+		expect(screen.getByRole("status")).toHaveTextContent("Viewer access to Customer 360")
+		expect(screen.getByRole("heading", { name: "Customer 360" })).toBeInTheDocument()
 	})
 
 	it("runs the autonomous Discovery interview through a verified package", async () => {

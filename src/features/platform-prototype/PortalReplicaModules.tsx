@@ -1,9 +1,7 @@
 import {
 	Activity,
-	Archive,
 	ArrowLeft,
 	ArrowRight,
-	ArrowsDownUp,
 	BellRinging,
 	CaretRight,
 	ChartBar,
@@ -11,34 +9,24 @@ import {
 	CheckCircle,
 	Code,
 	Compass,
-	Cube,
 	Database,
 	FileText,
 	FlowArrow,
 	FolderPlus,
 	GearSix,
-	GridFour,
-	Info,
-	List,
 	MagnifyingGlass,
 	Plug,
 	Plus,
 	Question,
 	ShieldCheck,
 	PencilSimpleLine,
-	Pulse,
 	Stack,
 	TerminalWindow,
-	Users,
 	WarningCircle,
 	X,
 } from "@phosphor-icons/react"
 import { motion, useReducedMotion } from "motion/react"
-import { useEffect, useMemo, useRef, useState, type CSSProperties, type FormEvent, type ReactNode, type RefObject } from "react"
-
-import type { AgentixAttention } from "@/features/agentix/prototype/AgentixInitiativesPage"
-import { listDiscoveryJumpRecords } from "@/features/discovery-autonomous/DiscoveryAutonomousPrototypePage"
-import { DELIVERABLES } from "@/features/discovery-autonomous/deliverables"
+import { useEffect, useRef, useState, type CSSProperties, type FormEvent, type ReactNode } from "react"
 
 import { MaxionSpiralMark } from "./PortalChrome"
 import {
@@ -60,35 +48,6 @@ type Navigate = (module: MaxionModuleId) => void
 // so timed theater checks both and takes the instant path if either says reduce.
 function prefersReducedMotionQuery() {
 	return typeof window !== "undefined" && typeof window.matchMedia === "function" && window.matchMedia("(prefers-reduced-motion: reduce)").matches
-}
-
-const FOCUSABLE_SELECTOR = "button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex='-1'])"
-
-// Ported from the Agentix dialog-focus contract: focus lands on the surface when it opens,
-// Tab cycles inside it in both directions, and closing hands focus back to the trigger.
-// `open` is a dependency because these surfaces mount and unmount inside a live module.
-function useDialogFocus(panelRef: RefObject<HTMLElement | null>, open: boolean) {
-	useEffect(() => {
-		if (!open) return
-		const panel = panelRef.current
-		if (!panel) return
-		const trigger = document.activeElement instanceof HTMLElement ? document.activeElement : null
-		// An autofocused field inside the surface already owns focus — never steal it back.
-		if (!panel.contains(document.activeElement)) panel.focus()
-		const onKeyDown = (event: KeyboardEvent) => {
-			if (event.key !== "Tab") return
-			const focusable = Array.from(panel.querySelectorAll<HTMLElement>(FOCUSABLE_SELECTOR))
-			if (focusable.length === 0) { event.preventDefault(); return }
-			const first = focusable[0]
-			const last = focusable[focusable.length - 1]
-			const active = document.activeElement
-			if (event.shiftKey && (active === first || active === panel)) { event.preventDefault(); last.focus() }
-			else if (!event.shiftKey && active === last) { event.preventDefault(); first.focus() }
-			else if (!(active instanceof HTMLElement) || !panel.contains(active)) { event.preventDefault(); (event.shiftKey ? last : first).focus() }
-		}
-		panel.addEventListener("keydown", onKeyDown)
-		return () => { panel.removeEventListener("keydown", onKeyDown); if (trigger && document.contains(trigger)) trigger.focus() }
-	}, [panelRef, open])
 }
 
 function PortalPageHeader({
@@ -120,290 +79,6 @@ function PortalStat({ icon, label, value, hint }: { icon: ReactNode; label: stri
 			<span>{icon}</span>
 			<div><small>{label}</small><strong>{value}</strong><p>{hint}</p></div>
 		</article>
-	)
-}
-
-export function DashboardModule({
-	projects,
-	onNavigate,
-	onCommand,
-	agentix,
-	discoveryReady,
-	planSent,
-	executeVerified,
-}: {
-	projects: PortalProject[]
-	onNavigate: Navigate
-	onCommand: () => void
-	agentix: AgentixAttention
-	discoveryReady: boolean
-	planSent: boolean
-	executeVerified: boolean
-}) {
-	const activeProjects = projects.filter((project) => project.status === "active")
-	const dateLabel = new Intl.DateTimeFormat("en-US", {
-		weekday: "long",
-		month: "long",
-		day: "numeric",
-	}).format(new Date())
-	const discoveries = listDiscoveryJumpRecords()
-	const runningDiscoveries = discoveries.filter((record) => record.status !== "completed").length
-	const discoveriesNeedingInput = discoveries.filter((record) => record.status === "needs-input").length
-	const openedWith = useRef({ discoveryReady, planSent, executeVerified, approval: agentix.approval, audience: agentix.audience })
-	const since = (changed: boolean, resting: string) => changed ? "Just now" : resting
-	const agentixChanged = openedWith.current.approval !== agentix.approval || openedWith.current.audience !== agentix.audience
-	const needsYou = [
-		{
-			module: "agentix" as const,
-			eyebrow: "AGENTIX · FINANCE",
-			title: agentix.approval ? "Review the July close variance" : "Confirm the finance exception policy",
-			detail: agentix.approval ? "$240 invoice variance · evidence package ready" : "One approval boundary is ready for an owner decision",
-			action: agentix.approval ? "Review decision" : "Review policy",
-			tone: "warning",
-		},
-		{
-			module: "discovery" as const,
-			eyebrow: "DISCOVER · TPRM",
-			title: discoveryReady ? "Confirm the TPRM recommendation" : "Clarify the remaining authority boundary",
-			detail: discoveryReady ? `${DELIVERABLES.length} deliverables · evidence lineage verified` : `${Math.max(discoveriesNeedingInput, 1)} interview decision needs an accountable owner`,
-			action: discoveryReady ? "Review package" : "Answer question",
-			tone: "brand",
-		},
-		{
-			module: "plan" as const,
-			eyebrow: "PLAN · ERP MODERNIZATION",
-			title: planSent ? "Approve the next implementation wave" : "Accept the proposed rollout sequence",
-			detail: "5 flows · 17 build packages · dependencies checked",
-			action: planSent ? "Inspect plan" : "Review proposal",
-			tone: "neutral",
-		},
-	]
-	const outcomes = [
-		{
-			module: "discovery" as const,
-			icon: Compass,
-			title: discoveryReady ? "TPRM package generated" : "TPRM evidence updated",
-			detail: discoveryReady ? `${DELIVERABLES.length} verified deliverables` : "Owner interview preserved",
-			time: since(openedWith.current.discoveryReady !== discoveryReady, "8m"),
-			tone: discoveryReady ? "success" : "info",
-		},
-		{
-			module: "plan" as const,
-			icon: FlowArrow,
-			title: planSent ? "ERP plan sent to Execute" : "ERP plan updated",
-			detail: "17 build packages · v12",
-			time: since(openedWith.current.planSent !== planSent, "24m"),
-			tone: "info",
-		},
-		{
-			module: "execute" as const,
-			icon: Cube,
-			title: executeVerified ? "Release evidence verified" : planSent ? "Implementation is progressing" : "Execute boundary preserved",
-			detail: executeVerified ? "48 tests passed · gate clean" : planSent ? "5 workspaces · no blockers" : "No unapproved work launched",
-			time: since(openedWith.current.executeVerified !== executeVerified, "41m"),
-			tone: executeVerified ? "success" : planSent ? "live" : "info",
-		},
-		{
-			module: "agentix" as const,
-			icon: Pulse,
-			title: agentix.approval ? "Invoice evidence assembled" : agentix.audience ? "Onboarding work completed" : "Agent health verified",
-			detail: agentix.approval ? "Invoice v2 · variance isolated" : agentix.audience ? "HR and IT outcomes preserved" : "Active workloads are healthy",
-			time: since(agentixChanged, "1h"),
-			tone: agentix.count ? "attention" : "success",
-		},
-	]
-
-	return (
-		<div className="mxp-dashboard-shell">
-			<div className="mxp-dashboard-module-header">
-				<div><small>Operating overview</small><strong>Good morning, Root Admin</strong><span>{needsYou.length} decisions need you</span></div>
-				<div>
-					<button type="button" className="mxp-dashboard-search" aria-label="Search or ask" onClick={onCommand}><MagnifyingGlass size={16} /><span>Search or ask</span><kbd>⌘K</kbd></button>
-					<button type="button" className="mxp-primary" onClick={() => onNavigate("agentix")}><Pulse size={17} />Open Agentix</button>
-				</div>
-			</div>
-			<div className="mxp-portal-page mxp-dashboard-page">
-				<div className="mxp-dashboard-intro">
-					<small>{dateLabel}</small>
-					<h1>Work that moved. Decisions that wait.</h1>
-					<p>A live operating view of outcomes, exceptions, and the next decisions only you can make.</p>
-				</div>
-
-				<section className="mxp-dashboard-metrics" aria-label="Workspace summary">
-					<article><small>Active projects</small><strong>{activeProjects.length}</strong><span>Across this workspace</span></article>
-					<article><small>Discoveries running</small><strong>{runningDiscoveries}</strong><span>{discoveriesNeedingInput ? `${discoveriesNeedingInput} needs input` : "No blocked interviews"}</span></article>
-					<article><small>Plans created</small><strong>{PLAN_LIBRARY.length}</strong><span>{planSent ? "Latest sent to Execute" : "2 ready for execution"}</span></article>
-					<article><small>Workspace units</small><strong>{WORKSPACE_UNITS_PERCENT}%</strong><span>{100 - WORKSPACE_UNITS_PERCENT}% remains this cycle</span></article>
-				</section>
-
-				<div className="mxp-dashboard-grid">
-					<section className="mxp-dashboard-panel mxp-needs-you" aria-labelledby="mxp-needs-you-title">
-						<div className="mxp-dashboard-panel-header"><div><h2 id="mxp-needs-you-title">Needs you</h2><p>Decisions that require accountable authority</p></div><span>{needsYou.length}</span></div>
-						<div>
-							{needsYou.map((item) => (
-								<article key={item.eyebrow}>
-									<i data-tone={item.tone} aria-hidden="true" />
-									<div><small>{item.eyebrow}</small><h3>{item.title}</h3><p>{item.detail}</p></div>
-									<button type="button" onClick={() => onNavigate(item.module)}>{item.action}<CaretRight size={14} /></button>
-								</article>
-							))}
-						</div>
-					</section>
-
-					<section className="mxp-dashboard-panel mxp-recent-outcomes" aria-labelledby="mxp-recent-outcomes-title">
-						<div className="mxp-dashboard-panel-header"><div><h2 id="mxp-recent-outcomes-title">Recent outcomes</h2><p>Verified work completed across MAXION</p></div></div>
-						<div>
-							{outcomes.map((item) => {
-								const Icon = item.icon
-								return <button type="button" key={item.title} onClick={() => onNavigate(item.module)}><span className={`mxp-activity-icon is-${item.tone}`}><Icon size={16} weight="duotone" /></span><span><strong>{item.title}</strong><small>{item.detail}</small></span><time>{item.time}</time></button>
-							})}
-						</div>
-					</section>
-				</div>
-			</div>
-		</div>
-	)
-}
-
-type ProjectDetailsTab = "overview" | "team" | "activity" | "settings"
-
-export function ProjectsModule({
-	projects,
-	onProjectsChange,
-	onNavigate,
-}: {
-	projects: PortalProject[]
-	onProjectsChange: (projects: PortalProject[]) => void
-	onNavigate: Navigate
-}) {
-	const [query, setQuery] = useState("")
-	const [sort, setSort] = useState<"updated" | "name">("updated")
-	const [view, setView] = useState<"grid" | "list">("grid")
-	const [showArchived, setShowArchived] = useState(false)
-	const [createOpen, setCreateOpen] = useState(false)
-	const [newName, setNewName] = useState("")
-	const [newDescription, setNewDescription] = useState("")
-	const [selected, setSelected] = useState<PortalProject | null>(null)
-	const [detailsTab, setDetailsTab] = useState<ProjectDetailsTab>("overview")
-	const [announcement, setAnnouncement] = useState("")
-	const [inviteOpen, setInviteOpen] = useState(false)
-	const [inviteName, setInviteName] = useState("")
-	const rootRef = useRef<HTMLDivElement>(null)
-	const dialogRef = useRef<HTMLElement>(null)
-	const panelRef = useRef<HTMLElement>(null)
-	useDialogFocus(dialogRef, createOpen)
-	useDialogFocus(panelRef, Boolean(selected))
-	// Escape closes the surface on top, the same ladder every module honours. The stage
-	// stays mounted behind `hidden` when the viewer leaves, so only a visible Projects
-	// page may own the key.
-	useEffect(() => {
-		if (!createOpen && !selected) return
-		const onKeyDown = (event: KeyboardEvent) => {
-			if (event.key !== "Escape" || !rootRef.current?.offsetParent) return
-			event.preventDefault()
-			if (createOpen) setCreateOpen(false)
-			else setSelected(null)
-		}
-		window.addEventListener("keydown", onKeyDown)
-		return () => window.removeEventListener("keydown", onKeyDown)
-	}, [createOpen, selected])
-	const visible = useMemo(() => {
-		const normalized = query.trim().toLowerCase()
-		return [...projects]
-			.filter((project) => (showArchived || project.status === "active") && (!normalized || `${project.name} ${project.description}`.toLowerCase().includes(normalized)))
-			.sort((a, b) => sort === "name" ? a.name.localeCompare(b.name) : projects.indexOf(a) - projects.indexOf(b))
-	}, [projects, query, showArchived, sort])
-
-	const createProject = (event: FormEvent<HTMLFormElement>) => {
-		event.preventDefault()
-		const name = newName.trim()
-		if (!name) return
-		const project: PortalProject = {
-			id: `${name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "")}-${Date.now()}`,
-			name,
-			description: newDescription.trim() || "New MAXION project workspace.",
-			status: "active",
-			role: "Owner",
-			updated: "Just now",
-			members: [{ initials: "RA", name: "Root Admin" }],
-		}
-		onProjectsChange([project, ...projects])
-		setNewName("")
-		setNewDescription("")
-		setCreateOpen(false)
-		setAnnouncement(`${name} created.`)
-	}
-
-	const toggleArchive = (project: PortalProject) => {
-		const nextStatus: PortalProject["status"] = project.status === "active" ? "archived" : "active"
-		const next: PortalProject[] = projects.map((item) => item.id === project.id ? { ...item, status: nextStatus } : item)
-		onProjectsChange(next)
-		setSelected((current) => current?.id === project.id ? { ...project, status: nextStatus } : current)
-		setAnnouncement(`${project.name} ${nextStatus === "archived" ? "archived" : "restored"}.`)
-	}
-
-	// Adding a member is a real membership change: it lands on the project record the rest
-	// of the shell reads, not on a local list that disappears with the panel.
-	const addMember = () => {
-		const name = inviteName.trim()
-		if (!selected || !name) return
-		const initials = (name.split(/\s+/).map((part) => part[0] ?? "").join("") || name).slice(0, 2).toUpperCase()
-		const member = { initials, name }
-		onProjectsChange(projects.map((item) => item.id === selected.id ? { ...item, members: [...item.members, member] } : item))
-		setSelected((current) => current ? { ...current, members: [...current.members, member] } : current)
-		setInviteName("")
-		setInviteOpen(false)
-		setAnnouncement(`${name} added to ${selected.name}.`)
-	}
-	// A half-typed invite never survives leaving the panel or the tab it belongs to.
-	useEffect(() => { setInviteOpen(false); setInviteName("") }, [selected?.id, detailsTab])
-
-	return (
-		<div className="mxp-portal-page mxp-projects-page" ref={rootRef}>
-			<div className="mxp-breadcrumb"><button type="button" onClick={() => onNavigate("dashboard")}>Home</button><CaretRight size={12} /><span>Projects</span></div>
-			<PortalPageHeader
-				eyebrow="Workspace"
-				title="Projects"
-				description={`${projects.filter((project) => project.status === "active").length} active projects · ${projects.filter((project) => project.status === "archived").length} archived`}
-				actions={<button type="button" className="mxp-primary" onClick={() => setCreateOpen(true)}><Plus size={16} />Create Project</button>}
-			/>
-			<div className="mxp-project-toolbar">
-				<label><MagnifyingGlass size={16} /><span className="sr-only">Search projects</span><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search projects by name or description" /></label>
-				<label className="mxp-project-sort"><ArrowsDownUp size={15} /><span className="sr-only">Sort projects</span><select value={sort} onChange={(event) => setSort(event.target.value as "updated" | "name")}><option value="updated">Recently updated</option><option value="name">Name</option></select></label>
-				<label className="mxp-archive-toggle"><input type="checkbox" checked={showArchived} onChange={(event) => setShowArchived(event.target.checked)} />Show archived</label>
-				<div className="mxp-view-switcher" role="group" aria-label="Project view"><button type="button" aria-pressed={view === "grid"} onClick={() => setView("grid")}><GridFour size={16} /><span className="sr-only">Grid view</span></button><button type="button" aria-pressed={view === "list"} onClick={() => setView("list")}><List size={16} /><span className="sr-only">List view</span></button></div>
-			</div>
-			<div aria-live="polite" className="sr-only">{announcement}</div>
-			{visible.length ? (
-				<section className={`mxp-project-collection is-${view}`} aria-label="Projects">
-					{visible.map((project) => (
-						<article key={project.id} className={project.status === "archived" ? "is-archived" : ""}>
-							<button type="button" className="mxp-project-open" onClick={() => { setSelected(project); setDetailsTab("overview") }}>
-								<span className="mxp-project-card-icon"><Stack size={19} weight="duotone" /></span>
-								<span className="mxp-project-copy"><span><strong>{project.name}</strong><i className={`mxp-project-status is-${project.status}`}>{project.status}</i></span><p>{project.description}</p><small>{project.role} · Updated {project.updated}</small></span>
-								<span className="mxp-avatar-stack">{project.members.slice(0, 3).map((member) => <i key={member.name} title={member.name}>{member.initials}</i>)}</span>
-							</button>
-							<footer><span>{project.plan ? <><FlowArrow size={13} />Plan linked</> : <><Info size={13} />No plan</>}</span><span>{project.discovery ? <><Compass size={13} />Discovery linked</> : <><Info size={13} />No discovery</>}</span><button type="button" aria-label={`${project.status === "active" ? "Archive" : "Restore"} ${project.name}`} onClick={() => toggleArchive(project)}><Archive size={14} />{project.status === "active" ? "Archive" : "Restore"}</button></footer>
-						</article>
-					))}
-				</section>
-			) : (
-				<section className="mxp-projects-empty"><Stack size={28} weight="duotone" /><h2>No matching projects</h2><p>Clear the search or include archived workspaces.</p><button type="button" onClick={() => { setQuery(""); setShowArchived(true) }}>Show all projects</button></section>
-			)}
-
-			{createOpen ? (
-				<div className="mxp-dialog-layer" onMouseDown={(event) => { if (event.currentTarget === event.target) setCreateOpen(false) }}>
-					<section role="dialog" aria-modal="true" aria-labelledby="create-project-title" className="mxp-portal-dialog" ref={dialogRef} tabIndex={-1}>
-						<header><div><span className="mxp-dialog-icon"><FolderPlus size={18} /></span><div><small>Workspace</small><h2 id="create-project-title">Create new project</h2></div></div><button type="button" aria-label="Close create project dialog" onClick={() => setCreateOpen(false)}><X size={17} /></button></header>
-						<form onSubmit={createProject}><label>Project name<span>{newName.length}/80</span><input autoFocus maxLength={80} required value={newName} onChange={(event) => setNewName(event.target.value)} placeholder="e.g., Finance operating model" /></label><label>Description<textarea value={newDescription} onChange={(event) => setNewDescription(event.target.value)} rows={3} placeholder="Describe the scope, stakeholders, or desired outcome." /></label><div><button type="button" onClick={() => setCreateOpen(false)}>Cancel</button><button type="submit" className="mxp-primary" disabled={!newName.trim()}>Create Project</button></div></form>
-					</section>
-				</div>
-			) : null}
-
-			{selected ? (
-				<><button type="button" className="mxp-panel-scrim" aria-label="Close project details" onClick={() => setSelected(null)} /><aside className="mxp-project-panel" aria-label={`${selected.name} project details`} ref={panelRef} tabIndex={-1}><header><div><span className="mxp-project-card-icon"><Stack size={19} /></span><div><small>Project</small><h2>{selected.name}</h2></div></div><button type="button" aria-label="Close project details" onClick={() => setSelected(null)}><X size={17} /></button></header><nav aria-label="Project details sections">{(["overview", "team", "activity", "settings"] as const).map((tab) => <button key={tab} type="button" className={detailsTab === tab ? "is-active" : ""} onClick={() => setDetailsTab(tab)}>{tab}</button>)}</nav><div className="mxp-project-panel-body">{detailsTab === "overview" ? <><p>{selected.description}</p><dl><div><dt>Status</dt><dd>{selected.status}</dd></div><div><dt>Your role</dt><dd>{selected.role}</dd></div><div><dt>Plan</dt><dd>{selected.plan || "Not created"}</dd></div><div><dt>Discovery</dt><dd>{selected.discovery || "Not started"}</dd></div></dl><div className="mxp-project-panel-actions"><button type="button" onClick={() => onNavigate("discovery")}><Compass size={15} />{selected.discovery ? "Open Discovery" : "Start Discovery"}</button><button type="button" onClick={() => onNavigate("plan")}><FlowArrow size={15} />{selected.plan ? "Open Plan" : "Create Plan"}</button></div></> : detailsTab === "team" ? <div className="mxp-team-list">{selected.members.map((member, index) => <div key={member.name}><span>{member.initials}</span><strong>{member.name}</strong><small>{index === 0 ? "Owner" : "Member"}</small></div>)}{inviteOpen ? <form className="mxp-team-invite" onSubmit={(event) => { event.preventDefault(); addMember() }}><label><span className="sr-only">New member name</span><input autoFocus maxLength={60} value={inviteName} onChange={(event) => setInviteName(event.target.value)} onKeyDown={(event) => { if (event.key === "Enter") { event.preventDefault(); addMember() } }} placeholder="Full name" /></label><button type="button" onClick={() => { setInviteOpen(false); setInviteName("") }}>Cancel</button><button type="submit" className="mxp-primary" disabled={!inviteName.trim()}>Add</button></form> : <button type="button" onClick={() => setInviteOpen(true)}><Users size={15} />Add member</button>}</div> : detailsTab === "activity" ? <div className="mxp-project-activity"><p><CheckCircle size={15} />Plan evidence snapshot updated<time>12 minutes ago</time></p><p><Compass size={15} />Discovery interview completed<time>Yesterday</time></p><p><Users size={15} />Sarah Liu joined the project<time>4 days ago</time></p></div> : <div className="mxp-project-settings"><label>Project name<input value={selected.name} readOnly /></label><button type="button" onClick={() => toggleArchive(selected)}><Archive size={15} />{selected.status === "active" ? "Archive project" : "Restore project"}</button></div>}</div></aside></>
-			) : null}
-		</div>
 	)
 }
 
