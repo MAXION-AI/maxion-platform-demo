@@ -304,76 +304,6 @@
 	min-height: 40px;
 }
 
-/* Execute intentionally keeps a dark, focused engineering surface; its tokens now map to MAXION. */
-.maxion-platform-prototype .aex-app {
-	--aex-bg: var(--mxp-dark);
-	--aex-bg-deep: var(--mxp-dark-deep);
-	--aex-panel: var(--mxp-dark-panel);
-	--aex-panel-raised: var(--mxp-dark-panel-raised);
-	--aex-hover: var(--mxp-dark-hover);
-	--aex-line: var(--mxp-dark-line);
-	--aex-line-strong: var(--mxp-dark-line-strong);
-	--aex-text: var(--mxp-text-inverse);
-	--aex-text-2: var(--mxp-dark-text-secondary);
-	--aex-muted: var(--mxp-text-inverse-muted);
-	--aex-subtle: var(--mxp-dark-text-subtle);
-	--aex-accent: var(--mxp-accent-highlight);
-	--aex-accent-strong: var(--mxp-accent-highlight-strong);
-	--aex-accent-soft: var(--mxp-accent-soft-alpha);
-	/* Greens retired family-wide: verified states speak the teal accent, amber stays approval-only. */
-	--aex-success: var(--mxp-accent-highlight);
-	--aex-radius-sm: var(--mxp-radius-control);
-	--aex-radius: var(--mxp-radius-card);
-	--aex-radius-lg: var(--mxp-radius-composer);
-	font-family: var(--mxp-font-sans);
-}
-
-.maxion-platform-prototype .aex-rail {
-	background: var(--mxp-dark-rail);
-}
-
-.maxion-platform-prototype .aex-home-title h1 {
-	font-size: clamp(34px, 3.6vw, 44px);
-	line-height: 1.06;
-}
-
-.maxion-platform-prototype .aex-home-title p,
-.maxion-platform-prototype .aex-thread-title p,
-.maxion-platform-prototype .aex-message p {
-	font-size: 14px;
-	line-height: 1.55;
-}
-
-.maxion-platform-prototype .aex-prompt,
-.maxion-platform-prototype .aex-steer {
-	border-radius: var(--mxp-radius-composer);
-}
-
-.maxion-platform-prototype .aex-prompt > textarea {
-	min-height: 152px;
-	padding: 22px 24px 16px;
-	font-size: 16px;
-	line-height: 1.55;
-}
-
-.maxion-platform-prototype .aex-prompt > footer {
-	min-height: 60px;
-}
-
-.maxion-platform-prototype .aex-new-task,
-.maxion-platform-prototype .aex-approval article > footer button,
-.maxion-platform-prototype .aex-approve,
-.maxion-platform-prototype .aex-thread-title button {
-	min-height: var(--mxp-control-lg);
-	border-radius: var(--mxp-radius-control);
-}
-
-.maxion-platform-prototype .aex-steer textarea {
-	min-height: 52px;
-	padding: 14px 16px 5px;
-	font-size: 13px;
-}
-
 /* Conversational surfaces should feel like a single calm canvas, not a form
  * field inside a second focused box. Chromium considers pointer-focused text
  * inputs `:focus-visible`, so the shell's input-modality class is the reliable
@@ -381,9 +311,6 @@
 .maxion-platform-prototype :is(
 	.prototype .command-composer,
 	.apn-composer,
-	.aex-prompt,
-	.aex-steer,
-	.exd-composer,
 	.mxp-discovery-composer > div,
 	.mxp-consult-composer > div
 ) {
@@ -391,16 +318,9 @@
 	--mxp-composer-focus-color: var(--mxp-accent);
 }
 
-.maxion-platform-prototype :is(.aex-prompt, .aex-steer, .exd-composer) {
-	--mxp-composer-focus-color: var(--mxp-dark-focus);
-}
-
 .maxion-platform-prototype :is(
 	.prototype .command-composer,
 	.apn-composer,
-	.aex-prompt,
-	.aex-steer,
-	.exd-composer,
 	.mxp-discovery-composer > div,
 	.mxp-consult-composer > div
 ) textarea:focus-visible {
@@ -418,29 +338,9 @@
 	box-shadow: var(--mxp-elevation-card);
 }
 
-.maxion-platform-prototype:not(.mxp-keyboard-navigation) .aex-prompt:focus-within {
-	border-color: var(--aex-line-strong);
-	box-shadow: var(--mxp-dark-shadow-prompt);
-	transform: none;
-}
-
-.maxion-platform-prototype:not(.mxp-keyboard-navigation) .aex-steer:focus-within {
-	border-color: var(--aex-line-strong);
-	box-shadow: var(--mxp-dark-shadow-steer);
-}
-
-.maxion-platform-prototype:not(.mxp-keyboard-navigation) .exd-composer:focus-within {
-	border-color: var(--exd-line-strong);
-	box-shadow: var(--mxp-dark-shadow-composer);
-	transform: none;
-}
-
 .maxion-platform-prototype.mxp-keyboard-navigation :is(
 	.prototype .command-composer,
 	.apn-composer,
-	.aex-prompt,
-	.aex-steer,
-	.exd-composer,
 	.mxp-discovery-composer > div,
 	.mxp-consult-composer > div
 ):focus-within::after {
@@ -459,15 +359,12 @@
 	.maxion-platform-prototype .prototype .brief-editor textarea { min-height: 132px; padding: 18px; }
 	.maxion-platform-prototype .prototype .command-composer textarea { min-height: 72px; padding-inline: 16px; }
 	.maxion-platform-prototype .apn-run-hero h1,
-	.maxion-platform-prototype .aex-home-title h1,
 	.maxion-platform-prototype .prototype .setup-intro h1 { font-size: 32px; }
-	.maxion-platform-prototype .aex-prompt > textarea { min-height: 144px; padding: 20px 18px 14px; }
 }
 
 @media (prefers-reduced-motion: reduce) {
 	.maxion-platform-prototype .prototype *,
-	.maxion-platform-prototype .apn-shell *,
-	.maxion-platform-prototype .aex-app * {
+	.maxion-platform-prototype .apn-shell * {
 		animation-duration: .01ms !important;
 		transition-duration: .01ms !important;
 	}

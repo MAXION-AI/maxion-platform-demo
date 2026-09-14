@@ -55,4 +55,12 @@ describe("platform state kernel", () => {
 		expect(persistedPlatformStateCodec.parse({ ...persisted, projects: [{ ...INITIAL_PROJECTS[0], name: "x".repeat(161) }] })).toBeNull()
 		expect(persistedPlatformStateCodec.parse({ ...persisted, executeVerified: "yes" })).toBeNull()
 	})
+
+	it("clears Execute verification when an approved Plan is replaced", () => {
+		let state = createInitialPlatformState("plan")
+		state = platformReducer(state, { type: "plan/approved", artifactRef: planArtifactRef })
+		state = platformReducer(state, { type: "execute/verified" })
+		state = platformReducer(state, { type: "plan/approved", artifactRef: { ...planArtifactRef, id: "plan-project-1-approved-v2", artifactVersion: 2, contentDigest: "fnv1a-next" } })
+		expect(state.handoffs.execute.verified).toBe(false)
+	})
 })

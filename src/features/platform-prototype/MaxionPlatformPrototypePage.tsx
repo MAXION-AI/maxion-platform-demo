@@ -5,7 +5,6 @@ import {
 	ChatCircleText,
 	Check,
 	Clock,
-	Code,
 	Compass,
 	Cube,
 	Database,
@@ -34,25 +33,16 @@ import {
 
 import { PLAN_JUMP_ENTRIES, PlanModule } from "./PlanAgenticModule"
 import { DashboardModule } from "./DashboardModule"
-import { ExecuteDeliveryWorkspace, type ExecuteDeliveryCommand, type ExecuteDeliveryProgress } from "./ExecuteDeliveryWorkspace"
+import { ExecuteDeliveryWorkspace } from "./ExecuteDeliveryWorkspace"
 import { ADMINISTRATION_NAVIGATION, MaxionSpiralMark, PortalSidebar, PRODUCT_NAVIGATION } from "./PortalChrome"
 import { PlatformDemoProvider, usePlatformDispatch, usePlatformSelector } from "./PlatformDemoProvider"
 import { ModuleErrorBoundary } from "./ModuleErrorBoundary"
 import {
 	AccountUtilityModule,
-	ExecuteHubModule,
 	IntegrationsModule,
 } from "./PortalReplicaModules"
 import { ProjectsModule } from "./ProjectsModule"
-import {
-	EXECUTE_FLAGSHIP_ENGAGEMENT,
-	EXECUTE_TASKS,
-	resolveExecuteBlueprint,
-	type ExecuteLaunchIntent,
-	type ExecuteWorkspaceId,
-	type ExecuteWorkspaceSpec,
-} from "./model"
-import type { AgentixAttention, AgentixIntent, ExecuteJumpSignal, MaxionModuleId, PlanArtifactRef } from "./contracts"
+import type { AgentixAttention, AgentixIntent, MaxionModuleId, PlanArtifactRef, PortalProject } from "./contracts"
 import type { AgentixModuleProps } from "./modules/AgentixModule"
 import type { DiscoveryModuleProps } from "./modules/DiscoveryModule"
 import {
@@ -116,10 +106,35 @@ function ContextRail({ title, kicker, children, footer }: { title: string; kicke
 	return <aside className="mxp-context-rail"><div className="mxp-context-brand"><MaxionMark size={27} /><div><strong>{title}</strong>{kicker ? <small>{kicker}</small> : null}</div></div><div className="mxp-context-body">{children}</div><div className="mxp-context-footer">{footer}</div></aside>
 }
 
-const EXECUTE_VIEW_ORDER = ["topology", "changes", "tests", "terminal", "deploys", "audit"] as const
+function ExecuteModule({
+	planArtifact,
+	projectRole,
+	onVerified,
+	onNavigate,
+	onCommand,
+}: {
+	planArtifact: PlanArtifactRef | null
+	projectRole: PortalProject["role"] | undefined
+	onVerified: () => void
+	onNavigate: (module: MaxionModuleId) => void
+	onCommand: () => void
+}) {
+	return (
+		<div className="exw-module">
+			<ExecuteDeliveryWorkspace
+				key={planArtifact?.id ?? "execute-empty"}
+				onBack={() => onNavigate("dashboard")}
+				onPlatform={() => onNavigate("dashboard")}
+				onPlan={() => onNavigate("plan")}
+				onCommand={onCommand}
+				planArtifact={planArtifact}
+				role={projectRole === "Owner" ? "owner" : projectRole === "Member" ? "member" : "viewer"}
+				onVerified={onVerified}
+			/>
+		</div>
+	)
+}
 
-// Ported from PlanAgenticModule — the family's motion discipline: every timed behavior
-// keeps an instant path when the viewer prefers reduced motion (jsdom forces this in vitest).
 function prefersReducedMotion() {
 	return typeof window !== "undefined" && typeof window.matchMedia === "function" && window.matchMedia("(prefers-reduced-motion: reduce)").matches
 }
@@ -130,246 +145,18 @@ function useStreamedText(text: string, active: boolean) {
 		if (!active || prefersReducedMotion()) { setCount(Number.MAX_SAFE_INTEGER); return }
 		setCount(0)
 		const total = text.split(" ").length
-		const timer = window.setInterval(() => {
-			setCount((current) => {
-				if (current >= total) { window.clearInterval(timer); return current }
-				return current + 1
-			})
-		}, 26)
+		const timer = window.setInterval(() => setCount((current) => {
+			if (current >= total) { window.clearInterval(timer); return current }
+			return current + 1
+		}), 26)
 		return () => window.clearInterval(timer)
 	}, [text, active])
-	if (!active) return text
 	const words = text.split(" ")
-	return count >= words.length ? text : words.slice(0, count).join(" ")
+	return !active || count >= words.length ? text : words.slice(0, count).join(" ")
 }
 
 function StreamedText({ text }: { text: string }) {
-	const streamed = useStreamedText(text, true)
-	return <>{streamed}</>
-}
-
-// Engagement progress lives on ExecuteModule so the hub reflects real state and
-// re-entering a verified engagement restores it instead of replaying the run.
-type ExecuteEngagementProgress = ExecuteDeliveryProgress
-type ExecuteWorkspaceCommand = ExecuteDeliveryCommand
-type ExecutePaletteAction = Exclude<ExecuteWorkspaceCommand, { type: "focus-steer" }> | { type: "module"; module: MaxionModuleId } | { type: "new-task" } | { type: "engagements" }
-type ExecutePaletteItem = { id: string; group: string; label: string; hint: string; keywords: string; action: ExecutePaletteAction }
-
-const EXECUTE_VIEW_META: Record<(typeof EXECUTE_VIEW_ORDER)[number], { label: string; hint: string }> = {
-	topology: { label: "Topology", hint: "Workspaces and the cumulative gate" },
-	changes: { label: "Changes", hint: "Files and diffs in this workspace" },
-	tests: { label: "Tests", hint: "Suites and release gates" },
-	terminal: { label: "Terminal", hint: "Worktree command output" },
-	deploys: { label: "Deploys", hint: "Governed release" },
-	audit: { label: "Audit", hint: "Immutable evidence chain" },
-}
-
-const EXECUTE_PALETTE_MODULES: ReadonlyArray<{ id: MaxionModuleId; label: string; hint: string }> = [
-	{ id: "dashboard", label: "Dashboard", hint: "Portal overview" },
-	{ id: "projects", label: "Projects", hint: "Delivery portfolio" },
-	{ id: "discovery", label: "Discover", hint: "Autonomous discovery" },
-	{ id: "plan", label: "Plan", hint: "Implementation plans" },
-	{ id: "agentix", label: "Agentix", hint: "Operational agents" },
-	{ id: "consult", label: "Consult MAX", hint: "Ask across MAXION" },
-	{ id: "integrations", label: "Integrations", hint: "Connected systems" },
-]
-
-function buildExecutePaletteItems(workspaces: readonly ExecuteWorkspaceSpec[]): ExecutePaletteItem[] {
-	const items: ExecutePaletteItem[] = []
-	workspaces.forEach((task, index) => items.push({ id: `workspace-${task.id}`, group: "Workspaces", label: task.title, hint: `Open Workspace ${String(index + 1).padStart(2, "0")}`, keywords: `${task.detail} workspace agent session`, action: { type: "workspace", taskId: task.id } }))
-	EXECUTE_VIEW_ORDER.forEach((view, index) => items.push({ id: `view-${view}`, group: "Views", label: EXECUTE_VIEW_META[view].label, hint: `${EXECUTE_VIEW_META[view].hint} · ${index + 1}`, keywords: `inspector panel view ${view}`, action: { type: "view", view } }))
-	items.push({ id: "run-start", group: "Run", label: "Start agent run", hint: "MAX implements, tests, and repairs", keywords: "start run launch verify agent", action: { type: "run" } })
-	items.push({ id: "run-interrupt", group: "Run", label: "Interrupt run", hint: "Pause the working agent", keywords: "interrupt pause stop halt", action: { type: "interrupt" } })
-	items.push({ id: "deploy-request", group: "Actions", label: "Request deploy approval", hint: "Route the release to its owner", keywords: "deploy release approval production request", action: { type: "deploy" } })
-	items.push({ id: "export-audit", group: "Actions", label: "Export audit package", hint: "Evidence with source attribution", keywords: "audit export evidence attribution package", action: { type: "export-audit" } })
-	items.push({ id: "new-task", group: "Actions", label: "New task", hint: "Describe a new outcome · N", keywords: "new task engagement compose prompt", action: { type: "new-task" } })
-	items.push({ id: "all-engagements", group: "Actions", label: "All engagements", hint: "Back to the Execute hub", keywords: "engagements hub home overview back", action: { type: "engagements" } })
-	for (const module of EXECUTE_PALETTE_MODULES) items.push({ id: `module-${module.id}`, group: "Go to", label: module.label, hint: module.hint, keywords: `module navigate go ${module.label}`, action: { type: "module", module: module.id } })
-	return items
-}
-
-function ExecuteCommandPalette({ workspaces, onRun, onClose }: { workspaces: readonly ExecuteWorkspaceSpec[]; onRun: (action: ExecutePaletteAction) => void; onClose: () => void }) {
-	const [query, setQuery] = useState("")
-	const [active, setActive] = useState(0)
-	const items = buildExecutePaletteItems(workspaces)
-	const q = query.trim().toLowerCase()
-	const filtered = q ? items.filter((item) => `${item.label} ${item.hint} ${item.keywords}`.toLowerCase().includes(q)).slice(0, 9) : items.slice(0, 9)
-	const activeIndex = Math.min(active, Math.max(0, filtered.length - 1))
-	return (
-		<div className="aex-app aex-palette-layer">
-			<button type="button" className="aex-palette-scrim" aria-label="Close command menu" onClick={onClose} />
-			<div role="dialog" aria-label="Execute command menu" className="aex-palette">
-				<input
-					autoFocus
-					value={query}
-					placeholder="Jump to a workspace, view, run action, or module…"
-					aria-label="Search Execute commands"
-					onChange={(event) => { setQuery(event.target.value); setActive(0) }}
-					onKeyDown={(event) => {
-						if (event.key === "ArrowDown") { event.preventDefault(); setActive((current) => Math.min(current + 1, filtered.length - 1)) }
-						if (event.key === "ArrowUp") { event.preventDefault(); setActive((current) => Math.max(current - 1, 0)) }
-						if (event.key === "Enter" && filtered[activeIndex]) { event.preventDefault(); onRun(filtered[activeIndex].action); onClose() }
-						if (event.key === "Escape") { event.preventDefault(); onClose() }
-					}}
-				/>
-				<div className="aex-palette-list">
-					{filtered.map((item, index) => (
-						<button type="button" key={item.id} className={index === activeIndex ? "is-active" : ""} onMouseEnter={() => setActive(index)} onClick={() => { onRun(item.action); onClose() }}>
-							<i>{item.group}</i><span>{item.label}</span><small>{item.hint}</small>
-						</button>
-					))}
-					{filtered.length === 0 ? <p className="aex-palette-empty">Nothing in Execute matches “{query}”.</p> : null}
-				</div>
-				<footer><span><kbd>↑↓</kbd> navigate</span><span><kbd>↵</kbd> run</span><span><kbd>esc</kbd> close</span><span><kbd>1–6</kbd> views</span><span><kbd>/</kbd> composer</span></footer>
-			</div>
-		</div>
-	)
-}
-
-function ExecuteModule({
-	active,
-	planArtifact,
-	jumpSignal = null,
-	onVerified,
-	onNavigate,
-}: {
-	active: boolean
-	planArtifact: PlanArtifactRef | null
-	jumpSignal?: ExecuteJumpSignal | null
-	onVerified: () => void
-	onNavigate: (module: MaxionModuleId) => void
-}) {
-	const planHandoff = planArtifact !== null
-	const planSnapshot = planArtifact ? `v${planArtifact.artifactVersion} · ${planArtifact.contentDigest}` : "No approved Plan"
-	const rootRef = useRef<HTMLDivElement>(null)
-	const [workspaceOpen, setWorkspaceOpen] = useState(false)
-	const [paletteOpen, setPaletteOpen] = useState(false)
-	const [hubFocusSignal, setHubFocusSignal] = useState(0)
-	const [engagement, setEngagement] = useState<ExecuteLaunchIntent>(EXECUTE_FLAGSHIP_ENGAGEMENT)
-	const [progress, setProgress] = useState<Record<string, ExecuteEngagementProgress>>({})
-	// One-shot hub intent, consumed on arrival — the hub remounts whenever a workspace
-	// closes, so a persistent signal would keep re-firing on every re-entry.
-	const [hubIntent, setHubIntent] = useState<"handoff" | "approvals" | null>(null)
-	const previousHandoffRef = useRef(planHandoff)
-	const workspaceCommandRef = useRef<((command: ExecuteWorkspaceCommand) => void) | null>(null)
-	const pendingCommandRef = useRef<ExecuteWorkspaceCommand | null>(null)
-	const paletteReturnRef = useRef<HTMLElement | null>(null)
-
-	// A fresh Plan handoff is the marquee cross-module moment — land on the hub with
-	// the handoff acknowledged instead of inside a stale previous workspace.
-	useEffect(() => {
-		if (planHandoff && !previousHandoffRef.current) {
-			setWorkspaceOpen(false)
-			setHubIntent("handoff")
-		}
-		previousHandoffRef.current = planHandoff
-	}, [planHandoff])
-
-	const registerWorkspaceCommands = (handler: ((command: ExecuteWorkspaceCommand) => void) | null) => {
-		workspaceCommandRef.current = handler
-		if (handler && pendingCommandRef.current) { handler(pendingCommandRef.current); pendingCommandRef.current = null }
-	}
-	const dispatchWorkspace = (command: ExecuteWorkspaceCommand) => {
-		if (workspaceCommandRef.current) { workspaceCommandRef.current(command); return }
-		pendingCommandRef.current = command
-		setWorkspaceOpen(true)
-	}
-	const openPalette = () => {
-		paletteReturnRef.current = document.activeElement instanceof HTMLElement ? document.activeElement : null
-		setPaletteOpen(true)
-	}
-	const closePalette = () => {
-		setPaletteOpen(false)
-		paletteReturnRef.current?.focus?.()
-	}
-	const newTask = () => {
-		setWorkspaceOpen(false)
-		setHubFocusSignal((signal) => signal + 1)
-	}
-	const focusComposer = useCallback(() => {
-		if (workspaceOpen) dispatchWorkspace({ type: "focus-steer" })
-		else setHubFocusSignal((signal) => signal + 1)
-	}, [workspaceOpen])
-	const runPaletteAction = (action: ExecutePaletteAction) => {
-		if (action.type === "module") { onNavigate(action.module); return }
-		if (action.type === "new-task") { newTask(); return }
-		if (action.type === "engagements") { setWorkspaceOpen(false); return }
-		dispatchWorkspace(action)
-	}
-
-	useEffect(() => {
-		const onKeyDown = (event: KeyboardEvent) => {
-			// Every module stage stays mounted behind `hidden` — only the visible stage may own the keyboard.
-			if (!rootRef.current?.offsetParent) return
-			const target = event.target as HTMLElement | null
-			const typing = !!target && (target.tagName === "INPUT" || target.tagName === "TEXTAREA" || target.isContentEditable)
-			if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "k") {
-				// Capture phase + stopPropagation so the shell palette never opens on top.
-				event.preventDefault()
-				event.stopPropagation()
-				if (paletteOpen) closePalette()
-				else openPalette()
-				return
-			}
-			if (event.key === "Escape") { if (paletteOpen) closePalette(); return }
-			if (typing) return
-			if (event.key === "/") { event.preventDefault(); focusComposer(); return }
-			if (event.key.toLowerCase() === "n" && !event.metaKey && !event.ctrlKey && !event.altKey) { event.preventDefault(); newTask(); return }
-			if (workspaceOpen && ["1", "2", "3", "4", "5", "6"].includes(event.key)) dispatchWorkspace({ type: "view", view: EXECUTE_VIEW_ORDER[Number(event.key) - 1] })
-		}
-		window.addEventListener("keydown", onKeyDown, { capture: true })
-		return () => window.removeEventListener("keydown", onKeyDown, { capture: true })
-	}, [focusComposer, workspaceOpen, paletteOpen])
-
-	const openApprovals = () => {
-		setWorkspaceOpen(false)
-		setHubIntent("approvals")
-	}
-
-	// Every engagement carries its own workspaces, branches, and evidence.
-	const blueprint = resolveExecuteBlueprint(engagement)
-	// A requested release is a real approval item: it survives leaving the workspace and
-	// is decided on the hub's approvals surface, beside the repository boundary.
-	const deployEntry = Object.entries(progress).find(([, item]) => item.deployRequested)
-	const deployRequest = deployEntry ? { title: deployEntry[0], artifact: deployEntry[1].deployArtifact, requestedAt: deployEntry[1].deployRequestedAt, approved: deployEntry[1].deployApproved } : null
-	const approveDeploy = () => {
-		if (!deployEntry) return
-		setProgress((items) => ({ ...items, [deployEntry[0]]: { ...items[deployEntry[0]], deployApproved: true } }))
-	}
-
-	// Cross-module arrival from the shell palette. Workspace jumps ride the existing
-	// dispatch seam, so a jump that lands before the workspace mounts is queued, not lost.
-	const jumpActionsRef = useRef<(target: ExecuteJumpSignal["target"]) => void>(() => undefined)
-	jumpActionsRef.current = (target) => {
-		if (target.kind === "workspace") {
-			// Shell jump targets name the flagship engagement's workspaces. If another
-			// engagement is open, bring the flagship back first and let the command ride
-			// the pending seam into the workspace that is about to mount.
-			if (blueprint.workspaces.some((workspace) => workspace.id === target.taskId)) { dispatchWorkspace({ type: "workspace", taskId: target.taskId }); return }
-			setEngagement(EXECUTE_FLAGSHIP_ENGAGEMENT)
-			workspaceCommandRef.current = null
-			pendingCommandRef.current = { type: "workspace", taskId: target.taskId }
-			setWorkspaceOpen(true)
-			return
-		}
-		if (target.kind === "approvals") { openApprovals(); return }
-		setWorkspaceOpen(false)
-	}
-	const jumpTickRef = useRef(0)
-	useEffect(() => {
-		if (!jumpSignal || jumpSignal.tick === jumpTickRef.current) return
-		jumpTickRef.current = jumpSignal.tick
-		jumpActionsRef.current(jumpSignal.target)
-	}, [jumpSignal])
-
-	return (
-		<div className="aex-module" ref={rootRef}>
-			{workspaceOpen
-				? <ExecuteDeliveryWorkspace key={`${engagement.source}-${engagement.title}-${String(engagement.autoStart)}`} onBack={() => setWorkspaceOpen(false)} onPlatform={() => onNavigate("dashboard")} onCommand={openPalette} onOpenApprovals={openApprovals} engagement={engagement} blueprint={blueprint} planSnapshot={planSnapshot} progress={progress[engagement.title]} onProgress={(next) => setProgress((items) => ({ ...items, [engagement.title]: next }))} onVerified={onVerified} registerCommands={registerWorkspaceCommands} />
-				: <ExecuteHubModule onOpenRun={(intent) => { setEngagement(intent); setWorkspaceOpen(true) }} onNavigate={onNavigate} planHandoff={planHandoff} planSnapshot={planSnapshot} active={active} focusSignal={hubFocusSignal} intent={hubIntent} onIntentConsumed={() => setHubIntent(null)} engagementState={progress["ERP modernization delivery"]?.runState ?? "idle"} deployRequest={deployRequest} onApproveDeploy={approveDeploy} />}
-			{paletteOpen ? <ExecuteCommandPalette workspaces={blueprint.workspaces} onRun={runPaletteAction} onClose={closePalette} /> : null}
-		</div>
-	)
+	return <>{useStreamedText(text, true)}</>
 }
 
 // Consult reads the same lifted state the badges and the command registry read, so an
@@ -509,8 +296,6 @@ type ShellCommandContext = {
 	navigate: (module: MaxionModuleId) => void
 	startDiscovery: () => void
 	openPlanArtifact: (artifactId: string) => void
-	openExecuteWorkspace: (taskId: ExecuteWorkspaceId) => void
-	openExecuteHub: (target: "approvals" | "engagements") => void
 	openDiscoveryRecord: (recordId: string, jump: DiscoveryJump) => void
 	openAgentix: (intent: AgentixIntent) => void
 }
@@ -537,18 +322,6 @@ function buildShellCommandItems(context: ShellCommandContext): ShellCommandItem[
 
 	items.push({ id: "action-discovery", group: "Actions", label: "Start a Discovery", hint: "Autonomous research and interviews", keywords: "new discovery start research interviews brief mission", icon: Plus, run: context.startDiscovery })
 	items.push({ id: "action-agent", group: "Actions", label: "New Agentix agent", hint: "Describe an outcome or start from Discovery", keywords: "new agent create activate operational autonomy agentix", icon: Lightning, run: () => context.openAgentix({ type: "create" }) })
-
-	EXECUTE_TASKS.forEach((task, index) => items.push({
-		id: `execute-workspace-${task.id}`,
-		group: "Execute",
-		label: `Open Workspace ${String(index + 1).padStart(2, "0")} · ${task.title}`,
-		hint: `${task.detail} · isolated worktree`,
-		keywords: `execute workspace agent session worktree ${task.id} ${task.detail}`,
-		icon: Code,
-		run: () => context.openExecuteWorkspace(task.id),
-	}))
-	items.push({ id: "execute-approvals", group: "Execute", label: "Execute approvals", hint: "Workspace boundary and release decisions", keywords: "execute approvals boundary release deploy governance", icon: ShieldCheck, run: () => context.openExecuteHub("approvals") })
-	items.push({ id: "execute-engagements", group: "Execute", label: "All engagements", hint: "Back to the Execute hub", keywords: "execute engagements hub overview", icon: Cube, run: () => context.openExecuteHub("engagements") })
 
 	for (const record of context.discoveries) {
 		items.push({ id: `discovery-resume-${record.id}`, group: "Discover", label: `Resume ${record.title}`, hint: record.statusLabel, keywords: `discovery resume open continue ${record.keywords}`, icon: Compass, run: () => context.openDiscoveryRecord(record.id, "resume") })
@@ -705,7 +478,7 @@ function MaxionPlatformPrototype() {
 	const [discoveryJumpRecords, setDiscoveryJumpRecords] = useState<DiscoveryJumpRecord[]>([])
 	const setSidebarCollapsed = useCallback((collapsed: boolean) => dispatch({ type: "navigation/sidebar-collapsed", collapsed }), [dispatch])
 	const setAgentixAttention = useCallback((attention: AgentixAttention) => dispatch({ type: "agentix/attention-changed", attention }), [dispatch])
-	const { discoverySetupSignal, operationalDiscovery, planJump, executeJump, discoveryOpen, agentixIntent } = intents
+	const { discoverySetupSignal, operationalDiscovery, planJump, discoveryOpen, agentixIntent } = intents
 	const planArtifactRef = planHandoff.artifactRef
 	const planSent = planArtifactRef !== null
 	const planSnapshot = planArtifactRef ? `v${planArtifactRef.artifactVersion}` : "unapproved"
@@ -887,8 +660,6 @@ function MaxionPlatformPrototype() {
 		navigate("discovery")
 	}
 	const openPlanArtifact = (artifactId: string) => { dispatch({ type: "plan/artifact-opened", artifactId }); navigate("plan") }
-	const openExecuteWorkspace = (taskId: ExecuteWorkspaceId) => { dispatch({ type: "execute/workspace-opened", taskId }); navigate("execute") }
-	const openExecuteHub = (target: "approvals" | "engagements") => { dispatch({ type: "execute/hub-opened", target }); navigate("execute") }
 	const openDiscoveryRecord = (recordId: string, jump: DiscoveryJump) => { dispatch({ type: "discovery/record-opened", recordId, jump }); navigate("discovery") }
 	const openAgentix = (intent: AgentixIntent) => { dispatch({ type: "agentix/opened", intent }); navigate("agentix") }
 	const openOperationalDiscovery = (id: WorkflowId) => { dispatch({ type: "discovery/operational-opened", workflowId: id }); navigate("discovery") }
@@ -904,8 +675,6 @@ function MaxionPlatformPrototype() {
 		},
 		startDiscovery: startDiscoverySetup,
 		openPlanArtifact,
-		openExecuteWorkspace,
-		openExecuteHub,
 		openDiscoveryRecord,
 		openAgentix,
 	}
@@ -924,7 +693,7 @@ function MaxionPlatformPrototype() {
 				{visitedModules.has("projects") ? <div className={stageClass("projects")} hidden={activeModule !== "projects"}><ModuleErrorBoundary moduleName="Projects" resetKey={activeModule} onReturnToDashboard={() => navigate("dashboard")}><ProjectsModule onNavigate={navigate} /></ModuleErrorBoundary></div> : null}
 				{visitedModules.has("discovery") ? <div className={stageClass("discovery", "mxp-stage-view--discovery")} hidden={activeModule !== "discovery"}><DeferredModule<DiscoveryModuleProps> load={loadDiscoveryModule} moduleName="Discover" onReturnToDashboard={() => navigate("dashboard")} moduleProps={{ setupSignal: discoverySetupSignal, openSignal: discoveryOpen, operationalDiscovery, onPackageReady: (packageRef) => { dispatch({ type: "discovery/package-ready", packageRef }); navigate("plan") }, onOpenOperationalDiscovery: openOperationalDiscovery, onCloseOperationalDiscovery: () => dispatch({ type: "discovery/operational-closed" }), onOpenAgentix: openAgentix }} /></div> : null}
 				{visitedModules.has("plan") ? <div className={stageClass("plan")} hidden={activeModule !== "plan"}><ModuleErrorBoundary moduleName="Plan" resetKey={activeModule} onReturnToDashboard={() => navigate("dashboard")}><PlanModule projects={projects} discoveryPackage={discoveryPackage} onNavigate={navigate} jumpSignal={planJump} onSendToExecute={(artifactRef) => { dispatch({ type: "plan/approved", artifactRef }); navigate("execute") }} /></ModuleErrorBoundary></div> : null}
-				{visitedModules.has("execute") ? <div className={stageClass("execute", "mxp-stage-view--execute")} hidden={activeModule !== "execute"}><ModuleErrorBoundary moduleName="Execute" resetKey={activeModule} onReturnToDashboard={() => navigate("dashboard")}><ExecuteModule active={activeModule === "execute"} onNavigate={navigate} planArtifact={planArtifactRef} jumpSignal={executeJump} onVerified={() => dispatch({ type: "execute/verified" })} /></ModuleErrorBoundary></div> : null}
+				{visitedModules.has("execute") ? <div className={stageClass("execute", "mxp-stage-view--execute")} hidden={activeModule !== "execute"}><ModuleErrorBoundary moduleName="Execute" resetKey={activeModule} onReturnToDashboard={() => navigate("dashboard")}><ExecuteModule onNavigate={navigate} onCommand={openCommand} planArtifact={planArtifactRef} projectRole={projects.find((project) => project.id === planArtifactRef?.projectId)?.role} onVerified={() => dispatch({ type: "execute/verified" })} /></ModuleErrorBoundary></div> : null}
 				{visitedModules.has("agentix") ? <div className={stageClass("agentix")} hidden={activeModule !== "agentix"}><DeferredModule<AgentixModuleProps> load={loadAgentixModule} moduleName="Agentix" onReturnToDashboard={() => navigate("dashboard")} moduleProps={{ active: activeModule === "agentix", intentSignal: agentixIntent, onAttentionChange: setAgentixAttention, onOpenDiscovery: openOperationalDiscovery }} /></div> : null}
 				{visitedModules.has("consult") ? <div className={stageClass("consult")} hidden={activeModule !== "consult"}><ModuleErrorBoundary moduleName="Consult Max" resetKey={activeModule} onReturnToDashboard={() => navigate("dashboard")}><ConsultModule state={{ agentix: agentixAttention, discoveryReady, planSent, planSnapshot, executeVerified }} onCommand={openCommand} onNavigate={navigate} /></ModuleErrorBoundary></div> : null}
 				{visitedModules.has("integrations") ? <div className={stageClass("integrations")} hidden={activeModule !== "integrations"}><ModuleErrorBoundary moduleName="Integrations" resetKey={activeModule} onReturnToDashboard={() => navigate("dashboard")}><IntegrationsModule /></ModuleErrorBoundary></div> : null}

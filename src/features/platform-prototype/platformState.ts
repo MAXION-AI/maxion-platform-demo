@@ -123,7 +123,7 @@ export function createInitialPlatformState(active: PlatformState["navigation"]["
 			execute: { verified: persisted?.executeVerified ?? false, environment: "development" },
 		},
 		agentix: { attention: { count: 0, audience: false, approval: false } },
-		intents: { discoverySetupSignal: 0, operationalDiscovery: null, planJump: null, executeJump: null, discoveryOpen: null, agentixIntent: null, nextTick: 0 },
+		intents: { discoverySetupSignal: 0, operationalDiscovery: null, planJump: null, discoveryOpen: null, agentixIntent: null, nextTick: 0 },
 		persistenceNotice,
 	}
 }
@@ -286,14 +286,10 @@ export function platformReducer(state: PlatformState, event: PlatformEvent): Pla
 			const next = withIntentTick(state)
 			return { ...state, intents: { ...next.intents, planJump: { tick: next.tick, artifactId: event.artifactId } } }
 		}
-		case "plan/approved": return { ...state, handoffs: { ...state.handoffs, plan: { sent: true, artifactRef: event.artifactRef } } }
-		case "execute/workspace-opened": {
-			const next = withIntentTick(state)
-			return { ...state, intents: { ...next.intents, executeJump: { tick: next.tick, target: { kind: "workspace", taskId: event.taskId } } } }
-		}
-		case "execute/hub-opened": {
-			const next = withIntentTick(state)
-			return { ...state, intents: { ...next.intents, executeJump: { tick: next.tick, target: { kind: event.target } } } }
+		case "plan/approved": {
+			const current = state.handoffs.plan.artifactRef
+			const replaced = !current || current.id !== event.artifactRef.id || current.artifactVersion !== event.artifactRef.artifactVersion || current.contentDigest !== event.artifactRef.contentDigest
+			return { ...state, handoffs: { ...state.handoffs, plan: { sent: true, artifactRef: event.artifactRef }, execute: replaced ? { ...state.handoffs.execute, verified: false } : state.handoffs.execute } }
 		}
 		case "execute/verified": return state.handoffs.execute.verified ? state : { ...state, handoffs: { ...state.handoffs, execute: { ...state.handoffs.execute, verified: true } } }
 		case "agentix/attention-changed": {

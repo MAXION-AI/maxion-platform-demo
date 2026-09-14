@@ -1,56 +1,31 @@
 import {
-	ArrowLeft,
 	ArrowRight,
-	BellRinging,
 	CaretRight,
 	ChartBar,
-	Check,
 	CheckCircle,
-	Code,
 	Database,
 	FileText,
-	FlowArrow,
 	GearSix,
 	MagnifyingGlass,
 	Plug,
-	Plus,
 	Question,
 	ShieldCheck,
-	PencilSimpleLine,
-	TerminalWindow,
 	WarningCircle,
 	X,
 } from "@phosphor-icons/react"
-import { motion, useReducedMotion } from "motion/react"
-import { useEffect, useRef, useState, type CSSProperties, type FormEvent, type ReactNode } from "react"
+import { useState, type CSSProperties, type ReactNode } from "react"
 
-import { MaxionSpiralMark } from "./PortalChrome"
 import {
-	EXECUTE_TASKS,
 	WORKSPACE_CYCLE_RESET,
 	WORKSPACE_UNIT_CAP,
 	WORKSPACE_UNITS_PERCENT,
 	WORKSPACE_UNITS_USED,
 	WORKSPACE_USAGE_ROWS,
 	workspaceUnitsLabel,
-	type ExecuteLaunchIntent,
 	type MaxionModuleId,
 } from "./model"
 
 type Navigate = (module: MaxionModuleId) => void
-
-const PLAN_LIBRARY = [
-	{ id: "erp", name: "ERP modernization delivery plan", project: "ERP modernization", status: "active", detail: "6 approved sections" },
-	{ id: "northbridge", name: "NorthBridge 100-day plan", project: "NorthBridge acquisition", status: "generated", detail: "Decision package ready" },
-	{ id: "customer", name: "Customer data foundation", project: "Customer 360", status: "active", detail: "11 outcomes" },
-	{ id: "pricing", name: "Pricing transformation roadmap", project: "Pricing transformation", status: "completed", detail: "Fully delivered" },
-] as const
-
-// motion's hook settles a tick after mount; the media query is the truth jsdom forces,
-// so timed theater checks both and takes the instant path if either says reduce.
-function prefersReducedMotionQuery() {
-	return typeof window !== "undefined" && typeof window.matchMedia === "function" && window.matchMedia("(prefers-reduced-motion: reduce)").matches
-}
 
 function PortalPageHeader({
 	eyebrow,
@@ -81,193 +56,6 @@ function PortalStat({ icon, label, value, hint }: { icon: ReactNode; label: stri
 			<span>{icon}</span>
 			<div><small>{label}</small><strong>{value}</strong><p>{hint}</p></div>
 		</article>
-	)
-}
-
-export function ExecuteHubModule({
-	onOpenRun,
-	onNavigate,
-	planHandoff,
-	planSnapshot,
-	active,
-	focusSignal,
-	intent,
-	onIntentConsumed,
-	engagementState,
-	deployRequest,
-	onApproveDeploy,
-}: {
-	onOpenRun: (intent: ExecuteLaunchIntent) => void
-	onNavigate: Navigate
-	planHandoff: boolean
-	planSnapshot: string
-	active: boolean
-	focusSignal: number
-	intent: "handoff" | "approvals" | null
-	onIntentConsumed: () => void
-	engagementState: "idle" | "running" | "verified"
-	deployRequest: { title: string; artifact: string; requestedAt: string | null; approved: boolean } | null
-	onApproveDeploy: () => void
-}) {
-	const prefersReducedMotion = useReducedMotion()
-	const [view, setView] = useState<"engagements" | "approvals">("engagements")
-	// Approved Plan engagements arrive with repository and workspace bindings already signed.
-	// Execute asks again only for a new environment effect, not for authority Plan already settled.
-	const [approved, setApproved] = useState(true)
-	const [scopeOpen, setScopeOpen] = useState(false)
-	const [handoffFresh, setHandoffFresh] = useState(false)
-	// The handoff arrives as a beat: Execute visibly carves the Plan into workspaces before
-	// settling into the composer. -1 is "not playing" — the only state reduced motion sees.
-	const [assemblyStep, setAssemblyStep] = useState(-1)
-	const assemblyTimersRef = useRef<number[]>([])
-	const deployPending = Boolean(deployRequest && !deployRequest.approved)
-	const pendingDecisions = (approved ? 0 : 1) + (deployPending ? 1 : 0)
-	const [source, setSource] = useState<"prompt" | "plan">(planHandoff ? "plan" : "prompt")
-	const [prompt, setPrompt] = useState("")
-	const [selectedPlanId, setSelectedPlanId] = useState("erp")
-	const composerRef = useRef<HTMLTextAreaElement>(null)
-	const handoffChipRef = useRef<HTMLButtonElement>(null)
-
-	// The Execute stage mounts hidden behind the shell, so an autoFocus on the composer
-	// fires while it is invisible and is lost — focus when the stage actually becomes visible.
-	useEffect(() => {
-		if (!active || view !== "engagements" || source !== "prompt") return
-		if (!composerRef.current?.offsetParent) return
-		composerRef.current.focus()
-	}, [active, source, view])
-
-	// '/' or N anywhere in the hub returns the user to a fresh, focused composer.
-	const onIntentConsumedRef = useRef(onIntentConsumed)
-	onIntentConsumedRef.current = onIntentConsumed
-	useEffect(() => {
-		if (!focusSignal) return
-		setView("engagements")
-		setSource("prompt")
-		window.setTimeout(() => composerRef.current?.focus(), 0)
-	}, [focusSignal])
-
-	// One-shot routing intents from the module shell: a workspace surface routing to
-	// approvals, or a fresh "Send to Execute" landing acknowledged — banner up, plan
-	// source preselected, and the handoff chip holding focus. Consumed immediately so
-	// hub remounts never replay a stale intent.
-	useEffect(() => {
-		if (!intent) return
-		if (intent === "approvals") {
-			setView("approvals")
-		} else {
-			setView("engagements")
-			setSource("plan")
-			setSelectedPlanId("erp")
-			setHandoffFresh(true)
-			// The beat is an overlay: the composer and the handoff chip stay mounted beneath it,
-			// so the pinned 40ms focus still lands on the chip the viewer will see when it clears.
-			if (!prefersReducedMotion && !prefersReducedMotionQuery()) {
-				setAssemblyStep(0)
-				EXECUTE_TASKS.forEach((_, index) => assemblyTimersRef.current.push(window.setTimeout(() => setAssemblyStep(index + 1), 90 + index * 120)))
-				assemblyTimersRef.current.push(window.setTimeout(() => setAssemblyStep(EXECUTE_TASKS.length + 1), 930))
-				assemblyTimersRef.current.push(window.setTimeout(() => setAssemblyStep(-1), 1220))
-			}
-			window.setTimeout(() => handoffChipRef.current?.focus(), 40)
-		}
-		onIntentConsumedRef.current()
-	}, [intent, prefersReducedMotion])
-	useEffect(() => () => assemblyTimersRef.current.forEach((timer) => window.clearTimeout(timer)), [])
-	const availablePlans = PLAN_LIBRARY.filter((plan) => plan.status !== "completed")
-	const selectedPlan = availablePlans.find((plan) => plan.id === selectedPlanId) ?? availablePlans[0]
-	// The flagship engagement reflects the real lifted run state — no hardcoded progress.
-	const activeRuns = [
-		{
-			name: "ERP modernization delivery",
-			detail: engagementState === "verified" ? "Verified · evidence ready" : engagementState === "running" ? "Implementing and verifying" : "Ready to start",
-			status: engagementState === "idle" ? "ready" : engagementState,
-			autoStart: engagementState === "running",
-			brief: "Implement the approved ERP modernization outcomes with tenant-safe authority boundaries.",
-		},
-		{ name: "Customer data foundation", detail: "Workspace ready", status: "ready", autoStart: false, brief: "Deliver the approved customer data foundation and verify every integration boundary." },
-	]
-
-	const launchEngagement = (event: FormEvent<HTMLFormElement>) => {
-		event.preventDefault()
-		if (source === "prompt" && !prompt.trim()) return
-		if (source === "plan" && !selectedPlan) return
-		onOpenRun({
-			source,
-			title: source === "plan" ? (selectedPlan.id === "erp" ? "ERP modernization delivery" : selectedPlan.name) : "Autonomous delivery engagement",
-			brief: source === "plan" ? `${selectedPlan.name} · ${selectedPlan.detail}` : prompt.trim(),
-			autoStart: true,
-		})
-	}
-
-	const openPlanHandoff = () => onOpenRun({
-		source: "plan",
-		title: "ERP modernization delivery",
-		brief: "ERP modernization delivery plan · 5 flows · 17 evidence-linked build packages",
-		autoStart: false,
-	})
-
-	return (
-		<div className="aex-app aex-app--home">
-			<aside className="aex-rail" aria-label="Execute tasks">
-				<header>
-					<button type="button" className="aex-brand" aria-label="Return to MAXION" onClick={() => onNavigate("dashboard")}>
-						<MaxionSpiralMark className="aex-brand-mark" />
-						<span><strong>Execute</strong><small>MAXION</small></span>
-					</button>
-					<button type="button" className="aex-new-task" onClick={() => { setView("engagements"); setSource("prompt"); window.setTimeout(() => composerRef.current?.focus(), 0) }}><Plus size={15} />New task<kbd>N</kbd></button>
-				</header>
-				<nav aria-label="Recent Execute tasks">
-					<span>In progress</span>
-					{activeRuns.map((run) => <button type="button" key={run.name} onClick={() => onOpenRun({ source: "plan", title: run.name, brief: run.brief, autoStart: run.autoStart })}><i className={`is-${run.status}`} /><span><strong>{run.name}</strong><small>{run.detail}</small></span></button>)}
-					<span>Needs you</span>
-					<button type="button" className="is-attention" onClick={() => setView("approvals")}><ShieldCheck size={15} /><span><strong>{!approved ? "Approve workspace boundary" : deployPending ? "Approve the release" : "No decisions waiting"}</strong><small>{!approved ? "Exact repository authority" : deployPending ? `Artifact ${deployRequest?.artifact} · release owner` : "MAX is continuing"}</small></span>{pendingDecisions ? <b>{pendingDecisions}</b> : <Check size={13} />}</button>
-					<span>Completed</span>
-					<div className="aex-rail-static"><CheckCircle size={15} /><span><strong>Auth policy hardening</strong><small>Verified yesterday</small></span></div>
-				</nav>
-				<footer><span><i />max-ai-platform</span><small>main · local workspace</small></footer>
-			</aside>
-
-			<main className="aex-home-main">
-				<header className="aex-home-bar">
-					<button type="button" className="aex-mobile-brand" aria-label="Return to MAXION" onClick={() => onNavigate("dashboard")}><MaxionSpiralMark className="aex-brand-mark" /><span>Execute</span></button>
-					<div><button type="button" onClick={() => onNavigate("integrations")}><Plug size={15} />Tools</button><button type="button" aria-label="Open Execute notifications" onClick={() => setView("approvals")}><BellRinging size={16} /></button><button type="button" onClick={() => setView("approvals")}><ShieldCheck size={15} />{pendingDecisions ? `${pendingDecisions} decision${pendingDecisions === 1 ? "" : "s"}` : "Clear"}</button></div>
-				</header>
-				<div className="aex-mobile-switcher" aria-label="Execute shortcuts"><button type="button" onClick={() => setView("engagements")}>New task</button><button type="button" onClick={() => setView("approvals")}>{pendingDecisions ? "Decision needed" : "No decisions"}</button></div>
-
-				{assemblyStep >= 0 ? (
-					<div className={`aex-assembly${assemblyStep > EXECUTE_TASKS.length ? " is-clearing" : ""}`} aria-hidden="true">
-						<div className="aex-assembly-inner">
-							<header><FlowArrow size={16} /><span><strong>Carving the plan into workspaces</strong><small>ERP modernization delivery plan · 5 flows · 17 packages</small></span></header>
-							<div className="aex-assembly-grid">
-								{EXECUTE_TASKS.map((task, index) => <div key={task.id} className={`aex-assembly-card${index < assemblyStep ? " is-in" : ""}`}><span>Workspace {String(index + 1).padStart(2, "0")}</span><strong>{task.title}</strong><i>execute/erp/{task.id}</i></div>)}
-							</div>
-						</div>
-					</div>
-				) : null}
-				{view === "engagements" ? (
-					<motion.section className="aex-home-focus" aria-label="What should MAX deliver?" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: .32, ease: [0.16, 1, 0.3, 1] }}>
-						{handoffFresh ? <motion.div className="aex-handoff-banner" role="status" initial={prefersReducedMotion ? false : { opacity: 0, y: -6 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: .3, ease: [0.16, 1, 0.3, 1] }}><CheckCircle size={15} weight="fill" /><span><strong>Plan handoff received</strong><small>ERP modernization delivery plan · evidence snapshot {planSnapshot} · scope preselected below</small></span></motion.div> : null}
-						<div className="aex-home-title"><MaxionSpiralMark className="aex-home-mark" /><span>Autonomous engineering</span><h1>What do you want built?</h1><p>Describe the outcome. MAX will inspect the repository, plan the work, create isolated workspaces, implement, test, repair, and return with evidence.</p></div>
-						<form className="aex-prompt" onSubmit={launchEngagement}>
-							{source === "prompt" ? <textarea ref={composerRef} aria-label="What should Execute deliver?" value={prompt} onChange={(event) => setPrompt(event.target.value)} rows={4} placeholder="Build the approved mission-authority boundary, preserve the public API, and return when the release gate is clean." /> : <fieldset className="aex-plan-picker"><legend>Choose an approved Plan</legend>{availablePlans.map((plan) => <button key={plan.id} type="button" aria-pressed={selectedPlanId === plan.id} onClick={() => setSelectedPlanId(plan.id)}><FlowArrow size={15} /><span><strong>{plan.name}</strong><small>{plan.project} · {plan.detail}</small></span>{selectedPlanId === plan.id ? <Check size={14} /> : null}</button>)}</fieldset>}
-							<footer>
-								<div className="aex-prompt-tools" role="group" aria-label="Engagement source"><button type="button" aria-pressed={source === "prompt"} onClick={() => { setSource("prompt"); window.setTimeout(() => composerRef.current?.focus(), 0) }}><PencilSimpleLine size={15} />Prompt</button><button type="button" aria-pressed={source === "plan"} onClick={() => setSource("plan")}><FlowArrow size={15} />Import from Plan</button><span><Code size={14} />max-ai-platform</span></div>
-								<button type="submit" className="aex-send" aria-label="Start engagement" disabled={source === "prompt" ? !prompt.trim() : !selectedPlan}><ArrowRight size={17} /></button>
-							</footer>
-						</form>
-						<div className="aex-autonomy-line"><span><ShieldCheck size={14} />Bounded authority</span><span><TerminalWindow size={14} />Live tool trace</span><span><CheckCircle size={14} />Self-repairing verification</span></div>
-						{planHandoff ? <button type="button" ref={handoffChipRef} className={`aex-plan-handoff${handoffFresh ? " is-fresh" : ""}`} onClick={openPlanHandoff}><FlowArrow size={15} /><span><strong>Plan handoff attached</strong><small>ERP modernization · 5 flows · 17 packages · evidence snapshot {planSnapshot}</small></span><b>Inspect</b><ArrowRight size={14} /></button> : null}
-					</motion.section>
-				) : (
-					<motion.section className="aex-approval" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: .28, ease: [0.16, 1, 0.3, 1] }}>
-						<button type="button" className="aex-back" onClick={() => setView("engagements")}><ArrowLeft size={14} />Back to Execute</button>
-						<div className="aex-approval-heading"><span><ShieldCheck size={18} /></span><small>Authority boundary</small><h1>{pendingDecisions === 0 ? "All caught up" : pendingDecisions === 1 ? "One decision needs you" : "Two decisions need you"}</h1><p>{pendingDecisions === 0 ? "MAX can continue without your input." : !approved ? "MAX prepared the workspace topology. Approve the exact repository boundary so it can continue autonomously." : "The engagement is verified, and the release owner’s decision is the only thing left."}</p></div>
-						{approved ? null : <article><header><span>Repository authority</span><strong>ERP modernization delivery</strong></header><dl><div><dt>Repository</dt><dd>max-ai-platform</dd></div><div><dt>Workspaces</dt><dd>5 isolated</dd></div><div><dt>Allowed effect</dt><dd>Files, terminal, tests</dd></div><div><dt>Deployment</dt><dd>Not granted</dd></div></dl>{scopeOpen ? <div className="aex-scope-detail"><span>Exact workspace binding</span>{EXECUTE_TASKS.map((task, index) => <div key={task.id}><code>execute/erp/{task.id}</code><small>Workspace {String(index + 1).padStart(2, "0")} · {task.title} · {task.files} allowed paths</small></div>)}</div> : null}<footer><button type="button" aria-expanded={scopeOpen} onClick={() => setScopeOpen((open) => !open)}>{scopeOpen ? "Hide scope" : "Inspect scope"}</button><button type="button" className="aex-approve" onClick={() => setApproved(true)}>Approve binding<ArrowRight size={14} /></button></footer></article>}
-						{deployRequest ? <article className="aex-release-approval"><header><span>Release approval</span><strong>Deployment approval · {deployRequest.title}</strong></header><dl><div><dt>Artifact</dt><dd>{deployRequest.artifact}</dd></div><div><dt>Requested</dt><dd>Root Admin · {deployRequest.requestedAt ?? "just now"}</dd></div><div><dt>Evidence</dt><dd>41 E2E scenarios passed · rollback retained</dd></div><div><dt>Routed approver</dt><dd>Elena Ortiz · Release approver</dd></div></dl><footer>{deployRequest.approved ? <span className="aex-release-approved"><CheckCircle size={15} weight="fill" />Elena Ortiz approved · production sequence unlocked</span> : <button type="button" className="aex-approve" onClick={onApproveDeploy}>Record Elena’s approval<ArrowRight size={14} /></button>}</footer></article> : null}
-						{pendingDecisions === 0 ? <div className="aex-approval-clear"><CheckCircle size={22} />No pending approvals</div> : null}
-					</motion.section>
-				)}
-			</main>
-		</div>
 	)
 }
 
