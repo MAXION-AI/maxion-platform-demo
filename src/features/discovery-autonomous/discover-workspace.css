@@ -1,0 +1,252 @@
+.dws-root,
+.dws-root * { box-sizing: border-box; }
+
+.dws-root {
+	display: flex;
+	min-width: 320px;
+	height: 100dvh;
+	flex-direction: column;
+	background: var(--mxp-surface-base);
+	color: var(--mxp-text-primary);
+	font-family: var(--mxp-font-sans);
+	overflow: hidden;
+}
+
+.dws-root.is-embedded { height: 100%; }
+
+.dws-root button,
+.dws-root textarea { font: inherit; }
+
+.dws-root button { color: inherit; }
+
+.dws-root :where(button, textarea):focus-visible {
+	outline: 2px solid var(--mxp-focus-ring);
+	outline-offset: 2px;
+}
+
+.dws-header {
+	display: flex;
+	min-width: 0;
+	align-items: center;
+	justify-content: space-between;
+	gap: var(--mxp-space-4);
+	padding: 0 var(--mxp-space-5);
+	border-bottom: 1px solid var(--mxp-border-subtle);
+	background: var(--mxp-surface-raised);
+}
+
+.dws-heading,
+.dws-header-actions,
+.dws-heading > div,
+.dws-interview > header > div,
+.dws-plan footer,
+.dws-state-card,
+.dws-complete,
+.dws-evidence article { display: flex; align-items: center; }
+
+.dws-heading { min-width: 0; gap: var(--mxp-space-3); }
+
+.dws-mark,
+.dws-avatar {
+	display: grid;
+	flex: 0 0 auto;
+	place-items: center;
+	background: var(--mxp-accent-highlight);
+	color: var(--mxp-dark);
+}
+
+.dws-mark { width: 32px; height: 32px; border-radius: var(--mxp-radius-control); }
+.dws-avatar { width: 36px; height: 36px; border-radius: 50%; font-size: 11px; font-weight: 700; }
+.dws-heading > div { min-width: 0; align-items: baseline; gap: var(--mxp-space-2); }
+.dws-heading small,
+.dws-plan small,
+.dws-interview small,
+.dws-evidence small { color: var(--mxp-text-muted); font-size: 11px; }
+.dws-heading h1 { min-width: 0; margin: 0; overflow: hidden; font-size: 14px; font-weight: 650; text-overflow: ellipsis; white-space: nowrap; }
+.dws-header-actions { flex: 0 0 auto; gap: var(--mxp-space-2); }
+
+.dws-header-actions button,
+.dws-state-card button,
+.dws-evidence button,
+.dws-setup button,
+.dws-empty button {
+	min-height: 36px;
+	padding: 0 var(--mxp-space-3);
+	border: 1px solid var(--mxp-border-strong);
+	border-radius: var(--mxp-radius-control);
+	background: var(--mxp-surface-raised);
+	font-size: 12px;
+	font-weight: 620;
+	cursor: pointer;
+	transition: background 140ms var(--mxp-ease-out), border-color 140ms var(--mxp-ease-out), transform 100ms var(--mxp-ease-out);
+}
+
+.dws-header-actions button:not(:disabled):hover,
+.dws-state-card button:not(:disabled):hover,
+.dws-evidence button:not(:disabled):hover,
+.dws-setup button:not(:disabled):hover { background: var(--mxp-surface-hover); }
+.dws-root button:not(:disabled):active { transform: scale(.98); }
+.dws-root button:disabled { cursor: not-allowed; opacity: .5; }
+.dws-header-actions button { display: inline-flex; align-items: center; gap: var(--mxp-space-2); }
+.dws-header-actions .dws-new,
+.dws-state-card .is-primary,
+.dws-setup button[type="submit"],
+.dws-empty button { border-color: var(--mxp-accent-primary); background: var(--mxp-accent-primary); color: var(--mxp-text-inverse); }
+.dws-header-actions .dws-new:hover,
+.dws-state-card .is-primary:hover,
+.dws-setup button[type="submit"]:hover { background: var(--mxp-accent-hover); }
+
+.dws-status { display: inline-flex; min-height: 28px; align-items: center; gap: var(--mxp-space-2); padding: 0 var(--mxp-space-3); border-radius: 999px; background: var(--mxp-surface-soft); color: var(--mxp-text-secondary); font-size: 11px; font-weight: 650; }
+.dws-status i { width: 7px; height: 7px; border-radius: 50%; background: var(--mxp-status-info); }
+.dws-status:is(.is-offline, .is-recoverable-error, .is-insufficient-evidence) i { background: var(--mxp-status-warning); }
+.dws-status.is-complete i { background: var(--mxp-status-success); }
+
+.dws-notice { display: flex; min-height: 40px; align-items: center; justify-content: space-between; gap: var(--mxp-space-3); padding: var(--mxp-space-2) var(--mxp-space-5); border-bottom: 1px solid var(--mxp-status-warning); background: var(--mxp-status-warning-soft); color: var(--mxp-text-secondary); font-size: 12px; }
+.dws-notice button { min-height: 28px; border: 0; background: transparent; color: var(--mxp-text-primary); font-weight: 650; cursor: pointer; }
+
+.dws-layout { display: grid; min-width: 0; min-height: 0; flex: 1 1 auto; grid-template-columns: 248px minmax(360px, 1fr) 316px; overflow: hidden; }
+.dws-plan,
+.dws-evidence { min-width: 0; min-height: 0; background: var(--mxp-surface-muted); overflow: auto; }
+.dws-plan { display: flex; flex-direction: column; padding: var(--mxp-space-5) var(--mxp-space-4); border-right: 1px solid var(--mxp-border-subtle); }
+.dws-plan > header { display: grid; gap: var(--mxp-space-2); }
+.dws-plan > header small { text-transform: uppercase; letter-spacing: .07em; }
+.dws-plan > header strong { font-size: 14px; letter-spacing: -.01em; }
+.dws-plan > header span { color: var(--mxp-text-muted); font-size: 12px; font-variant-numeric: tabular-nums; }
+.dws-plan ol { display: grid; gap: var(--mxp-space-2); margin: var(--mxp-space-5) 0 auto; padding: 0; list-style: none; }
+.dws-plan li { display: grid; grid-template-columns: 24px minmax(0, 1fr); align-items: center; gap: var(--mxp-space-2); color: var(--mxp-text-subtle); }
+.dws-plan li > span,
+.dws-plan li > svg { display: grid; width: 24px; height: 24px; place-items: center; padding: 5px; border: 1px solid var(--mxp-border-strong); border-radius: 50%; font-size: 10px; font-weight: 700; }
+.dws-plan li.is-current { color: var(--mxp-text-primary); }
+.dws-plan li.is-current > span { border-color: var(--mxp-accent-primary); background: var(--mxp-accent-soft); color: var(--mxp-accent-primary); }
+.dws-plan li.is-complete > svg { border-color: var(--mxp-accent-border); background: var(--mxp-accent-soft); color: var(--mxp-accent-primary); }
+.dws-plan li button { display: grid; min-height: 44px; gap: 2px; padding: var(--mxp-space-2); border: 0; border-radius: var(--mxp-radius-control); background: transparent; text-align: left; }
+.dws-plan li button:disabled { opacity: 1; }
+.dws-plan li strong { color: inherit; font-size: 12px; font-weight: 620; }
+.dws-plan li small { color: inherit; }
+.dws-plan > footer { gap: var(--mxp-space-2); margin-top: var(--mxp-space-5); padding-top: var(--mxp-space-4); border-top: 1px solid var(--mxp-border-subtle); color: var(--mxp-text-muted); }
+.dws-plan footer svg { flex: 0 0 auto; color: var(--mxp-accent-primary); }
+.dws-plan footer p { display: grid; gap: 2px; margin: 0; }
+.dws-plan footer strong { color: var(--mxp-text-secondary); font-size: 11px; }
+.dws-plan footer span { font-size: 10px; line-height: 1.45; }
+.dws-operational { margin-top: var(--mxp-space-4); }
+
+.dws-interview { display: grid; min-width: 0; min-height: 0; grid-template-rows: auto auto minmax(0, 1fr) auto auto; background: var(--mxp-surface-base); overflow: hidden; }
+.dws-interview > header { display: flex; min-height: 68px; align-items: center; justify-content: space-between; gap: var(--mxp-space-3); padding: 0 var(--mxp-space-5); border-bottom: 1px solid var(--mxp-border-subtle); }
+.dws-interview > header > div { gap: var(--mxp-space-3); }
+.dws-interview > header p { display: grid; gap: 2px; margin: 0; }
+.dws-interview > header strong { font-size: 13px; }
+.dws-interview > header button { display: grid; width: 36px; height: 36px; place-items: center; border: 0; border-radius: var(--mxp-radius-control); background: transparent; cursor: pointer; }
+.dws-progress { position: relative; height: 24px; border-bottom: 1px solid var(--mxp-border-subtle); background: var(--mxp-surface-soft); overflow: hidden; }
+.dws-progress > span { position: absolute; inset: auto auto 0 0; height: 2px; background: var(--mxp-accent-primary); transition: width 220ms var(--mxp-ease-out); }
+.dws-progress small { position: relative; display: block; padding: 5px var(--mxp-space-5); text-align: right; font-variant-numeric: tabular-nums; }
+.dws-transcript { min-height: 0; padding: var(--mxp-space-5) clamp(var(--mxp-space-4), 5vw, 64px); overflow: auto; scrollbar-gutter: stable; }
+.dws-transcript article { display: grid; max-width: 72ch; gap: var(--mxp-space-2); margin-bottom: var(--mxp-space-5); }
+.dws-transcript article > span { color: var(--mxp-text-muted); font-size: 10px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; }
+.dws-transcript article p { margin: 0; color: var(--mxp-text-primary); font-size: 14px; line-height: 1.58; white-space: pre-wrap; overflow-wrap: anywhere; }
+.dws-transcript article time { color: var(--mxp-text-subtle); font-size: 10px; }
+.dws-transcript article.is-operator { max-width: min(72ch, 84%); margin-left: auto; padding: var(--mxp-space-3) var(--mxp-space-4); border-radius: var(--mxp-radius-md); background: var(--mxp-surface-soft-strong); }
+.dws-window-note { margin: 0 0 var(--mxp-space-4); color: var(--mxp-text-muted); font-size: 11px; text-align: center; }
+
+.dws-state-card { flex-wrap: wrap; gap: var(--mxp-space-3); margin: 0 clamp(var(--mxp-space-4), 5vw, 64px) var(--mxp-space-3); padding: var(--mxp-space-3); border: 1px solid var(--mxp-border-strong); border-radius: var(--mxp-radius-md); background: var(--mxp-surface-muted); }
+.dws-state-card > svg { flex: 0 0 auto; color: var(--mxp-text-muted); }
+.dws-state-card > div { flex: 1 1 180px; }
+.dws-state-card strong { font-size: 12px; }
+.dws-state-card p { margin: 3px 0 0; color: var(--mxp-text-muted); font-size: 11px; line-height: 1.45; }
+.dws-state-card.is-warning { border-color: var(--mxp-status-warning); background: var(--mxp-status-warning-soft); }
+.dws-state-card.is-ready { border-color: var(--mxp-accent-border); background: var(--mxp-accent-soft); }
+
+.dws-complete { gap: var(--mxp-space-3); margin: 0 clamp(var(--mxp-space-4), 5vw, 64px) var(--mxp-space-4); padding: var(--mxp-space-4); border: 1px solid var(--mxp-accent-border); border-radius: var(--mxp-radius-md); background: var(--mxp-accent-soft); }
+.dws-complete > svg { flex: 0 0 auto; color: var(--mxp-accent-primary); }
+.dws-complete > div { display: grid; gap: 3px; }
+.dws-complete strong { font-size: 14px; }
+.dws-complete p { margin: 0; color: var(--mxp-text-muted); font-size: 11px; }
+
+.dws-composer { margin: 0 clamp(var(--mxp-space-4), 5vw, 64px) var(--mxp-space-5); border: 1px solid var(--mxp-border-strong); border-radius: var(--mxp-radius-lg); background: var(--mxp-surface-raised); box-shadow: var(--mxp-shadow-float); overflow: hidden; }
+.dws-composer:focus-within { border-color: var(--mxp-accent-border); box-shadow: var(--mxp-shadow-float), 0 0 0 2px var(--mxp-focus-ring-soft); }
+.dws-composer label { position: absolute; width: 1px; height: 1px; clip-path: inset(50%); overflow: hidden; white-space: nowrap; }
+.dws-composer textarea { display: block; width: 100%; min-height: 72px; resize: none; padding: var(--mxp-space-4); border: 0; outline: 0; background: transparent; color: var(--mxp-text-primary); font-size: 13px; line-height: 1.5; }
+.dws-composer textarea::placeholder { color: var(--mxp-text-subtle); }
+.dws-composer footer { display: flex; align-items: center; justify-content: space-between; padding: 0 var(--mxp-space-3) var(--mxp-space-3); }
+.dws-composer footer span { color: var(--mxp-text-subtle); font-size: 10px; font-variant-numeric: tabular-nums; }
+.dws-composer footer button { display: grid; width: 36px; height: 36px; place-items: center; border: 0; border-radius: 50%; background: var(--mxp-accent-primary); color: var(--mxp-text-inverse); cursor: pointer; }
+
+.dws-evidence { display: grid; grid-template-rows: auto minmax(0, 1fr) auto; border-left: 1px solid var(--mxp-border-subtle); }
+.dws-evidence > nav { display: grid; grid-template-columns: repeat(3, 1fr); min-height: 48px; padding: var(--mxp-space-2); border-bottom: 1px solid var(--mxp-border-subtle); background: var(--mxp-surface-raised); }
+.dws-evidence > nav button { min-height: 32px; padding: 0 var(--mxp-space-2); border-color: transparent; background: transparent; color: var(--mxp-text-muted); }
+.dws-evidence > nav button[aria-pressed="true"] { background: var(--mxp-surface-soft-strong); color: var(--mxp-text-primary); }
+.dws-evidence > section { min-height: 0; padding: var(--mxp-space-4); overflow: auto; }
+.dws-evidence > section > header { display: flex; align-items: start; justify-content: space-between; gap: var(--mxp-space-3); margin-bottom: var(--mxp-space-4); }
+.dws-evidence > section > header div { display: grid; gap: var(--mxp-space-2); }
+.dws-evidence > section > header strong { font-size: 14px; }
+.dws-evidence > section > header > span { padding: 3px var(--mxp-space-2); border-radius: 999px; background: var(--mxp-accent-soft); color: var(--mxp-accent-primary); font-size: 10px; font-weight: 650; }
+.dws-evidence article { align-items: flex-start; gap: var(--mxp-space-3); padding: var(--mxp-space-3) 0; border-bottom: 1px solid var(--mxp-border-subtle); }
+.dws-evidence article > span { display: grid; width: 24px; height: 24px; flex: 0 0 auto; place-items: center; border: 1px solid var(--mxp-border-strong); border-radius: 50%; color: var(--mxp-text-muted); }
+.dws-evidence article > span.is-verified { border-color: var(--mxp-accent-border); background: var(--mxp-accent-soft); color: var(--mxp-accent-primary); }
+.dws-evidence article > div { display: grid; min-width: 0; flex: 1; gap: 3px; }
+.dws-evidence article strong { font-size: 12px; line-height: 1.35; }
+.dws-evidence article p { margin: 0; color: var(--mxp-text-muted); font-size: 11px; line-height: 1.45; overflow-wrap: anywhere; }
+.dws-evidence article small { overflow-wrap: anywhere; }
+.dws-evidence article.is-gap > span { border-color: var(--mxp-status-warning); color: var(--mxp-status-warning); }
+.dws-evidence article button { justify-self: start; margin-top: var(--mxp-space-2); }
+.dws-evidence > footer { padding: var(--mxp-space-3) var(--mxp-space-4); border-top: 1px solid var(--mxp-border-subtle); }
+.dws-evidence > footer button { display: inline-flex; width: 100%; align-items: center; justify-content: center; gap: var(--mxp-space-2); }
+.dws-rail-empty { display: grid; justify-items: start; gap: var(--mxp-space-2); padding: var(--mxp-space-5) 0; color: var(--mxp-text-muted); }
+.dws-rail-empty strong { color: var(--mxp-text-primary); font-size: 12px; }
+.dws-rail-empty p { margin: 0; font-size: 11px; line-height: 1.5; }
+
+.dws-setup-layer { position: fixed; z-index: 150; inset: 0; display: grid; place-items: center; padding: var(--mxp-space-4); background: color-mix(in srgb, var(--mxp-dark) 48%, transparent); }
+.dws-setup { display: grid; width: min(560px, 100%); gap: var(--mxp-space-3); padding: var(--mxp-space-6); border: 1px solid var(--mxp-border-strong); border-radius: var(--mxp-radius-lg); background: var(--mxp-surface-raised); box-shadow: var(--mxp-shadow-float); }
+.dws-setup > small { color: var(--mxp-accent-primary); font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .07em; }
+.dws-setup h2 { margin: 0; font-size: 24px; letter-spacing: -.035em; }
+.dws-setup > p { margin: 0 0 var(--mxp-space-2); color: var(--mxp-text-muted); font-size: 13px; line-height: 1.5; }
+.dws-setup label { font-size: 12px; font-weight: 650; }
+.dws-setup textarea { width: 100%; min-height: 132px; resize: vertical; padding: var(--mxp-space-3); border: 1px solid var(--mxp-border-strong); border-radius: var(--mxp-radius-md); background: var(--mxp-surface-base); color: var(--mxp-text-primary); line-height: 1.5; }
+.dws-setup > div { display: flex; align-items: center; justify-content: flex-end; gap: var(--mxp-space-2); }
+.dws-setup > div span { margin-right: auto; color: var(--mxp-text-muted); font-size: 10px; }
+
+.dws-empty { display: grid; width: min(520px, calc(100% - 32px)); margin: 15vh auto 0; justify-items: start; gap: var(--mxp-space-3); padding: var(--mxp-space-6); border: 1px solid var(--mxp-border-subtle); border-radius: var(--mxp-radius-lg); background: var(--mxp-surface-raised); }
+.dws-empty h1,
+.dws-empty p { margin: 0; }
+.dws-empty p { color: var(--mxp-text-muted); line-height: 1.5; }
+
+@media (max-width: 1120px) {
+	.dws-layout { grid-template-columns: 212px minmax(360px, 1fr) 280px; }
+}
+
+@media (max-width: 900px) {
+	.dws-root { overflow: auto; }
+	.dws-header { min-height: 72px; align-items: flex-start; padding-block: var(--mxp-space-3); }
+	.dws-heading > div { display: grid; gap: 2px; }
+	.dws-header-actions .dws-status { display: none; }
+	.dws-header-actions button { min-width: 44px; min-height: 44px; }
+	.dws-layout { grid-template-columns: minmax(0, 1fr); grid-template-rows: auto minmax(620px, 1fr) auto; overflow: visible; }
+	.dws-plan { border-right: 0; border-bottom: 1px solid var(--mxp-border-subtle); }
+	.dws-plan ol { grid-template-columns: repeat(3, minmax(0, 1fr)); margin-block: var(--mxp-space-3); }
+	.dws-plan li:nth-child(n + 4) { display: none; }
+	.dws-plan > footer,
+	.dws-operational { display: none; }
+	.dws-evidence { min-height: 420px; border-top: 1px solid var(--mxp-border-subtle); border-left: 0; }
+	.dws-root button { min-height: 44px; }
+}
+
+@media (max-width: 560px) {
+	.dws-header { flex-wrap: wrap; }
+	.dws-heading { flex: 1 1 100%; }
+	.dws-heading h1 { max-width: calc(100vw - 92px); }
+	.dws-header-actions { width: 100%; justify-content: space-between; }
+	.dws-layout { grid-template-rows: auto minmax(680px, 1fr) auto; }
+	.dws-plan ol { grid-template-columns: 1fr; }
+	.dws-plan li:nth-child(n + 3) { display: none; }
+	.dws-transcript,
+	.dws-interview > header { padding-inline: var(--mxp-space-4); }
+	.dws-composer,
+	.dws-state-card,
+	.dws-complete { margin-inline: var(--mxp-space-3); }
+	.dws-setup { padding: var(--mxp-space-4); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+	.dws-root *,
+	.dws-root *::before,
+	.dws-root *::after { scroll-behavior: auto !important; transition-duration: .01ms !important; animation-duration: .01ms !important; animation-iteration-count: 1 !important; }
+}

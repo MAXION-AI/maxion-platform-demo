@@ -1,4 +1,4 @@
-import type { PlatformEvent, PlatformState, PortalProject } from "./contracts"
+import type { DiscoveryPackageRef, PlatformEvent, PlatformState, PortalProject } from "./contracts"
 import { INITIAL_PROJECTS } from "./model"
 import type { StateCodec } from "./persistence/DemoStateRepository"
 
@@ -10,9 +10,27 @@ type PersistedPlatformState = {
 	projects: PortalProject[]
 	selectedProjectId: string | null
 	discoveryReady: boolean
+	discoveryPackage?: DiscoveryPackageRef | null
 	planSent: boolean
 	planSnapshot: string
 	executeVerified: boolean
+}
+
+function parseDiscoveryPackage(value: unknown): DiscoveryPackageRef | null {
+	if (typeof value !== "object" || value === null || Array.isArray(value)) return null
+	const item = value as Partial<DiscoveryPackageRef>
+	const id = boundedText(item.id, 160), projectId = boundedText(item.projectId, 120), projectName = boundedText(item.projectName, 160), discoveryId = boundedText(item.discoveryId, 160), createdAt = boundedText(item.createdAt, 80)
+	if (item.version !== 1 || !id || !projectId || !projectName || !discoveryId || !createdAt || !Number.isFinite(Date.parse(createdAt))) return null
+	if (!Array.isArray(item.provenance) || item.provenance.length > 200 || !Array.isArray(item.unresolvedGapIds) || item.unresolvedGapIds.length > 200 || !Array.isArray(item.evidenceClasses) || item.evidenceClasses.length > 3) return null
+	const provenance = item.provenance.map((entry) => {
+		const evidenceId = boundedText(entry?.evidenceId, 160), source = boundedText(entry?.source, 160), locator = boundedText(entry?.locator, 500)
+		return evidenceId && source && locator !== null ? { evidenceId, source, locator } : null
+	})
+	const unresolvedGapIds = item.unresolvedGapIds.map((entry) => boundedText(entry, 160))
+	if (provenance.some((entry) => entry === null) || unresolvedGapIds.some((entry) => entry === null)) return null
+	if (!item.evidenceClasses.every((entry) => entry === "connected-source" || entry === "operator-statement" || entry === "synthetic-demo")) return null
+	if (!item.authority || (item.authority.level !== "project-owner" && item.authority.level !== "member") || item.authority.boundedTo !== "planning-input") return null
+	return { version: 1, id, projectId, projectName, discoveryId, createdAt, provenance: provenance as DiscoveryPackageRef["provenance"], unresolvedGapIds: unresolvedGapIds as string[], authority: item.authority, evidenceClasses: [...item.evidenceClasses] }
 }
 
 function boundedText(value: unknown, max: number) {
@@ -58,10 +76,13 @@ function parsePersistedState(value: unknown): PersistedPlatformState | null {
 		: boundedText(state.selectedProjectId, 80)
 	if (selectedProjectId === null && state.selectedProjectId !== undefined && state.selectedProjectId !== null) return null
 	if (selectedProjectId && !typedProjects.some((project) => project.id === selectedProjectId)) return null
+	const discoveryPackage = state.discoveryPackage === undefined || state.discoveryPackage === null ? null : parseDiscoveryPackage(state.discoveryPackage)
+	if (state.discoveryPackage !== undefined && state.discoveryPackage !== null && discoveryPackage === null) return null
 	return {
 		projects: typedProjects,
 		selectedProjectId,
 		discoveryReady: state.discoveryReady as boolean,
+		discoveryPackage,
 		planSent: state.planSent as boolean,
 		planSnapshot,
 		executeVerified: state.executeVerified as boolean,
@@ -84,7 +105,7 @@ export function createInitialPlatformState(active: PlatformState["navigation"]["
 			notice: null,
 		},
 		handoffs: {
-			discovery: { ready: persisted?.discoveryReady ?? false, evidence: [], decisions: [], progress: { completed: 0, total: 1, status: persisted?.discoveryReady ? "verified" : "idle" } },
+			discovery: { ready: persisted?.discoveryReady ?? false, packageRef: persisted?.discoveryPackage ?? null, evidence: [], decisions: [], progress: { completed: 0, total: 1, status: persisted?.discoveryReady ? "verified" : "idle" } },
 			plan: { sent: persisted?.planSent ?? false, snapshot: persisted?.planSnapshot ?? "v12" },
 			execute: { verified: persisted?.executeVerified ?? false, environment: "development" },
 		},
@@ -99,6 +120,7 @@ export function selectPersistedPlatformState(state: Pick<PlatformState, "project
 		projects: [...state.projects.records],
 		selectedProjectId: state.projects.records.some((project) => project.id === state.projects.selectedId) ? state.projects.selectedId : null,
 		discoveryReady: state.handoffs.discovery.ready,
+		discoveryPackage: state.handoffs.discovery.packageRef,
 		planSent: state.handoffs.plan.sent,
 		planSnapshot: state.handoffs.plan.snapshot,
 		executeVerified: state.handoffs.execute.verified,
@@ -240,6 +262,7 @@ export function platformReducer(state: PlatformState, event: PlatformEvent): Pla
 		}
 		case "projects/notice-cleared": return state.projects.notice ? { ...state, projects: { ...state.projects, notice: null } } : state
 		case "discovery/ready": return state.handoffs.discovery.ready ? state : { ...state, handoffs: { ...state.handoffs, discovery: { ...state.handoffs.discovery, ready: true, progress: { completed: 1, total: 1, status: "verified" } } } }
+		case "discovery/package-ready": return { ...state, handoffs: { ...state.handoffs, discovery: { ...state.handoffs.discovery, ready: true, packageRef: event.packageRef, progress: { completed: 1, total: 1, status: "verified" } } } }
 		case "discovery/setup-started": return { ...state, intents: { ...state.intents, operationalDiscovery: null, discoverySetupSignal: state.intents.discoverySetupSignal + 1 } }
 		case "discovery/record-opened": {
 			const next = withIntentTick(state)
@@ -283,6 +306,7 @@ export const selectProjects = (state: PlatformState) => state.projects.records
 export const selectProjectWorkspace = (state: PlatformState) => state.projects
 export const selectSelectedProject = (state: PlatformState) => state.projects.records.find((project) => project.id === state.projects.selectedId) ?? null
 export const selectDiscoveryReady = (state: PlatformState) => state.handoffs.discovery.ready
+export const selectDiscoveryPackage = (state: PlatformState) => state.handoffs.discovery.packageRef
 export const selectPlanHandoff = (state: PlatformState) => state.handoffs.plan
 export const selectExecuteVerified = (state: PlatformState) => state.handoffs.execute.verified
 export const selectAgentixAttention = (state: PlatformState) => state.agentix.attention
