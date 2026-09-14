@@ -31,6 +31,15 @@ export function PlatformDemoProvider({ activeModule, children }: { activeModule:
 	const persisted = useMemo(() => selectPersistedPlatformState({ projects, handoffs }), [projects, handoffs])
 
 	useEffect(() => {
+		let current = true
+		void import("@/features/agentix/prototype/operationsState").then(
+			({ readAgentixAttention }) => { if (current) dispatch({ type: "agentix/attention-changed", attention: readAgentixAttention() }) },
+			() => undefined,
+		)
+		return () => { current = false }
+	}, [])
+
+	useEffect(() => {
 		const result = platformStateRepository.save(PLATFORM_STATE_SLICE, persisted)
 		if (!result.ok) dispatch({ type: "persistence/failed" })
 	}, [persisted])

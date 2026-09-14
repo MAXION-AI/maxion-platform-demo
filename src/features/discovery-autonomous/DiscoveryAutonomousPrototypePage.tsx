@@ -117,7 +117,45 @@ type DiscoveryRecord = {
 }
 
 const DISCOVERY_STORAGE_SLICE = "discovery-records"
+const LEGACY_DISCOVERY_STORAGE_KEY = "maxion.prototype.discovery-records.v1"
 const MAX_SAVED_DISCOVERIES = 50
+const MAX_DISCOVERY_PEOPLE = 100
+const MAX_DISCOVERY_MESSAGES = 500
+
+function isBoundedString(value: unknown, max: number, allowEmpty = true): value is string {
+	return typeof value === "string" && value.length <= max && (allowEmpty || value.length > 0)
+}
+
+function hasUniqueIds(values: ReadonlyArray<{ id: string }>) {
+	return new Set(values.map((value) => value.id)).size === values.length
+}
+
+function isPersistedPerson(value: unknown): value is Person {
+	if (!value || typeof value !== "object" || Array.isArray(value)) return false
+	const person = value as Partial<Person>
+	return isBoundedString(person.id, 160, false)
+		&& isBoundedString(person.name, 240, false)
+		&& isBoundedString(person.initials, 8, false)
+		&& isBoundedString(person.role, 240, false)
+		&& isBoundedString(person.department, 240, false)
+		&& isBoundedString(person.email, 320, false)
+		&& isBoundedString(person.focus, 4_000)
+		&& (person.influence === "High" || person.influence === "Medium")
+		&& (person.channel === "Text" || person.channel === "Voice" || person.channel === "Workshop")
+}
+
+function isPersistedMessage(value: unknown): value is ChatMessage {
+	if (!value || typeof value !== "object" || Array.isArray(value)) return false
+	const message = value as Partial<ChatMessage>
+	if (!isBoundedString(message.id, 160, false) || (message.actor !== "max" && message.actor !== "user") || !isBoundedString(message.text, 12_000)) return false
+	if (message.prompt !== undefined && !isBoundedString(message.prompt, 4_000)) return false
+	if (message.trace !== undefined && (!Array.isArray(message.trace) || message.trace.length > 50 || !message.trace.every((entry) => isBoundedString(entry, 2_000)))) return false
+	if (message.question !== undefined) {
+		const question = message.question
+		if (!question || typeof question !== "object" || !Number.isInteger(question.current) || !Number.isInteger(question.total) || question.current < 1 || question.total < question.current || question.total > 100 || !isBoundedString(question.topic, 500, false)) return false
+	}
+	return true
+}
 
 function discoveryStatus(record: DiscoveryRecord): DiscoveryStatus {
 	if (record.phase >= OPERATIONS.length - 1) return "completed"
@@ -227,26 +265,29 @@ function parseDiscoveryRecords(value: unknown): DiscoveryRecord[] | null {
 		const records = value.filter((candidate): candidate is DiscoveryRecord => {
 			if (!candidate || typeof candidate !== "object") return false
 			const record = candidate as Partial<DiscoveryRecord>
-			return typeof record.id === "string"
-				&& typeof record.title === "string"
-				&& typeof record.brief === "string"
+			const scenario = typeof record.scenarioKey === "string" && Object.prototype.hasOwnProperty.call(SCENARIOS, record.scenarioKey)
+				? SCENARIOS[record.scenarioKey as ScenarioKey]
+				: null
+			return isBoundedString(record.id, 160, false)
+				&& isBoundedString(record.title, 500, false)
+				&& isBoundedString(record.brief, 12_000)
 				&& typeof record.scenarioKey === "string"
-				&& Object.prototype.hasOwnProperty.call(SCENARIOS, record.scenarioKey)
+				&& scenario !== null
 				&& (record.view === "thread" || record.view === "overview" || record.view === "package")
-				&& typeof record.phase === "number" && Number.isFinite(record.phase)
+				&& typeof record.phase === "number" && Number.isInteger(record.phase) && record.phase >= 0 && record.phase < OPERATIONS.length
 				&& typeof record.paused === "boolean"
 				&& (record.decision === "pending" || record.decision === "approved" || record.decision === "modified")
-				&& Array.isArray(record.people)
-				&& Array.isArray(record.messages)
-				&& typeof record.interviewIndex === "number" && Number.isFinite(record.interviewIndex)
+				&& Array.isArray(record.people) && record.people.length <= MAX_DISCOVERY_PEOPLE && record.people.every(isPersistedPerson) && hasUniqueIds(record.people)
+				&& Array.isArray(record.messages) && record.messages.length <= MAX_DISCOVERY_MESSAGES && record.messages.every(isPersistedMessage) && hasUniqueIds(record.messages)
+				&& typeof record.interviewIndex === "number" && Number.isInteger(record.interviewIndex) && record.interviewIndex >= 0 && record.interviewIndex < scenario.ownerInterview.length
 				&& typeof record.interviewClosed === "boolean"
 				&& typeof record.clarificationPending === "boolean"
-				&& typeof record.packageSelection === "number" && Number.isFinite(record.packageSelection)
+				&& typeof record.packageSelection === "number" && Number.isInteger(record.packageSelection) && record.packageSelection >= 0 && record.packageSelection < DELIVERABLES.length
 				&& typeof record.invitesSent === "boolean"
-				&& typeof record.createdAt === "string" && Number.isFinite(new Date(record.createdAt).getTime())
-				&& typeof record.updatedAt === "string" && Number.isFinite(new Date(record.updatedAt).getTime())
+				&& isBoundedString(record.createdAt, 64, false) && Number.isFinite(new Date(record.createdAt).getTime())
+				&& isBoundedString(record.updatedAt, 64, false) && Number.isFinite(new Date(record.updatedAt).getTime())
 		})
-		return records.length === value.length && records.length > 0 ? records : null
+		return records.length === value.length && records.length > 0 && hasUniqueIds(records) ? records : null
 	} catch {
 		return null
 	}
@@ -255,7 +296,7 @@ function parseDiscoveryRecords(value: unknown): DiscoveryRecord[] | null {
 const discoveryRecordsCodec: StateCodec<DiscoveryRecord[]> = { parse: parseDiscoveryRecords }
 
 function readDiscoveryRecords(): DiscoveryRecord[] {
-	return demoStateRepository.load(DISCOVERY_STORAGE_SLICE, discoveryRecordsCodec, createSeedDiscoveryRecords).value
+	return demoStateRepository.load(DISCOVERY_STORAGE_SLICE, discoveryRecordsCodec, createSeedDiscoveryRecords, undefined, [LEGACY_DISCOVERY_STORAGE_KEY]).value
 }
 
 function interviewMessage(scenarioKey: ScenarioKey, index: number, prefix?: string): ChatMessage {
@@ -899,7 +940,7 @@ export function DiscoveryAutonomousPrototypePage({ embedded = false, setupSignal
 
 	const addMessage = (message: ChatMessage) => {
 		registerStreamableMessages([message])
-		setMessages((current) => [...current, message])
+		setMessages((current) => [...current, message].slice(-MAX_DISCOVERY_MESSAGES))
 	}
 
 	const addPersonFromCommand = (text: string, retained: Partial<Person> | null) => {
@@ -933,7 +974,7 @@ export function DiscoveryAutonomousPrototypePage({ embedded = false, setupSignal
 			focus: commaParts[3] || "MAX will adapt the interview focus from the mission and source gaps.",
 			channel: "Text",
 		}
-		setPeople((current) => [...current, newPerson])
+		setPeople((current) => [...current, newPerson].slice(0, MAX_DISCOVERY_PEOPLE))
 		setPendingPerson(null)
 		addMessage({
 			id: `added-${Date.now()}`,
@@ -1189,7 +1230,7 @@ export function DiscoveryAutonomousPrototypePage({ embedded = false, setupSignal
 						type={drawer}
 						scenarioKey={scenarioKey}
 						people={people}
-						onPeopleChange={setPeople}
+						onPeopleChange={(next) => setPeople(next.slice(0, MAX_DISCOVERY_PEOPLE))}
 						onClose={closeDrawer}
 					/>
 				) : null}

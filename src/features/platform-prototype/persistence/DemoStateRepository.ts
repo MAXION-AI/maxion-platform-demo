@@ -62,7 +62,7 @@ class DemoStateRepository {
 		return `maxion-demo:${this.tenantId}:${slice}:v${DEMO_STATE_SCHEMA_VERSION}`
 	}
 
-	load<T>(slice: string, codec: StateCodec<T>, fallback: () => T, maxBytes = DEFAULT_MAX_BYTES): RepositoryLoad<T> {
+	load<T>(slice: string, codec: StateCodec<T>, fallback: () => T, maxBytes = DEFAULT_MAX_BYTES, legacyKeys: readonly string[] = []): RepositoryLoad<T> {
 		const key = this.storageKey(slice)
 		if (!this.storage) return { value: fallback(), status: "recovered", reason: "storage-unavailable" }
 
@@ -72,7 +72,10 @@ class DemoStateRepository {
 		} catch {
 			return { value: fallback(), status: "recovered", reason: "storage-unavailable" }
 		}
-		if (raw === null) return { value: fallback(), status: "empty" }
+		if (raw === null) {
+			const migrated = this.loadLegacy(slice, codec, fallback, maxBytes, legacyKeys)
+			return migrated ?? { value: fallback(), status: "empty" }
+		}
 		if (raw.length > maxBytes) return this.recover(key, fallback, "oversized")
 
 		let parsed: unknown
@@ -123,6 +126,38 @@ class DemoStateRepository {
 			// A denied cleanup is harmless; the untrusted value is never returned.
 		}
 		return { value: fallback(), status: "recovered", reason }
+	}
+
+	private loadLegacy<T>(slice: string, codec: StateCodec<T>, fallback: () => T, maxBytes: number, legacyKeys: readonly string[]): RepositoryLoad<T> | null {
+		for (const legacyKey of legacyKeys) {
+			let raw: string | null
+			try {
+				raw = this.storage?.getItem(legacyKey) ?? null
+			} catch {
+				return { value: fallback(), status: "recovered", reason: "storage-unavailable" }
+			}
+			if (raw === null) continue
+			if (raw.length > maxBytes) return null
+
+			let parsed: unknown
+			try {
+				parsed = JSON.parse(raw)
+			} catch {
+				return null
+			}
+			const value = codec.parse(parsed)
+			if (value === null) return null
+			const saved = this.save(slice, value, maxBytes)
+			if (!saved.ok) return { value, status: "recovered", reason: saved.reason === "oversized" ? "oversized" : "storage-unavailable" }
+			try {
+				this.storage?.removeItem(legacyKey)
+			} catch {
+				// The tenant envelope is authoritative after a successful write. A denied
+				// legacy cleanup is safe because future reads prefer the new key.
+			}
+			return { value, status: "migrated" }
+		}
+		return null
 	}
 
 	private assertSlice(slice: string) {

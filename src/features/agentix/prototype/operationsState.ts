@@ -1,7 +1,9 @@
 import { WORKFLOWS, type WorkflowId } from "./initiatives"
 import { demoStateRepository, type StateCodec } from "@/features/platform-prototype/persistence/DemoStateRepository"
+import type { AgentixAttention } from "@/features/platform-prototype/contracts"
 
 const OPERATIONS_SLICE = "agentix-operations"
+const LEGACY_OPERATIONS_KEY = "maxion-agentix-operations-v3"
 export const DEMO_TICK_MS = 4000
 export const workflowFor = (id: WorkflowId) => WORKFLOWS.find(item => item.id === id)!
 export const AGENT_NAMES: Record<WorkflowId, string> = { service: "Service desk agent", invoice: "Invoice operations agent", onboarding: "Employee onboarding agent", inventory: "Inventory operations agent" }
@@ -220,9 +222,21 @@ function parseOperations(raw: unknown): OperationsState | null {
 const operationsCodec: StateCodec<OperationsState> = { parse: parseOperations }
 
 export function readOperations(): OperationsState {
-  return demoStateRepository.load(OPERATIONS_SLICE, operationsCodec, initialOperations).value
+  return demoStateRepository.load(OPERATIONS_SLICE, operationsCodec, initialOperations, undefined, [LEGACY_OPERATIONS_KEY]).value
 }
 
 export function persistOperations(state: OperationsState) {
   return demoStateRepository.save(OPERATIONS_SLICE, state).ok
+}
+
+export function deriveAgentixAttention(state: OperationsState): AgentixAttention {
+  return {
+    count: state.runs.filter(needsAttention).length + Object.values(state.agents).filter(agent => agent.status === "draft" && readiness(agent) !== "ready").length,
+    approval: state.runs.some(run => run.phase === "approval"),
+    audience: state.runs.some(run => run.phase === "human"),
+  }
+}
+
+export function readAgentixAttention(): AgentixAttention {
+  return deriveAgentixAttention(readOperations())
 }

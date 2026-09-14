@@ -3,7 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 import { AgentixInitiativesPage } from "../AgentixInitiativesPage"
 import { DiscoveryHandoffWorkspace } from "../DiscoveryHandoffWorkspace"
 import { WORKFLOWS } from "../initiatives"
-import { admitOccurrence, initialOperations, messageAgent, measures, nextSchedule, persistOperations, readOperations, readiness, setMapping, tickOperations, updateAgent, updateRun, DEMO_TICK_MS, type OperationsState } from "../operationsState"
+import { admitOccurrence, deriveAgentixAttention, initialOperations, messageAgent, measures, nextSchedule, persistOperations, readAgentixAttention, readOperations, readiness, setMapping, tickOperations, updateAgent, updateRun, DEMO_TICK_MS, type OperationsState } from "../operationsState"
 import { demoStateRepository } from "@/features/platform-prototype/persistence/DemoStateRepository"
 
 beforeEach(() => { localStorage.clear(); vi.useFakeTimers() })
@@ -127,6 +127,14 @@ describe("deployed operations state", () => {
     expect(localStorage.getItem("maxion-agentix-workspace-v2")).toBe("preserved")
     expect(persistOperations(initialOperations())).toBe(true)
     expect(readOperations()).toEqual(initialOperations())
+  })
+  it("migrates legacy operations before deriving cross-module attention", () => {
+    const state = updateRun(initialOperations(), "invoice:INV-20841", "decline")
+    localStorage.setItem("maxion-agentix-operations-v3", JSON.stringify(state))
+
+    expect(readAgentixAttention()).toEqual(deriveAgentixAttention(state))
+    expect(localStorage.getItem("maxion-agentix-operations-v3")).toBeNull()
+    expect(localStorage.getItem(demoStateRepository.storageKey("agentix-operations"))).not.toBeNull()
   })
   it("does not turn questions, negations or cross-agent references into authority", () => {
     for (const input of ["What if I pause?", "Don't pause intake", "Give everyone admin access", "Why is this high priority?"]) {

@@ -207,12 +207,14 @@ test("dark mode, keyboard, focus containment and value disclosures remain usable
   await expect(page.getByRole("dialog", { name: "MAXION command menu" })).toBeVisible()
 })
 
-test("deployed work keeps progressing while another platform module is visible", async ({ page }) => {
+test("Agentix timers pause while another platform module is visible and resume on return", async ({ page }) => {
   await enter(page)
   await page.getByRole("navigation", { name: "Portal sections" }).getByRole("button", { name: "Dashboard", exact: true }).click()
   await ticks(page, 10)
   await page.getByRole("navigation", { name: "Portal sections" }).getByRole("button", { name: /^Agentix/ }).click()
   await open(page, "Invoice operations agent")
+  await expect(caseRow(page, "INV-20842")).toContainText("Working")
+  await ticks(page, 10)
   await page.getByRole("button", { name: /^History/ }).click()
   await expect(caseRow(page, "INV-20842")).toContainText("Verified")
 })

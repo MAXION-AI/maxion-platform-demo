@@ -39,4 +39,40 @@ describe("DemoStateRepository", () => {
 		expect(() => repository.storageKey("../other-tenant")).toThrow("Invalid demo state slice")
 		expect(() => createDemoStateRepository("INVALID", localStorage)).toThrow("Invalid demo tenant id")
 	})
+
+	it("migrates valid raw legacy JSON without changing another slice", () => {
+		const repository = createDemoStateRepository("tenant-a", localStorage)
+		repository.save("preserved", "keep")
+		localStorage.setItem("legacy-shell", JSON.stringify("legacy"))
+
+		expect(repository.load("shell", stringCodec, () => "fallback", undefined, ["legacy-shell"])).toEqual({ value: "legacy", status: "migrated" })
+		expect(localStorage.getItem("legacy-shell")).toBeNull()
+		expect(repository.load("shell", stringCodec, () => "fallback")).toEqual({ value: "legacy", status: "loaded" })
+		expect(repository.load("preserved", stringCodec, () => "lost").value).toBe("keep")
+	})
+
+	it("leaves invalid legacy data and unrelated slices untouched", () => {
+		const repository = createDemoStateRepository("tenant-a", localStorage)
+		repository.save("preserved", "keep")
+		for (const raw of ["not-json", JSON.stringify({ value: "wrong shape" }), JSON.stringify("x".repeat(21))]) {
+			localStorage.setItem("legacy-shell", raw)
+			expect(repository.load("shell", stringCodec, () => "fallback", undefined, ["legacy-shell"])).toEqual({ value: "fallback", status: "empty" })
+			expect(localStorage.getItem("legacy-shell")).toBe(raw)
+			expect(localStorage.getItem(repository.storageKey("shell"))).toBeNull()
+		}
+		expect(repository.load("preserved", stringCodec, () => "lost").value).toBe("keep")
+	})
+
+	it("removes a legacy key only after the tenant envelope is saved", () => {
+		const values = new Map<string, string>([["legacy-shell", JSON.stringify("legacy")]])
+		const storage = {
+			getItem: (key: string) => values.get(key) ?? null,
+			setItem: () => { throw new Error("quota denied") },
+			removeItem: (key: string) => { values.delete(key) },
+		}
+		const repository = createDemoStateRepository("tenant-a", storage)
+
+		expect(repository.load("shell", stringCodec, () => "fallback", undefined, ["legacy-shell"])).toMatchObject({ value: "legacy", status: "recovered" })
+		expect(values.has("legacy-shell")).toBe(true)
+	})
 })
