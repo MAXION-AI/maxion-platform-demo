@@ -12,7 +12,7 @@
 - **Surface class:** product
 - **Target user:** Enterprise operator recovering a task without losing its workspace context
 - **Top jobs (1–3):** Find task-specific guidance; perform the recommended recovery; hand off with diagnostic context attached
-- **Route(s) / component(s):** /maxion-prototype · AccountUtilityModule help state
+- **Route(s) / component(s):** /maxion-prototype · AdministrationModules.HelpModule
 
 ## 2. References (examined, cited)
 

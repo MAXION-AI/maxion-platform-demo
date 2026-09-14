@@ -1,13 +1,15 @@
 import { ArrowLeft, ArrowRight, ArrowUp, CaretDown, ChatCircleText, CheckCircle, FileText, Info, Pause, Play, ShieldCheck, Users, X } from "@phosphor-icons/react"
 import { useEffect, useRef, useState, type KeyboardEvent } from "react"
-import type { AgentixAttention, AgentixIntentSignal } from "./AgentixInitiativesPage"
+import type { AgentixAttention, AgentixIntentSignal } from "@/features/platform-prototype/contracts"
 import { WORKFLOWS, type WorkflowId } from "./initiatives"
 import { Button } from "./WorkspaceParts"
 import { OperationsPortfolio, type OperationsView } from "./OperationsPortfolio"
 import { RunCanvas } from "./RunCanvas"
 import { AGENT_NAMES, DEMO_TICK_MS, MAX_RUN_RECORDS, admitOccurrence, agentLabel, deriveAgentixAttention, initialOperations, isTerminal, matchAgent, messageAgent, needsAttention, nextSchedule, persistOperations, readOperations, readiness, setMapping, tickOperations, updateAgent, updateRun, workflowFor, type AgentAction, type OperationRole, type OperationRun, type RunAction } from "./operationsState"
 import { AgentMark, ReadinessPanel, RunsList, Status, ValueSummary } from "./OperationsViews"
+import "./agentix-initiatives.css"
 import "./operations.css"
+import "./workspace.css"
 
 type Panel = { kind: "message" } | { kind: "scope" } | null
 let commandSequence = 0

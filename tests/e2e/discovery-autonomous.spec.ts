@@ -37,8 +37,8 @@ test("answers, resolves a gap, recovers offline, and hands a versioned package t
 	await expect(composer).toHaveValue("Preserve this draft while the provider is unavailable.")
 
 	await page.getByRole("button", { name: "Create package for Plan" }).click()
-	await expect(page.getByText(/Discovery package v1 · 3 sources/)).toBeVisible()
-	await expect(page.getByText("ERP modernization delivery plan")).toBeVisible()
+	await expect(page.getByRole("heading", { name: "ERP modernization rollout" })).toBeVisible()
+	await expect(page.getByRole("complementary", { name: "Approval package" })).toContainText("3 linked")
 
 	const accessibility = await new AxeBuilder({ page }).analyze()
 	expect(accessibility.violations.filter((violation) => violation.impact === "critical" || violation.impact === "serious")).toEqual([])

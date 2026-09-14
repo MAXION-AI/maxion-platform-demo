@@ -12,7 +12,7 @@
 - **Surface class:** product
 - **Target user:** the initiative owner (the north-star personas: a Revenue Operations Director, a Corporate Controller) watching and steering live operational work
 - **Top jobs (1–3):** see what the initiative is doing right now and what it needs from me; steer, answer, or stop it in place; reach the evidence and the produced objects without leaving the run
-- **Route(s) / component(s):** /maxion-prototype or /agentix-prototype → Agentix → deployed agent → case · DeployedAgentsPage, OperationsViews.RunDetail
+- **Route(s) / component(s):** /maxion-prototype or /agentix-prototype → Agentix → deployed agent → case · DeployedAgentsPage · RunCanvas
 
 ## 2. References (examined, cited)
 

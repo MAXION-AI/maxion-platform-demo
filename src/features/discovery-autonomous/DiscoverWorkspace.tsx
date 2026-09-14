@@ -94,7 +94,9 @@ export function DiscoverWorkspace({ embedded = false, setupSignal = 0, openSigna
 	const [railView, setRailView] = useState<"evidence" | "facts" | "gaps">("evidence")
 	const briefRef = useRef<HTMLTextAreaElement>(null)
 	const newButtonRef = useRef<HTMLButtonElement>(null)
-	const handledSetup = useRef(setupSignal)
+	// A command can request setup before this lazy module mounts. Starting at zero
+	// ensures the first non-zero signal is consumed instead of mistaken for old work.
+	const handledSetup = useRef(0)
 	const handledOpen = useRef(0)
 	const retryTimer = useRef<number | null>(null)
 	const projectContext = useMemo<{ id: string; name: string; permission: DiscoveryPermission }>(() => ({

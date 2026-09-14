@@ -12,7 +12,7 @@
 - **Surface class:** product
 - **Target user:** Transformation lead collecting source-bound evidence before planning
 - **Top jobs (1–3):** Start or resume an interview; resolve authority boundaries; review evidence-backed deliverables
-- **Route(s) / component(s):** /maxion-prototype → Discover · DiscoveryAutonomousPrototypePage
+- **Route(s) / component(s):** /maxion-prototype → Discover · DiscoveryModule · DiscoverWorkspace
 
 ## 2. References (examined, cited)
 

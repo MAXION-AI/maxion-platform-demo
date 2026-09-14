@@ -236,7 +236,7 @@ export function searchHelpResults(query: string, currentModule?: MaxionModuleId)
 	const terms = normalized.split(/\s+/).filter(term => term.length > 2 && !["the", "how", "does", "with", "this", "that"].includes(term))
 	const ranked = HELP_RESULTS.map(result => ({
 		result,
-		score: result.module === currentModule ? 0 : !normalized ? 1 : terms.some(term => `${result.title} ${result.outcome} ${result.steps.join(" ")}`.toLowerCase().includes(term)) ? 1 : 2,
+		score: result.module === currentModule ? 0 : !normalized ? 1 : terms.some(term => `${result.module} ${result.title} ${result.outcome} ${result.steps.join(" ")}`.toLowerCase().includes(term)) ? 1 : 2,
 	})).filter(item => !normalized || item.score < 2).sort((a, b) => a.score - b.score)
 	return ranked.map(item => item.result).slice(0, 4)
 }

@@ -51,7 +51,7 @@ Discovery and natural-language entry converge on one readiness proposal. Importi
 | Pareto | Prioritize ongoing status, exceptions and outcomes | Team mechanics, evidence and controls progressively disclosed |
 
 ## Engineering and limits
-operationsState.ts owns transitions and the Agentix persistence codec; OperationsViews.tsx owns reusable views; DeployedAgentsPage.tsx owns composition. DemoStateRepository.ts is the only browser-storage adapter and owns tenant-scoped envelopes plus one-time legacy migration. AgentixInitiativesPage.tsx preserves shell contracts and Discovery handoff. Shared scenario evidence stays in initiatives.ts. Superseded workspaceState.ts and chat-first components were removed.
+operationsState.ts owns transitions and the Agentix persistence codec; OperationsViews.tsx owns reusable views; DeployedAgentsPage.tsx owns composition and shell contracts. DemoStateRepository.ts is the only browser-storage adapter and owns tenant-scoped envelopes plus one-time stored-state migration. Shared scenario evidence stays in initiatives.ts. Superseded workspaceState.ts and chat-first components were removed.
 
 The demo uses existing React/Vite, CSS, Phosphor and MAXION branding. No new dependency or infrastructure. It makes no external provider calls and contains no credentials. React renders messages as text. Storage validates shape, bounds text/history and rejects malformed references. It is not an authorization or tenant-isolation layer.
 

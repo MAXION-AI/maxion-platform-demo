@@ -8,17 +8,17 @@ Nested dialogs and panels inherit the parent contract unless they introduce a ne
 | --- | --- | --- | --- | --- | --- | --- |
 | 1 | platform-shell-dashboard | Platform shell and operating dashboard | `MaxionPlatformPrototypePage`, `PortalChrome` | `platform-shell-dashboard.md` | contract | Candidate frame `16:2`; audit pending |
 | 2 | projects-workspace | Projects workspace | `ProjectsModule` | `projects-workspace.md` | contract | Candidate frame `40:478`; audit pending |
-| 3 | discover-workspace | Discover evidence workspace | `DiscoveryAutonomousPrototypePage` | `discover-workspace.md` | contract | Candidate frame `18:45`; audit pending |
+| 3 | discover-workspace | Discover evidence workspace | `DiscoveryModule`, `DiscoverWorkspace` | `discover-workspace.md` | contract | Candidate frame `18:45`; audit pending |
 | 4 | plan-workspace | Plan agentic workspace | `PlanModule` | `plan-workspace.md` | contract | Candidate frame `19:86`; audit pending |
-| 5 | execute-workspace | Execute hub and delivery workspace | `ExecuteHubModule`, `ExecuteDeliveryWorkspace` | `execute-workspace.md` | contract | Candidate frame `20:125`; audit pending |
+| 5 | execute-workspace | Execute delivery workspace | `ExecuteModule`, `ExecuteDeliveryWorkspace` | `execute-workspace.md` | contract | Candidate frame `20:125`; audit pending |
 | 6 | agentix-operations | Agentix deployed agents and operations | `DeployedAgentsPage`, `OperationsViews` | `agentix-operations.md` | contract | Candidate frame `21:175`; audit pending |
-| 7 | agentix-run-canvas | Agentix live run canvas | `DeployedAgentsPage`, `RunDetail` | `agentix-run-canvas.md` | contract | Candidate frame `46:933`; audit pending |
+| 7 | agentix-run-canvas | Agentix live run canvas | `DeployedAgentsPage`, `RunCanvas` | `agentix-run-canvas.md` | contract | Candidate frame `46:933`; audit pending |
 | 8 | consult-max-workspace | Consult MAX workspace | `ConsultModule` | `consult-max-workspace.md` | contract | Candidate frame `22:225`; audit pending |
-| 9 | settings-workspace | Workspace settings | `AccountUtilityModule` | `settings-workspace.md` | contract | Candidate frame `43:559`; audit pending |
+| 9 | settings-workspace | Workspace settings | `AdministrationModules.SettingsModule` | `settings-workspace.md` | contract | Candidate frame `43:559`; audit pending |
 | 10 | integrations-workspace | Connected systems and integration health | `IntegrationsModule` | `integrations-workspace.md` | contract | Candidate frame `43:786`; audit pending |
-| 11 | approvals-workspace | Approvals assigned to the current operator | `AccountUtilityModule` | `approvals-workspace.md` | contract | Candidate frame `43:1013`; audit pending |
-| 12 | usage-workspace | Workspace unit usage and limits | `AccountUtilityModule` | `usage-workspace.md` | contract | Candidate frame `43:1234`; audit pending |
-| 13 | help-workspace | Contextual help and recovery | `AccountUtilityModule` | `help-workspace.md` | contract | Candidate frame `43:1461`; audit pending |
+| 11 | approvals-workspace | Approvals assigned to the current operator | `AdministrationModules.ApprovalsModule` | `approvals-workspace.md` | contract | Candidate frame `43:1013`; audit pending |
+| 12 | usage-workspace | Workspace unit usage and limits | `AdministrationModules.UsageModule` | `usage-workspace.md` | contract | Candidate frame `43:1234`; audit pending |
+| 13 | help-workspace | Contextual help and recovery | `AdministrationModules.HelpModule` | `help-workspace.md` | contract | Candidate frame `43:1461`; audit pending |
 
 ## Shared acceptance boundary
 

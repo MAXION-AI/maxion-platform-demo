@@ -12,7 +12,7 @@
 - **Surface class:** product
 - **Target user:** Authorized reviewer deciding bounded changes across projects and modules
 - **Top jobs (1–3):** Find the next assigned approval; understand exact consequence and evidence; approve, amend, or reject safely
-- **Route(s) / component(s):** /maxion-prototype · AccountUtilityModule approvals state · Agentix decision hand-off
+- **Route(s) / component(s):** /maxion-prototype · AdministrationModules.ApprovalsModule · Agentix decision hand-off
 
 ## 2. References (examined, cited)
 
