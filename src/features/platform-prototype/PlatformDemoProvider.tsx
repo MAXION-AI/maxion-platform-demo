@@ -36,7 +36,7 @@ export function PlatformDemoProvider({ activeModule, children }: { activeModule:
 		const selectedProject = projects.records.find((project) => project.id === projects.selectedId)
 		const role = selectedProject?.role === "Owner" ? "owner" as const : selectedProject?.role === "Member" ? "member" as const : "viewer" as const
 		void import("@/features/agentix/prototype/operationsState").then(
-			({ readAgentixAttention }) => { if (current) dispatch({ type: "agentix/attention-changed", attention: readAgentixAttention(selectedProject?.id, role) }) },
+			({ readAgentixAttention }) => { if (current) dispatch({ type: "agentix/attention-changed", attention: readAgentixAttention(selectedProject?.id, role), projectId: selectedProject?.id ?? null }) },
 			() => undefined,
 		)
 		return () => { current = false }

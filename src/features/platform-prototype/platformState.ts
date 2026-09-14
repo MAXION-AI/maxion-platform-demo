@@ -122,7 +122,7 @@ export function createInitialPlatformState(active: PlatformState["navigation"]["
 			plan: { sent: Boolean(persisted?.planArtifactRef), artifactRef: persisted?.planArtifactRef ?? null },
 			execute: { verified: persisted?.executeVerified ?? false, environment: "development" },
 		},
-		agentix: { attention: { count: 0, audience: false, approval: false } },
+		agentix: { attention: { count: 0, audience: false, approval: false }, projectId: null },
 		intents: { discoverySetupSignal: 0, operationalDiscovery: null, planJump: null, discoveryOpen: null, agentixIntent: null, nextTick: 0 },
 		persistenceNotice,
 	}
@@ -295,7 +295,7 @@ export function platformReducer(state: PlatformState, event: PlatformEvent): Pla
 		case "agentix/attention-changed": {
 			const current = state.agentix.attention
 			const next = event.attention
-			return current.count === next.count && current.audience === next.audience && current.approval === next.approval ? state : { ...state, agentix: { attention: next } }
+			return state.agentix.projectId === event.projectId && current.count === next.count && current.audience === next.audience && current.approval === next.approval ? state : { ...state, agentix: { attention: next, projectId: event.projectId } }
 		}
 		case "agentix/opened": {
 			const next = withIntentTick(state)
@@ -318,5 +318,6 @@ export const selectDiscoveryPackage = (state: PlatformState) => state.handoffs.d
 export const selectPlanHandoff = (state: PlatformState) => state.handoffs.plan
 export const selectExecuteVerified = (state: PlatformState) => state.handoffs.execute.verified
 export const selectAgentixAttention = (state: PlatformState) => state.agentix.attention
+export const selectAgentixProjectId = (state: PlatformState) => state.agentix.projectId
 export const selectPlatformIntents = (state: PlatformState) => state.intents
 export const selectPersistenceNotice = (state: PlatformState) => state.persistenceNotice
