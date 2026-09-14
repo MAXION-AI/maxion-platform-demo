@@ -1,6 +1,6 @@
-import { fireEvent, render, screen, waitFor, within } from "@testing-library/react"
+import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react"
 import { MemoryRouter } from "react-router-dom"
-import { describe, expect, it } from "vitest"
+import { afterEach, describe, expect, it, vi } from "vitest"
 
 import { MaxionPlatformPrototypePage } from "../MaxionPlatformPrototypePage"
 
@@ -17,6 +17,7 @@ function portalNavigation() {
 }
 
 describe("MaxionPlatformPrototypePage", () => {
+	afterEach(() => vi.useRealTimers())
 	it("opens on the canonical MAXION dashboard and exposes the complete platform shell", () => {
 		renderPrototype()
 
@@ -161,8 +162,10 @@ describe("MaxionPlatformPrototypePage", () => {
 		for (const workspace of ["Delivery Orchestrator", "ServiceNow", "MuleSoft", "Workday Financials", "Integration verification"]) {
 			expect(workspaces.getByRole("button", { name: new RegExp(workspace) })).toBeInTheDocument()
 		}
+		vi.useFakeTimers()
 		fireEvent.click(screen.getByRole("button", { name: "Coordinating" }))
-		await waitFor(() => expect(screen.getByRole("button", { name: "Workspaces verified" })).toBeInTheDocument(), { timeout: 20_000 })
+		await act(async () => { await vi.runAllTimersAsync() })
+		expect(screen.getByRole("button", { name: "Workspaces verified" })).toBeInTheDocument()
 		expect(screen.getByRole("region", { name: "Delivery environment progression" })).toHaveTextContent("3/3 verified")
 		fireEvent.click(workspaces.getByRole("button", { name: /MuleSoft/ }))
 		expect(screen.getAllByText("mule-journal-api:2.4.1").length).toBeGreaterThan(0)
