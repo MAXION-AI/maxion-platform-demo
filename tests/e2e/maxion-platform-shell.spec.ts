@@ -94,9 +94,12 @@ test("keeps product and administration geometry exact at every acceptance viewpo
 test("keeps the shell choice, target, response, and accessibility floor measurable", async ({ page }) => {
 	await page.goto("/maxion-prototype")
 
-	const primaryActions = page.getByRole("group", { name: "Primary workspace actions" })
-	await expect(primaryActions.getByRole("button")).toHaveCount(3)
-	await expect(primaryActions.getByRole("button", { name: /Review .* waiting items/ })).toHaveClass(/mxp-primary/)
+	await expect(page.getByRole("button", { name: "Search or ask" })).toBeVisible()
+	await expect(page.getByRole("button", { name: "Open Agentix" })).toHaveClass(/mxp-primary/)
+	await expect(page.getByRole("heading", { name: "Needs you" })).toBeVisible()
+	await expect(page.getByRole("heading", { name: "Recent outcomes" })).toBeVisible()
+	await expect(page.locator(".mxp-needs-you article")).toHaveCount(3)
+	await expect(page.locator(".mxp-recent-outcomes button")).toHaveCount(4)
 
 	const navigation = page.getByRole("navigation", { name: "Portal sections" })
 	const targetHeights = await navigation.locator('[data-navigation-tier="product"]').evaluateAll((controls) =>
@@ -128,7 +131,7 @@ test("keeps the shell choice, target, response, and accessibility floor measurab
 	expect(navigationGeometry.productBottom).toBeLessThanOrEqual(navigationGeometry.administrationTop)
 	expect(navigationGeometry.administrationBottomGap).toBeLessThanOrEqual(16)
 	expect(navigationGeometry.administrationOffset).toBeGreaterThan(navigationGeometry.shellHeight / 2)
-	expect(navigationGeometry.productIcon).toBe(20)
+	expect(navigationGeometry.productIcon).toBe(24)
 	expect(navigationGeometry.administrationIcon).toBe(16)
 	expect(Math.min(...navigationGeometry.administrationTargets)).toBeGreaterThanOrEqual(24)
 	expect(Math.max(...navigationGeometry.administrationTargets)).toBeLessThan(44)
@@ -219,7 +222,7 @@ test("keeps the canonical MAXION shell functional across core modules", async ({
 	page.on("pageerror", (error) => runtimeErrors.push(error.message))
 
 	await page.goto("/maxion-prototype")
-	await expect(page.getByRole("heading", { name: "Good afternoon, Root Admin" })).toBeVisible()
+	await expect(page.getByRole("heading", { name: "Work that moved. Decisions that wait." })).toBeVisible()
 	await expect(page.getByRole("img", { name: "MAXION" })).toHaveAttribute("src", "/maxion-logo-lockup-white.svg")
 
 	const navigation = page.getByRole("navigation", { name: "Portal sections" })
@@ -431,7 +434,7 @@ test("keeps a running pass in command of its surface and shows what applied stee
 test("keeps the full MAXION navigation usable on mobile", async ({ page }) => {
 	await page.setViewportSize({ width: 390, height: 844 })
 	await page.goto("/maxion-prototype")
-	await expect(page.getByRole("heading", { name: "Good afternoon, Root Admin" })).toBeVisible()
+	await expect(page.getByRole("heading", { name: "Work that moved. Decisions that wait." })).toBeVisible()
 	await page.getByRole("button", { name: "Open navigation" }).click()
 
 	const navigation = page.getByRole("navigation", { name: "Portal sections" })

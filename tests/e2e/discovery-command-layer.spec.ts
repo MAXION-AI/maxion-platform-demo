@@ -9,7 +9,7 @@ test("scopes ⌘K to the visible module and makes Start a Discovery open setup",
 	page.on("pageerror", (error) => runtimeErrors.push(error.message))
 
 	await page.goto("/maxion-prototype")
-	await expect(page.getByRole("heading", { name: "Good afternoon, Root Admin" })).toBeVisible()
+	await expect(page.getByRole("heading", { name: "Work that moved. Decisions that wait." })).toBeVisible()
 
 	// On the Dashboard the portal menu owns ⌘K; the Discovery palette must stay closed.
 	await page.keyboard.press("ControlOrMeta+k")
