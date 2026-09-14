@@ -666,12 +666,6 @@
 
 @media (max-width: 720px) {
 	.mxp-root { display: block; }
-	.mxp-platform-rail { position: absolute; right: 0; bottom: 0; left: 0; width: auto; height: 56px; min-height: 0; flex-direction: row; padding: 5px 8px; }
-	.mxp-brand-button,
-	.mxp-platform-bottom { display: none; }
-	.mxp-platform-rail nav { display: grid; grid-template-columns: repeat(6, minmax(42px, 1fr)); flex-direction: row; gap: 1px; }
-	.mxp-platform-rail nav button { width: 100%; height: 44px; }
-	.mxp-platform-rail nav button.is-active::before { top: auto; right: 12px; bottom: -5px; left: 12px; width: auto; height: 3px; border-radius: 4px 4px 0 0; }
 	.mxp-stage { position: absolute; inset: 0 0 56px; }
 	.mxp-module-with-rail { grid-template-rows: 50px minmax(0, 1fr); }
 	.mxp-context-rail { grid-template-columns: minmax(0, 1fr); }
