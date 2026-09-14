@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from "@testing-library/react"
+import { fireEvent, render, screen, waitFor } from "@testing-library/react"
 import { useEffect } from "react"
 import { beforeEach, describe, expect, it, vi } from "vitest"
 
@@ -46,5 +46,47 @@ describe("Phase 2 surface states", () => {
 		renderProjects()
 		expect(screen.getByRole("heading", { name: "Create your first project" })).toBeInTheDocument()
 		expect(screen.getByRole("button", { name: "New project" })).toBeInTheDocument()
+	})
+
+	it("separates All from Active and reports the selected filter honestly", () => {
+		renderProjects()
+		expect(screen.getByRole("button", { name: "Active 3" })).toHaveAttribute("aria-pressed", "true")
+		expect(screen.getByRole("button", { name: "All 4" })).toHaveAttribute("aria-pressed", "false")
+		expect(screen.getByRole("heading", { name: "Active projects" })).toBeInTheDocument()
+		expect(screen.queryByText("Pricing transformation")).not.toBeInTheDocument()
+
+		fireEvent.click(screen.getByRole("button", { name: "All 4" }))
+		expect(screen.getByRole("button", { name: "All 4" })).toHaveAttribute("aria-pressed", "true")
+		expect(screen.getByRole("button", { name: "Active 3" })).toHaveAttribute("aria-pressed", "false")
+		expect(screen.getByRole("heading", { name: "All projects" })).toBeInTheDocument()
+		expect(screen.getByText("Pricing transformation")).toBeInTheDocument()
+	})
+
+	it("restores create-dialog focus to its explicit opener on every close path", async () => {
+		renderProjects()
+		const opener = screen.getByRole("button", { name: "New project" })
+		const expectRestored = async () => waitFor(() => expect(opener).toHaveFocus())
+
+		fireEvent.click(opener)
+		fireEvent.click(screen.getByRole("button", { name: "Close create project dialog" }))
+		await expectRestored()
+
+		fireEvent.click(opener)
+		fireEvent.click(screen.getByRole("button", { name: "Cancel" }))
+		await expectRestored()
+
+		fireEvent.click(opener)
+		fireEvent.keyDown(window, { key: "Escape" })
+		await expectRestored()
+
+		fireEvent.click(opener)
+		fireEvent.mouseDown(document.querySelector(".mxp-dialog-layer")!)
+		await expectRestored()
+
+		fireEvent.click(opener)
+		fireEvent.change(screen.getByLabelText(/Project name/), { target: { value: "Focus-safe project" } })
+		fireEvent.click(screen.getByRole("button", { name: "Review project" }))
+		fireEvent.click(screen.getByRole("button", { name: "Create project" }))
+		await expectRestored()
 	})
 })

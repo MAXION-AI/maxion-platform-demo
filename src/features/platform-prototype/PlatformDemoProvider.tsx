@@ -3,6 +3,7 @@ import { createContext, useContext, useEffect, useMemo, useReducer, type Dispatc
 import type { MaxionModuleId, PlatformEvent, PlatformState } from "./contracts"
 import {
 	PLATFORM_STATE_SLICE,
+	PLATFORM_STATE_MAX_BYTES,
 	createInitialPlatformState,
 	persistedPlatformStateCodec,
 	platformReducer,
@@ -16,7 +17,7 @@ const PlatformStateContext = createContext<PlatformState | null>(null)
 const PlatformDispatchContext = createContext<Dispatch<PlatformEvent> | null>(null)
 
 function initializeState(activeModule: MaxionModuleId) {
-	const loaded = platformStateRepository.load(PLATFORM_STATE_SLICE, persistedPlatformStateCodec, () => undefined)
+	const loaded = platformStateRepository.load(PLATFORM_STATE_SLICE, persistedPlatformStateCodec, () => undefined, PLATFORM_STATE_MAX_BYTES)
 	const notice = loaded.status === "recovered" && loaded.reason !== "storage-unavailable"
 		? "Saved demo state was invalid and has been safely reset. Other module work was preserved."
 		: loaded.reason === "storage-unavailable"
@@ -40,7 +41,7 @@ export function PlatformDemoProvider({ activeModule, children }: { activeModule:
 	}, [])
 
 	useEffect(() => {
-		const result = platformStateRepository.save(PLATFORM_STATE_SLICE, persisted)
+		const result = platformStateRepository.save(PLATFORM_STATE_SLICE, persisted, PLATFORM_STATE_MAX_BYTES)
 		if (!result.ok) dispatch({ type: "persistence/failed" })
 	}, [persisted])
 

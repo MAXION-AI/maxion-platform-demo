@@ -34,7 +34,7 @@ describe("platform state kernel", () => {
 		state = platformReducer(state, { type: "plan/sent", snapshot: "v13" })
 		state = platformReducer(state, { type: "execute/verified" })
 		const persisted = selectPersistedPlatformState(state)
-		expect(persisted.projects).toHaveLength(100)
+		expect(persisted.projects).toHaveLength(120)
 		expect(persistedPlatformStateCodec.parse(persisted)).toEqual(persisted)
 		expect(persistedPlatformStateCodec.parse({ ...persisted, projects: [{ ...INITIAL_PROJECTS[0], name: "x".repeat(161) }] })).toBeNull()
 		expect(persistedPlatformStateCodec.parse({ ...persisted, executeVerified: "yes" })).toBeNull()

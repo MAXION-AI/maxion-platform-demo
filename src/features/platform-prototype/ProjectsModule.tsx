@@ -40,8 +40,9 @@ export function ProjectsModule({ onNavigate }: { onNavigate: Navigate }) {
 	const [composer, setComposer] = useState("")
 	const [answer, setAnswer] = useState("")
 	const dialogRef = useRef<HTMLElement>(null)
+	const createOpenerRef = useRef<HTMLButtonElement>(null)
 	const rootRef = useRef<HTMLDivElement>(null)
-	useDialogFocus(dialogRef, createOpen)
+	useDialogFocus(dialogRef, createOpen, createOpenerRef)
 
 	const result = useMemo(() => selectProjectPortfolio(projects, { query, filter, sort: "updated" }), [filter, projects, query])
 	const counts = useMemo(() => ({
@@ -123,14 +124,15 @@ export function ProjectsModule({ onNavigate }: { onNavigate: Navigate }) {
 		<div className="mxp-projects-shell" ref={rootRef}>
 			<header className="mxp-projects-module-header">
 				<div><h1>Projects</h1><strong>Work, grouped by outcome</strong><span>{counts.active} active · {counts.attention} need attention</span></div>
-				<button type="button" className="mxp-primary" onClick={openCreate}><FolderPlus size={17} />New project</button>
+				<button ref={createOpenerRef} type="button" className="mxp-primary" onClick={openCreate}><FolderPlus size={17} />New project</button>
 			</header>
 			<div className="mxp-portal-page mxp-projects-page">
 				<div className="mxp-projects-intro"><small>Project portfolio</small><h2>Resume the work that matters.</h2><p>Search, filter, create, and act on projects without losing their operating context.</p></div>
 				<section className="mxp-project-controls" aria-label="Project controls">
 					<label><span>Search</span><span className="mxp-project-search-field"><MagnifyingGlass size={16} /><input aria-label="Search projects, owners, or outcomes" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search projects, owners, or outcomes" /></span></label>
 					<div className="mxp-project-filter-group" role="group" aria-label="Project filters">
-						<button type="button" aria-pressed={filter === "all" || filter === "active"} onClick={() => setFilter(filter === "active" ? "all" : "active")}>Active {counts.active}</button>
+						<button type="button" aria-pressed={filter === "all"} onClick={() => setFilter("all")}>All {counts.all}</button>
+						<button type="button" aria-pressed={filter === "active"} onClick={() => setFilter("active")}>Active {counts.active}</button>
 						<button type="button" className="is-attention" aria-pressed={filter === "attention"} onClick={() => setFilter("attention")}>Needs you {counts.attention}</button>
 						<button type="button" aria-pressed={filter === "archived"} onClick={() => setFilter("archived")}>Archived {counts.archived}</button>
 					</div>
@@ -140,7 +142,7 @@ export function ProjectsModule({ onNavigate }: { onNavigate: Navigate }) {
 
 				<div className="mxp-projects-workspace">
 					<section className="mxp-project-list" aria-label="Projects">
-						<header><div><h2>{filter === "archived" ? "Archived projects" : filter === "attention" ? "Projects needing you" : "Active projects"}</h2><p>Saved view · Updated just now</p></div><span>{result.total} {result.total === 1 ? "project" : "projects"}</span></header>
+						<header><div><h2>{filter === "all" ? "All projects" : filter === "archived" ? "Archived projects" : filter === "attention" ? "Projects needing you" : "Active projects"}</h2><p>Saved view · Updated just now</p></div><span>{result.total} {result.total === 1 ? "project" : "projects"}</span></header>
 						{workspace.status === "loading" ? <div className="mxp-project-loading" role="status" aria-label="Loading projects">{Array.from({ length: 5 }, (_, index) => <i key={index} />)}</div> : workspace.status === "error" ? <div className="mxp-project-recovery" role="alert"><WarningCircle size={24} /><h3>Projects couldn’t be loaded</h3><p>{workspace.error}</p><button type="button" onClick={() => dispatch({ type: "projects/retry-requested" })}>Retry projects</button></div> : result.items.length ? <div className="mxp-project-rows">{result.items.map((project) => {
 							const state = selectProjectAttention(project)
 							return <article key={project.id} className={selected?.id === project.id ? "is-selected" : ""}><button type="button" className="mxp-project-row-open" aria-label={`Open ${project.name}, ${projectStateLabel(project)}`} onClick={() => selectProject(project)} onKeyDown={onRowKeyDown}><span><strong>{project.name}</strong><small>{projectLineage(project)}</small></span><i className={`is-${state}`}>{projectStateLabel(project)}</i><span className="mxp-project-row-action">Open<CaretRight size={14} /></span></button></article>

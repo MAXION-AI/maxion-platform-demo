@@ -1,8 +1,11 @@
-import { describe, expect, it } from "vitest"
+import { beforeEach, describe, expect, it } from "vitest"
 
 import type { PortalProject } from "../contracts"
 import { INITIAL_PROJECTS } from "../model"
+import { createDemoStateRepository } from "../persistence/DemoStateRepository"
 import {
+	PLATFORM_STATE_MAX_BYTES,
+	PLATFORM_STATE_SLICE,
 	createInitialPlatformState,
 	persistedPlatformStateCodec,
 	platformReducer,
@@ -24,6 +27,8 @@ function project(index: number): PortalProject {
 }
 
 describe("Phase 2 project authority", () => {
+	beforeEach(() => localStorage.clear())
+
 	it("filters 10,000 logical projects under 100 ms and mounts at most 200 rows", () => {
 		const projects = Array.from({ length: 10_000 }, (_, index) => project(index))
 		selectProjectPortfolio(projects, { query: "project", filter: "active", sort: "updated" })
@@ -63,6 +68,29 @@ describe("Phase 2 project authority", () => {
 		expect(persistedPlatformStateCodec.parse(persisted)).toEqual(persisted)
 		const restored = createInitialPlatformState("dashboard", persisted)
 		expect(restored.projects.selectedId).toBe(state.projects.selectedId)
+	})
+
+	it("round-trips 10,000 projects through the production repository budget and rejects project 10,001", () => {
+		let state = createInitialPlatformState("projects")
+		state = { ...state, projects: { ...state.projects, records: Array.from({ length: 9_999 }, (_, index) => project(index)) } }
+		state = platformReducer(state, { type: "projects/created", requestId: "capacity-project", name: "Capacity project", description: "The final supported project." })
+		expect(state.projects.records).toHaveLength(10_000)
+
+		const persisted = selectPersistedPlatformState(state)
+		expect(persisted.projects).toHaveLength(10_000)
+		const repository = createDemoStateRepository("maxion-demo", localStorage)
+		expect(repository.save(PLATFORM_STATE_SLICE, persisted, PLATFORM_STATE_MAX_BYTES)).toEqual({ ok: true })
+		const loaded = repository.load(PLATFORM_STATE_SLICE, persistedPlatformStateCodec, () => persisted, PLATFORM_STATE_MAX_BYTES)
+		expect(loaded.status).toBe("loaded")
+		expect(loaded.value.projects).toHaveLength(10_000)
+		expect(createInitialPlatformState("dashboard", loaded.value).projects.selectedId).toBe(state.projects.selectedId)
+
+		const atCapacity = state.projects.records
+		state = platformReducer(state, { type: "projects/created", requestId: "over-capacity", name: "One too many", description: "Must be rejected explicitly." })
+		expect(state.projects.records).toBe(atCapacity)
+		expect(state.projects.records).toHaveLength(10_000)
+		expect(state.projects.notice).toMatch(/maximum of 10,000 projects/i)
+		expect(persistedPlatformStateCodec.parse({ ...persisted, projects: [...persisted.projects, project(10_001)] })).toBeNull()
 	})
 
 	it("rejects malformed mutations, explains permission denial, and recovers load errors", () => {

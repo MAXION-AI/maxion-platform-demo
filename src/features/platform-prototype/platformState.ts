@@ -3,7 +3,8 @@ import { INITIAL_PROJECTS } from "./model"
 import type { StateCodec } from "./persistence/DemoStateRepository"
 
 export const PLATFORM_STATE_SLICE = "platform-shell"
-const MAX_PERSISTED_PROJECTS = 100
+export const PLATFORM_STATE_MAX_BYTES = 3_500_000
+const MAX_PROJECT_RECORDS = 10_000
 
 type PersistedPlatformState = {
 	projects: PortalProject[]
@@ -44,7 +45,7 @@ function parseProject(value: unknown): PortalProject | null {
 function parsePersistedState(value: unknown): PersistedPlatformState | null {
 	if (typeof value !== "object" || value === null || Array.isArray(value)) return null
 	const state = value as Partial<PersistedPlatformState>
-	if (!Array.isArray(state.projects) || state.projects.length > MAX_PERSISTED_PROJECTS) return null
+	if (!Array.isArray(state.projects) || state.projects.length > MAX_PROJECT_RECORDS) return null
 	const projects = state.projects.map(parseProject)
 	if (projects.some((project) => project === null)) return null
 	const typedProjects = projects as PortalProject[]
@@ -95,7 +96,7 @@ export function createInitialPlatformState(active: PlatformState["navigation"]["
 
 export function selectPersistedPlatformState(state: Pick<PlatformState, "projects" | "handoffs">): PersistedPlatformState {
 	return {
-		projects: state.projects.records.slice(0, MAX_PERSISTED_PROJECTS),
+		projects: [...state.projects.records],
 		selectedProjectId: state.projects.records.some((project) => project.id === state.projects.selectedId) ? state.projects.selectedId : null,
 		discoveryReady: state.handoffs.discovery.ready,
 		planSent: state.handoffs.plan.sent,
@@ -193,6 +194,7 @@ export function platformReducer(state: PlatformState, event: PlatformEvent): Pla
 			if (!requestId) return projectNotice(state, "The project request was malformed. Review the draft and try again.")
 			const id = `${slug}-${requestId}`.slice(0, 80)
 			if (state.projects.records.some((project) => project.id === id)) return projectNotice(state, "This project request was already applied. No duplicate was created.")
+			if (state.projects.records.length >= MAX_PROJECT_RECORDS) return projectNotice(state, `This workspace already contains the maximum of ${MAX_PROJECT_RECORDS.toLocaleString("en-US")} projects. Archive or remove a project before creating another.`)
 			const project: PortalProject = {
 				id,
 				name,
@@ -202,7 +204,7 @@ export function platformReducer(state: PlatformState, event: PlatformEvent): Pla
 				updated: "Just now",
 				members: [{ initials: "RA", name: "Root Admin" }],
 			}
-			return { ...state, projects: { records: [project, ...state.projects.records].slice(0, MAX_PERSISTED_PROJECTS), selectedId: id, status: "ready", error: null, notice: `${name} created.` } }
+			return { ...state, projects: { records: [project, ...state.projects.records], selectedId: id, status: "ready", error: null, notice: `${name} created.` } }
 		}
 		case "projects/selected": {
 			if (event.projectId === null) return { ...state, projects: { ...state.projects, selectedId: null, notice: null } }

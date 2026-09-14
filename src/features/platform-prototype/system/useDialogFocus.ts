@@ -3,12 +3,12 @@ import { useEffect, type RefObject } from "react"
 const FOCUSABLE_SELECTOR = "button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex='-1'])"
 
 /** Keeps modal focus contained and restores the element that opened it. */
-export function useDialogFocus(panelRef: RefObject<HTMLElement | null>, open: boolean) {
+export function useDialogFocus(panelRef: RefObject<HTMLElement | null>, open: boolean, returnFocusRef: RefObject<HTMLElement | null>) {
 	useEffect(() => {
 		if (!open) return
 		const panel = panelRef.current
 		if (!panel) return
-		const trigger = document.activeElement instanceof HTMLElement ? document.activeElement : null
+		const returnTarget = returnFocusRef.current
 		if (!panel.contains(document.activeElement)) panel.focus()
 		const onKeyDown = (event: KeyboardEvent) => {
 			if (event.key !== "Tab") return
@@ -24,7 +24,7 @@ export function useDialogFocus(panelRef: RefObject<HTMLElement | null>, open: bo
 		panel.addEventListener("keydown", onKeyDown)
 		return () => {
 			panel.removeEventListener("keydown", onKeyDown)
-			if (trigger?.isConnected) trigger.focus()
+			if (returnTarget?.isConnected) returnTarget.focus()
 		}
-	}, [panelRef, open])
+	}, [panelRef, returnFocusRef, open])
 }
