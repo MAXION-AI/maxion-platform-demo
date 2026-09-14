@@ -63,7 +63,7 @@ export function OperationsPortfolio({ state, setState, view, onView, onOpenAgent
 		const text = draft.trim()
 		if (!text) return
 		const id = matchAgent(text) ?? "service"
-		setState((current) => messageAgent(current, id, text))
+		setState((current) => messageAgent(current, id, text, undefined, command(current.agents[id].version, `steer-${id}`)))
 		setDraft("")
 		setComposerStatus(`Direction sent to ${AGENT_NAMES[id]}; its authority did not change.`)
 	}

@@ -3,7 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 import { AgentixInitiativesPage } from "../AgentixInitiativesPage"
 import { DiscoveryHandoffWorkspace } from "../DiscoveryHandoffWorkspace"
 import { WORKFLOWS } from "../initiatives"
-import { admitOccurrence, deriveAgentixAttention, initialOperations, messageAgent, measures, nextSchedule, operationsCodec, persistOperations, readAgentixAttention, readOperations, readiness, setMapping, tickOperations, updateAgent, updateRun, DEMO_TICK_MS, MAX_RUN_RECORDS, type OperationsState } from "../operationsState"
+import { admitOccurrence, deriveAgentixAttention, initialOperations, messageAgent, measures, nextSchedule, operationsCodec, persistOperations, readAgentixAttention, readOperations, readiness, runEvents, setMapping, tickOperations, updateAgent, updateRun, DEMO_TICK_MS, MAX_RUN_RECORDS, type OperationsState } from "../operationsState"
 import { demoStateRepository } from "@/features/platform-prototype/persistence/DemoStateRepository"
 
 beforeEach(() => {
@@ -148,6 +148,25 @@ describe("deployed operations state", () => {
     const refreshed = updateRun(refused, "invoice:INV-20841", "refresh-approval", undefined, { id: "refresh-decision", expectedDeploymentVersion: 2 })
     expect(run(refreshed, "INV-20841").approvalVersion).toBe(2)
     expect(updateRun(refreshed, "invoice:INV-20841", "decline", undefined, { id: "current-decision", expectedDeploymentVersion: 2 }).runs.find(item => item.id === "invoice:INV-20841")?.phase).toBe("not_completed")
+
+    const steerCommand = { id: "steer-invoice-20842", expectedDeploymentVersion: 1 }
+    const steered = messageAgent(initialOperations(), "invoice", "Prioritize this case", "invoice:INV-20842", steerCommand)
+    expect(messageAgent(steered, "invoice", "Prioritize this case", "invoice:INV-20842", steerCommand)).toBe(steered)
+    expect(steered.agents.invoice.messages.filter(message => message.runId === "invoice:INV-20842")).toHaveLength(2)
+  })
+  it("keeps the typed run timeline ordered and preserves evidence across stop and continuation", () => {
+    let state = initialOperations()
+    const events = runEvents(run(state, "INV-20842"))
+    expect(events.map(event => event.order)).toEqual([0, 1, 2, 3, 4])
+    expect(new Set(events.map(event => event.id))).toHaveLength(events.length)
+    expect(events.every(event => event.correlationId.includes("invoice:INV-20842"))).toBe(true)
+
+    state = updateRun(state, "invoice:INV-20842", "edit-artifact", "Contoso reconciliation draft")
+    state = updateRun(state, "invoice:INV-20842", "stop")
+    state = advance(state, 10)
+    expect(run(state, "INV-20842")).toMatchObject({ phase: "not_completed", artifactTitle: "Contoso reconciliation draft", artifactVersion: 2 })
+    state = updateRun(state, "invoice:INV-20842", "continue")
+    expect(run(state, "INV-20842")).toMatchObject({ phase: "queued", artifactTitle: "Contoso reconciliation draft", artifactVersion: 2 })
   })
   it("isolates persisted operations by project and applies the shell role on read", () => {
     const owner = updateAgent(initialOperations("finance-owner", "owner"), "invoice", "pause-intake")
@@ -171,7 +190,11 @@ describe("deployed operations state", () => {
       delete agent.evidenceClass
       delete agent.authority
     }
-    for (const operationRun of legacy.runs as Array<Record<string, unknown>>) delete operationRun.approvalVersion
+    for (const operationRun of legacy.runs as Array<Record<string, unknown>>) {
+      delete operationRun.approvalVersion
+      delete operationRun.artifactTitle
+      delete operationRun.artifactVersion
+    }
     expect(operationsCodec.parse(legacy)?.version).toBe(4)
   })
   it("derives measurements from all outcomes, failures and costs", () => {
@@ -283,8 +306,29 @@ describe("agent-first workspace", () => {
     render(<AgentixInitiativesPage onOpenDiscovery={vi.fn()} />)
     fireEvent.click(screen.getAllByRole("button", { name: "Review" })[0])
     expect(screen.getByRole("region", { name: "Stale approval request" })).toBeInTheDocument()
-    fireEvent.click(screen.getByRole("button", { name: "Refresh approval request" }))
+    fireEvent.click(screen.getByRole("button", { name: "Refresh request" }))
     expect(screen.getByRole("region", { name: "Approval request" })).toBeInTheDocument()
+  })
+  it("opens a live run canvas and keeps steering, approval, evidence and object edits in context", () => {
+    render(<AgentixInitiativesPage onOpenDiscovery={vi.fn()} />)
+    fireEvent.click(screen.getAllByRole("button", { name: "Review" })[0])
+    expect(screen.getByRole("region", { name: "Agentix run canvas" })).toBeInTheDocument()
+    expect(screen.getByRole("main", { name: "Run timeline" })).toBeInTheDocument()
+    expect(screen.getByRole("complementary", { name: "Run evidence" })).toBeInTheDocument()
+    expect(screen.getByRole("complementary", { name: "Run details" })).toBeInTheDocument()
+
+    fireEvent.change(screen.getByRole("textbox", { name: "GUIDE AGENTIX WHILE IT WORKS" }), { target: { value: "Check the source owner before proposing any write" } })
+    fireEvent.click(screen.getByRole("button", { name: "Send steer" }))
+    expect(screen.getByRole("status")).toHaveTextContent("Direction received for this run")
+
+    fireEvent.click(screen.getByRole("button", { name: "Edit" }))
+    fireEvent.change(screen.getByRole("textbox", { name: "Object title" }), { target: { value: "Northwind variance review draft" } })
+    fireEvent.click(screen.getByRole("button", { name: "Save draft" }))
+    expect(screen.getByRole("heading", { name: "Northwind variance review draft" })).toBeInTheDocument()
+    expect(readOperations().runs.find(item => item.id === "invoice:INV-20841")?.artifactVersion).toBe(2)
+
+    fireEvent.click(screen.getByRole("button", { name: "Approve variance" }))
+    expect(readOperations().runs.find(item => item.id === "invoice:INV-20841")?.approved).toBe(true)
   })
   it("shows concurrent cases and progresses without an open conversation", () => {
     render(<AgentixInitiativesPage onOpenDiscovery={vi.fn()} />)

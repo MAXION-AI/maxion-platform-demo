@@ -17,8 +17,15 @@ export interface OperationRun {
   trigger: "Event" | "Schedule" | "Assignment"; occurrence: string; started: number; finished?: number
   needsApproval: boolean; approved: boolean; humanReference: string; writes: number; costCents: number
   held: boolean; priority: "Normal" | "High"; verifyTicks: number; recovered: boolean
-  beforePause?: RunPhase; notes: string[]; approvalVersion: number
+  beforePause?: RunPhase; notes: string[]; approvalVersion: number; artifactTitle: string; artifactVersion: number
 }
+export type RunFocus = { runId: string; objectId: string; deploymentVersion: number; environment: Deployment["environment"] }
+export type RunEvent = { id: string; runId: string; correlationId: string; order: number; title: string; detail: string; status: "done" | "live" | "waiting" | "failed" }
+export type RunQuestion = { id: string; runId: string; owner: string; recommendedAnswer: string }
+export type RunProposal = { id: string; runId: string; objectId: string; objectVersion: number; consequence: string }
+export type RunApproval = { id: string; runId: string; deploymentVersion: number; authority: "price-variance-only" }
+export type RunArtifact = { id: string; runId: string; version: number; evidenceCount: number; environment: Deployment["environment"]; evidenceClass: Deployment["evidenceClass"] }
+export type RunComposerIntent = { runId: string; text: string; action: "steer" | "stop" | "resume" }
 export interface AgentMessage { id: string; role: "user" | "agent"; text: string; runId?: string }
 export interface Deployment {
   id: WorkflowId; status: "draft" | "active" | "paused"; version: number; origin: "discovery" | "prompt"; brief: string
@@ -42,7 +49,8 @@ const makeRun = (agentId: WorkflowId, reference: string, title: string, phase: R
   id: `${agentId}:${reference}`, agentId, reference, title, phase, step: phase === "verified" ? 5 : 0,
   trigger: agentId === "inventory" ? "Schedule" : "Event", occurrence: reference, started: epoch,
   needsApproval: false, approved: false, humanReference: "", writes: phase === "verified" ? 1 : 0,
-  costCents: phase === "verified" ? 24 : 0, held: false, priority: "Normal", verifyTicks: 0, recovered: false, notes: [], approvalVersion: 1, ...overrides,
+  costCents: phase === "verified" ? 24 : 0, held: false, priority: "Normal", verifyTicks: 0, recovered: false, notes: [], approvalVersion: 1,
+  artifactTitle: title, artifactVersion: 1, ...overrides,
 })
 
 export function initialOperations(projectId = DEFAULT_PROJECT_ID, role: OperationRole = "owner"): OperationsState {
@@ -89,6 +97,15 @@ export function runActivity(run: OperationRun) {
   if (run.phase === "paused") return "Paused before the next action · progress preserved"
   return run.step < 2 ? (run.agentId === "service" ? "Incident coordinator · validating routing context" : "Specialists · independent evidence checks") : "Coordinator · preparing the governed update"
 }
+const RUN_STEPS = ["Read approved operating context", "Match source records", "Resolve the bounded decision", "Apply the authorized change", "Verify source result and notification"] as const
+export function runEvents(run: OperationRun): RunEvent[] {
+  const base = RUN_STEPS.map((title, order): RunEvent => ({
+    id: `${run.id}:step:${order + 1}`, runId: run.id, correlationId: `${run.id}:v${run.approvalVersion}`, order,
+    title, detail: order === 0 ? `Triggered by ${run.trigger.toLowerCase()} ${run.occurrence}.` : order === 4 ? "Source read-back and required notification evidence stay separate." : "Bounded to this run and deployment version.",
+    status: run.phase === "not_completed" && order >= run.step ? "failed" : run.phase === "verified" || order < run.step ? "done" : order === run.step ? "live" : "waiting",
+  }))
+  return base.slice(0, MAX_MOUNTED_RUNS)
+}
 const addNote = (notes: string[], text: string) => [...notes, text].slice(-40)
 const deny = (state: OperationsState, notice: string): OperationsState => ({ ...state, notice })
 const commandAllowed = (state: OperationsState, version: number, command?: OperationCommand) => !command || command.id.length <= 160 && command.expectedDeploymentVersion === version && !state.processedCommands.includes(command.id)
@@ -121,7 +138,7 @@ export function setMapping(state: OperationsState, id: WorkflowId, value: string
   if (!["", "london-standard"].includes(value) || state.agents[id].status !== "draft") return state
   return { ...state, agents: { ...state.agents, [id]: { ...state.agents[id], mapping: value, checked: false } } }
 }
-export type RunAction = "approve" | "decline" | "refresh-approval" | "fulfill" | "pause" | "resume" | "prioritize" | "hold" | "release"
+export type RunAction = "approve" | "decline" | "refresh-approval" | "amend" | "fulfill" | "pause" | "resume" | "stop" | "continue" | "retry" | "regenerate" | "edit-artifact" | "prioritize" | "hold" | "release"
 export function updateRun(state: OperationsState, id: string, action: RunAction, evidence = "", command?: OperationCommand): OperationsState {
   const target = state.runs.find(run => run.id === id)
   if (!target) return state
@@ -131,10 +148,15 @@ export function updateRun(state: OperationsState, id: string, action: RunAction,
   const commandVersion = action === "refresh-approval" ? state.agents[target.agentId].version : target.approvalVersion
   if (!commandAllowed(state, commandVersion, command)) return command && state.processedCommands.includes(command.id) ? state : deny(state, "This decision is stale. Open the current deployment version before deciding.")
   const next: OperationsState = { ...state, runs: state.runs.map(run => {
-    if (run.id !== id || isTerminal(run)) return run
+    if (run.id !== id) return run
+    if (action === "continue" && run.phase === "not_completed") return { ...run, phase: "queued", finished: undefined, step: Math.min(run.step, 3), notes: addNote(run.notes, "Owner started a bounded continuation. Prior failure evidence remains attached.") }
+    if (action === "regenerate" && run.phase === "verified") return { ...run, phase: "queued", finished: undefined, approved: !run.needsApproval, step: 0, writes: 0, artifactVersion: run.artifactVersion + 1, notes: addNote(run.notes, "A new draft was requested. The prior verified object remains in evidence; no production write was reversed.") }
+    if (action === "edit-artifact" && evidence.trim()) return { ...run, artifactTitle: evidence.trim().slice(0, 240), artifactVersion: run.artifactVersion + 1, notes: addNote(run.notes, "Operator saved a bounded object draft. No external write was dispatched.") }
+    if (isTerminal(run)) return run
     const atCapacity = state.runs.filter(r => r.agentId === run.agentId && ["working", "recovering", "verifying"].includes(r.phase)).length >= 3
     if (action === "refresh-approval" && run.phase === "approval" && state.role === "owner") return { ...run, approvalVersion: state.agents[run.agentId].version, notes: addNote(run.notes, `Approval request refreshed for deployment v${state.agents[run.agentId].version}; authority and amount are unchanged.`) }
     if (action === "approve" && run.phase === "approval") return { ...run, approved: true, phase: atCapacity ? "queued" : "working", beforePause: atCapacity ? "working" : undefined, step: 3, notes: addNote(run.notes, `${run.reference} v2: AP owner approved the $240 variance only. No payment release.`) }
+    if (action === "amend" && run.phase === "approval") return { ...run, notes: addNote(run.notes, `Amendment requested: ${evidence.trim().slice(0, 160) || "reduce the proposed scope"}. The proposal remains held; no write was dispatched.`) }
     if (action === "decline" && run.phase === "approval") return { ...run, phase: "not_completed", finished: state.clock, notes: addNote(run.notes, "Variance declined. ERP exception stays open; no resolution or payment posted.") }
     if (action === "fulfill" && run.phase === "human" && evidence.trim()) return { ...run, humanReference: evidence.trim().slice(0, 120), phase: atCapacity ? "queued" : "working", beforePause: atCapacity ? "working" : undefined, step: 3, notes: addNote(run.notes, `Owner attestation attached: ${evidence.trim().slice(0, 120)}. Verification still required.`) }
     if (action === "pause" && ["working", "queued", "recovering", "verifying"].includes(run.phase)) return { ...run, beforePause: run.phase, phase: "paused" }
@@ -142,6 +164,8 @@ export function updateRun(state: OperationsState, id: string, action: RunAction,
       const busy = state.runs.filter(r => r.agentId === run.agentId && ["working", "recovering", "verifying"].includes(r.phase)).length
       return busy >= 3 ? { ...run, phase: "queued" } : { ...run, phase: run.beforePause ?? "queued", beforePause: undefined }
     }
+    if (action === "stop" && ["queued", "working", "recovering", "verifying", "approval", "human", "partial", "paused"].includes(run.phase)) return { ...run, phase: "not_completed", finished: state.clock, notes: addNote(run.notes, "Run stopped by the operator. Completed evidence is preserved; no new effect was dispatched.") }
+    if (action === "retry" && run.phase === "partial" && state.agents[run.agentId].connection === "ready") return { ...run, phase: "verifying", verifyTicks: 0, notes: addNote(run.notes, "Retrying only the incomplete verification step. Prior writes will not be repeated.") }
     if (action === "prioritize") return { ...run, priority: "High" }
     if (action === "hold") return { ...run, held: true }
     if (action === "release" && state.agents[run.agentId].checked && state.agents[run.agentId].connection === "ready" && !state.agents[run.agentId].holdNotifications) return { ...run, held: false }
@@ -213,8 +237,9 @@ export function measures(runs: OperationRun[]) {
   return { verified: completed.length, total: runs.length, eligible: eligible.length, straightThrough: eligible.filter(run => run.phase === "verified").length, cost: runs.reduce((sum, run) => sum + run.costCents, 0) / 100, medianMinutes: durations.length ? (durations[Math.floor((durations.length - 1) / 2)] + durations[Math.floor(durations.length / 2)]) / 2 : null }
 }
 export function matchAgent(text: string): WorkflowId | null { return /invoice|payable/i.test(text) ? "invoice" : /onboard|employee|hire|payroll provisioning/i.test(text) ? "onboarding" : /inventory|stock|replenish/i.test(text) ? "inventory" : /incident|servicenow|triage/i.test(text) ? "service" : null }
-export function messageAgent(state: OperationsState, id: WorkflowId, text: string, runId?: string): OperationsState {
+export function messageAgent(state: OperationsState, id: WorkflowId, text: string, runId?: string, command?: OperationCommand): OperationsState {
   if (state.role === "viewer") return deny(state, "Viewer access cannot steer deployed responsibilities.")
+  if (!commandAllowed(state, state.agents[id].version, command)) return command && state.processedCommands.includes(command.id) ? state : deny(state, "This direction targeted a stale deployment version.")
   const input = text.trim().slice(0, 2000); if (!input) return state
   let next = state; let response = "This demo uses scripted responses. I’ve kept your message, but haven’t applied an unsupported instruction. You can pause/resume intake, or select a case to prioritize, pause or hold its notification."
   const run = runId ? state.runs.find(item => item.id === runId && item.agentId === id) : undefined
@@ -230,12 +255,12 @@ export function messageAgent(state: OperationsState, id: WorkflowId, text: strin
   else if (/status|what.*doing|what.*needs|update/i.test(input)) { const runs = state.runs.filter(item => item.agentId === id); response = `${agentLabel(state.agents[id], runs)}. ${runs.filter(item => !isTerminal(item)).length} open cases; ${runs.filter(needsAttention).length} need attention. Each case keeps its own outcome and evidence. Closing this conversation does not pause work in the demo.` }
   else if (/scope|permission|allowed|boundar/i.test(input)) response = workflowFor(id).boundary
   const a = next.agents[id]; const key = `${state.clock}-${a.messages.length}`
-  return { ...next, agents: { ...next.agents, [id]: { ...a, draft: run ? a.draft : "", caseDrafts: run ? { ...a.caseDrafts, [run.id]: "" } : a.caseDrafts, messages: [...a.messages, { id: `${key}-u`, role: "user" as const, text: input, runId: run?.id }, { id: `${key}-a`, role: "agent" as const, text: response, runId: run?.id }].slice(-60) } } }
+  return recordCommand({ ...next, agents: { ...next.agents, [id]: { ...a, draft: run ? a.draft : "", caseDrafts: run ? { ...a.caseDrafts, [run.id]: "" } : a.caseDrafts, messages: [...a.messages, { id: `${key}-u`, role: "user" as const, text: input, runId: run?.id }, { id: `${key}-a`, role: "agent" as const, text: response, runId: run?.id }].slice(-60) } } }, command)
 }
 function parseOperations(raw: unknown, projectId = DEFAULT_PROJECT_ID, role: OperationRole = "owner"): OperationsState | null {
   try {
     if (!raw || typeof raw !== "object") return null
-    const candidate = raw as Omit<OperationsState, "version" | "runs"> & { version?: 3 | 4; runs?: Array<OperationRun & { approvalVersion?: number }> }
+    const candidate = raw as Omit<OperationsState, "version" | "runs"> & { version?: 3 | 4; runs?: Array<OperationRun & { approvalVersion?: number; artifactTitle?: string; artifactVersion?: number }> }
     if (candidate.version !== 3 && candidate.version !== 4) return null
     const data = {
       ...candidate,
@@ -246,14 +271,14 @@ function parseOperations(raw: unknown, projectId = DEFAULT_PROJECT_ID, role: Ope
       processedCommands: candidate.version === 4 && Array.isArray(candidate.processedCommands) ? candidate.processedCommands : [],
       notice: candidate.version === 4 ? candidate.notice : null,
       agents: Object.fromEntries(WORKFLOWS.map(w => { const agent = candidate.agents?.[w.id]; return [w.id, agent ? { ...agent, provenance: agent.provenance ?? { projectId, sourceArtifactId: `discovery-${w.id}-v1` }, environment: "local-simulation" as const, evidenceClass: "simulated" as const, authority: "bounded-responsibility" as const } : agent] })) as OperationsState["agents"],
-      runs: Array.isArray(candidate.runs) ? candidate.runs.map(run => ({ ...run, approvalVersion: Number.isInteger(run.approvalVersion) ? run.approvalVersion : 1 })) : candidate.runs,
+      runs: Array.isArray(candidate.runs) ? candidate.runs.map(run => ({ ...run, approvalVersion: Number.isInteger(run.approvalVersion) ? run.approvalVersion : 1, artifactTitle: typeof run.artifactTitle === "string" ? run.artifactTitle : run.title, artifactVersion: Number.isInteger(run.artifactVersion) ? run.artifactVersion : 1 })) : candidate.runs,
     } as OperationsState
     if (!Number.isFinite(data.clock) || !Array.isArray(data.runs) || data.runs.length > MAX_RUN_RECORDS || data.tenantId !== "demo-tenant" || data.projectId !== projectId) return null
     if (!WORKFLOWS.every(w => { const a = data.agents?.[w.id]; return a?.id === w.id && ["draft", "active", "paused"].includes(a.status) && typeof a.mapping === "string" && typeof a.draft === "string" && typeof a.brief === "string" && ["ready", "expired"].includes(a.connection) && [a.checked, a.checking, a.automaticPayroll, a.supportRequested, a.repaired, a.holdNotifications].every(v => typeof v === "boolean") && Array.isArray(a.notes) && a.notes.every(n => typeof n === "string") && Array.isArray(a.messages) && a.messages.every(m => m && typeof m.id === "string" && typeof m.text === "string" && ["user", "agent"].includes(m.role)) })) return null
     const phases = ["queued", "working", "approval", "human", "recovering", "verifying", "verified", "partial", "not_completed", "paused"]
     if (!data.runs.every(r => r && WORKFLOWS.some(w => w.id === r.agentId) && typeof r.id === "string" && typeof r.reference === "string" && typeof r.title === "string" && phases.includes(r.phase) && Number.isInteger(r.step) && r.step >= 0 && r.step <= 5 && Number.isFinite(r.started) && Number.isFinite(r.costCents) && r.costCents >= 0 && [0, 1].includes(r.writes) && typeof r.humanReference === "string" && Number.isFinite(r.verifyTicks) && Array.isArray(r.notes) && r.notes.every(n => typeof n === "string"))) return null
     if (!Object.values(data.agents).every(a => Number.isInteger(a.version) && a.version > 0 && ["discovery", "prompt"].includes(a.origin) && Number.isFinite(Date.parse(a.nextOccurrence)) && a.messages.every(m => !m.runId || data.runs.some(r => r.id === m.runId && r.agentId === a.id)) && a.provenance?.projectId === data.projectId && typeof a.provenance.sourceArtifactId === "string" && a.environment === "local-simulation" && a.evidenceClass === "simulated" && a.authority === "bounded-responsibility")) return null
-    if (!data.runs.every(r => [r.needsApproval, r.approved, r.held, r.recovered].every(v => typeof v === "boolean") && Number.isInteger(r.approvalVersion) && r.approvalVersion > 0 && ["Event", "Schedule", "Assignment"].includes(r.trigger) && ["Normal", "High"].includes(r.priority) && typeof r.occurrence === "string" && (!r.beforePause || ["queued", "working", "verifying", "recovering"].includes(r.beforePause)) && (r.finished === undefined || Number.isFinite(r.finished)) && [r.id, r.reference, r.title, r.occurrence, r.humanReference, ...r.notes].every(s => s.length <= 4000))) return null
+    if (!data.runs.every(r => [r.needsApproval, r.approved, r.held, r.recovered].every(v => typeof v === "boolean") && Number.isInteger(r.approvalVersion) && r.approvalVersion > 0 && Number.isInteger(r.artifactVersion) && r.artifactVersion > 0 && typeof r.artifactTitle === "string" && r.artifactTitle.length <= 240 && ["Event", "Schedule", "Assignment"].includes(r.trigger) && ["Normal", "High"].includes(r.priority) && typeof r.occurrence === "string" && (!r.beforePause || ["queued", "working", "verifying", "recovering"].includes(r.beforePause)) && (r.finished === undefined || Number.isFinite(r.finished)) && [r.id, r.reference, r.title, r.occurrence, r.humanReference, ...r.notes].every(s => s.length <= 4000))) return null
     if (new Set(data.runs.map(r => r.id)).size !== data.runs.length) return null
     if (!Object.values(data.agents).every(a => !a.caseDrafts || typeof a.caseDrafts === "object" && !Array.isArray(a.caseDrafts) && Object.entries(a.caseDrafts).every(([id, value]) => typeof value === "string" && value.length <= 2000 && data.runs.some(r => r.id === id && r.agentId === a.id)))) return null
     if (!Array.isArray(data.processedCommands) || data.processedCommands.length > 1_000 || data.processedCommands.some(id => typeof id !== "string" || id.length > 160) || data.notice !== null && typeof data.notice !== "string") return null
