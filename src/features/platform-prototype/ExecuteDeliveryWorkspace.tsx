@@ -84,6 +84,11 @@ export type ExecuteDeliveryProgress = {
 	deviation?: "draft" | "proposed" | null
 }
 
+export type ExecuteScheduler = {
+	setTimeout: (callback: () => void, delay: number) => number
+	clearTimeout: (timer: number) => void
+}
+
 type Props = {
 	onBack: () => void
 	onPlatform: () => void
@@ -96,6 +101,8 @@ type Props = {
 	onProgress: (next: ExecuteDeliveryProgress) => void
 	onVerified: () => void
 	registerCommands: (handler: ((command: ExecuteDeliveryCommand) => void) | null) => void
+	scheduler?: ExecuteScheduler
+	clock?: () => Date
 }
 
 const WORKSPACE_ARTIFACTS: Record<string, string> = {
@@ -172,8 +179,22 @@ function reduceMotion() {
 	return typeof window !== "undefined" && window.matchMedia?.("(prefers-reduced-motion: reduce)").matches
 }
 
-function nowLabel() {
-	return new Intl.DateTimeFormat("en-US", { hour: "numeric", minute: "2-digit" }).format(new Date())
+function nowLabel(clock: () => Date) {
+	return new Intl.DateTimeFormat("en-US", { hour: "numeric", minute: "2-digit" }).format(clock())
+}
+
+const browserScheduler: ExecuteScheduler = {
+	setTimeout: (callback, delay) => window.setTimeout(callback, delay),
+	clearTimeout: (timer) => window.clearTimeout(timer),
+}
+
+function reduceWorkspaceDelivery(
+	state: Record<string, ExecuteWorkspaceDeliveryState>,
+	id: string,
+	patch: Partial<ExecuteWorkspaceDeliveryState>,
+) {
+	const current = state[id]
+	return current ? { ...state, [id]: { ...current, ...patch } } : state
 }
 
 function defaultDelivery(workspaces: readonly ExecuteWorkspaceSpec[], restored = false) {
@@ -223,6 +244,8 @@ export function ExecuteDeliveryWorkspace({
 	onProgress,
 	onVerified,
 	registerCommands,
+	scheduler = browserScheduler,
+	clock = () => new Date(),
 }: Props) {
 	const workspaces = blueprint.workspaces
 	const [selectedId, setSelectedId] = useState(workspaces.find((item) => item.kind === "orchestrator")?.id ?? workspaces[0].id)
@@ -292,11 +315,11 @@ export function ExecuteDeliveryWorkspace({
 	const candidate = "RC-07"
 
 	const patchWorkspace = (id: string, patch: Partial<ExecuteWorkspaceDeliveryState>) => {
-		setDelivery((current) => ({ ...current, [id]: { ...current[id], ...patch } }))
+		setDelivery((current) => reduceWorkspaceDelivery(current, id, patch))
 	}
 
 	const schedule = (callback: () => void, delay: number) => {
-		const timer = window.setTimeout(callback, reduceMotion() ? Math.min(delay, 80) : delay)
+		const timer = scheduler.setTimeout(callback, reduceMotion() ? Math.min(delay, 80) : delay)
 		timers.current.push(timer)
 	}
 
@@ -448,7 +471,7 @@ export function ExecuteDeliveryWorkspace({
 	const requestRelease = () => {
 		if (e2eState !== "passed" || deployRequested) return
 		setDeployRequested(true)
-		setDeployRequestedAt(nowLabel())
+		setDeployRequestedAt(nowLabel(clock))
 		// Persist the exact request before the approval surface unmounts this workspace.
 		schedule(onOpenApprovals, 80)
 	}
@@ -499,12 +522,12 @@ export function ExecuteDeliveryWorkspace({
 	}
 
 	useEffect(() => () => {
-		timers.current.forEach((timer) => window.clearTimeout(timer))
+		timers.current.forEach((timer) => scheduler.clearTimeout(timer))
 		timers.current = []
 		// React development mode replays effects once. Reset the one-shot guard so an
 		// autonomous launch is re-scheduled after that safety replay instead of idling.
 		autoStarted.current = false
-	}, [])
+	}, [scheduler])
 
 	useEffect(() => {
 		if (!shareOpen && !repositoryOpen) return
@@ -689,7 +712,7 @@ export function ExecuteDeliveryWorkspace({
 
 					<aside className="exd-inspector" aria-label={`${workspace.title} inspector`}>
 						<nav aria-label="Workspace evidence views">{inspectorViews.map((item) => { const Icon = item.icon; return <button type="button" key={item.id} aria-label={item.label} aria-current={view === item.id ? "page" : undefined} onClick={() => setView(item.id)}><Icon /><span>{item.label}</span>{item.id === "environments" && workspaceState.stage !== "development" ? <b>{workspaceState.stage === "production" ? "P" : "S"}</b> : null}</button> })}</nav>
-						<AnimatePresence mode="wait" initial={false}>
+						<AnimatePresence mode={reduceMotion() ? "sync" : "wait"} initial={false}>
 							{view === "topology" ? <motion.section key="topology" className="exd-panel" tabIndex={0} initial={{ opacity: 0, x: 8 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0 }}><header><small>LIVE DELIVERY GRAPH</small><h2>Five boundaries. One outcome.</h2><p>Select a workspace to converse with its agent, inspect evidence, or steer the work.</p></header><div className="exd-topology"><button type="button" className="is-source" onClick={() => openWorkspace("servicenow")}><span>SN</span><div><strong>ServiceNow</strong><small>{stateLabel[delivery.servicenow?.agentState ?? "ready"]} · {delivery.servicenow?.artifact}</small></div></button><i><ArrowRight /></i><button type="button" className="is-core" onClick={() => openWorkspace("mulesoft")}><span>MU</span><div><strong>MuleSoft</strong><small>{stateLabel[delivery.mulesoft?.agentState ?? "ready"]} · {delivery.mulesoft?.artifact}</small></div></button><i><ArrowRight /></i><button type="button" onClick={() => openWorkspace("workday")}><span>WD</span><div><strong>Workday</strong><small>{stateLabel[delivery.workday?.agentState ?? "ready"]} · {delivery.workday?.artifact}</small></div></button><button type="button" className="is-orchestrator" onClick={() => openWorkspace("orchestrator")}><MaxionSpiralMark /><div><strong>MAX Orchestrator</strong><small>Coordinates authority, evidence, and release</small></div></button><i className="is-down"><ArrowRight /></i><button type="button" className="is-verification" onClick={() => openWorkspace("verification")}><ShieldCheck /><div><strong>Integration verification</strong><small>{e2eState === "waiting" ? "Waiting on staged artifacts" : `${candidate} · ${e2eState}`}</small></div></button></div><div className="exd-panel-note"><ShieldCheck /><span><strong>Contract-safe orchestration</strong><small>The Orchestrator can coordinate every workspace, but cannot silently change their Plan contracts or production authority.</small></span></div></motion.section> : null}
 
 							{view === "repositories" ? <motion.section key="repositories" className="exd-panel exd-repositories-panel" tabIndex={0} initial={{ opacity: 0, x: 8 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0 }}><header><small>WORKSPACE REPOSITORY SET</small><h2>{workspaceRepositories.length} connected {workspaceRepositories.length === 1 ? "repository" : "repositories"}</h2><p>MAX works across this repository set as one workspace while preserving each provider, branch, path boundary, review, and commit history.</p></header><div className="exd-repository-summary" aria-label="Cross-repository change set"><div><span><GitBranch /></span><p><small>CHANGE SET</small><strong>{workspaceRepositories.reduce((sum, repository) => sum + repository.changedFiles, 0)} files across {workspaceRepositories.length} repos</strong></p></div><div><small>Providers</small><strong>{[...new Set(workspaceRepositories.map((repository) => repository.provider))].join(" · ")}</strong></div><div><small>Checks</small><strong>{workspaceRepositories.reduce((sum, repository) => sum + repository.checks, 0)} passing</strong></div></div><div className="exd-repository-grid">{workspaceRepositories.map((repository) => <article className={`exd-repository-card is-${repository.status}`} key={repository.id}><header><span><GitBranch /></span><div><small>{repository.provider} · {repository.mode === "new" ? "New repository" : "Existing repository"}</small><strong>{repository.name}</strong><p>{repository.role}</p></div><b>{repository.status === "provisioned" ? "Provisioned" : repository.status === "review" ? "In review" : "Connected"}</b></header><dl><div><dt>Working branch</dt><dd><code>{repository.branch}</code></dd></div><div><dt>Authority</dt><dd>{repository.access} · {repository.ownerTeam}</dd></div><div><dt>Allowed paths</dt><dd>{repository.allowedPaths.map((path) => <code key={path}>{path}</code>)}</dd></div><div><dt>Evidence</dt><dd>{repository.checks ? `${repository.checks} checks · ${repository.changedFiles} changed files` : "Checks begin after first change"}</dd></div></dl><footer><span><ShieldCheck />Credentials stay provider-scoped</span><strong>{repository.changeRequest ?? "Change request opens after implementation"}</strong></footer></article>)}</div><button type="button" className="exd-panel-action exd-attach-repository" onClick={(event) => openRepositoryAttach(event.currentTarget)}><GitBranch />Attach repository</button><div className="exd-panel-note"><ShieldCheck /><span><strong>One workspace, multiple repositories, one governed outcome</strong><small>The agent can create a repository or update existing ones, but every write stays inside the visible branch and path authority above.</small></span></div></motion.section> : null}
