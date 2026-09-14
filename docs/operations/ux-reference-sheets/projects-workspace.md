@@ -59,7 +59,7 @@
 | Parkinson's | Make resume, resolve, and create start progress quickly. | Top jobs begin within 3 actions; local filter p95 under 100 ms | Action-count and load-shaped test |
 | Occam's | Keep one create path, one open path, and one selected-context assistant. | No duplicate primary action in a viewport | Control inventory review |
 | Pareto | Prioritize resume, attention, and create over administration and secondary metadata. | All 3 top jobs in first viewport | Desktop and mobile screenshot audit |
-| Interactivity floor | Search, filter, create, select, open, and ask in place; every state has recovery. | Static-report test passes for 8 declared states | Walk every state and act on it |
+| Interactivity floor | Search, filter, create, select, open, and ask in place; every state has recovery. | Static-report test passes for 7 declared states | Walk every state and act on it |
 
 ## 5. State matrices
 

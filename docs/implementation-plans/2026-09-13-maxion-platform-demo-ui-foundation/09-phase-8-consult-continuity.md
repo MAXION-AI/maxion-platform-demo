@@ -43,6 +43,18 @@ answer, never a fabricated citation.
 6. **Break grounding and isolation (8.6).** Test prompt injection-shaped text, invalid/deleted source, conflicting versions, stale links, cross-project IDs, oversized questions, refresh, duplicate commands, and 10,000 sources.
 7. **Attach evidence and gate (8.7).** Record exact-frame comparison, full continuity trace, all states at 375/768/1280/1536, accessibility/timing/load proof, and independent verifier/QA sign-offs.
 
+### Cold-executor contracts
+
+| Task | Serves | Exact files/symbols | Prerequisite | Focused verification |
+| --- | --- | --- | --- | --- |
+| 8.1 | RC-12 and RC-14 via ADR-3 | `src/features/platform-prototype/consultState.ts#ConsultState`; `src/features/platform-prototype/consultState.spec.ts#grounding` | Accepted Phase 7 M and AgentixRunResultRef | `pnpm test -- consultState.spec.ts` |
+| 8.2 | RC-04 and RC-12 via ADR-3 | `src/features/platform-prototype/MaxionPlatformPrototypePage.tsx#ConsultModule`; `src/features/platform-prototype/consultState.ts#selectConsultSources` | Task 8.1 continuity invariants | `pnpm test -- ConsultModule.spec.tsx` |
+| 8.3 | RC-12 and RC-15 via ADR-4 | `src/features/platform-prototype/MaxionPlatformPrototypePage.tsx#ConsultModule`; `src/features/platform-prototype/portal-replica.css#consult-workspace` | Task 8.2 typed source index | `pnpm exec playwright test tests/e2e/maxion-platform-shell.spec.ts -g Consult` |
+| 8.4 | RC-12 and RC-15 via ADR-2 | `src/features/platform-prototype/consultState.ts#consultCommand`; `tests/e2e/maxion-platform-shell.spec.ts#consult.empty` | Task 8.3 accepted frame | `pnpm exec playwright test tests/e2e/maxion-platform-shell.spec.ts -g consult-state` |
+| 8.5 | RC-14 via ADR-5 | `tests/e2e/maxion-platform-shell.spec.ts#full-continuity`; `src/features/platform-prototype/contracts.ts#ObjectRef` | Task 8.4 all Consult states | `pnpm exec playwright test tests/e2e/maxion-platform-shell.spec.ts -g full-continuity` |
+| 8.6 | RC-15 and RC-18 via ADR-4 | `src/features/platform-prototype/consultState.spec.ts#isolation`; `tests/fixtures/consult-sources-10000.json#sources` | Task 8.5 end-to-end identity chain | `pnpm test -- consultState.spec.ts -t isolation` |
+| 8.7 | RC-15 and RC-16 via ADR-8 | `artifacts/ux-audits/phase-8/verification.md`; `docs/operations/program-phase-ledger.json#phases[8]` | Tasks 8.1 through 8.6 green at C | `python3 scripts/check_phase_acceptance.py --candidate "$C" --evidence "$E" --phase 8` |
+
 ## Contracts and observability
 
 Add `ConsultThread`, `ConsultQuestion`, `GroundedAnswer`, `CitationRef`, `SourceStatus`, and
@@ -64,6 +76,9 @@ five-module continuity journey.
 | Deep link targets another project | Deny without revealing object existence |
 | Answer generation fails | Preserve the question, show retry, and retain available source context |
 | Proposed action needs mutation authority | Route to the owner module for explicit confirmation |
+
+Rerun the Phase 1 copy-on-write suite for Consult history, including upgrade, downgrade, future-schema
+preservation, crash-before-swap, quota, competing-writer, and rollback-pointer cases.
 
 Rollback reverts the Phase 8 candidate while preserving prior objects and typed handoffs. Consult history
 remains readable if its schema version is valid; invalid records recover without affecting source objects.

@@ -8,6 +8,7 @@ pnpm check:ux:sheets
 pnpm check:ux:coverage
 pnpm check:ux:tokens
 pnpm check:program-ledger
+python3 scripts/check_implementation_plan.py
 pnpm test:ux-gates
 pnpm check:source-quality
 

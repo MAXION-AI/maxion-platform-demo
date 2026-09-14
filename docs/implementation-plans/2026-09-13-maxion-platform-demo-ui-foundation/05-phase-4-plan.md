@@ -43,6 +43,18 @@ and synthetic correlation ID; the client never grants authority.
 6. **Break versioning and recovery (4.6).** Test concurrent-looking edits, stale approvals, duplicate commands, corrupt drafts, oversized content, interrupted regeneration, permission denial, and reload.
 7. **Attach evidence and gate (4.7).** Record exact-node comparison, all state journeys, 375/768/1280/1536 captures, axe, keyboard, motion, timing, and independent verifier/QA results.
 
+### Cold-executor contracts
+
+| Task | Serves | Exact files/symbols | Prerequisite | Focused verification |
+| --- | --- | --- | --- | --- |
+| 4.1 | RC-08 and RC-14 via ADR-3 | `src/features/platform-prototype/planState.ts#PlanArtifact`; `src/features/platform-prototype/planState.spec.ts#authority` | Accepted Phase 3 M and DiscoveryPackageRef | `pnpm test -- planState.spec.ts` |
+| 4.2 | RC-04 and RC-08 via ADR-3 | `src/features/platform-prototype/PlanAgenticModule.tsx#PlanModule`; `src/features/platform-prototype/planState.ts#reducePlan` | Task 4.1 authority invariants | `pnpm test -- PlanAgenticModule.spec.tsx` |
+| 4.3 | RC-08 and RC-15 via ADR-4 | `src/features/platform-prototype/PlanAgenticModule.tsx#ArtifactCanvas`; `src/features/platform-prototype/plan-agentic.css#plan-workspace` | Task 4.2 decomposed regions | `pnpm exec playwright test tests/e2e/maxion-platform-shell.spec.ts -g Plan` |
+| 4.4 | RC-08 and RC-15 via ADR-2 | `src/features/platform-prototype/PlanAgenticModule.tsx#PlanCommands`; `tests/e2e/maxion-platform-shell.spec.ts#plan.section-editing` | Task 4.3 accepted composition | `pnpm exec playwright test tests/e2e/maxion-platform-shell.spec.ts -g plan-state` |
+| 4.5 | RC-08 and RC-14 via ADR-5 | `src/features/platform-prototype/contracts.ts#PlanArtifactRef`; `src/features/platform-prototype/planState.ts#selectExecuteReadyPlan` | Task 4.4 operable states | `pnpm test -- planHandoff.spec.ts` |
+| 4.6 | RC-15 via ADR-3 | `src/features/platform-prototype/planState.spec.ts#recovery`; `tests/fixtures/plan-oversized.json#sections` | Task 4.5 immutable handoff | `pnpm test -- planState.spec.ts -t recovery` |
+| 4.7 | RC-15 and RC-16 via ADR-8 | `artifacts/ux-audits/phase-4/verification.md`; `docs/operations/program-phase-ledger.json#phases[4]` | Tasks 4.1 through 4.6 green at C | `python3 scripts/check_phase_acceptance.py --candidate "$C" --evidence "$E" --phase 4` |
+
 ## Contracts and observability
 
 Add `PlanArtifact`, `PlanSection`, `PlanRevision`, `PlanSourceRef`, `PlanApproval`, and `PlanArtifactRef`.
@@ -63,6 +75,9 @@ permission denial, refresh recovery, keyboard use, and responsive layouts.
 | Approval targets a stale version | Block it, identify the current version, and preserve the review note |
 | Source evidence is missing | Mark the section ungrounded and block approved handoff |
 | Artifact is too large for direct rendering | Virtualize/chunk while preserving find and keyboard order |
+
+Rerun the Phase 1 copy-on-write suite for Plan drafts and revisions, including upgrade, downgrade,
+future-schema preservation, crash-before-swap, quota, competing-writer, and rollback-pointer cases.
 
 Rollback reverts the Phase 4 candidate while keeping Phase 3 packages readable. No accepted plan version
 may be deleted by rollback.

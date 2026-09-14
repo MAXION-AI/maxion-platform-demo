@@ -28,15 +28,15 @@ records exact production mapping decisions and open gaps without changing or qua
 | Claim | Status | Evidence |
 | --- | --- | --- |
 | The isolated implementation worktree and branch existed for Phase 0 and preserved the owner checkout | Verified | `docs/operations/program-phase-ledger.json`; Phase 0 PR #2 history |
-| Phase 0 PR #2 merged as `beae208b30ad31202c4ff92abbfbd6c1ef51af18` | Verified | `docs/operations/program-phase-ledger.json` |
-| Existing Phase 0 UX/QA reports bind to the merged implementation SHA | False | Reports explicitly audited a dirty tree over `c381e7e`; clean detached reruns at `beae208` remain required |
+| Phase 0 PR #2 merged as `beae208b30ad31202c4ff92abbfbd6c1ef51af18` | Verified historical runtime contract, not acceptance base | `docs/operations/program-phase-ledger.json` |
+| Existing Phase 0 UX/QA reports bind to the superseding hardening implementation SHA | False | The hardening PR must produce clean C/E/M identities and fresh detached-C and clean-M reviews; `beae208` cannot become Phase 1 B after its contract/gates are superseded |
 | Thirteen editable 1440 × 900 product and administration frames exist | Verified | `docs/operations/figma-ux-reference-program-2026-09-13.md`; `figma-code-map.json` |
 | Projects and the five administrative destinations have standalone contract-stage sheets and exact Figma frames | Verified | `docs/operations/ux-surface-inventory.md`; `docs/operations/ux-reference-sheets/` |
 | The demo shell uses lifted booleans while Discover and Agentix also persist separate local state | Verified | `MaxionPlatformPrototypePage.tsx`, `DiscoveryAutonomousPrototypePage.tsx`, `operationsState.ts` |
 | Core module implementations remain monolithic and CSS is split across large surface files | Verified | Discovery 2,707 TSX lines; Plan 1,972; Execute 724; production CSS inventory exceeds 12,000 lines combined |
 | The current production portal already owns the real shell, primitives, auth/query boundary, and compact bottom navigation | Verified | `max-ai-platform/apps/max-user-portal/src/app/components/layout/PortalSidebar.tsx`, `components/ui/*`, `shell/usePortalCommands.ts` |
 | Current local `max-ai-platform/main` is behind its `origin/main` by 19 commits and has owner untracked paths | Verified | read-only fetch/status on 2026-09-13 |
-| Historical Phase 0 validation passed program gates, build, 38/38 unit tests, and 45/45 Chromium E2E journeys on a dirty pre-commit tree | Verified but non-accepting | Phase 0 evidence reports; clean detached reruns at `beae208` remain required |
+| Historical Phase 0 validation passed program gates, build, 38/38 unit tests, and 45/45 Chromium E2E journeys on a dirty pre-commit tree | Verified but non-accepting | Phase 0 evidence reports; the superseding hardening PR requires fresh detached-C and clean-M reruns |
 
 ### Inferred constraints
 
@@ -50,7 +50,7 @@ records exact production mapping decisions and open gaps without changing or qua
 
 | ID | Severity | What is needed and why | Evidence | Type | Status |
 | --- | --- | --- | --- | --- | --- |
-| RC-01 | Blocker | Candidate foundation and shell work requires independent clean-SHA acceptance plus a verified merged immutable SHA before later phases can inherit it | `program-phase-ledger.json`; Phase 0 reports | governance | Open — PR #2 merged at `beae208`; clean-SHA UX/QA reruns pending |
+| RC-01 | Blocker | Candidate foundation and shell work requires independent clean-SHA acceptance plus a verified merged immutable SHA before later phases can inherit it | `program-phase-ledger.json`; Phase 0 reports | governance | Open — PR #2 is historical lineage; the superseding hardening PR's final M must be independently accepted and become Phase 1 B |
 | RC-02 | Blocker | Projects, Settings, Integrations, My approvals, Usage, and Help are user-facing but lack standalone sheets and Figma frames | `ux-surface-inventory.md` | missing capability | Closed in Phase 0 candidate |
 | RC-03 | Major | Shared visual primitives are not yet a portable contract; 1,357 raw colour literals remain under a ratchet | token baseline and large CSS surfaces | technical debt | Open |
 | RC-04 | Major | Multi-thousand-line components and styles couple layout, state, copy, and scenarios, making reuse and review unsafe | module line counts and symbol inventory | architecture | Open |
@@ -183,6 +183,14 @@ demo has server concurrency.
 
 - **State:** `PlatformDemoState@v1`, typed events, pure reducers, bounded lists, stable selectors, and
   validated persistence. No source module may infer another module's completion from UI presence.
+- **Persistence/rollback:** every persisted slice uses copy-on-write generation keys
+  `maxion.demo/<tenant>/<slice>/v<schema>/<generation>` plus a separately validated
+  `maxion.demo/<tenant>/<slice>/head@v1` pointer. A write creates and validates an immutable generation,
+  compares the previously read pointer, then swaps the pointer. Quota, serialization, validation, or a
+  competing writer leaves the old head readable. The last accepted compatible generation remains until
+  its successor is accepted. Downgraded code never overwrites an unknown future schema; it selects the
+  retained compatible generation or exposes scoped recovery. Every persistence phase reruns
+  crash-before-swap, corrupt-pointer, quota, competing-writer, upgrade, downgrade, and rollback tests.
 - **Objects:** `WorkObjectRef`, `EvidenceRef`, `DecisionRequest`, `ProgressState`, `AuthorityBoundary`,
   and `ExecutionEnvironment` use the same vocabulary across modules.
 - **Figma mapping:** schema-v2 `figma-code-map.json` maps each classified production route,
@@ -331,7 +339,7 @@ There are zero uncovered register rows and no deferred requirements.
 
 ## 8. Global risks, dependencies, and rollback
 
-- **Acceptance-identity risk:** Phase 0's historical reports audited a dirty tree. Clean-`beae208`
+- **Acceptance-identity risk:** Phase 0's historical reports audited a dirty tree. Clean-C and clean-M
   independent reruns are mandatory before Phase 1.
 - **Reference risk:** all thirteen contract frames exist, but every later phase must re-attest its
   exact node and attach state-specific implementation evidence.

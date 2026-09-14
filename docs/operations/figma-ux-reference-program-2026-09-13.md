@@ -5,9 +5,9 @@
 - **Source worktree:** `/Users/abhinavshankar/GitHub_Repos/maxion-platform-demo-ux-system-20260913`
 - **Branch:** `codex/maxion-demo-ux-system-20260913`
 - **Historical build base:** `c381e7e50b6cc7e71138fbf4b9c348efc2194df9`
-- **Phase 0 PR head / merge:** `dfc0347c876b36dc9932808b786d219c2cb8c949` / `beae208b30ad31202c4ff92abbfbd6c1ef51af18`
+- **Historical Phase 0 PR head / merge:** `dfc0347c876b36dc9932808b786d219c2cb8c949` / `beae208b30ad31202c4ff92abbfbd6c1ef51af18`; these identify the runtime-contract lineage, not the eventual acceptance base.
 - **Acceptance caveat:** existing reports audited a dirty pre-commit tree; they do not accept the PR
-  head or merge SHA. Clean-`beae208` independent reruns remain required.
+  head or merge SHA. The superseding hardening PR must receive fresh clean-C and clean-M independent reruns; its final accepted M becomes Phase 1 B.
 - **Figma file:** [Maxion Platform Demo — UX Reference Program](https://www.figma.com/design/UhLxGyXphdHHNLGMomBq6n/Maxion-Platform-Demo-UX-Reference-Program)
 - **Figma file key:** `UhLxGyXphdHHNLGMomBq6n`
 - **Tracked ledger:** `docs/operations/program-phase-ledger.json`
@@ -107,7 +107,7 @@ visually inspected after creation; they are candidate contract frames, not build
 - `pnpm check:program`: PASS
 - UX reference sheets: 13/13 pass at contract stage
 - UX token ratchet: PASS at 10 baselined files and 1,357 literals, with no growth
-- UX gate self-tests: 19/19 PASS
+- Discovered gate self-test suite: PASS; the pinned CI run records the exact count for its SHA
 - TypeScript: PASS
 - Focused Playwright sidebar geometry, interaction timing, reduced motion, and axe check: PASS
 - Independent Phase 0 UX audit: GATE PASS at 375, 768, 1280, and 1536 px with zero WCAG A/AA

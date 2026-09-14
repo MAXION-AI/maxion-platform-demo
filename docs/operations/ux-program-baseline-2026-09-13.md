@@ -25,7 +25,7 @@
 | Agentix canvas unit file | targeted Vitest run | PASS; 6 tests in 6.3 seconds |
 | Complete inherited unit suite | `pnpm test -- --reporter=verbose` | PASS; 41 tests in 275.63 seconds; the new recovery-boundary tests run separately in 1.35 seconds |
 | Post-foundation production bundle | `pnpm build` | PASS; CSS 529.11 kB, JS 1,347.71 kB (380.57 kB gzip); inherited large-chunk warning remains |
-| Post-audit-remediation program gate | `pnpm check:program` | PASS; 13 sheets, token ratchet at 10 files / 1,357 literals, 19 gate self-tests, strict TypeScript, ESLint, default Knip, and production-source Knip |
+| Post-audit-remediation program gate | `pnpm check:program` | Historical PASS at its recorded revision; 13 sheets, token ratchet at 10 files / 1,357 literals, the then-discovered gate self-test suite, strict TypeScript, ESLint, default Knip, and production-source Knip |
 | Post-audit-remediation complete unit suite | `pnpm test` | PASS; 3 files and 38 active-runtime tests in 370.97 seconds after deleting six tests that only mounted an unreachable predecessor |
 | Post-audit-remediation complete browser suite | `pnpm test:e2e` | PASS; 45 tests in 3.3 minutes, including modal mobile navigation, shell laws, reduced-motion, and Axe checks |
 | Static source and patch checks | `rg` source scan and `git diff --check` | PASS; no `console.log`, `debugger`, `TODO`, or `FIXME`; no whitespace errors |

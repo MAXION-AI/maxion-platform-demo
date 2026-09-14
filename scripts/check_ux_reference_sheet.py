@@ -233,6 +233,15 @@ def check_sheet(path: Path, stage_override: str | None = None) -> list[str]:
             if cell.strip().upper() == "N/A":
                 findings.append(f"{rel}: §5.1 state {row[0]!r}: 'N/A' needs a reason ('N/A because …')")
 
+    interactivity_row = law_rows.get("Interactivity floor", [])
+    declared_match = re.search(r"\b(\d+) declared states\b", interactivity_row[2], re.I) if len(interactivity_row) > 2 else None
+    if not declared_match:
+        findings.append(f"{rel}: §4 Interactivity floor metric must state the numeric declared-state count")
+    elif int(declared_match.group(1)) != len(semantic_ids):
+        findings.append(
+            f"{rel}: §4 declares {declared_match.group(1)} states but §5.1 contains {len(semantic_ids)}"
+        )
+
     control_rows = _table_rows(_subsection(states, "5.2 Control interaction-state matrix"))
     if not control_rows:
         findings.append(f"{rel}: §5.2 control interaction-state matrix has no rows")

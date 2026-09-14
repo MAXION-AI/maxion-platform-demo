@@ -53,6 +53,16 @@ or production SLOs. Those become mandatory MaxAI plan inputs.
 5. **Audit and close the package (11.5).** Independent UX and engineering reviewers audit clean C;
    evidence-only E and merge M follow the phase acceptance protocol; rerun clean-M package/program gates.
 
+### Cold-executor contracts
+
+| Task | Serves | Exact files/symbols | Prerequisite | Focused verification |
+| --- | --- | --- | --- | --- |
+| 11.1 | RC-16 and RC-17 via ADR-6 | `docs/operations/maxai-ui-foundation-adoption/contract.json#source`; `docs/operations/program-phase-ledger.json#phases[10]` | Accepted Phase 10 M and frozen demo evidence | `python3 scripts/program_ledger.py validate` |
+| 11.2 | RC-03 and RC-17 via ADR-6 | `docs/operations/maxai-ui-foundation-adoption/contract.json#surfaces`; `docs/operations/maxai-ui-foundation-adoption/traceability.md#Surface-map` | Task 11.1 frozen inputs | `python3 scripts/check_maxai_adoption_package.py` |
+| 11.3 | RC-16 and RC-17 via ADR-6 | `scripts/check_maxai_adoption_package.py#check_package`; `scripts/tests/test_maxai_adoption_package.py#MaxAIAdoptionPackageTests` | Task 11.2 complete package | `python3 -m unittest scripts.tests.test_maxai_adoption_package` |
+| 11.4 | RC-17 and RC-18 via ADR-1 | `docs/operations/maxai-ui-foundation-adoption/README.md#Separate-production-adoption-stream`; `docs/operations/maxai-ui-foundation-adoption/open-gaps.md#Production-gaps` | Task 11.3 package integrity gate | `python3 scripts/check_maxai_adoption_package.py` |
+| 11.5 | RC-01 and RC-17 via ADR-8 | `artifacts/ux-audits/phase-11/package-review.md`; `docs/operations/program-phase-ledger.json#phases[11]` | Tasks 11.1 through 11.4 green at C | `python3 scripts/check_phase_acceptance.py --candidate "$C" --evidence "$E" --phase 11` |
+
 ## Files, outputs, commands, evidence, and PR closure
 
 | Kind | Exact files / outputs / commands | Passing evidence |

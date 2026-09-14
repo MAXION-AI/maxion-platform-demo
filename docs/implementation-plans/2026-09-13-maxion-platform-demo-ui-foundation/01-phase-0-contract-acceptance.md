@@ -1,7 +1,7 @@
 # Phase 0: Contract acceptance and missing-surface closure
 
 - **Parent:** [00-parent-roadmap.md](./00-parent-roadmap.md)
-- **Closes:** RC-02; advances RC-01 and RC-19 | **Risk:** high × medium | **Status:** PR #2 merged; clean-SHA independent acceptance pending
+- **Closes:** RC-02; advances RC-01 and RC-19 | **Risk:** high × medium | **Status:** PR #2 historical; superseding hardening candidate and clean-SHA acceptance pending
 - **Depends on:** none
 
 ## Objective and scope
@@ -27,11 +27,12 @@ development dependencies are permitted foundation work.
 ## Immutable acceptance rerun required
 
 PR #2 head `dfc0347c876b36dc9932808b786d219c2cb8c949` merged as
-`beae208b30ad31202c4ff92abbfbd6c1ef51af18`. The existing UX and QA reports are historical
-evidence, not immutable acceptance: both audited a dirty tree based on `c381e7e`. Before Phase 1,
-fresh independent UX and engineering sessions audit a clean detached worktree at `beae208`, record
-the identities and hashes required by `docs/operations/phase-acceptance-protocol.md`, and append
-evidence under its evidence-only rule. Until then RC-01 and Phase 0 remain open.
+`beae208b30ad31202c4ff92abbfbd6c1ef51af18`; it is historical runtime-contract lineage only. The
+existing UX and QA reports audited a dirty tree based on `c381e7e`, and this hardening changes the
+binding contracts and gates. The superseding hardening PR therefore creates a new clean C, optional
+evidence-only E, and final M. Fresh independent UX and engineering sessions audit detached C and
+clean M under `docs/operations/phase-acceptance-protocol.md`. Phase 1 uses only that accepted final M
+as B; it must never use `beae208` as the acceptance base. Until then RC-01 and Phase 0 remain open.
 - **Source integrity:** critical/high dependency findings, unused TypeScript symbols, and the lack of a
   repeatable dead-code gate block the visual phases. Static findings are leads until route/import/runtime/
   test ownership confirms deletion.
@@ -49,6 +50,17 @@ evidence under its evidence-only rule. Until then RC-01 and Phase 0 remain open.
    repository-owned `check:source-quality` entry point; classify findings against routes, imports, tests,
    timers, styles, and browser behavior; delete only proven-unreachable code. Record all remaining legacy
    ownership as open RC-19 work—no allowlist or suppression may silently convert a finding into a pass.
+
+### Cold-executor contracts
+
+| Task | Serves | Exact files/symbols | Prerequisite | Focused verification |
+| --- | --- | --- | --- | --- |
+| 0.1 | RC-01 via ADR-8 | `docs/operations/program-phase-ledger.json#phases[0]`; `docs/operations/phase-acceptance-protocol.md#Identities` | PR 2 historical B/C/M identities | `python3 scripts/program_ledger.py validate` |
+| 0.2 | RC-01 and RC-15 via ADR-2 | `tests/e2e/maxion-platform-shell.spec.ts#accepted-shell`; `artifacts/ux-audits/phase-0-foundation-independent-qa-2026-09-13.md` | Task 0.1 candidate identity | `pnpm exec playwright test tests/e2e/maxion-platform-shell.spec.ts` |
+| 0.3 | RC-02 and RC-16 via ADR-2 | `docs/operations/ux-surface-inventory.md#Route-and-address-ownership-at-Phase-0`; `docs/operations/figma-code-map.json#surfaces` | Task 0.2 audit findings | `python3 scripts/check_ux_contract_coverage.py` |
+| 0.4 | RC-02 via ADR-2 | `docs/operations/ux-reference-sheets/settings-workspace.md#5.1`; `docs/operations/ux-reference-sheets/help-workspace.md#5.1` | Task 0.3 complete inventory | `python3 scripts/check_ux_reference_sheet.py docs/operations/ux-reference-sheets` |
+| 0.5 | RC-02 and RC-16 via ADR-2 | `docs/operations/figma-code-map.json#schemaVersion`; `scripts/check_ux_contract_coverage.py#check_contract` | Task 0.4 complete sheets and approved Figma frames | `python3 -m unittest scripts.tests.test_ux_gates.ContractCoverageGateTests` |
+| 0.6 | RC-03 and RC-19 via ADR-7 | `scripts/check_production_sources.py#check_sources`; `package.json#check:source-quality` | Task 0.5 complete contract map | `pnpm check:source-quality` |
 
 ## Data and contracts
 
@@ -83,14 +95,14 @@ together; it never resets or mutates the owner's dirty checkout.
 
 | Kind | Exact files / outputs / commands | Passing evidence |
 | --- | --- | --- |
-| Candidate | PR #2 head `dfc0347c876b36dc9932808b786d219c2cb8c949`; merge `beae208b30ad31202c4ff92abbfbd6c1ef51af18` | Merge ancestry and clean source tree verified |
-| Clean-SHA rerun | Detached clean `beae208`; all Phase 0 program/build/unit/E2E/audit/diff commands; all thirteen Figma nodes and shell viewports | New reports bind exact SHA/tree/lock/manifest/sheet hashes |
+| Historical lineage | PR #2 head `dfc0347c876b36dc9932808b786d219c2cb8c949`; merge `beae208b30ad31202c4ff92abbfbd6c1ef51af18` | Runtime provenance only; never Phase 1 B |
+| Superseding candidate | Hardening PR clean C, evidence-only E if needed, and final M | C/E/M ancestry, semantic evidence-only gate, hosted checks, clean-M rerun |
 | Evidence-only closure | UX/QA reports plus tracked/external ledger updates only; no source/test/script/contract change | C→E source tree unchanged and allowlist diff passes |
 | PR lifecycle | Existing PR URL/head/M recorded; if rerun exposes a defect, create a remediation PR from M and restart clean-C review | Verified final M and atomic external-ledger successor pin |
 
 ## Definition of Done
 
-- [ ] Clean-`beae208` independent UX and engineering reports accept the immutable merged source tree.
+- [ ] Independent UX and engineering reports accept the superseding hardening PR's clean C and final M.
 - [x] Inventory contains every user-facing route, including Projects and five administrative surfaces.
 - [x] Every inventory row resolves to a valid sheet and exact accessible Figma node.
 - [x] The coverage gate fails for a missing/duplicate route, sheet, or Figma node and is registered in `pnpm check:program`.
@@ -102,5 +114,5 @@ together; it never resets or mutates the owner's dirty checkout.
 
 ## Hand-off
 
-Phase 1 starts only from the accepted Phase 0 SHA and re-runs this Definition of Done. No runtime
+Phase 1 starts only from the superseding hardening PR's accepted final M and re-runs this Definition of Done. No runtime
 implementation is authorized by a candidate-only frame.

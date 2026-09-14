@@ -10,7 +10,7 @@ from pathlib import Path
 from typing import Any
 
 ROOT = Path(__file__).resolve().parents[1]
-NON_PRODUCTION_PREFIXES = ("src/test/",)
+NON_PRODUCTION_PREFIXES = ("src/test/", "scripts/")
 
 
 def runtime_findings(report: dict[str, Any]) -> list[str]:

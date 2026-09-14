@@ -70,7 +70,7 @@
 | Parkinson's           | Every waiting state shows an expected duration or the reason it cannot                                                                                                                                        | expected duration or "waiting on" plus a named person on every wait  | walk each wait state                |
 | Occam's               | Nothing on the canvas that a state does not need; machine-semantics tabs are absent                                                                                                                           | every element survives "what breaks if removed?"                     | review                              |
 | Pareto                | The three top jobs (see now / act in place / reach evidence) are the largest, first and fastest elements                                                                                                      | jobs mapped to the three regions                                     | review                              |
-| Interactivity floor   | Composer in context; every shown state actionable in place (question → answer, proposal → approve/amend, run → steer/stop, exception → assign/escalate, artifact → open/regenerate); live state; no dead ends | static-report test passes on every state                             | walk the flow and act on each state |
+| Interactivity floor   | Composer in context; every shown state actionable in place (question → answer, proposal → approve/amend, run → steer/stop, exception → assign/escalate, artifact → open/regenerate); live state; no dead ends | static-report test passes for 7 declared states                     | walk the flow and act on each state |
 
 ## 5. State matrices
 

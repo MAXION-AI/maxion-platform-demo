@@ -44,6 +44,18 @@ production authority is not simulated by client state.
 6. **Break queues, migration, and isolation (6.6).** Test 10,000 items, malformed persisted state, duplicate IDs/events, stale approvals, connection loss, permission denial, refresh, filters, and cross-project leakage attempts.
 7. **Attach evidence and gate (6.7).** Capture declared states at 375/768/1280/1536, exact Figma comparison, axe/keyboard/motion/timing/load proof, and independent verifier/QA results.
 
+### Cold-executor contracts
+
+| Task | Serves | Exact files/symbols | Prerequisite | Focused verification |
+| --- | --- | --- | --- | --- |
+| 6.1 | RC-10 and RC-14 via ADR-3 | `src/features/agentix/prototype/operationsState.ts#AgentixOperationsState`; `src/features/agentix/prototype/operationsState.spec.ts#migration` | Accepted Phase 5 M and ExecutionResultRef | `pnpm test -- operationsState.spec.ts` |
+| 6.2 | RC-04 and RC-10 via ADR-3 | `src/features/agentix/prototype/operationsState.ts#reduceOperations`; `src/features/agentix/prototype/operationsState.ts#selectResponsibilities` | Task 6.1 versioned domain | `pnpm test -- operationsState.spec.ts -t selectors` |
+| 6.3 | RC-10 and RC-15 via ADR-4 | `src/features/agentix/prototype/DeployedAgentsPage.tsx#DeployedAgentsPage`; `src/features/agentix/prototype/operations.css#agentix-operations` | Task 6.2 selector/command API | `pnpm exec playwright test tests/e2e/agentix-operations.spec.ts -g operations` |
+| 6.4 | RC-10 and RC-15 via ADR-2 | `src/features/agentix/prototype/DeployedAgentsPage.tsx#ResponsibilityActions`; `tests/e2e/agentix-operations.spec.ts#agentix-ops.today` | Task 6.3 accepted composition | `pnpm exec playwright test tests/e2e/agentix-operations.spec.ts -g workflow` |
+| 6.5 | RC-10 and RC-14 via ADR-5 | `src/features/platform-prototype/contracts.ts#ResponsibilityRef`; `src/features/agentix/prototype/operationsState.ts#selectResponsibilityProvenance` | Task 6.4 persistent workflows | `pnpm test -- agentixHandoff.spec.ts` |
+| 6.6 | RC-15 and RC-18 via ADR-4 | `src/features/agentix/prototype/operationsState.spec.ts#isolation`; `tests/fixtures/agentix-items-10000.json#items` | Task 6.5 provenance contract | `pnpm test -- operationsState.spec.ts -t isolation` |
+| 6.7 | RC-15 and RC-16 via ADR-8 | `artifacts/ux-audits/phase-6/verification.md`; `docs/operations/program-phase-ledger.json#phases[6]` | Tasks 6.1 through 6.6 green at C | `python3 scripts/check_phase_acceptance.py --candidate "$C" --evidence "$E" --phase 6` |
+
 ## Contracts and observability
 
 Add `AgentResponsibility`, `DeploymentVersion`, `RunSummary`, `ApprovalRequest`, `ActivityRecord`, and
@@ -64,6 +76,9 @@ permission denial, empty/loading/error, keyboard, mobile, and 10,000-row fixture
 | Connection is degraded | Preserve work and show diagnosis/retry; never expose secret material |
 | Approval becomes stale | Disable submission and link to the current version/state |
 | A selector cannot calculate a count | Show scoped error, not a fabricated zero |
+
+Rerun the Phase 1 copy-on-write suite for Agentix v3 migration, including upgrade, downgrade,
+future-schema preservation, crash-before-swap, quota, competing-writer, and rollback-pointer cases.
 
 Rollback reverts the Phase 6 candidate while preserving a backward-readable persisted snapshot and all
 accepted upstream artifacts.

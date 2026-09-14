@@ -34,6 +34,9 @@ IMPORT_RE = re.compile(
     r"import\(\s*[\"']([^\"']+)[\"']\s*\)", re.M
 )
 ROUTE_RE = re.compile(r"<Route\s+path=[\"']([^\"']+)[\"']")
+REDIRECT_ROUTE_RE = re.compile(
+    r"<Route\s+path=[\"']([^\"']+)[\"'][^>]*element=\{<Navigate\s+to=[\"']([^\"']+)[\"']"
+)
 TIMER_RE = re.compile(r"\b(?:window\.)?(?:setTimeout|setInterval|requestAnimationFrame)\s*\(")
 SUPPRESSION_RE = re.compile(
     r"eslint-disable|@ts-ignore|@ts-expect-error|biome-ignore|prettier-ignore|istanbul\s+ignore"
@@ -44,6 +47,8 @@ PHASE_STATE_RE = re.compile(
     r"^- \*\*Required surface state IDs \(\x60([^\x60]+)\x60\):\*\*\s*(.+)$", re.M
 )
 STATE_TOKEN_RE = re.compile(r"\x60([a-z][a-z0-9-]*(?:\.[a-z][a-z0-9-]*)+)\x60")
+FORBIDDEN_LEGACY_MARKERS = ["@deprecated", "legacyOwner", "obsoleteRoute", "compatibilityShim"]
+PHASE_0_STALE_SELECTOR_BASELINE = 339
 
 
 def _load_json(path: Path) -> tuple[dict[str, Any] | None, list[str]]:
@@ -84,6 +89,44 @@ def _safe_source_path(relative: str) -> Path | None:
     except ValueError:
         return None
     return candidate
+
+
+def _safe_repo_path(relative: str) -> Path | None:
+    candidate = (ROOT / relative).resolve()
+    try:
+        candidate.relative_to(ROOT.resolve())
+    except ValueError:
+        return None
+    return candidate
+
+
+def _git(*args: str, allow_status_one: bool = False) -> str | bool:
+    try:
+        result = subprocess.run(
+            ["git", "-C", str(ROOT), *args],
+            check=False,
+            capture_output=True,
+            text=True,
+            timeout=10,
+        )
+    except (OSError, subprocess.SubprocessError):
+        return False if allow_status_one else ""
+    if allow_status_one and result.returncode in {0, 1}:
+        return result.returncode == 0
+    return result.stdout.strip() if result.returncode == 0 else ""
+
+
+def _accepted_phase() -> int:
+    ledger_path = ROOT / "docs" / "operations" / "program-phase-ledger.json"
+    try:
+        ledger = json.loads(ledger_path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return -1
+    phases = ledger.get("phases", []) if isinstance(ledger, dict) else []
+    return max(
+        (item.get("phase", -1) for item in phases if isinstance(item, dict) and item.get("status") == "accepted"),
+        default=-1,
+    )
 
 
 def _resolve_import(source: Path, specifier: str) -> Path | None:
@@ -140,6 +183,8 @@ def check_contract(
     manifest_path: Path = DEFAULT_MANIFEST,
     inventory_path: Path = DEFAULT_INVENTORY,
     entry_path: Path | None = None,
+    accepted_phase: int | None = None,
+    head_commit: str = "HEAD",
 ) -> list[str]:
     manifest, findings = _load_json(manifest_path)
     inventory, inventory_findings = _inventory_rows(inventory_path)
@@ -154,11 +199,18 @@ def check_contract(
     source_ownership = manifest.get("sourceOwnership", {})
     main_path = (entry_path or ROOT / "src" / "main.tsx").resolve()
     main_text = main_path.read_text(encoding="utf-8") if main_path.is_file() else ""
+    production_text = "\n".join(
+        path.read_text(encoding="utf-8")
+        for path in sources
+        if path.suffix in {".ts", ".tsx", ".js", ".jsx"}
+    )
+    accepted_phase = _accepted_phase() if accepted_phase is None else accepted_phase
 
     route_entries = manifest.get("routes")
     routes = route_entries if isinstance(route_entries, list) else []
     declared_routes = [str(item.get("path", "")) for item in routes if isinstance(item, dict)]
-    actual_routes = ROUTE_RE.findall(main_text)
+    actual_routes = ROUTE_RE.findall(production_text)
+    actual_redirects = dict(REDIRECT_ROUTE_RE.findall(production_text))
     if Counter(declared_routes) != Counter(actual_routes):
         findings.append(f"{manifest_path}: declared routes do not match production routes")
     for item in routes:
@@ -172,6 +224,13 @@ def check_contract(
             not isinstance(item.get("removeByPhase"), int) or not item.get("reason")
         ):
             findings.append(f"{manifest_path}: compatibility alias needs removal phase and reason")
+        if kind == "compatibility-alias" and isinstance(item.get("removeByPhase"), int):
+            if accepted_phase >= item["removeByPhase"]:
+                findings.append(f"{manifest_path}: compatibility alias {item.get('path')!r} missed its phase deadline")
+        if kind == "redirect":
+            target = item.get("target")
+            if actual_redirects.get(item.get("path")) != target:
+                findings.append(f"{manifest_path}: redirect {item.get('path')!r} does not match production Navigate target")
 
     raw_surfaces = manifest.get("surfaces")
     if not isinstance(raw_surfaces, list):
@@ -182,6 +241,17 @@ def check_contract(
         findings.append(f"{manifest_path}: surface set does not match the 13 required surfaces")
     for duplicate in _duplicates(ids):
         findings.append(f"{manifest_path}: duplicate surfaceId {duplicate!r}")
+    canonical_routes = {
+        item.get("path") for item in routes
+        if isinstance(item, dict) and item.get("classification") == "canonical"
+    }
+    for item in routes:
+        if not isinstance(item, dict):
+            continue
+        if item.get("classification") in {"canonical", "compatibility-alias"} and item.get("owner") not in ids:
+            findings.append(f"{manifest_path}: route {item.get('path')!r} owner is not a declared surface")
+        if item.get("classification") == "redirect" and item.get("target") not in canonical_routes:
+            findings.append(f"{manifest_path}: redirect {item.get('path')!r} target is not a canonical route")
     exclusive: list[str] = []
 
     for surface in surfaces:
@@ -217,8 +287,26 @@ def check_contract(
                 findings.append(f"{manifest_path}: {sid}: URL address is not registered")
             if not isinstance(marker, str) or marker not in main_text:
                 findings.append(f"{manifest_path}: {sid}: fictional URL address source marker")
-        elif not address.get("entryRoute") or not address.get("action"):
-            findings.append(f"{manifest_path}: {sid}: interaction-only address needs entryRoute/action")
+        else:
+            entry_route = address.get("entryRoute")
+            if entry_route not in declared_routes:
+                findings.append(f"{manifest_path}: {sid}: interaction entryRoute is not registered")
+            if not address.get("action"):
+                findings.append(f"{manifest_path}: {sid}: interaction-only address needs an action")
+            marker = address.get("sourceMarker")
+            if not isinstance(marker, dict) or set(marker) != {"path", "token"}:
+                findings.append(f"{manifest_path}: {sid}: interaction source/action marker is required")
+            else:
+                marker_path = _safe_source_path(str(marker.get("path", "")))
+                if marker_path is None or marker_path not in sources or not marker_path.is_file():
+                    findings.append(f"{manifest_path}: {sid}: interaction marker path is not production-reachable")
+                elif not marker.get("token") or marker["token"] not in marker_path.read_text(encoding="utf-8"):
+                    findings.append(f"{manifest_path}: {sid}: interaction action marker is missing from source")
+            target_phase = address.get("targetPhase")
+            if not isinstance(target_phase, int):
+                findings.append(f"{manifest_path}: {sid}: interaction-only address needs targetPhase")
+            elif accepted_phase >= target_phase:
+                findings.append(f"{manifest_path}: {sid}: interaction-only address missed its phase deadline")
 
         figma = surface.get("figma")
         if not isinstance(figma, dict):
@@ -268,6 +356,57 @@ def check_contract(
                 findings.append(f"{manifest_path}: {sid}: owner is not production-reachable")
             if not re.search(r"(?<![A-Za-z0-9_$])" + re.escape(symbol) + r"(?![A-Za-z0-9_$])", path.read_text()):
                 findings.append(f"{manifest_path}: {sid}: symbol {symbol!r} missing")
+        binding = surface.get("stateBinding")
+        binding_keys = {
+            "status", "targetPhase", "stateIds", "sourceOwner", "fixturePattern",
+            "browserTestPattern", "evidencePattern",
+        }
+        if not isinstance(binding, dict) or set(binding) != binding_keys:
+            findings.append(f"{manifest_path}: {sid}: complete semantic state binding is required")
+        else:
+            if binding.get("stateIds") != sheet_states:
+                findings.append(f"{manifest_path}: {sid}: state binding IDs do not exactly match sheet")
+            if binding.get("sourceOwner") not in owners:
+                findings.append(f"{manifest_path}: {sid}: state binding source owner is not a runtime owner")
+            for field in ("fixturePattern", "browserTestPattern", "evidencePattern"):
+                if not isinstance(binding.get(field), str) or "{stateId}" not in binding[field]:
+                    findings.append(f"{manifest_path}: {sid}: {field} must bind every stable state ID")
+            status, target_phase = binding.get("status"), binding.get("targetPhase")
+            if status not in {"scheduled", "implemented"} or not isinstance(target_phase, int):
+                findings.append(f"{manifest_path}: {sid}: invalid semantic state binding status/phase")
+            elif status == "scheduled":
+                if accepted_phase >= target_phase:
+                    findings.append(f"{manifest_path}: {sid}: scheduled semantic state binding missed its deadline")
+                if STATUS_RE.search(sheet_text) and STATUS_RE.search(sheet_text).group(1) != "contract":
+                    findings.append(f"{manifest_path}: {sid}: built/gated sheet may not claim scheduled states")
+            else:
+                for state_id in sheet_states:
+                    fixture_relative = binding["fixturePattern"].replace("{stateId}", state_id)
+                    fixture_path = _safe_repo_path(fixture_relative)
+                    if fixture_path is None or not fixture_path.is_file():
+                        findings.append(f"{manifest_path}: {sid}: implemented {state_id} fixturePattern is missing")
+                    else:
+                        try:
+                            fixture = json.loads(fixture_path.read_text(encoding="utf-8"))
+                        except (OSError, json.JSONDecodeError):
+                            fixture = None
+                        if not isinstance(fixture, dict) or fixture.get("stateId") != state_id or fixture.get("deterministic") is not True:
+                            findings.append(f"{manifest_path}: {sid}: {state_id} fixture is not deterministic and identity-bound")
+
+                    browser_value = binding["browserTestPattern"].replace("{stateId}", state_id)
+                    browser_relative, separator, browser_marker = browser_value.partition("#")
+                    browser_path = _safe_repo_path(browser_relative)
+                    if not separator or not browser_marker or browser_path is None or not browser_path.is_file():
+                        findings.append(f"{manifest_path}: {sid}: implemented {state_id} browserTestPattern is missing")
+                    elif browser_marker not in browser_path.read_text(encoding="utf-8"):
+                        findings.append(f"{manifest_path}: {sid}: implemented {state_id} browser marker is absent")
+
+                    evidence_relative = binding["evidencePattern"].replace("{stateId}", state_id)
+                    evidence_path = _safe_repo_path(evidence_relative)
+                    if evidence_path is None or not evidence_path.is_file():
+                        findings.append(f"{manifest_path}: {sid}: implemented {state_id} evidencePattern is missing")
+                    elif state_id not in evidence_path.read_text(encoding="utf-8"):
+                        findings.append(f"{manifest_path}: {sid}: implemented {state_id} evidence is not identity-bound")
         evidence = surface.get("evidencePaths")
         if not isinstance(evidence, list):
             findings.append(f"{manifest_path}: {sid}: evidencePaths must be an array")
@@ -299,14 +438,16 @@ def check_contract(
         findings.append(f"{manifest_path}: stale CSS selector debt grew to {stale_count}")
     if baseline.get("mustBeZeroByPhase") != 1:
         findings.append(f"{manifest_path}: stale selector baseline must expire in Phase 1")
-    markers = source_ownership.get("forbiddenLegacyMarkers", [])
+    markers = source_ownership.get("forbiddenLegacyMarkers")
+    if markers != FORBIDDEN_LEGACY_MARKERS:
+        findings.append(f"{manifest_path}: forbidden legacy marker policy is immutable")
     for path in sources:
         if path.suffix not in {".ts", ".tsx", ".js", ".jsx"}:
             continue
         text = path.read_text(encoding="utf-8")
         if SUPPRESSION_RE.search(text):
             findings.append(f"{path}: production suppression is forbidden")
-        for marker in markers:
+        for marker in FORBIDDEN_LEGACY_MARKERS:
             if marker in text:
                 findings.append(f"{path}: forbidden legacy marker {marker!r}")
 
@@ -318,24 +459,28 @@ def check_contract(
     elif not (ROOT / attestation["evidencePath"]).is_file():
         findings.append(f"{manifest_path}: remote Figma attestation evidence is missing")
     tree = manifest.get("implementationTree")
-    if not isinstance(tree, dict) or not re.fullmatch(r"[0-9a-f]{40}", str(tree.get("srcGitTreeSha1", ""))):
+    source_commit = tree.get("sourceCommit") if isinstance(tree, dict) else None
+    if (
+        not isinstance(tree, dict)
+        or not re.fullmatch(r"[0-9a-f]{40}", str(source_commit or ""))
+        or not re.fullmatch(r"[0-9a-f]{40}", str(tree.get("srcGitTreeSha1", "")))
+    ):
         findings.append(f"{manifest_path}: implementation tree identity is incomplete")
     else:
-        try:
-            actual_tree = subprocess.run(
-                ["git", "-C", str(ROOT), "rev-parse", "HEAD:src"],
-                check=True,
-                capture_output=True,
-                text=True,
-                timeout=10,
-            ).stdout.strip()
-        except (OSError, subprocess.SubprocessError) as exc:
-            findings.append(f"{manifest_path}: cannot resolve checked-out src tree ({exc})")
+        if not _git("cat-file", "-e", f"{source_commit}^{{commit}}", allow_status_one=True):
+            findings.append(f"{manifest_path}: sourceCommit does not exist")
+        elif not _git("merge-base", "--is-ancestor", source_commit, head_commit, allow_status_one=True):
+            findings.append(f"{manifest_path}: sourceCommit is not an ancestor of {head_commit}")
         else:
-            if tree["srcGitTreeSha1"] != actual_tree:
-                findings.append(
-                    f"{manifest_path}: implementation src tree does not match checked-out HEAD:src"
-                )
+            committed_tree = _git("rev-parse", f"{source_commit}:src")
+            head_tree = _git("rev-parse", f"{head_commit}:src")
+            if tree["srcGitTreeSha1"] != committed_tree:
+                findings.append(f"{manifest_path}: src tree does not match sourceCommit:src")
+            if tree["srcGitTreeSha1"] != head_tree:
+                findings.append(f"{manifest_path}: implementation src tree does not match {head_commit}:src")
+    baseline = source_ownership.get("staleSelectorBaseline", {})
+    if baseline.get("count") != PHASE_0_STALE_SELECTOR_BASELINE:
+        findings.append(f"{manifest_path}: stale selector baseline may not be inflated or rebaselined")
     return findings
 
 

@@ -43,6 +43,18 @@ success or promotes `simulated` evidence to `production-verified`.
 6. **Break transitions and load behavior (5.6).** Test duplicate/out-of-order events, refresh mid-run, stale approval, retry storms, timeout, permission denial, rollback failure, corrupt state, and 10,000 events.
 7. **Attach evidence and gate (5.7).** Capture every state and recovery at 375/768/1280/1536, exact Figma comparison, axe/keyboard/motion/timing, and independent verifier/QA sign-offs.
 
+### Cold-executor contracts
+
+| Task | Serves | Exact files/symbols | Prerequisite | Focused verification |
+| --- | --- | --- | --- | --- |
+| 5.1 | RC-09 and RC-14 via ADR-5 | `src/features/platform-prototype/executeState.ts#ExecutionState`; `src/features/platform-prototype/executeState.spec.ts#transitions` | Accepted Phase 4 M and approved PlanArtifactRef | `pnpm test -- executeState.spec.ts` |
+| 5.2 | RC-04 and RC-09 via ADR-3 | `src/features/platform-prototype/ExecuteDeliveryWorkspace.tsx#ExecuteDeliveryWorkspace`; `src/features/platform-prototype/executeState.ts#reduceExecution` | Task 5.1 state machine | `pnpm test -- ExecuteDeliveryWorkspace.spec.tsx` |
+| 5.3 | RC-09 and RC-15 via ADR-4 | `src/features/platform-prototype/ExecuteDeliveryWorkspace.tsx#ExecutionTimeline`; `src/features/platform-prototype/execute-agentic.css#execute-workspace` | Task 5.2 selector-driven ownership | `pnpm exec playwright test tests/e2e/execute-command-layer.spec.ts -g composition` |
+| 5.4 | RC-09 and RC-15 via ADR-5 | `src/features/platform-prototype/executeState.ts#executeCommand`; `tests/e2e/execute-command-layer.spec.ts#execute.paused` | Task 5.3 accepted composition | `pnpm exec playwright test tests/e2e/execute-command-layer.spec.ts -g recovery` |
+| 5.5 | RC-09 and RC-14 via ADR-5 | `src/features/platform-prototype/contracts.ts#ExecutionResultRef`; `src/features/platform-prototype/executeState.ts#selectExecutionEvidence` | Task 5.4 legal command transitions | `pnpm test -- executeHandoff.spec.ts` |
+| 5.6 | RC-15 and RC-18 via ADR-4 | `src/features/platform-prototype/executeState.spec.ts#load`; `tests/fixtures/execute-events-10000.json#events` | Task 5.5 result provenance | `pnpm test -- executeState.spec.ts -t load` |
+| 5.7 | RC-15 and RC-16 via ADR-8 | `artifacts/ux-audits/phase-5/verification.md`; `docs/operations/program-phase-ledger.json#phases[5]` | Tasks 5.1 through 5.6 green at C | `python3 scripts/check_phase_acceptance.py --candidate "$C" --evidence "$E" --phase 5` |
+
 ## Contracts and observability
 
 Add `ExecutionRun`, `ExecutionStage`, `ExecutionCommand`, `ExecutionEnvironment`, `ExecutionEvidence`,
@@ -63,6 +75,9 @@ motion journeys under throttling.
 | Simulated stage fails | Preserve evidence and source plan; expose retry/rollback without claiming release |
 | Rollback simulation fails | End in explicit blocked state with preserved recovery path |
 | Environment/evidence metadata is missing | Fail closed and suppress completion language |
+
+Rerun the Phase 1 copy-on-write suite for execution history, including upgrade, downgrade, future-schema
+preservation, crash-before-swap, quota, competing-writer, and rollback-pointer cases.
 
 Rollback restores the accepted Phase 4 UI and retains the source plan plus any readable execution event
 history. There is no infrastructure rollback because this phase performs no deployment.

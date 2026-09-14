@@ -49,6 +49,18 @@ help data may degrade without blocking product modules.
 6. **Break authority, forms, and scale (9.6).** Test invalid input, valid-format tolerance, draft preservation, duplicate submit, stale approval, cross-project ID, integration outage, 10,000 rows, keyboard, and mobile.
 7. **Attach evidence and gate (9.7).** Capture all sheet states and exact-frame comparisons at 375/768/1280/1536, axe/timing/motion/load proof, and separate verifier/QA sign-offs.
 
+### Cold-executor contracts
+
+| Task | Serves | Exact files/symbols | Prerequisite | Focused verification |
+| --- | --- | --- | --- | --- |
+| 9.1 | RC-13 and RC-15 via ADR-4 | `src/features/platform-prototype/PortalChrome.tsx#PortalChrome`; `tests/e2e/maxion-platform-shell.spec.ts#admin-navigation-geometry` | Accepted Phase 8 M and complete continuity chain | `pnpm exec playwright test tests/e2e/maxion-platform-shell.spec.ts -g geometry` |
+| 9.2 | RC-05 and RC-13 via ADR-3 | `src/features/platform-prototype/adminState.ts#AdminState`; `src/features/platform-prototype/adminState.spec.ts#authority` | Task 9.1 final route semantics | `pnpm test -- adminState.spec.ts` |
+| 9.3 | RC-13 and RC-15 via ADR-4 | `src/features/platform-prototype/PortalReplicaModules.tsx#AccountUtilityModule`; `src/features/platform-prototype/PortalReplicaModules.tsx#IntegrationsModule` | Task 9.2 administrative contracts | `pnpm exec playwright test tests/e2e/maxion-platform-shell.spec.ts -g 'Settings|Integrations'` |
+| 9.4 | RC-13 and RC-14 via ADR-5 | `src/features/platform-prototype/PortalReplicaModules.tsx#AccountUtilityModule`; `src/features/platform-prototype/adminState.ts#approvalCommand` | Task 9.3 settings and integration owners | `pnpm exec playwright test tests/e2e/maxion-platform-shell.spec.ts -g approvals` |
+| 9.5 | RC-13 and RC-15 via ADR-4 | `src/features/platform-prototype/PortalReplicaModules.tsx#AccountUtilityModule`; `src/features/platform-prototype/adminState.ts#selectUsage` | Task 9.4 authority-safe approvals | `pnpm exec playwright test tests/e2e/maxion-platform-shell.spec.ts -g 'Usage|Help'` |
+| 9.6 | RC-15 and RC-18 via ADR-4 | `src/features/platform-prototype/adminState.spec.ts#break-it`; `tests/fixtures/admin-rows-10000.json#rows` | Tasks 9.3 through 9.5 complete states | `pnpm test -- adminState.spec.ts -t break-it` |
+| 9.7 | RC-15 and RC-16 via ADR-8 | `artifacts/ux-audits/phase-9/verification.md`; `docs/operations/program-phase-ledger.json#phases[9]` | Tasks 9.1 through 9.6 green at C | `python3 scripts/check_phase_acceptance.py --candidate "$C" --evidence "$E" --phase 9` |
+
 ## Contracts and observability
 
 Add `UserPreference`, `IntegrationDescriptor`, `IntegrationHealth`, `AdministrativeApproval`,
@@ -69,6 +81,9 @@ failure states, reload, keyboard-only, mobile overlay, focus return, and large-l
 | Integration is unavailable | Keep core modules usable; show scoped health and recovery |
 | Approval is stale or unauthorized | Fail closed without disclosing inaccessible object data |
 | Usage/help source fails | Show bounded unavailable state; do not block product work |
+
+Rerun the Phase 1 copy-on-write suite for every administrative slice, including upgrade, downgrade,
+future-schema preservation, crash-before-swap, quota, competing-writer, and rollback-pointer cases.
 
 Rollback reverts the Phase 9 candidate and restores the accepted Phase 8 shell; typed administrative
 records remain backward-readable and no actual external connection is changed.

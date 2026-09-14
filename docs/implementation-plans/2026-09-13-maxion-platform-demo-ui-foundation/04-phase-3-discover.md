@@ -46,6 +46,18 @@ degraded state with retry and manual continuation, never as a fabricated success
 6. **Break it at scale and at trust boundaries (3.6).** Test hostile paste, oversized transcript, duplicate/out-of-order turns, corrupt persistence, refresh/resume, provider timeout, permission denial, and the 10,000-item fixture.
 7. **Attach evidence and gate (3.7).** Capture 375/768/1280/1536 views, Figma comparison, keyboard/axe/reduced-motion results, timing, state-matrix journeys, and separate verifier/QA sign-offs.
 
+### Cold-executor contracts
+
+| Task | Serves | Exact files/symbols | Prerequisite | Focused verification |
+| --- | --- | --- | --- | --- |
+| 3.1 | RC-07 and RC-14 via ADR-3 | `src/features/discovery-autonomous/discoveryState.ts#DiscoveryState`; `src/features/discovery-autonomous/discoveryState.spec.ts#invariants` | Accepted Phase 2 M and project identity contract | `pnpm test -- discoveryState.spec.ts` |
+| 3.2 | RC-04 and RC-07 via ADR-3 | `src/features/discovery-autonomous/discoveryState.ts#reduceDiscovery`; `src/features/discovery-autonomous/DiscoveryAutonomousPrototypePage.tsx#DiscoveryAutonomousPrototypePage` | Task 3.1 characterization and invariants | `pnpm test -- DiscoveryAutonomousPrototypePage.spec.tsx` |
+| 3.3 | RC-07 and RC-15 via ADR-4 | `src/features/discovery-autonomous/DiscoveryAutonomousPrototypePage.tsx#DiscoveryWorkspace`; `src/features/discovery-autonomous/frontier.css#discovery-workspace` | Task 3.2 selector-driven ownership | `pnpm exec playwright test tests/e2e/discovery-autonomous.spec.ts -g composition` |
+| 3.4 | RC-07 and RC-15 via ADR-2 | `docs/operations/ux-reference-sheets/discover-workspace.md#5.1`; `tests/e2e/discovery-autonomous.spec.ts#discover.new` | Task 3.3 accepted composition | `pnpm exec playwright test tests/e2e/discovery-autonomous.spec.ts -g states` |
+| 3.5 | RC-07 and RC-14 via ADR-3 | `src/features/platform-prototype/contracts.ts#DiscoveryPackageRef`; `src/features/discovery-autonomous/discoveryState.ts#selectDiscoveryPackage` | Task 3.4 exact state coverage | `pnpm test -- discoveryHandoff.spec.ts` |
+| 3.6 | RC-15 and RC-18 via ADR-4 | `src/features/discovery-autonomous/discoveryState.spec.ts#break-it`; `tests/fixtures/discovery-10000.json#items` | Task 3.5 versioned package contract | `pnpm test -- discoveryState.spec.ts -t break-it` |
+| 3.7 | RC-15 and RC-16 via ADR-8 | `artifacts/ux-audits/phase-3/verification.md`; `docs/operations/program-phase-ledger.json#phases[3]` | Tasks 3.1 through 3.6 green at C | `python3 scripts/check_phase_acceptance.py --candidate "$C" --evidence "$E" --phase 3` |
+
 ## Contracts and observability
 
 Add `DiscoverySession`, `TranscriptEntry`, `EvidenceRef`, `DiscoveryFact`, `DecisionRequest`,
@@ -67,6 +79,9 @@ remain under 400 ms under the phase throttle profile.
 | Provider becomes unavailable | Preserve the draft and current evidence; expose retry and manual continuation |
 | Package readiness changes during review | Recompute from canonical selectors and identify the blocking gap |
 | Figma fidelity conflicts with keyboard or contrast requirements | Accessibility wins; record the measured variance in the sheet |
+
+Rerun the Phase 1 copy-on-write suite for the Discover slice, including upgrade, downgrade, future-schema
+preservation, crash-before-swap, quota, competing-writer, and rollback-pointer cases.
 
 Rollback reverts the Phase 3 candidate commit and repository migration while retaining the Phase 2
 kernel. The migration must remain backward-readable until the next accepted release.

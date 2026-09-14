@@ -8,7 +8,16 @@ const githubPagesBase = process.env.GITHUB_PAGES === "true" ? `/${githubReposito
 
 export default defineConfig({
   base: githubPagesBase,
-  plugins: [react()],
+  plugins: [
+    react(),
+    {
+      name: "maxion-build-revision",
+      transformIndexHtml(html) {
+        const revision = process.env.MAXION_BUILD_REVISION ?? "development-unpinned"
+        return html.replace('id="root"', `id="root" data-build-revision="${revision}"`)
+      },
+    },
+  ],
   resolve: {
     alias: {
       "@": fileURLToPath(new URL("./src", import.meta.url)),
@@ -21,6 +30,9 @@ export default defineConfig({
   preview: {
     host: "127.0.0.1",
     port: 4317,
+  },
+  build: {
+    manifest: true,
   },
   test: {
     environment: "jsdom",

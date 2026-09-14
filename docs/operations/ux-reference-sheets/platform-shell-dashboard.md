@@ -58,7 +58,7 @@
 | Parkinson's | Keep the top jobs short and make long-running work autonomous. | Top job at most 3 actions before progress starts | Happy-path action count |
 | Occam's | Remove duplicate routes and controls that do the same thing. | No duplicate primary control in one viewport | Control inventory review |
 | Pareto | Put the top three jobs ahead of secondary metadata. | All 3 top jobs reachable in first viewport | Desktop and mobile screenshot audit |
-| Interactivity floor | Composer in context; every state actionable; live state; no dead ends. | Static-report test passes in all declared states | Walk the flow and act on each state |
+| Interactivity floor | Composer in context; every state actionable; live state; no dead ends. | Static-report test passes for 4 declared states | Walk the flow and act on each state |
 
 ## 5. State matrices
 

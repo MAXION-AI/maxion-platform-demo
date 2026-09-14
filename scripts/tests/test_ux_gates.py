@@ -63,7 +63,10 @@ class ReferenceSheetGateTests(unittest.TestCase):
         self.assertTrue(any("missing law row 'Zeigarnik'" in finding for finding in findings), findings)
 
     def test_sheet_allows_a_valid_subset_for_manifest_to_enforce(self) -> None:
-        path = self.mutated(r"^\| run\.failed\s+\|.*\n", "")
+        text = substitute(EXAMPLE.read_text(encoding="utf-8"), r"^\| run\.failed\s+\|.*\n", "")
+        text = text.replace("passes for 7 declared states", "passes for 6 declared states")
+        path = self.tmp / "sheet.md"
+        path.write_text(text, encoding="utf-8")
         findings = sheet_gate.check_sheet(path)
         self.assertEqual(len(sheet_gate.semantic_state_ids(path.read_text(encoding="utf-8"))), 6)
         self.assertEqual(findings, [])
@@ -72,6 +75,11 @@ class ReferenceSheetGateTests(unittest.TestCase):
         path = self.mutated(r"^\| run\.failed\s+\|", "| failed |")
         findings = sheet_gate.check_sheet(path)
         self.assertTrue(any("invalid semantic state id" in finding for finding in findings), findings)
+
+    def test_numeric_declared_state_count_must_match_matrix(self) -> None:
+        path = self.mutated(r"passes for 7 declared states", "passes for 6 declared states")
+        findings = sheet_gate.check_sheet(path)
+        self.assertTrue(any("declares 6 states" in finding for finding in findings), findings)
 
     def test_bare_na_needs_a_reason(self) -> None:
         path = self.mutated(r"^\| Pareto\s+\|.*$", "| Pareto | N/A | N/A | N/A |")
@@ -180,6 +188,21 @@ class TokenGateTests(unittest.TestCase):
         findings = token_gate.compare(token_gate.scan(), token_gate.load_baseline())
         self.assertEqual(findings, [])
 
+    def test_baseline_cannot_regain_debt_removed_by_the_accepted_predecessor(self) -> None:
+        found = {"a.tsx": [(1, "#fff"), (2, "#000")]}
+        findings = token_gate.validate_ratchet(found, {"a.tsx": 2}, {"a.tsx": 1}, 4)
+        self.assertTrue(any("baseline regain" in finding for finding in findings), findings)
+
+    def test_current_baseline_must_equal_the_scan_not_merely_bound_it(self) -> None:
+        found = {"a.tsx": [(1, "#fff")]}
+        findings = token_gate.validate_ratchet(found, {"a.tsx": 2}, {"a.tsx": 2}, 4)
+        self.assertTrue(any("exactly match" in finding for finding in findings), findings)
+
+    def test_phase_ten_requires_zero_token_debt(self) -> None:
+        found = {"a.tsx": [(1, "#fff")]}
+        findings = token_gate.validate_ratchet(found, {"a.tsx": 1}, {"a.tsx": 1}, 10)
+        self.assertTrue(any("Phase 10" in finding for finding in findings), findings)
+
 
 class ContractCoverageGateTests(unittest.TestCase):
     def setUp(self) -> None:
@@ -188,11 +211,11 @@ class ContractCoverageGateTests(unittest.TestCase):
         self.tmp = Path(self.tempdir.name)
         self.manifest = json.loads(MANIFEST.read_text(encoding="utf-8"))
 
-    def check_mutation(self, mutate) -> list[str]:
+    def check_mutation(self, mutate, **kwargs) -> list[str]:
         mutate(self.manifest)
         path = self.tmp / "figma-code-map.json"
         path.write_text(json.dumps(self.manifest), encoding="utf-8")
-        return coverage_gate.check_contract(path)
+        return coverage_gate.check_contract(path, **kwargs)
 
     def test_committed_contract_map_is_complete(self) -> None:
         self.assertEqual(coverage_gate.check_contract(), [])
@@ -204,6 +227,40 @@ class ContractCoverageGateTests(unittest.TestCase):
     def test_omitted_production_route_is_a_finding(self) -> None:
         findings = self.check_mutation(lambda value: value["routes"].pop())
         self.assertTrue(any("declared routes do not match" in finding for finding in findings), findings)
+
+    def test_non_redirect_route_owner_must_resolve_to_a_surface(self) -> None:
+        findings = self.check_mutation(lambda value: value["routes"][0].update(owner="not-a-surface"))
+        self.assertTrue(any("owner is not a declared surface" in finding for finding in findings), findings)
+
+    def test_redirect_must_match_navigate_and_target_a_canonical_route(self) -> None:
+        def mutate(value) -> None:
+            redirect = next(item for item in value["routes"] if item["path"] == "/")
+            redirect["target"] = "/agentix-prototype"
+
+        findings = self.check_mutation(mutate)
+        self.assertTrue(any("does not match production Navigate target" in finding for finding in findings), findings)
+        self.assertTrue(any("target is not a canonical route" in finding for finding in findings), findings)
+
+    def test_interaction_entry_route_must_be_registered(self) -> None:
+        findings = self.check_mutation(
+            lambda value: value["surfaces"][1]["addressing"].update(entryRoute="/fictional")
+        )
+        self.assertTrue(any("interaction entryRoute is not registered" in finding for finding in findings), findings)
+
+    def test_interaction_address_must_bind_to_production_action_source(self) -> None:
+        def mutate(value) -> None:
+            value["surfaces"][1]["addressing"]["sourceMarker"] = {
+                "path": "src/features/platform-prototype/PortalChrome.tsx",
+                "token": "fictional-project-action",
+            }
+
+        findings = self.check_mutation(mutate)
+        self.assertTrue(any("interaction action marker is missing" in finding for finding in findings), findings)
+
+    def test_interaction_and_alias_deadlines_are_enforced_at_accepted_phase(self) -> None:
+        findings = self.check_mutation(lambda value: None, accepted_phase=1)
+        self.assertTrue(any("compatibility alias" in finding and "deadline" in finding for finding in findings), findings)
+        self.assertTrue(any("interaction-only address missed" in finding for finding in findings), findings)
 
     def test_fictional_url_state_is_a_finding(self) -> None:
         def mutate(value) -> None:
@@ -256,6 +313,20 @@ class ContractCoverageGateTests(unittest.TestCase):
         findings = self.check_mutation(mutate)
         self.assertTrue(any("stale CSS selector debt grew" in finding for finding in findings), findings)
 
+    def test_stale_selector_baseline_cannot_be_inflated(self) -> None:
+        def mutate(value) -> None:
+            value["sourceOwnership"]["staleSelectorBaseline"]["count"] += 1
+
+        findings = self.check_mutation(mutate)
+        self.assertTrue(any("may not be inflated or rebaselined" in finding for finding in findings), findings)
+
+    def test_forbidden_legacy_marker_policy_cannot_be_deleted(self) -> None:
+        def mutate(value) -> None:
+            value["sourceOwnership"]["forbiddenLegacyMarkers"] = []
+
+        findings = self.check_mutation(mutate)
+        self.assertTrue(any("marker policy is immutable" in finding for finding in findings), findings)
+
     def test_semantic_state_manifest_drift_is_a_finding(self) -> None:
         def mutate(value) -> None:
             value["surfaces"][0]["requiredStateIds"].pop()
@@ -263,12 +334,44 @@ class ContractCoverageGateTests(unittest.TestCase):
         findings = self.check_mutation(mutate)
         self.assertTrue(any("semantic state IDs do not exactly match" in finding for finding in findings), findings)
 
+    def test_every_semantic_state_requires_a_complete_binding(self) -> None:
+        def mutate(value) -> None:
+            del value["surfaces"][0]["stateBinding"]
+
+        findings = self.check_mutation(mutate)
+        self.assertTrue(any("complete semantic state binding is required" in finding for finding in findings), findings)
+
+    def test_scheduled_state_binding_cannot_outlive_its_phase(self) -> None:
+        findings = self.check_mutation(lambda value: None, accepted_phase=2)
+        self.assertTrue(any("scheduled semantic state binding missed" in finding for finding in findings), findings)
+
+    def test_implemented_state_binding_requires_real_fixture_test_and_evidence(self) -> None:
+        def mutate(value) -> None:
+            value["surfaces"][0]["stateBinding"]["status"] = "implemented"
+
+        findings = self.check_mutation(mutate)
+        self.assertTrue(any("implemented shell.attention fixturePattern is missing" in finding for finding in findings), findings)
+
     def test_source_tree_identity_drift_is_a_finding(self) -> None:
         def mutate(value) -> None:
             value["implementationTree"]["srcGitTreeSha1"] = "0" * 40
 
         findings = self.check_mutation(mutate)
         self.assertTrue(any("src tree does not match" in finding for finding in findings), findings)
+
+    def test_source_commit_must_exist_and_be_an_ancestor(self) -> None:
+        source_commit = self.manifest["implementationTree"]["sourceCommit"]
+
+        def mutate(value) -> None:
+            value["implementationTree"]["sourceCommit"] = "f" * 40
+
+        findings = self.check_mutation(mutate)
+        self.assertTrue(any("sourceCommit does not exist" in finding for finding in findings), findings)
+
+        self.manifest["implementationTree"]["sourceCommit"] = source_commit
+        parent = coverage_gate._git("rev-parse", f"{source_commit}^")
+        findings = self.check_mutation(lambda value: None, head_commit=str(parent))
+        self.assertTrue(any("sourceCommit is not an ancestor" in finding for finding in findings), findings)
 
 
 class ProductionSourceGateTests(unittest.TestCase):

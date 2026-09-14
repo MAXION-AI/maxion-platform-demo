@@ -35,20 +35,33 @@ state IDs, laws, reference decisions, or acceptance thresholds. Before review an
 `git rev-parse C:src`; the values must match. If anything outside the allowlist changes, E becomes a
 new candidate C and both independent reviews restart.
 
+`python3 scripts/check_phase_acceptance.py --candidate "$C" --evidence "$E" --phase N` is the
+semantic authority for this boundary. It proves C exists and is an ancestor of E, rejects every
+non-allowlisted path, and compares permitted files by immutable projection rather than filename
+alone: reference-sheet Sections 1–6 and evidence-check identities, phase-plan contract content,
+tracked-ledger identity fields, state IDs, laws, thresholds, manifest/configuration, source, tests,
+scripts, and package/lock files cannot change. Full sheet hashes still identify the accepted artifact;
+separate immutable-contract hashes let artifact/result/sign-off cells be filled without disguising a
+contract edit.
+
 ## PR and merge lifecycle
 
 1. Verify B is the target branch tip and create one isolated `phase-N/<slug>` branch/worktree from B.
 2. Implement and run the phase's exact gates. Commit the clean implementation as C and push the branch.
-3. Open one PR with B, C, source-tree/lock/manifest/sheet hashes, evidence paths, rollback command, and
+3. Open one PR with B, C, source-tree/lock/manifest/full-sheet/immutable-sheet hashes, evidence paths, rollback command, and
    the phase's RC/ADR/state coverage.
 4. Independent UX and engineering reviewers audit detached clean worktrees at C. No builder self-signoff.
-5. Add E only under the evidence-only rule. Required status checks run on E; reviewers confirm C→E is
-   evidence-only and that E contains C.
+5. Add E only under the evidence-only rule. Run `check_phase_acceptance.py`; required hosted status
+   checks from `.github/workflows/program-gates.yml` run on E; reviewers confirm C→E is evidence-only
+   and that E contains C.
 6. Merge with the repository's configured method. Record PR URL, PR head E (or C), and M. Verify
    `git merge-base --is-ancestor C M` and that the target branch tip contains the PR head.
-7. In a fresh clean worktree pinned to M, rerun `pnpm check:program`, `pnpm build`,
-   `pnpm audit --audit-level high`, the phase test command, and `git diff --check`. Update the
-   external ledger atomically. Only then may the successor use M as B.
+7. In a fresh clean worktree pinned to M, rerun the mandatory command IDs as structured results:
+   `check-program` = `pnpm check:program`, `build` = `pnpm build`, `audit-high` =
+   `pnpm audit --audit-level high`, `phase-tests` = the phase's exact test command, and `diff-check` =
+   `git diff --check`. Each result records command, exit code, PASS/FAIL, and a repo-relative evidence
+   path committed at E. Update the external ledger atomically only when every result is PASS. Only then
+   may the successor use M as B.
 
 Failed checks, missing reviews, a mismatched source tree, an unclean verifier checkout, or an
 unrecorded M leave the phase open.
@@ -71,16 +84,21 @@ The coordinator is the only writer. It takes an advisory lock, writes a complete
 same-directory temporary file, `fsync`s the file and directory, then atomically renames it. Each
 record contains program/repository, phase, B/C/E/M, PR URL, source-tree/lock/manifest/sheet hashes,
 reviewer identities, evidence paths, command results, timestamp, and SHA-256 of the preceding record.
-The new worktree bootstraps by checking the previous-record hash, fetching M, verifying ancestry and a
-clean checkout, then copying no mutable state from the predecessor. Recovery chooses the last
-checksum-valid record and reconstructs from its M; ambiguous writers or a broken hash chain stop the
-program.
+The external ledger contains exactly one accepted record per phase in strict `0..N` order; it never
+contains pending records. Each record's B must equal the prior record's M. The new worktree fetches the
+target branch, checks out M, and runs
+`python3 scripts/program_ledger.py bootstrap --expected-phase N --target-ref origin/main`. Bootstrap
+checks the complete hash chain and acceptance semantics, requires the target ref and checkout HEAD to
+equal M, and rejects a dirty checkout. It then copies no mutable state from the predecessor. Recovery
+chooses the last checksum-valid record and reconstructs from its M; a duplicate/skipped phase,
+ambiguous writer, mismatched base, or broken hash chain stops the program.
 
 `python3 scripts/program_ledger.py append --record <record.json>` is the only supported external-ledger
-write path. It rejects an invalid existing chain or record, serializes concurrent writers with the
-advisory lock, and computes both chain hashes itself. `python3 scripts/program_ledger.py validate`
-must pass before a successor phase starts; `pnpm check:program-ledger` separately validates the tracked
-summary's shape and immutable identities without depending on machine-local external state.
+write path. It rejects pending status, duplicate/skipped phases, an invalid existing chain or record,
+serializes concurrent writers with the advisory lock, and computes both chain hashes itself.
+`python3 scripts/program_ledger.py validate` and the stricter `bootstrap` command must pass before a
+successor phase starts; `pnpm check:program-ledger` separately validates the tracked summary's shape
+and immutable identities without depending on machine-local external state.
 
 The demo stream ends after the demo adoption-package PR. A separate MaxAI production-adoption ledger,
 plan, branch chain, reviewers, and PRs begin from fetched `max-ai-platform/origin/main`; a MaxAI SHA

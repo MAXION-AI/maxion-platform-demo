@@ -1,0 +1,58 @@
+name: Program gates
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: program-gates-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  qualify:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    steps:
+      - name: Check out exact revision
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+      - name: Activate pinned Node runtime
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version-file: .node-version
+          cache: pnpm
+      - name: Activate pinned pnpm
+        run: |
+          corepack enable
+          corepack prepare pnpm@10.13.1 --activate
+      - name: Install pinned dependencies
+        run: pnpm install --frozen-lockfile
+      - name: Install pinned browser runtimes
+        run: pnpm exec playwright install --with-deps chromium
+      - name: Program and source gates
+        run: pnpm check:program
+      - name: Production build and bundle metadata gate
+        run: |
+          MAXION_BUILD_REVISION="$GITHUB_SHA" pnpm build
+          pnpm check:bundle --metadata-out test-results/bundle-budget.json
+      - name: Unit tests
+        run: pnpm test
+      - name: Browser acceptance
+        run: pnpm test:e2e
+      - name: Dependency audit
+        run: pnpm audit --audit-level high
+      - name: Preserve failure evidence
+        if: failure()
+        uses: actions/upload-artifact@65c4c4a1ddee5b72f698fdd19549f0f0fb45cf08
+        with:
+          name: program-gate-evidence-${{ github.run_id }}
+          path: |
+            test-results/
+            playwright-report/
+          if-no-files-found: ignore
+          retention-days: 14

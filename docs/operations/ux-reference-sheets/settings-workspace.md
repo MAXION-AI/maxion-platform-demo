@@ -59,7 +59,7 @@
 | Parkinson's | Keep routine edits short and reviewed migrations outside the common path. | Common save within 3 actions | Action-count test |
 | Occam's | Provide one owner and one path for each setting. | No duplicate field or Save action | Source and control inventory |
 | Pareto | Put workspace identity, time zone, and security status before rare controls. | Top 3 jobs in first viewport | Responsive screenshot audit |
-| Interactivity floor | Fields edit, validate, save, fail, recover, and expose attributable state in place. | Static-report test passes for 8 declared states | Walk every state and act on it |
+| Interactivity floor | Fields edit, validate, save, fail, recover, and expose attributable state in place. | Static-report test passes for 6 declared states | Walk every state and act on it |
 
 ## 5. State matrices
 

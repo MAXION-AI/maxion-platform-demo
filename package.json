@@ -11,10 +11,12 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "test:e2e": "playwright test",
+    "acceptance:server": "node scripts/start_acceptance_server.mjs",
     "check:source-quality": "pnpm lint && tsc --noEmit --noUnusedLocals --noUnusedParameters && knip --include files,exports,dependencies,unlisted,unresolved && python3 scripts/check_production_sources.py",
     "check:ux:sheets": "python3 scripts/check_ux_reference_sheet.py --all",
     "check:ux:coverage": "python3 scripts/check_ux_contract_coverage.py",
     "check:ux:tokens": "python3 scripts/check_ux_tokens.py",
+    "check:bundle": "python3 scripts/check_bundle_budget.py",
     "check:program-ledger": "python3 scripts/program_ledger.py validate-tracked",
     "test:ux-gates": "python3 -m unittest discover -s scripts/tests -p 'test_*.py'",
     "check:program": "bash scripts/check_program_gates.sh"

@@ -19,12 +19,15 @@ from __future__ import annotations
 import argparse
 import json
 import re
+import subprocess
 import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 PORTAL_SRC = ROOT / "src"
 BASELINE = ROOT / "scripts" / "ux_tokens_baseline.json"
+LEDGER = ROOT / "docs" / "operations" / "program-phase-ledger.json"
+MANIFEST = ROOT / "docs" / "operations" / "figma-code-map.json"
 THEME_FILES = {ROOT / "src" / "styles.css"}
 
 SCAN_SUFFIXES = {".ts", ".tsx", ".css"}
@@ -74,6 +77,42 @@ def load_baseline(path: Path = BASELINE) -> dict[str, int]:
     return {k: int(v) for k, v in data.get("files", {}).items()}
 
 
+def _git(root: Path, *args: str) -> str:
+    result = subprocess.run(
+        ["git", *args], cwd=root, check=False, capture_output=True, text=True
+    )
+    if result.returncode != 0:
+        raise ValueError(result.stderr.strip() or f"git {' '.join(args)} failed")
+    return result.stdout.strip()
+
+
+def accepted_predecessor(
+    root: Path = ROOT, ledger_path: Path = LEDGER, manifest_path: Path = MANIFEST
+) -> tuple[str, int]:
+    """Return the latest accepted merge (or the Phase-0 source baseline) and phase."""
+
+    ledger = json.loads(ledger_path.read_text(encoding="utf-8"))
+    accepted = [row for row in ledger.get("phases", []) if row.get("status") == "accepted"]
+    if accepted:
+        row = max(accepted, key=lambda item: int(item["phase"]))
+        commit = str(row["mergeSha"])
+        phase = int(row["phase"])
+    else:
+        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+        commit = str(manifest["implementationTree"]["sourceCommit"])
+        phase = 0
+    _git(root, "cat-file", "-e", f"{commit}^{{commit}}")
+    head = _git(root, "rev-parse", "HEAD")
+    _git(root, "merge-base", "--is-ancestor", commit, head)
+    return commit, phase
+
+
+def load_baseline_at_commit(commit: str, root: Path = ROOT) -> dict[str, int]:
+    raw = _git(root, "show", f"{commit}:scripts/ux_tokens_baseline.json")
+    data = json.loads(raw)
+    return {k: int(v) for k, v in data.get("files", {}).items()}
+
+
 def compare(found: dict[str, list[tuple[int, str]]], baseline: dict[str, int]) -> list[str]:
     findings: list[str] = []
     counts = {k: len(v) for k, v in found.items()}
@@ -87,6 +126,29 @@ def compare(found: dict[str, list[tuple[int, str]]], baseline: dict[str, int]) -
     for file, allowed in sorted(baseline.items()):
         if file not in counts:
             findings.append(f"baseline rot: {file} has no literals left — run --update-baseline to shrink it")
+    return findings
+
+
+def validate_ratchet(
+    found: dict[str, list[tuple[int, str]]],
+    current: dict[str, int],
+    predecessor: dict[str, int],
+    accepted_phase: int,
+) -> list[str]:
+    """Bind today's exact scan to a baseline that can only shrink from accepted history."""
+
+    findings = compare(found, current)
+    counts = {key: len(hits) for key, hits in found.items()}
+    if counts != current:
+        findings.append("current token baseline must exactly match the source scan")
+    for file, allowed in sorted(current.items()):
+        previous = predecessor.get(file, 0)
+        if allowed > previous:
+            findings.append(
+                f"baseline regain: {file} allows {allowed}, accepted predecessor allows {previous}"
+            )
+    if accepted_phase >= 10 and (sum(counts.values()) or sum(current.values())):
+        findings.append("Phase 10 token target is zero raw colour literals")
     return findings
 
 
@@ -116,12 +178,26 @@ def main(argv: list[str] | None = None) -> int:
         for file, hits in found.items():
             for ln, lit in hits:
                 print(f"{file}:{ln}: {lit}")
+    try:
+        predecessor_commit, accepted_phase = accepted_predecessor()
+        predecessor = load_baseline_at_commit(predecessor_commit)
+    except (KeyError, OSError, ValueError, json.JSONDecodeError) as exc:
+        print(f"UX token gate: predecessor baseline unavailable: {exc}", file=sys.stderr)
+        return 2
+
     if args.update_baseline:
+        next_baseline = {key: len(hits) for key, hits in found.items()}
+        findings = validate_ratchet(found, next_baseline, predecessor, accepted_phase)
+        if findings:
+            print(f"UX token gate: refusing baseline update ({len(findings)} finding(s))")
+            for finding in findings:
+                print(f"  - {finding}")
+            return 1
         write_baseline(found)
         print(f"baseline written: {len(found)} file(s), {sum(len(v) for v in found.values())} literal(s)")
         return 0
 
-    findings = compare(found, load_baseline())
+    findings = validate_ratchet(found, load_baseline(), predecessor, accepted_phase)
     if findings:
         print(f"UX token gate: {len(findings)} finding(s)")
         for f in findings:

@@ -41,6 +41,17 @@ acknowledgement under 400 ms, and all first value paths within three actions.
 5. **Prove dashboard↔project continuity (2.5).** A created/updated project changes dashboard summaries and recent work through shared state, survives reload, and opens the correct object.
 6. **Attach evidence and run independent gate (2.6).** Capture 375/768/1280/1536, Figma comparisons, state-matrix evidence, axe, timing, and separate verifier report.
 
+### Cold-executor contracts
+
+| Task | Serves | Exact files/symbols | Prerequisite | Focused verification |
+| --- | --- | --- | --- | --- |
+| 2.1 | RC-05 and RC-06 via ADR-3 | `src/features/platform-prototype/PortalReplicaModules.tsx#DashboardModule`; `src/features/platform-prototype/platformState.ts#selectDashboardSummary` | Accepted Phase 1 M and selector kernel | `pnpm test -- DashboardModule.spec.tsx` |
+| 2.2 | RC-06 and RC-15 via ADR-4 | `src/features/platform-prototype/PortalReplicaModules.tsx#DashboardModule`; `tests/e2e/maxion-platform-shell.spec.ts#shell.attention` | Task 2.1 bound selectors | `pnpm exec playwright test tests/e2e/maxion-platform-shell.spec.ts -g dashboard` |
+| 2.3 | RC-05 and RC-06 via ADR-3 | `src/features/platform-prototype/projectsState.ts#reduceProjectsState`; `src/features/platform-prototype/projectsState.ts#selectProjects` | Task 2.1 shared dashboard summary | `pnpm test -- projectsState.spec.ts` |
+| 2.4 | RC-06 and RC-15 via ADR-4 | `src/features/platform-prototype/PortalReplicaModules.tsx#ProjectsModule`; `tests/e2e/maxion-platform-shell.spec.ts#projects.ready` | Task 2.3 project state seam | `pnpm exec playwright test tests/e2e/maxion-platform-shell.spec.ts -g Projects` |
+| 2.5 | RC-06 and RC-14 via ADR-3 | `src/features/platform-prototype/platformState.ts#selectRecentProjects`; `tests/e2e/maxion-platform-shell.spec.ts#dashboard-project-continuity` | Tasks 2.2 and 2.4 accepted surfaces | `pnpm exec playwright test tests/e2e/maxion-platform-shell.spec.ts -g continuity` |
+| 2.6 | RC-15 and RC-16 via ADR-8 | `artifacts/ux-audits/phase-2/verification.md`; `docs/operations/program-phase-ledger.json#phases[2]` | Tasks 2.1 through 2.5 green at C | `python3 scripts/check_phase_acceptance.py --candidate "$C" --evidence "$E" --phase 2` |
+
 ## Data/contracts, tests, failures, rollback
 
 No server schema/API change. Add only typed demo project events/selectors. Unit tests cover zero/one/

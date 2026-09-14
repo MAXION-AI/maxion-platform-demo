@@ -58,7 +58,7 @@
 | Parkinson's | Let an operator find the driver and set a warning quickly. | Driver within 2 actions; alert within 3 | Action-count test |
 | Occam's | Keep one unit definition, one alert, and one record path. | No duplicate metric or limit controls | Control inventory review |
 | Pareto | Put capacity, driver, and warning before detailed historical records. | All 3 top jobs in first viewport | Responsive screenshot audit |
-| Interactivity floor | Filter, inspect, drill into records, set an alert, recover, and return in place. | Static-report test passes for 8 declared states | Walk every state and act on it |
+| Interactivity floor | Filter, inspect, drill into records, set an alert, recover, and return in place. | Static-report test passes for 6 declared states | Walk every state and act on it |
 
 ## 5. State matrices
 

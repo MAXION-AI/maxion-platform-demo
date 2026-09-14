@@ -72,7 +72,7 @@ Rules:
 | Parkinson's           | <requirement>                                                           | <number>                    | <method>                           |
 | Occam's               | <requirement>                                                           | <number>                    | <method>                           |
 | Pareto                | <requirement>                                                           | <number>                    | <method>                           |
-| Interactivity floor   | <composer in context; every state actionable; live state; no dead ends> | <static-report test passes> | <walk the flow, act on each state> |
+| Interactivity floor   | <composer in context; every state actionable; live state; no dead ends> | <static-report test passes for N declared states> | <walk the flow, act on each state> |
 
 "N/A because <reason>" is a valid cell. An empty cell is not.
 

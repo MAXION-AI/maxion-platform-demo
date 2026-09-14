@@ -13,8 +13,14 @@
       "prHeadSha": "dfc0347c876b36dc9932808b786d219c2cb8c949",
       "mergeSha": "beae208b30ad31202c4ff92abbfbd6c1ef51af18",
       "independentAcceptanceSha": null,
-      "reasonOpen": "Existing UX and QA reports audited a dirty pre-commit tree rather than a clean worktree pinned to candidate or merge SHA.",
+      "evidenceCommitSha": "dfc0347c876b36dc9932808b786d219c2cb8c949",
+      "reasonOpen": "PR #2 is historical runtime-contract lineage only. The superseding hardening PR has not yet produced its clean candidate C, evidence E, final merge M, or independent acceptance record; Phase 1 may consume only that final accepted M.",
       "sourceTreeSha1": "83505e42c24a39654c072f7d36991fad4db80f40",
+      "builder": "phase-0-builder-session",
+      "reviewers": {
+        "ux": "historical-phase-0-ux-review-session",
+        "qa": "historical-phase-0-qa-review-session"
+      },
       "evidence": [
         "artifacts/ux-audits/phase-0-foundation-independent-ux-2026-09-13.md",
         "artifacts/ux-audits/phase-0-foundation-independent-qa-2026-09-13.md"
@@ -23,4 +29,3 @@
     }
   ]
 }
-

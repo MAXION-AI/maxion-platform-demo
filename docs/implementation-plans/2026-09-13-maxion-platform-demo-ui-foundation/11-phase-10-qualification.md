@@ -41,6 +41,18 @@ proof are explicitly outside this repository and remain MaxAI release obligation
 6. **Run fresh end-to-end journeys and recovery (10.6).** Prove project creation plus Discover→Plan→Execute→Agentix→Consult, administrative approval/integration degradation, reload/resume, failure/retry/rollback, and no duplicate effects.
 7. **Run independent final QA and freeze evidence (10.7).** A separate verifier audits sheets/code/Figma/evidence and returns GATE PASS only with no blocker/major finding; record limitations and the accepted SHA.
 
+### Cold-executor contracts
+
+| Task | Serves | Exact files/symbols | Prerequisite | Focused verification |
+| --- | --- | --- | --- | --- |
+| 10.1 | RC-01 and RC-16 via ADR-8 | `docs/operations/program-phase-ledger.json#phases[10]`; `playwright.config.ts#projects` | Accepted Phase 9 M and clean qualification worktree | `python3 scripts/program_ledger.py validate` |
+| 10.2 | RC-03 and RC-19 via ADR-7 | `scripts/check_program_gates.sh#program-gates`; `scripts/check_production_sources.py#check_sources` | Task 10.1 frozen candidate C | `pnpm check:program` |
+| 10.3 | RC-15 and RC-16 via ADR-2 | `docs/operations/figma-code-map.json#surfaces`; `tests/e2e/maxion-platform-shell.spec.ts#semantic-states` | Task 10.2 static gates green | `pnpm exec playwright test -g semantic-state` |
+| 10.4 | RC-15 via ADR-4 | `tests/e2e/maxion-platform-shell.spec.ts#accessibility`; `artifacts/ux-audits/phase-10/accessibility.md` | Task 10.3 complete state runs | `pnpm exec playwright test -g accessibility` |
+| 10.5 | RC-15 and RC-18 via ADR-1 | `scripts/check_bundle_budget.py#check_budget`; `artifacts/ux-audits/phase-10/performance.json` | Task 10.4 interaction qualification | `pnpm check:bundle` |
+| 10.6 | RC-09 and RC-14 via ADR-5 | `tests/e2e/maxion-platform-shell.spec.ts#full-continuity`; `tests/e2e/execute-command-layer.spec.ts#rollback` | Task 10.5 performance budgets green | `pnpm exec playwright test -g 'full-continuity|rollback'` |
+| 10.7 | RC-01 and RC-15 via ADR-8 | `artifacts/ux-audits/phase-10/final-qa.md`; `docs/operations/program-phase-ledger.json#phases[10]` | Tasks 10.1 through 10.6 green at C | `python3 scripts/check_phase_acceptance.py --candidate "$C" --evidence "$E" --phase 10` |
+
 ## Evidence and observability
 
 Evidence includes command logs, browser traces, screenshots, accessibility reports, geometry/timing data,

@@ -44,6 +44,18 @@ Connection loss preserves the draft and exposes reconnect/retry without inventin
 6. **Break live behavior (7.6).** Test rapid/duplicate commands, stale approval, stop race, out-of-order events, disconnect/reconnect, corrupt event, hostile text, refresh, 10,000 events, and cross-project access attempts.
 7. **Attach evidence and gate (7.7).** Capture all seven sheet states and recoveries at 375/768/1280/1536, exact-node comparison, axe/keyboard/motion/timing/load results, and independent verifier/QA sign-offs.
 
+### Cold-executor contracts
+
+| Task | Serves | Exact files/symbols | Prerequisite | Focused verification |
+| --- | --- | --- | --- | --- |
+| 7.1 | RC-11 and RC-14 via ADR-5 | `src/features/agentix/prototype/runState.ts#AgentixRunState`; `src/features/agentix/prototype/runState.spec.ts#invariants` | Accepted Phase 6 M and ResponsibilityRef | `pnpm test -- runState.spec.ts` |
+| 7.2 | RC-04 and RC-11 via ADR-3 | `src/features/agentix/prototype/DeployedAgentsPage.tsx#RunCanvas`; `src/features/agentix/prototype/runState.ts#reduceRun` | Task 7.1 interaction contract | `pnpm test -- DeployedAgentsPage.spec.tsx` |
+| 7.3 | RC-11 and RC-15 via ADR-4 | `src/features/agentix/prototype/DeployedAgentsPage.tsx#RunCanvas`; `src/features/agentix/prototype/workspace.css#run-canvas` | Task 7.2 selector-driven regions | `pnpm exec playwright test tests/e2e/agentix-operations.spec.ts -g run-canvas` |
+| 7.4 | RC-11 and RC-15 via ADR-2 | `src/features/agentix/prototype/runState.ts#runCommand`; `tests/e2e/agentix-operations.spec.ts#run.live` | Task 7.3 exact-node composition | `pnpm exec playwright test tests/e2e/agentix-operations.spec.ts -g run-state` |
+| 7.5 | RC-11 and RC-14 via ADR-5 | `src/features/platform-prototype/contracts.ts#AgentixRunResultRef`; `src/features/agentix/prototype/runState.ts#selectRunEnding` | Task 7.4 actionable states | `pnpm test -- runHandoff.spec.ts` |
+| 7.6 | RC-15 and RC-18 via ADR-4 | `src/features/agentix/prototype/runState.spec.ts#races`; `tests/fixtures/agentix-events-10000.json#events` | Task 7.5 terminal authority | `pnpm test -- runState.spec.ts -t races` |
+| 7.7 | RC-15 and RC-16 via ADR-8 | `artifacts/ux-audits/phase-7/verification.md`; `docs/operations/program-phase-ledger.json#phases[7]` | Tasks 7.1 through 7.6 green at C | `python3 scripts/check_phase_acceptance.py --candidate "$C" --evidence "$E" --phase 7` |
+
 ## Contracts and observability
 
 Add `RunFocus`, `RunEvent`, `RunQuestion`, `RunProposal`, `RunApproval`, `RunArtifact`, and
@@ -64,6 +76,9 @@ recovery, reconnect, refresh, keyboard-only, mobile, reduced motion, and large-e
 | Stop and completion race | Resolve once from canonical ordering and explain the resulting terminal state |
 | Approval is stale or unauthorized | Fail closed, retain the response draft, and open current context |
 | Terminal event lacks object/evidence | Render incomplete/blocked, not successful completion |
+
+Rerun the Phase 1 copy-on-write suite for run events and drafts, including upgrade, downgrade,
+future-schema preservation, crash-before-swap, quota, competing-writer, and rollback-pointer cases.
 
 Rollback reverts the Phase 7 candidate, retains Phase 6 summaries, and leaves all readable run history
 available through the prior operations experience.

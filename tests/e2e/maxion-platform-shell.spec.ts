@@ -1,6 +1,35 @@
 import AxeBuilder from "@axe-core/playwright"
 import { expect, test } from "@playwright/test"
 
+test("keeps product and administration geometry exact at every acceptance viewport", async ({ page }) => {
+	for (const viewport of [
+		{ width: 375, height: 812 },
+		{ width: 768, height: 900 },
+		{ width: 1280, height: 900 },
+		{ width: 1536, height: 900 },
+	]) {
+		await page.setViewportSize(viewport)
+		await page.goto("/maxion-prototype")
+		const opener = page.getByRole("button", { name: "Open navigation" })
+		if (await opener.isVisible()) await opener.click()
+		const navigation = page.getByRole("navigation", { name: "Portal sections" })
+		const geometry = await navigation.evaluate((element) => ({
+			productRows: [...element.querySelectorAll<HTMLElement>('[data-navigation-tier="product"]')]
+				.map((control) => control.getBoundingClientRect().height),
+			adminRows: [...element.querySelectorAll<HTMLElement>('[data-navigation-tier="administration"]')]
+				.map((control) => control.getBoundingClientRect().height),
+			productIcons: [...element.querySelectorAll<HTMLElement>('[data-navigation-tier="product"] .mxp-portal-nav-icon')]
+				.map((icon) => icon.getBoundingClientRect().width),
+			adminIcons: [...element.querySelectorAll<HTMLElement>('[data-navigation-tier="administration"] .mxp-portal-nav-icon')]
+				.map((icon) => icon.getBoundingClientRect().width),
+		}))
+		expect(geometry.productRows, `${viewport.width}px product rows`).toEqual(Array(7).fill(44))
+		expect(geometry.adminRows, `${viewport.width}px administrative rows`).toEqual(Array(5).fill(36))
+		expect(geometry.productIcons, `${viewport.width}px product icons`).toEqual(Array(7).fill(20))
+		expect(geometry.adminIcons, `${viewport.width}px administrative icons`).toEqual(Array(5).fill(16))
+	}
+})
+
 test("keeps the shell choice, target, response, and accessibility floor measurable", async ({ page }) => {
 	await page.goto("/maxion-prototype")
 

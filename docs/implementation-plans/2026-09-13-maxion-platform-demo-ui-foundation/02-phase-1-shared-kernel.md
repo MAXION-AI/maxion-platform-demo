@@ -13,7 +13,7 @@ loading, and a checked Figma-to-code manifest. Module-specific recomposition rem
 ## Entry criteria
 
 - [ ] Phase 0 DoD rerun passes from its accepted SHA.
-- [ ] External ledger proves clean-`beae208` Phase 0 acceptance and supplies merge SHA B.
+- [ ] External ledger proves clean-C and clean-M acceptance of the superseding Phase 0 hardening PR and supplies that final M as B; PR #2 is historical runtime-contract lineage only.
 - [ ] Characterization screenshots and top-job E2E pass before refactoring.
 - [ ] No unreviewed changes overlap `src/styles.css`, `MaxionPlatformPrototypePage.tsx`, or shared shell files.
 
@@ -24,6 +24,12 @@ Create `src/features/platform-prototype/contracts.ts`, `platformState.ts`,
 `src/features/platform-prototype/system/`. Views consume typed selectors/events; local adapters may
 persist only versioned, validated, tenant-keyed, bounded synthetic state. `src/styles.css` remains
 the semantic-token authority. The checked manifest lives at `docs/operations/figma-code-map.json`.
+
+`DemoStateRepository` implements those copy-on-write keys: it writes and validates a new immutable
+generation before a compare-before-swap head update, retains the last accepted compatible generation,
+and never modifies a future-schema generation during downgrade. A rollback validates then repoints the
+head; it never rewrites payloads in place. Because localStorage has no cross-process CAS, a changed head
+between read and swap is a deterministic conflict that retries from the new head instead of overwriting it.
 
 - **Scale:** reducer operations stay O(1) or O(log n) for lookup; lists are capped at 10,000 logical objects and no more than 200 mounted nodes. Initial bundle target is ≤250 kB gzip JS and ≤60 kB gzip CSS.
 - **Robustness:** invalid persisted data resets only the affected slice with an accessible recovery notice; module load failure stays inside `ModuleErrorBoundary`.
@@ -74,10 +80,26 @@ the semantic-token authority. The checked manifest lives at `docs/operations/fig
    the same task. Remove hook-rule suppressions by fixing effect ownership and callback stability, not by
    weakening checks. Delete the legacy CSS-normalization layer once all selectors have an explicit owner.
 
+### Cold-executor contracts
+
+| Task | Serves | Exact files/symbols | Prerequisite | Focused verification |
+| --- | --- | --- | --- | --- |
+| 1.1 | RC-04 and RC-05 via ADR-3 | `src/features/platform-prototype/__tests__/MaxionPlatformPrototypePage.spec.tsx#characterization`; `tests/e2e/maxion-platform-shell.spec.ts#continuity` | Final accepted Phase 0 M from the superseding hardening PR | `pnpm test -- MaxionPlatformPrototypePage.spec.tsx` |
+| 1.2 | RC-05 and RC-14 via ADR-3 | `src/features/platform-prototype/contracts.ts#PlatformDemoState`; `src/features/platform-prototype/contracts.spec.ts#exhaustiveness` | Task 1.1 characterization baseline | `pnpm test -- contracts.spec.ts` |
+| 1.3 | RC-04 and RC-05 via ADR-3 | `src/features/platform-prototype/platformState.ts#reducePlatformState`; `src/features/platform-prototype/PlatformDemoProvider.tsx#PlatformDemoProvider` | Task 1.2 typed contracts | `pnpm test -- platformState.spec.ts PlatformDemoProvider.spec.tsx` |
+| 1.4 | RC-05 and RC-14 via ADR-3 | `src/features/platform-prototype/persistence/DemoStateRepository.ts#DemoStateRepository`; `src/features/platform-prototype/persistence/DemoStateRepository.spec.ts#copy-on-write` | Task 1.3 reducer and selector ownership | `pnpm test -- DemoStateRepository.spec.ts` |
+| 1.5 | RC-03 and RC-04 via ADR-1 | `src/features/platform-prototype/system/StatusBadge.tsx#StatusBadge`; `scripts/ux_tokens_baseline.json#files` | Task 1.3 provider API and Task 1.4 repository | `python3 scripts/check_ux_tokens.py` |
+| 1.6 | RC-04 and RC-15 via ADR-4 | `src/App.tsx#routes`; `tests/e2e/maxion-platform-shell.spec.ts#lazy-bundles` | Task 1.5 shared primitives migrated | `pnpm check:bundle` |
+| 1.7 | RC-16 and RC-19 via ADR-7 | `docs/operations/figma-code-map.json#surfaces`; `scripts/check_ux_contract_coverage.py#check_contract` | Task 1.6 canonical lazy route graph | `python3 scripts/check_ux_contract_coverage.py` |
+| 1.8 | RC-04 and RC-19 via ADR-7 | `scripts/check_production_sources.py#check_sources`; `tests/e2e/maxion-platform-shell.spec.ts#route-owners` | Task 1.7 exact address and owner map | `pnpm check:source-quality` |
+
 ## Tests and passing bar
 
 Unit tests cover reducers, selectors, migrations, invalid/cross-tenant state, caps, and exhaustive event
 handling. Integration tests replay Discover→Plan→Execute→Agentix→Consult before and after extraction.
+`DemoStateRepository.spec.ts` proves upgrade/downgrade, unknown-future-schema preservation, crash before
+pointer swap, corrupt-pointer recovery, quota failure, competing-writer conflict, retained-generation
+rollback, and that none of those cases partially replaces the accepted head.
 Playwright asserts accepted copy and the roadmap's measured visual tolerances where the reference is unchanged,
 no serious axe violations, and no console/page errors. Build artifacts must meet initial-route
 ≤250 kB gzip JS and ≤60 kB gzip CSS. There is no phase-local waiver. Rebaseline requires a separately
@@ -87,7 +109,9 @@ reviewed and merged roadmap-amendment PR with measured module budgets before imp
 
 | Failure | Detection | Fallback |
 | --- | --- | --- |
-| Persisted version invalid | repository validation | reset affected slice; preserve other slices; explain recovery |
+| Persisted version invalid | repository validation | use the last compatible generation; preserve invalid/future data and other slices; explain recovery |
+| Generation write, quota, or pointer swap fails | copy-on-write repository tests | keep the prior head; remove only a proven-unreferenced partial generation |
+| Downgraded code sees a future schema | compatibility lookup | read the retained compatible generation; never overwrite or delete the future generation |
 | Lazy chunk fails | error boundary | inline retry and dashboard route; no blank screen |
 | Refactor changes accepted behavior | characterization/visual diff | revert current task commit, not the accepted Phase 0 SHA |
 | State grows past cap | repository invariant | retain newest bounded records and expose deterministic notice |
@@ -96,8 +120,9 @@ reviewed and merged roadmap-amendment PR with measured module budgets before imp
 
 Emit synthetic structured events for state rejection, migration, replay, module-load failure, and
 interaction timing without values or PII. The merge has exactly one UI, route, state, persistence,
-timer, and style owner. Rollback is a reviewed PR reverting Phase 1; no flag may retain the Phase 0
-UI. A provider-behavior flag is allowed only when both values use the same owners.
+timer, and style owner. Rollback is a reviewed PR reverting Phase 1 and atomically repointing each
+affected slice to its retained compatible generation; it never mutates payloads in place. No flag may
+retain the Phase 0 UI. A provider-behavior flag is allowed only when both values use the same owners.
 
 ## Files, outputs, commands, evidence, and PR closure
 
