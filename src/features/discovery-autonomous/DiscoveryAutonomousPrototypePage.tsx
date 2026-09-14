@@ -35,6 +35,8 @@ import {
 } from "@phosphor-icons/react"
 
 import { publicAsset } from "@/lib/publicAsset"
+import type { DiscoveryOpenSignal } from "@/features/platform-prototype/contracts"
+import { demoStateRepository, type StateCodec } from "@/features/platform-prototype/persistence/DemoStateRepository"
 
 import { DeliverableExhibit } from "./deliverables"
 import {
@@ -114,7 +116,7 @@ type DiscoveryRecord = {
 	updatedAt: string
 }
 
-const DISCOVERY_STORAGE_KEY = "maxion.prototype.discovery-records.v1"
+const DISCOVERY_STORAGE_SLICE = "discovery-records"
 const MAX_SAVED_DISCOVERIES = 50
 
 function discoveryStatus(record: DiscoveryRecord): DiscoveryStatus {
@@ -219,14 +221,10 @@ function createSeedDiscoveryRecords(): DiscoveryRecord[] {
 	]
 }
 
-function readDiscoveryRecords(): DiscoveryRecord[] {
-	if (typeof window === "undefined") return createSeedDiscoveryRecords()
+function parseDiscoveryRecords(value: unknown): DiscoveryRecord[] | null {
 	try {
-		const stored = window.localStorage.getItem(DISCOVERY_STORAGE_KEY)
-		if (!stored) return createSeedDiscoveryRecords()
-		const parsed: unknown = JSON.parse(stored)
-		if (!Array.isArray(parsed)) return createSeedDiscoveryRecords()
-		const records = parsed.filter((candidate): candidate is DiscoveryRecord => {
+		if (!Array.isArray(value) || value.length > MAX_SAVED_DISCOVERIES) return null
+		const records = value.filter((candidate): candidate is DiscoveryRecord => {
 			if (!candidate || typeof candidate !== "object") return false
 			const record = candidate as Partial<DiscoveryRecord>
 			return typeof record.id === "string"
@@ -248,10 +246,16 @@ function readDiscoveryRecords(): DiscoveryRecord[] {
 				&& typeof record.createdAt === "string" && Number.isFinite(new Date(record.createdAt).getTime())
 				&& typeof record.updatedAt === "string" && Number.isFinite(new Date(record.updatedAt).getTime())
 		})
-		return records.length ? records.slice(0, MAX_SAVED_DISCOVERIES) : createSeedDiscoveryRecords()
+		return records.length === value.length && records.length > 0 ? records : null
 	} catch {
-		return createSeedDiscoveryRecords()
+		return null
 	}
+}
+
+const discoveryRecordsCodec: StateCodec<DiscoveryRecord[]> = { parse: parseDiscoveryRecords }
+
+function readDiscoveryRecords(): DiscoveryRecord[] {
+	return demoStateRepository.load(DISCOVERY_STORAGE_SLICE, discoveryRecordsCodec, createSeedDiscoveryRecords).value
 }
 
 function interviewMessage(scenarioKey: ScenarioKey, index: number, prefix?: string): ChatMessage {
@@ -449,11 +453,11 @@ const DISCOVERY_STATUS_LABEL: Record<DiscoveryStatus, string> = {
 	completed: "Completed",
 }
 
-// Cross-module jump registry (shell ⌘K): saved discoveries live in localStorage, so the
-// shell reads them on demand rather than mirroring record state into a prop.
+// Cross-module jump registry (shell ⌘K): the shell reads validated repository state
+// on demand rather than mirroring the full Discovery record graph into a prop.
 export type DiscoveryJumpRecord = { id: string; title: string; status: DiscoveryStatus; statusLabel: string; keywords: string }
 export type DiscoveryJump = "resume" | "decision" | "package"
-export type DiscoveryOpenSignal = { tick: number; recordId: string; jump: DiscoveryJump }
+export type { DiscoveryOpenSignal } from "@/features/platform-prototype/contracts"
 
 export function listDiscoveryJumpRecords(): DiscoveryJumpRecord[] {
 	return readDiscoveryRecords().map((record) => {
@@ -611,11 +615,7 @@ export function DiscoveryAutonomousPrototypePage({ embedded = false, setupSignal
 	const complete = phase >= OPERATIONS.length - 1
 
 	useEffect(() => {
-		try {
-			window.localStorage.setItem(DISCOVERY_STORAGE_KEY, JSON.stringify(records))
-		} catch {
-			// The work remains available for this session when browser storage is unavailable.
-		}
+		if (!demoStateRepository.save(DISCOVERY_STORAGE_SLICE, records).ok) setToast("Browser storage is unavailable. Work remains available in this session, but changes won't survive refresh.")
 	}, [records])
 
 	useEffect(() => {

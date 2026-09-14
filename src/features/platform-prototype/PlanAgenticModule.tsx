@@ -24,6 +24,7 @@ import { useEffect, useRef, useState, type CSSProperties } from "react"
 
 import { MaxionSpiralMark } from "./PortalChrome"
 import { PlanLibraryModule } from "./PortalReplicaModules"
+import type { PlanJumpSignal } from "./contracts"
 import { type MaxionModuleId, type PortalProject } from "./model"
 import "./plan-behavior-flow.css"
 
@@ -791,7 +792,7 @@ const PLAN_ARTIFACT_PATTERN = new RegExp(`\\b(${[...PLAN_ARTIFACT_TARGETS.keys()
 // Cross-module jump registry (shell ⌘K). Every entry resolves through PLAN_ARTIFACT_TARGETS,
 // so "INT-02" from any module lands on the same contract the in-plan chips open.
 export type PlanJumpEntry = { id: string; label: string; hint: string; keywords: string; artifactId: string }
-export type PlanJumpSignal = { tick: number; artifactId: string }
+export type { PlanJumpSignal } from "./contracts"
 
 export const PLAN_JUMP_ENTRIES: readonly PlanJumpEntry[] = (() => {
 	const entries: PlanJumpEntry[] = []

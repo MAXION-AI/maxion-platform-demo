@@ -1,7 +1,7 @@
 import AxeBuilder from "@axe-core/playwright"
 import { expect, test, type Page } from "@playwright/test"
 
-const key = "maxion-agentix-operations-v3"
+const key = "maxion-demo:maxion-demo:agentix-operations:v1"
 async function enter(page: Page) {
   await page.emulateMedia({ reducedMotion: "reduce" })
   await page.clock.install({ time: new Date("2026-09-11T08:00:00Z") })
@@ -163,7 +163,7 @@ test("natural-language entry reuses an existing agent and preserves unsupported 
   await page.getByLabel("Describe the responsibility").fill("Resolve invoice exceptions")
   await page.getByRole("button", { name: "Prepare agent" }).click()
   await expect(page.getByRole("status")).toContainText("no duplicate agent")
-  expect(await page.evaluate(k => JSON.parse(localStorage.getItem(k)!).runs.filter((r: {agentId: string}) => r.agentId === "invoice").length, key)).toBe(7)
+  expect(await page.evaluate(k => JSON.parse(localStorage.getItem(k)!).value.runs.filter((r: {agentId: string}) => r.agentId === "invoice").length, key)).toBe(7)
 })
 
 for (const width of [320, 375, 768, 1280, 1440]) {
