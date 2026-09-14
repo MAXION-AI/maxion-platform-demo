@@ -3,10 +3,15 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 import { AgentixInitiativesPage } from "../AgentixInitiativesPage"
 import { DiscoveryHandoffWorkspace } from "../DiscoveryHandoffWorkspace"
 import { WORKFLOWS } from "../initiatives"
-import { admitOccurrence, deriveAgentixAttention, initialOperations, messageAgent, measures, nextSchedule, persistOperations, readAgentixAttention, readOperations, readiness, setMapping, tickOperations, updateAgent, updateRun, DEMO_TICK_MS, type OperationsState } from "../operationsState"
+import { admitOccurrence, deriveAgentixAttention, initialOperations, messageAgent, measures, nextSchedule, operationsCodec, persistOperations, readAgentixAttention, readOperations, readiness, setMapping, tickOperations, updateAgent, updateRun, DEMO_TICK_MS, MAX_RUN_RECORDS, type OperationsState } from "../operationsState"
 import { demoStateRepository } from "@/features/platform-prototype/persistence/DemoStateRepository"
 
-beforeEach(() => { localStorage.clear(); vi.useFakeTimers() })
+beforeEach(() => {
+  localStorage.clear()
+  vi.useFakeTimers()
+  Object.defineProperty(HTMLDialogElement.prototype, "showModal", { configurable: true, value() { this.open = true } })
+  Object.defineProperty(HTMLDialogElement.prototype, "close", { configurable: true, value() { this.open = false } })
+})
 afterEach(() => vi.useRealTimers())
 const advance = (state: OperationsState, count = 1) => { for (let i = 0; i < count; i++) state = tickOperations(state); return state }
 const run = (state: OperationsState, ref: string) => state.runs.find(r => r.reference === ref)!
@@ -105,10 +110,69 @@ describe("deployed operations state", () => {
   })
   it("bounds demo intake without deleting historical evidence", () => {
     let state = initialOperations()
-    for (let i = 0; i < 210; i++) state = admitOccurrence(state, "service", "event-" + i)
-    expect(state.runs).toHaveLength(200)
+    const existing = state.runs
+    const template = existing[0]
+    state = {
+      ...state,
+      runs: [
+        ...existing,
+        ...Array.from({ length: MAX_RUN_RECORDS - existing.length }, (_, index) => ({
+          ...template,
+          id: `capacity-${index}`,
+          reference: `CAP-${index}`,
+          occurrence: `capacity-${index}`,
+        })),
+      ],
+    }
+    expect(state.runs).toHaveLength(MAX_RUN_RECORDS)
     expect(run(state, "STOCK-901")).toBeDefined()
     expect(admitOccurrence(state, "service", "over-cap")).toBe(state)
+  })
+  it("enforces roles, idempotency and stale approval versions", () => {
+    const viewer = { ...initialOperations(), role: "viewer" as const }
+    expect(updateAgent(viewer, "invoice", "pause-intake")).toMatchObject({ role: "viewer", notice: expect.stringMatching(/read-only/i) })
+    expect(updateRun(viewer, "invoice:INV-20841", "decline")).toMatchObject({ role: "viewer", notice: expect.stringMatching(/read-only/i) })
+    expect(messageAgent(viewer, "invoice", "pause intake")).toMatchObject({ role: "viewer", notice: expect.stringMatching(/cannot steer/i) })
+    expect(viewer.agents.invoice.status).toBe("active")
+    expect(run(viewer, "INV-20841").phase).toBe("approval")
+
+    const command = { id: "approve-invoice-20841", expectedDeploymentVersion: 1 }
+    const approved = updateRun(initialOperations(), "invoice:INV-20841", "approve", undefined, command)
+    expect(updateRun(approved, "invoice:INV-20841", "approve", undefined, command)).toBe(approved)
+
+    const stale = initialOperations()
+    stale.agents.invoice.version = 2
+    const refused = updateRun(stale, "invoice:INV-20841", "decline", undefined, { id: "stale-decision", expectedDeploymentVersion: 1 })
+    expect(run(refused, "INV-20841").phase).toBe("approval")
+    expect(refused.notice).toMatch(/older deployment version/i)
+    const refreshed = updateRun(refused, "invoice:INV-20841", "refresh-approval", undefined, { id: "refresh-decision", expectedDeploymentVersion: 2 })
+    expect(run(refreshed, "INV-20841").approvalVersion).toBe(2)
+    expect(updateRun(refreshed, "invoice:INV-20841", "decline", undefined, { id: "current-decision", expectedDeploymentVersion: 2 }).runs.find(item => item.id === "invoice:INV-20841")?.phase).toBe("not_completed")
+  })
+  it("isolates persisted operations by project and applies the shell role on read", () => {
+    const owner = updateAgent(initialOperations("finance-owner", "owner"), "invoice", "pause-intake")
+    expect(persistOperations(owner)).toBe(true)
+    expect(readOperations("finance-owner", "viewer")).toMatchObject({ projectId: "finance-owner", role: "viewer" })
+    expect(readOperations("finance-owner", "viewer").agents.invoice.status).toBe("paused")
+    expect(readOperations("customer-viewer", "viewer")).toMatchObject({ projectId: "customer-viewer", role: "viewer" })
+    expect(readOperations("customer-viewer", "viewer").agents.invoice.status).toBe("active")
+  })
+  it("migrates a valid version-three operations record", () => {
+    const legacy = initialOperations() as unknown as Record<string, unknown>
+    legacy.version = 3
+    delete legacy.tenantId
+    delete legacy.projectId
+    delete legacy.role
+    delete legacy.processedCommands
+    delete legacy.notice
+    for (const agent of Object.values(legacy.agents as Record<string, Record<string, unknown>>)) {
+      delete agent.provenance
+      delete agent.environment
+      delete agent.evidenceClass
+      delete agent.authority
+    }
+    for (const operationRun of legacy.runs as Array<Record<string, unknown>>) delete operationRun.approvalVersion
+    expect(operationsCodec.parse(legacy)?.version).toBe(4)
   })
   it("derives measurements from all outcomes, failures and costs", () => {
     const result = measures(initialOperations().runs.filter(r => r.agentId === "inventory"))
@@ -182,16 +246,49 @@ describe("deployed operations state", () => {
 })
 
 describe("agent-first workspace", () => {
-  it("lands on agents without a chat composer or setup tour", () => {
+  it("lands on the Agentix operating portfolio with its five work views", () => {
     render(<AgentixInitiativesPage onOpenDiscovery={vi.fn()} />)
-    expect(screen.getByRole("heading", { name: "Deployed agents" })).toBeInTheDocument()
-    expect(screen.getByRole("region", { name: "Deployed agents" }).querySelectorAll("button")).toHaveLength(4)
+    expect(screen.getByRole("heading", { name: /decisions\. Everything else is moving\./ })).toBeInTheDocument()
+    expect(screen.getByRole("navigation", { name: "Agentix views" }).querySelectorAll("button")).toHaveLength(5)
+    expect(screen.getByRole("textbox", { name: "Steer Agentix" })).toBeInTheDocument()
     expect(screen.queryByRole("textbox", { name: "Message this agent" })).not.toBeInTheDocument()
     expect(screen.queryByText(/sample run/i)).not.toBeInTheDocument()
   })
+  it("keeps work, approvals, activity and connection recovery actionable", () => {
+    render(<AgentixInitiativesPage onOpenDiscovery={vi.fn()} />)
+    fireEvent.click(screen.getByRole("button", { name: "Work" }))
+    expect(screen.getByRole("heading", { name: "Work" })).toBeInTheDocument()
+    expect(screen.getByRole("button", { name: /INV-20841/ })).toBeInTheDocument()
+    fireEvent.click(screen.getByRole("button", { name: /Approvals/ }))
+    expect(screen.getByRole("heading", { name: "Approvals" })).toBeInTheDocument()
+    expect(screen.getAllByRole("button", { name: "Review" })).toHaveLength(2)
+    fireEvent.click(screen.getByRole("button", { name: "Activity" }))
+    expect(screen.getByRole("heading", { name: "Activity" })).toBeInTheDocument()
+    fireEvent.click(screen.getByRole("button", { name: "Connections" }))
+    expect(screen.getByRole("heading", { name: "Connections" })).toBeInTheDocument()
+    expect(screen.getAllByRole("button", { name: "Test connection" })).toHaveLength(3)
+    fireEvent.click(screen.getByRole("button", { name: "Resolve setup" }))
+    expect(screen.getByRole("region", { name: "Deployment readiness" })).toBeInTheDocument()
+  })
+  it("renders viewer projects as read-only", () => {
+    render(<AgentixInitiativesPage project={{ id: "customer-viewer", role: "viewer" }} onOpenDiscovery={vi.fn()} />)
+    expect(screen.getByRole("button", { name: "New agent" })).toBeDisabled()
+    expect(screen.getByRole("textbox", { name: "Steer Agentix" })).toBeInTheDocument()
+    expect(screen.getByRole("button", { name: "Send" })).toBeDisabled()
+  })
+  it("recovers a stale approval inside its decision drawer", () => {
+    const stale = initialOperations()
+    stale.agents.invoice.version = 2
+    persistOperations(stale)
+    render(<AgentixInitiativesPage onOpenDiscovery={vi.fn()} />)
+    fireEvent.click(screen.getAllByRole("button", { name: "Review" })[0])
+    expect(screen.getByRole("region", { name: "Stale approval request" })).toBeInTheDocument()
+    fireEvent.click(screen.getByRole("button", { name: "Refresh approval request" }))
+    expect(screen.getByRole("region", { name: "Approval request" })).toBeInTheDocument()
+  })
   it("shows concurrent cases and progresses without an open conversation", () => {
     render(<AgentixInitiativesPage onOpenDiscovery={vi.fn()} />)
-    fireEvent.click(screen.getByRole("button", { name: /Invoice operations agent Resolve/ }))
+    fireEvent.click(screen.getByRole("button", { name: /Invoice operations agent An evidence-backed/ }))
     expect(screen.getByRole("region", { name: "Current work" }).querySelectorAll("button")).toHaveLength(5)
     tick(10)
     expect(readOperations().runs.find(r => r.reference === "INV-20842")?.phase).toBe("verified")
