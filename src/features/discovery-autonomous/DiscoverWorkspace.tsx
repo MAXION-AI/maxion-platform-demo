@@ -14,7 +14,7 @@ import {
 	Sparkle,
 	WarningCircle,
 } from "@phosphor-icons/react"
-import { type FormEvent, type ReactNode, useEffect, useMemo, useReducer, useRef, useState } from "react"
+import { type FormEvent, type ReactNode, useCallback, useEffect, useMemo, useReducer, useRef, useState } from "react"
 
 import type { DiscoveryOpenSignal, DiscoveryPackageRef } from "@/features/platform-prototype/contracts"
 
@@ -27,6 +27,7 @@ import {
 	selectMountedTranscript,
 	selectOpenDiscoveryGaps,
 	selectPackageReady,
+	type DiscoveryPermission,
 	type DiscoverySession,
 } from "./discoveryState"
 import { SCENARIOS } from "./model"
@@ -41,8 +42,8 @@ export type DiscoveryJumpRecord = {
 	keywords: string
 }
 
-export function listDiscoveryJumpRecords(): DiscoveryJumpRecord[] {
-	return discoveryStateRepository.load().value.sessions.map((session) => {
+export function listDiscoveryJumpRecords(projectId?: string): DiscoveryJumpRecord[] {
+	return discoveryStateRepository.load().value.sessions.filter((session) => !projectId || session.projectId === projectId).map((session) => {
 		const needsInput = ["awaiting-answer", "insufficient-evidence", "offline", "recoverable-error"].includes(session.status)
 		return {
 			id: session.id,
@@ -96,17 +97,24 @@ export function DiscoverWorkspace({ embedded = false, setupSignal = 0, openSigna
 	const handledSetup = useRef(setupSignal)
 	const handledOpen = useRef(0)
 	const retryTimer = useRef<number | null>(null)
+	const projectContext = useMemo<{ id: string; name: string; permission: DiscoveryPermission }>(() => ({
+		id: project?.id ?? "erp-modernization",
+		name: project?.name ?? "ERP modernization",
+		permission: project?.role === "Viewer" ? "viewer" : project?.role === "Member" ? "member" : "owner",
+	}), [project?.id, project?.name, project?.role])
 	const session = selectActiveDiscoverySession(state)
+	const isViewer = projectContext.permission === "viewer"
 
 	useEffect(() => () => { if (retryTimer.current !== null) window.clearTimeout(retryTimer.current) }, [])
-	const openSetup = () => {
+	const openSetup = useCallback(() => {
+		if (isViewer) return
 		setSetupOpen(true)
 		window.setTimeout(() => briefRef.current?.focus(), 0)
-	}
-	const closeSetup = () => {
+	}, [isViewer])
+	const closeSetup = useCallback(() => {
 		setSetupOpen(false)
 		window.setTimeout(() => newButtonRef.current?.focus(), 0)
-	}
+	}, [])
 	useEffect(() => {
 		if (!setupOpen) return
 		const onKeyDown = (event: KeyboardEvent) => {
@@ -116,30 +124,29 @@ export function DiscoverWorkspace({ embedded = false, setupSignal = 0, openSigna
 		}
 		window.addEventListener("keydown", onKeyDown)
 		return () => window.removeEventListener("keydown", onKeyDown)
-	}, [setupOpen])
+	}, [closeSetup, setupOpen])
 	useEffect(() => {
 		if (setupSignal === handledSetup.current) return
 		handledSetup.current = setupSignal
+		if (isViewer) return
 		openSetup()
-	}, [setupSignal])
+	}, [isViewer, openSetup, setupSignal])
+	useEffect(() => {
+		dispatch({ type: "project/selected", projectId: projectContext.id, permission: projectContext.permission })
+	}, [dispatch, projectContext])
 	useEffect(() => {
 		if (!openSignal || handledOpen.current === openSignal.tick) return
 		handledOpen.current = openSignal.tick
-		dispatch({ type: "session/opened", sessionId: openSignal.recordId })
+		dispatch({ type: "session/opened", sessionId: openSignal.recordId, projectId: projectContext.id })
 		setSetupOpen(false)
 		if (openSignal.jump === "decision") setRailView("gaps")
 		if (openSignal.jump === "package") setRailView("facts")
-	}, [dispatch, openSignal])
-	useEffect(() => {
-		if (!session || !project) return
-		const permission = project.role === "Viewer" ? "viewer" : project.role === "Member" ? "member" : "owner"
-		if (permission !== session.permission) dispatch({ type: "permission/changed", permission })
-	}, [dispatch, project, session])
+	}, [dispatch, openSignal, projectContext.id])
 
 	const startDiscovery = (event: FormEvent) => {
 		event.preventDefault()
-		if (!brief.trim()) return
-		dispatch({ type: "session/started", brief, projectId: project?.id ?? "erp-modernization", projectName: project?.name ?? "ERP modernization" })
+		if (!brief.trim() || isViewer) return
+		dispatch({ type: "session/started", brief, projectId: projectContext.id, projectName: projectContext.name, permission: projectContext.permission })
 		setBrief("")
 		setSetupOpen(false)
 	}
@@ -158,7 +165,7 @@ export function DiscoverWorkspace({ embedded = false, setupSignal = 0, openSigna
 		retryTimer.current = window.setTimeout(() => dispatch({ type: "provider/recovered" }), 180)
 	}
 
-	if (!session) return <><section className="dws-empty"><Compass size={28} /><h1>No Discovery yet</h1><p>Start with the decision you need to make. MAX will shape the interview and evidence plan.</p><button ref={newButtonRef} type="button" onClick={openSetup}>Start a Discovery</button></section>{setupOpen ? <SetupDialog brief={brief} setBrief={setBrief} briefRef={briefRef} onClose={closeSetup} onSubmit={startDiscovery} /> : null}</>
+	if (!session) return <><section className="dws-empty"><Compass size={28} /><h1>No Discovery yet</h1><p>{isViewer ? "Viewers can inspect existing Discovery sessions but cannot start one." : "Start with the decision you need to make. MAX will shape the interview and evidence plan."}</p><button ref={newButtonRef} type="button" onClick={openSetup} disabled={isViewer}>Start a Discovery</button></section>{setupOpen ? <SetupDialog brief={brief} setBrief={setBrief} briefRef={briefRef} onClose={closeSetup} onSubmit={startDiscovery} disabled={isViewer} /> : null}</>
 
 	return (
 		<section className={`dws-root${embedded ? " is-embedded" : ""}`} aria-label="Discover interview workspace">
@@ -167,7 +174,7 @@ export function DiscoverWorkspace({ embedded = false, setupSignal = 0, openSigna
 				<div className="dws-header-actions">
 					<span className={`dws-status is-${session.status}`} role="status"><i />{STATUS_COPY[session.status].label}</span>
 					{session.status === "paused" ? <button type="button" onClick={() => dispatch({ type: "session/resumed" })}><Play size={15} />Resume</button> : session.status !== "complete" && session.status !== "read-only" ? <button type="button" onClick={() => dispatch({ type: "session/paused" })}><Pause size={15} />Pause</button> : null}
-					<button ref={newButtonRef} type="button" className="dws-new" onClick={openSetup}>New Discovery</button>
+					<button ref={newButtonRef} type="button" className="dws-new" onClick={openSetup} disabled={isViewer}>New Discovery</button>
 				</div>
 			</header>
 
@@ -179,13 +186,13 @@ export function DiscoverWorkspace({ embedded = false, setupSignal = 0, openSigna
 				<EvidenceRail session={session} view={railView} onViewChange={setRailView} dispatch={dispatch} />
 			</div>
 
-			{setupOpen ? <SetupDialog brief={brief} setBrief={setBrief} briefRef={briefRef} onClose={closeSetup} onSubmit={startDiscovery} /> : null}
+			{setupOpen ? <SetupDialog brief={brief} setBrief={setBrief} briefRef={briefRef} onClose={closeSetup} onSubmit={startDiscovery} disabled={isViewer} /> : null}
 		</section>
 	)
 }
 
-function SetupDialog({ brief, setBrief, briefRef, onClose, onSubmit }: { brief: string; setBrief: (value: string) => void; briefRef: React.RefObject<HTMLTextAreaElement>; onClose: () => void; onSubmit: (event: FormEvent) => void }) {
-	return <div className="dws-setup-layer" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) onClose() }}><form className="dws-setup" role="dialog" aria-modal="true" aria-labelledby="dws-setup-title" onSubmit={onSubmit}><small>New Discovery</small><h2 id="dws-setup-title">What decision should MAX support?</h2><p>Describe the outcome. MAX will create a bounded interview and evidence plan.</p><label htmlFor="dws-brief">Discovery brief</label><textarea ref={briefRef} id="dws-brief" value={brief} maxLength={DISCOVERY_INPUT_LIMIT} onChange={(event) => setBrief(event.target.value)} placeholder="For example, define the safest approval path for strategic vendor onboarding…" rows={5} /><div><span>{brief.length.toLocaleString("en-US")} / {DISCOVERY_INPUT_LIMIT.toLocaleString("en-US")}</span><button type="button" onClick={onClose}>Cancel</button><button type="submit" disabled={!brief.trim()}>Start Discovery</button></div></form></div>
+function SetupDialog({ brief, setBrief, briefRef, onClose, onSubmit, disabled }: { brief: string; setBrief: (value: string) => void; briefRef: React.RefObject<HTMLTextAreaElement>; onClose: () => void; onSubmit: (event: FormEvent) => void; disabled: boolean }) {
+	return <div className="dws-setup-layer" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) onClose() }}><form className="dws-setup" role="dialog" aria-modal="true" aria-labelledby="dws-setup-title" onSubmit={onSubmit}><small>New Discovery</small><h2 id="dws-setup-title">What decision should MAX support?</h2><p>{disabled ? "Viewer access can inspect but cannot create Discovery sessions." : "Describe the outcome. MAX will create a bounded interview and evidence plan."}</p><label htmlFor="dws-brief">Discovery brief</label><textarea ref={briefRef} id="dws-brief" value={brief} maxLength={DISCOVERY_INPUT_LIMIT} disabled={disabled} onChange={(event) => setBrief(event.target.value)} placeholder="For example, define the safest approval path for strategic vendor onboarding…" rows={5} /><div><span>{brief.length.toLocaleString("en-US")} / {DISCOVERY_INPUT_LIMIT.toLocaleString("en-US")}</span><button type="button" onClick={onClose}>Cancel</button><button type="submit" disabled={disabled || !brief.trim()}>Start Discovery</button></div></form></div>
 }
 
 function InterviewPlan({ session, operationalPackages }: { session: DiscoverySession; operationalPackages?: ReactNode }) {
@@ -197,7 +204,7 @@ function InterviewWorkspace({ session, dispatch, onRetry, onCreatePackage }: { s
 	const transcript = selectMountedTranscript(session)
 	const scenario = SCENARIOS[session.scenarioKey]
 	const composerRef = useRef<HTMLTextAreaElement>(null)
-	const canCompose = !["paused", "offline", "recoverable-error", "complete", "read-only"].includes(session.status)
+	const canCompose = !["paused", "recoverable-error", "complete", "read-only"].includes(session.status) && (session.provider.status === "online" || session.provider.manualContinuation)
 	const submit = () => {
 		if (!session.draft.trim()) return
 		dispatch({ type: "interview/answered", answer: session.draft })
@@ -208,8 +215,8 @@ function InterviewWorkspace({ session, dispatch, onRetry, onCreatePackage }: { s
 
 function StateRecovery({ session, dispatch, onRetry, onCreatePackage }: { session: DiscoverySession; dispatch: React.Dispatch<Parameters<typeof discoveryReducer>[1]>; onRetry: () => void; onCreatePackage: () => void }) {
 	if (session.status === "paused") return <section className="dws-state-card"><Pause size={18} /><div><strong>Interview paused</strong><p>Your draft and evidence are preserved.</p></div><button type="button" onClick={() => dispatch({ type: "session/resumed" })}>Resume interview</button></section>
-	if (session.status === "offline") return <section className="dws-state-card is-warning"><CloudSlash size={18} /><div><strong>Provider connection lost</strong><p>{session.provider.lastError} Your draft is still here.</p></div><button type="button" onClick={() => dispatch({ type: "provider/manual-continuation" })}>Continue manually</button><button type="button" className="is-primary" onClick={onRetry}>Retry connection</button></section>
 	if (session.provider.status === "retrying") return <section className="dws-state-card"><CloudSlash size={18} /><div><strong>Reconnecting</strong><p>Attempt {session.provider.attempt}. Your work remains editable after recovery.</p></div></section>
+	if (session.status === "offline") return <section className="dws-state-card is-warning"><CloudSlash size={18} /><div><strong>{session.provider.manualContinuation ? "Manual continuation" : "Provider connection lost"}</strong><p>{session.provider.lastError} {session.provider.manualContinuation ? "Manual notes stay provisional until provider recovery." : "Your draft is still here."}</p></div>{!session.provider.manualContinuation ? <button type="button" onClick={() => dispatch({ type: "provider/manual-continuation" })}>Continue manually</button> : null}<button type="button" className="is-primary" onClick={onRetry}>Retry connection</button></section>
 	if (session.status === "recoverable-error") return <section className="dws-state-card is-warning"><WarningCircle size={18} /><div><strong>That change needs recovery</strong><p>{session.provider.lastError}</p></div><button type="button" className="is-primary" onClick={() => dispatch({ type: "session/recovered" })}>Restore safe state</button></section>
 	if (session.status === "read-only") return <section className="dws-state-card"><ShieldCheck size={18} /><div><strong>Read-only Discovery</strong><p>Ask a project owner for Member access to answer, resolve gaps, or create a package.</p></div></section>
 	if (session.status === "complete" && session.packageRef) return <section className="dws-complete"><CheckCircle size={23} weight="fill" /><div><small>Discovery package v{session.packageRef.version}</small><strong>Evidence is ready for Plan</strong><p>{session.packageRef.provenance.length} source references · {session.packageRef.unresolvedGapIds.length} unresolved material gaps · authority: {session.packageRef.authority.boundedTo}</p></div></section>

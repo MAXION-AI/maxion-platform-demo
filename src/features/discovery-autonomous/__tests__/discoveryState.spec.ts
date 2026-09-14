@@ -53,18 +53,90 @@ describe("Discovery domain", () => {
 		expect(active(state).packageRef?.evidenceClasses).toContain("connected-source")
 	})
 
-	it("deduplicates persisted identities, orders entries, and quarantines only invalid sessions", () => {
+	it("quarantines invalid nested rows by field without discarding their session", () => {
 		const valid = active(createInitialDiscoverySlice())
 		const duplicateEntry = { ...valid.transcript[0] }
 		const parsed = discoveryStateCodec.parse({ version: 2, activeSessionId: valid.id, sessions: [
-			{ ...valid, transcript: [{ ...valid.transcript[0], sequence: 2 }, { ...valid.transcript[0], id: `${valid.id}:earlier`, sequence: 1 }, duplicateEntry] },
-			{ ...valid, id: "bad-session", transcript: [{ ...valid.transcript[0], text: "x".repeat(2_001) }] },
+			{
+				...valid,
+				interviewTurns: [...valid.interviewTurns, { nope: true }],
+				transcript: [{ ...valid.transcript[0], sequence: 2 }, { ...valid.transcript[0], id: `${valid.id}:earlier`, sequence: 1 }, duplicateEntry, { ...valid.transcript[0], id: "oversized", text: "x".repeat(2_001) }],
+				evidence: [...valid.evidence, { nope: true }],
+				facts: [{ id: "fact-valid", statement: "Bound fact", evidenceIds: [], confidence: "supported" }, { nope: true }],
+				decisions: [...valid.decisions, { nope: true }],
+				gaps: [...valid.gaps, { nope: true }],
+				audit: [...valid.audit, { nope: true }],
+			},
 		] })
 
 		expect(parsed).not.toBeNull()
 		expect(parsed?.sessions).toHaveLength(1)
 		expect(parsed?.sessions[0].transcript.map((entry) => entry.sequence)).toEqual([1, 2])
-		expect(parsed?.quarantine).toEqual([{ index: 1, reason: "Record failed schema, bounds, or provenance validation." }])
+		expect(parsed?.sessions[0].facts).toEqual([{ id: "fact-valid", statement: "Bound fact", evidenceIds: [], confidence: "supported" }])
+		expect(parsed?.quarantine.map(({ field, index }) => ({ field, index }))).toEqual(expect.arrayContaining([
+			{ field: "interviewTurns", index: 1 },
+			{ field: "transcript", index: 2 },
+			{ field: "transcript", index: 3 },
+			{ field: "evidence", index: valid.evidence.length },
+			{ field: "facts", index: 1 },
+			{ field: "decisions", index: valid.decisions.length },
+			{ field: "gaps", index: valid.gaps.length },
+			{ field: "audit", index: valid.audit.length },
+		]))
+	})
+
+	it("reloads a completed package and makes malformed nested state selector-safe", () => {
+		let state = createInitialDiscoverySlice()
+		state = discoveryReducer(state, { type: "interview/answered", answer: "The project owner approves planning inputs only." })
+		state = discoveryReducer(state, { type: "gap/resolved", gapId: active(state).gaps[0].id })
+		state = discoveryReducer(state, { type: "package/created", now: "2026-09-14T13:02:00.000Z" })
+		const completed = active(state)
+		const parsed = discoveryStateCodec.parse(JSON.parse(JSON.stringify(state)))
+
+		expect(parsed).not.toBeNull()
+		expect(active(parsed!)).toMatchObject({ status: "complete", packageRef: completed.packageRef })
+
+		const malformed = discoveryStateCodec.parse({ ...state, sessions: [{ ...completed, interviewTurns: "bad", facts: [null], decisions: {}, gaps: [{ nope: true }], audit: "bad" }] })
+		expect(malformed).not.toBeNull()
+		expect(() => selectOpenDiscoveryGaps(active(malformed!))).not.toThrow()
+		expect(selectMountedTranscript(active(malformed!)).items.length).toBeGreaterThan(0)
+		expect(active(malformed!).packageRef).toEqual(completed.packageRef)
+	})
+
+	it("keeps manual offline notes provisional until provider recovery", () => {
+		let state = createInitialDiscoverySlice()
+		state = discoveryReducer(state, { type: "provider/offline", message: "Timed out" })
+		state = discoveryReducer(state, { type: "provider/manual-continuation" })
+		const before = active(state).transcript.length
+		state = discoveryReducer(state, { type: "interview/answered", answer: "Manual note while offline." })
+
+		expect(active(state)).toMatchObject({ status: "offline", provider: { status: "offline", manualContinuation: true } })
+		expect(active(state).transcript).toHaveLength(before + 1)
+		expect(active(state).transcript.at(-1)).toMatchObject({ actor: "operator", text: "Manual note while offline." })
+		expect(active(state).transcript.filter((entry) => entry.actor === "max")).toHaveLength(1)
+		state = discoveryReducer(state, { type: "provider/retry-started" })
+		state = discoveryReducer(state, { type: "provider/recovered" })
+		expect(active(state)).toMatchObject({ status: "active", provider: { status: "online", manualContinuation: false } })
+	})
+
+	it("enforces project-scoped open and viewer authorization in the reducer", () => {
+		let state = createInitialDiscoverySlice()
+		const erpSessionId = active(state).id
+		state = discoveryReducer(state, { type: "project/selected", projectId: "viewer-project", permission: "owner" })
+		state = discoveryReducer(state, { type: "session/started", brief: "Assess renewal risk", projectId: "viewer-project", projectName: "Viewer project", permission: "owner", now: "2026-09-14T14:00:00.000Z" })
+		const viewerProjectSessionId = active(state).id
+
+		state = discoveryReducer(state, { type: "project/selected", projectId: "erp-modernization", permission: "owner" })
+		state = discoveryReducer(state, { type: "session/opened", sessionId: viewerProjectSessionId, projectId: "erp-modernization" })
+		expect(active(state).id).toBe(erpSessionId)
+
+		state = discoveryReducer(state, { type: "project/selected", projectId: "viewer-project", permission: "viewer" })
+		expect(active(state)).toMatchObject({ id: viewerProjectSessionId, permission: "viewer", status: "read-only" })
+		const sessionCount = state.sessions.length
+		state = discoveryReducer(state, { type: "session/started", brief: "Forbidden", projectId: "viewer-project", projectName: "Viewer project", permission: "viewer" })
+		state = discoveryReducer(state, { type: "draft/changed", value: "Forbidden edit" })
+		expect(state.sessions).toHaveLength(sessionCount)
+		expect(active(state)).toMatchObject({ permission: "viewer", draft: "" })
 	})
 
 	it("keeps a 10,000-entry transcript to 200 mounted rows with p95 selection below 100ms", () => {

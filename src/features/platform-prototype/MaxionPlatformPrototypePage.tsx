@@ -65,6 +65,7 @@ import {
 	selectPlanHandoff,
 	selectPlatformIntents,
 	selectProjects,
+	selectSelectedProject,
 	selectSidebarCollapsed,
 	selectVisitedModules,
 } from "./platformState"
@@ -691,6 +692,7 @@ function MaxionPlatformPrototype() {
 	const sidebarCollapsed = usePlatformSelector(selectSidebarCollapsed)
 	const visitedModules = usePlatformSelector(selectVisitedModules)
 	const projects = usePlatformSelector(selectProjects)
+	const selectedProject = usePlatformSelector(selectSelectedProject)
 	const discoveryReady = usePlatformSelector(selectDiscoveryReady)
 	const discoveryPackage = usePlatformSelector(selectDiscoveryPackage)
 	const planHandoff = usePlatformSelector(selectPlanHandoff)
@@ -729,10 +731,10 @@ function MaxionPlatformPrototype() {
 		setMobileNavOpen(false)
 		setCommandOpen(true)
 		void import("@/features/discovery-autonomous/DiscoverWorkspace").then(
-			({ listDiscoveryJumpRecords }) => setDiscoveryJumpRecords(listDiscoveryJumpRecords()),
+			({ listDiscoveryJumpRecords }) => setDiscoveryJumpRecords(listDiscoveryJumpRecords(selectedProject?.id)),
 			() => setDiscoveryJumpRecords([]),
 		)
-	}, [])
+	}, [selectedProject?.id])
 	const restoreCommandFocus = useCallback(() => {
 		window.requestAnimationFrame(() => {
 			if (commandOpenRef.current || !restoreCommandFocusRef.current) return

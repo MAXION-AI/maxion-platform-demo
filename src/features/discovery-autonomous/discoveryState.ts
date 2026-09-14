@@ -26,7 +26,10 @@ export type DiscoveryProviderState = {
 	status: "online" | "offline" | "retrying"
 	attempt: number
 	lastError: string | null
+	manualContinuation: boolean
 }
+
+export type DiscoveryPermission = "owner" | "member" | "viewer"
 
 export type InterviewTurn = {
 	id: string
@@ -94,7 +97,7 @@ export type DiscoverySession = {
 	title: string
 	scenarioKey: ScenarioKey
 	status: DiscoveryStatus
-	permission: "owner" | "member" | "viewer"
+	permission: DiscoveryPermission
 	questionIndex: number
 	draft: string
 	interviewTurns: InterviewTurn[]
@@ -111,6 +114,8 @@ export type DiscoverySession = {
 }
 
 export type QuarantinedDiscoveryRecord = {
+	sessionIndex: number
+	field: "session" | "interviewTurns" | "transcript" | "evidence" | "facts" | "decisions" | "gaps" | "audit" | "packageRef" | "packageRef.provenance" | "packageRef.unresolvedGapIds" | "packageRef.evidenceClasses"
 	index: number
 	reason: string
 }
@@ -119,12 +124,15 @@ export type DiscoverySlice = {
 	version: 2
 	sessions: DiscoverySession[]
 	activeSessionId: string | null
+	activeProjectId: string
+	activePermission: DiscoveryPermission
 	quarantine: QuarantinedDiscoveryRecord[]
 }
 
 export type DiscoveryEvent =
-	| { type: "session/started"; brief: string; projectId: string; projectName: string; now?: string }
-	| { type: "session/opened"; sessionId: string }
+	| { type: "project/selected"; projectId: string; permission: DiscoveryPermission }
+	| { type: "session/started"; brief: string; projectId: string; projectName: string; permission: DiscoveryPermission; now?: string }
+	| { type: "session/opened"; sessionId: string; projectId: string }
 	| { type: "draft/changed"; value: string }
 	| { type: "interview/answered"; answer: string; now?: string }
 	| { type: "gap/resolved"; gapId: string; now?: string }
@@ -137,7 +145,6 @@ export type DiscoveryEvent =
 	| { type: "session/failed"; message?: string }
 	| { type: "session/recovered" }
 	| { type: "package/created"; now?: string }
-	| { type: "permission/changed"; permission: DiscoverySession["permission"] }
 
 const safeText = (value: unknown, limit: number) => typeof value === "string" && value.length <= limit ? value : null
 const safeId = (value: unknown) => {
@@ -169,7 +176,7 @@ function initialEvidence(scenarioKey: ScenarioKey): EvidenceRef[] {
 	}))
 }
 
-function createDiscoverySession(brief: string, projectId: string, projectName: string, now?: string): DiscoverySession {
+function createDiscoverySession(brief: string, projectId: string, projectName: string, permission: DiscoveryPermission, now?: string): DiscoverySession {
 	const cleanBrief = brief.trim().slice(0, DISCOVERY_INPUT_LIMIT)
 	const scenarioKey = scenarioForBrief(cleanBrief)
 	const scenario = SCENARIOS[scenarioKey]
@@ -184,7 +191,7 @@ function createDiscoverySession(brief: string, projectId: string, projectName: s
 		title: cleanBrief || scenario.title,
 		scenarioKey,
 		status: "awaiting-answer",
-		permission: "owner",
+		permission,
 		questionIndex: 0,
 		draft: "",
 		interviewTurns: [{ id: `${id}:turn:1`, questionId: `${scenarioKey}:q:1`, answer: null, sequence: 0 }],
@@ -197,7 +204,7 @@ function createDiscoverySession(brief: string, projectId: string, projectName: s
 		gaps: [{
 			id: `${id}:gap:authority`, label: "Authority boundary", detail: scenario.exception.evidenceGap, status: "open", material: true, evidenceIds: [],
 		}],
-		provider: { status: "online", attempt: 0, lastError: null },
+		provider: { status: "online", attempt: 0, lastError: null, manualContinuation: false },
 		packageRef: null,
 		audit: [{ id: `${id}:event:1`, type: "session.started", objectRef: id, evidenceClass: "synthetic-demo", correlationId: correlationId(id, "session.started", 1) }],
 		createdAt: timestamp,
@@ -210,12 +217,13 @@ export function createInitialDiscoverySlice(): DiscoverySlice {
 		"Redesign third-party onboarding controls so every recommendation is bound to a source and an accountable owner.",
 		"erp-modernization",
 		"ERP modernization",
+		"owner",
 		"2026-09-14T12:00:00.000Z",
 	)
-	return { version: 2, sessions: [session], activeSessionId: session.id, quarantine: [] }
+	return { version: 2, sessions: [session], activeSessionId: session.id, activeProjectId: session.projectId, activePermission: "owner", quarantine: [] }
 }
 
-export const selectActiveDiscoverySession = (state: DiscoverySlice) => state.sessions.find((session) => session.id === state.activeSessionId) ?? null
+export const selectActiveDiscoverySession = (state: DiscoverySlice) => state.sessions.find((session) => session.id === state.activeSessionId && session.projectId === state.activeProjectId) ?? null
 export const selectOpenDiscoveryGaps = (session: DiscoverySession) => session.gaps.filter((gap) => gap.status === "open")
 export const selectPackageReady = (session: DiscoverySession) =>
 	session.permission !== "viewer" &&
@@ -240,8 +248,10 @@ function updateActive(state: DiscoverySlice, updater: (session: DiscoverySession
 	if (!state.activeSessionId) return state
 	let changed = false
 	const sessions = state.sessions.map((session) => {
-		if (session.id !== state.activeSessionId) return session
-		const next = updater(session)
+		if (session.id !== state.activeSessionId || session.projectId !== state.activeProjectId) return session
+		const scoped = session.permission === state.activePermission ? session : { ...session, permission: state.activePermission, status: state.activePermission === "viewer" ? "read-only" as const : session.status === "read-only" ? "active" as const : session.status }
+		if (state.activePermission === "viewer") return scoped
+		const next = updater(scoped)
 		changed = next !== session
 		return next
 	})
@@ -271,18 +281,41 @@ function createPackage(session: DiscoverySession, now?: string): DiscoveryPackag
 
 export function discoveryReducer(state: DiscoverySlice, event: DiscoveryEvent): DiscoverySlice {
 	switch (event.type) {
+		case "project/selected": {
+			const sessions = state.sessions.map((session) => session.projectId !== event.projectId ? session : {
+				...session,
+				permission: event.permission,
+				status: event.permission === "viewer" ? "read-only" as const : session.status === "read-only" ? "active" as const : session.status,
+			})
+			const current = sessions.find((session) => session.id === state.activeSessionId && session.projectId === event.projectId)
+			const activeSessionId = current?.id ?? sessions.find((session) => session.projectId === event.projectId)?.id ?? null
+			return { ...state, sessions, activeProjectId: event.projectId, activePermission: event.permission, activeSessionId }
+		}
 		case "session/started": {
-			const session = createDiscoverySession(event.brief, event.projectId, event.projectName, event.now)
+			if (event.projectId !== state.activeProjectId || event.permission !== state.activePermission || event.permission === "viewer") return state
+			const session = createDiscoverySession(event.brief, event.projectId, event.projectName, event.permission, event.now)
 			return { ...state, sessions: bounded([session, ...state.sessions.filter((item) => item.id !== session.id)], 100), activeSessionId: session.id }
 		}
-		case "session/opened": return state.sessions.some((session) => session.id === event.sessionId) ? { ...state, activeSessionId: event.sessionId } : state
+		case "session/opened": return event.projectId === state.activeProjectId && state.sessions.some((session) => session.id === event.sessionId && session.projectId === event.projectId) ? { ...state, activeSessionId: event.sessionId } : state
 		case "draft/changed": return updateActive(state, (session) => ({ ...session, draft: event.value.slice(0, DISCOVERY_INPUT_LIMIT) }))
 		case "interview/answered": return updateActive(state, (session) => {
-			if (["paused", "offline", "recoverable-error", "complete", "read-only"].includes(session.status)) return session
+			if (["paused", "recoverable-error", "complete", "read-only"].includes(session.status)) return session
 			const answer = event.answer.trim().slice(0, DISCOVERY_INPUT_LIMIT)
 			if (!answer) return session
 			const timestamp = nowIso(event.now)
 			const nextSequence = session.transcript.reduce((highest, item) => Math.max(highest, item.sequence), -1) + 1
+			if (session.provider.status !== "online") {
+				if (!session.provider.manualContinuation) return session
+				return {
+					...session,
+					status: "offline",
+					draft: "",
+					transcript: bounded(uniqueById([...session.transcript, { id: `${session.id}:message:${nextSequence + 1}`, actor: "operator" as const, text: answer, sequence: nextSequence, createdAt: timestamp, evidenceIds: [] }]), MAX_TRANSCRIPT_ENTRIES),
+					facts: bounded(uniqueById([...session.facts, { id: `${session.id}:manual:${nextSequence + 1}`, statement: answer, evidenceIds: [], confidence: "provisional" }]), 2_000),
+					audit: addAudit(session, "interview.manual-note", session.id, "operator-statement"),
+					updatedAt: timestamp,
+				}
+			}
 			const scenario = SCENARIOS[session.scenarioKey]
 			const turnIndex = Math.min(session.questionIndex, scenario.ownerInterview.length - 1)
 			const nextQuestionIndex = Math.min(turnIndex + 1, scenario.ownerInterview.length - 1)
@@ -319,10 +352,10 @@ export function discoveryReducer(state: DiscoverySlice, event: DiscoveryEvent): 
 		})
 		case "session/paused": return updateActive(state, (session) => session.status === "complete" || session.permission === "viewer" ? session : { ...session, status: "paused", audit: addAudit(session, "session.paused", session.id, "synthetic-demo") })
 		case "session/resumed": return updateActive(state, (session) => session.status !== "paused" ? session : { ...session, status: "active", audit: addAudit(session, "session.resumed", session.id, "synthetic-demo") })
-		case "provider/offline": return updateActive(state, (session) => session.status === "complete" ? session : { ...session, status: "offline", provider: { status: "offline", attempt: session.provider.attempt, lastError: (event.message?.trim() || "The interview provider is unavailable.").slice(0, 240) }, audit: addAudit(session, "provider.offline", session.id, "synthetic-demo") })
+		case "provider/offline": return updateActive(state, (session) => session.status === "complete" ? session : { ...session, status: "offline", provider: { status: "offline", attempt: session.provider.attempt, lastError: (event.message?.trim() || "The interview provider is unavailable.").slice(0, 240), manualContinuation: false }, audit: addAudit(session, "provider.offline", session.id, "synthetic-demo") })
 		case "provider/retry-started": return updateActive(state, (session) => session.provider.status !== "offline" ? session : { ...session, provider: { ...session.provider, status: "retrying", attempt: session.provider.attempt + 1 } })
-		case "provider/recovered": return updateActive(state, (session) => session.provider.status === "online" ? session : { ...session, status: "active", provider: { status: "online", attempt: session.provider.attempt, lastError: null }, audit: addAudit(session, "provider.recovered", session.id, "synthetic-demo") })
-		case "provider/manual-continuation": return updateActive(state, (session) => session.provider.status === "online" ? session : { ...session, status: "insufficient-evidence", provider: { ...session.provider, status: "offline" }, audit: addAudit(session, "provider.manual-continuation", session.id, "operator-statement") })
+		case "provider/recovered": return updateActive(state, (session) => session.provider.status === "online" ? session : { ...session, status: "active", provider: { status: "online", attempt: session.provider.attempt, lastError: null, manualContinuation: false }, audit: addAudit(session, "provider.recovered", session.id, "synthetic-demo") })
+		case "provider/manual-continuation": return updateActive(state, (session) => session.provider.status === "online" ? session : { ...session, status: "offline", provider: { ...session.provider, status: "offline", manualContinuation: true }, audit: addAudit(session, "provider.manual-continuation", session.id, "operator-statement") })
 		case "session/failed": return updateActive(state, (session) => ({ ...session, status: "recoverable-error", provider: { ...session.provider, lastError: (event.message?.trim() || "The last transition could not be saved.").slice(0, 240) }, audit: addAudit(session, "session.failed", session.id, "synthetic-demo") }))
 		case "session/recovered": return updateActive(state, (session) => session.status !== "recoverable-error" ? session : { ...session, status: session.provider.status === "online" ? "active" : "offline", provider: { ...session.provider, lastError: null }, audit: addAudit(session, "session.recovered", session.id, "synthetic-demo") })
 		case "package/created": return updateActive(state, (session) => {
@@ -330,13 +363,57 @@ export function discoveryReducer(state: DiscoverySlice, event: DiscoveryEvent): 
 			const packageRef = createPackage(session, event.now)
 			return { ...session, status: "complete", packageRef, decisions: session.decisions.map((decision) => ({ ...decision, status: "resolved", answer: "Bound to the versioned Discovery package." })), audit: addAudit(session, "package.created", packageRef.id, packageRef.evidenceClasses[0] ?? "synthetic-demo"), updatedAt: packageRef.createdAt }
 		})
-		case "permission/changed": return updateActive(state, (session) => ({ ...session, permission: event.permission, status: event.permission === "viewer" ? "read-only" : session.status === "read-only" ? "active" : session.status }))
 		default: return state
 	}
 }
 
 function parseEvidenceClass(value: unknown): DiscoveryPackageEvidenceClass | null {
 	return value === "connected-source" || value === "operator-statement" || value === "synthetic-demo" ? value : null
+}
+
+type QuarantineField = QuarantinedDiscoveryRecord["field"]
+type SessionParseResult = { session: DiscoverySession; quarantine: QuarantinedDiscoveryRecord[] }
+
+function quarantineRecord(sessionIndex: number, field: QuarantineField, index: number, reason: string): QuarantinedDiscoveryRecord {
+	return { sessionIndex, field, index, reason }
+}
+
+function parseIdList(value: unknown, max: number): string[] | null {
+	if (!Array.isArray(value) || value.length > max) return null
+	const parsed = value.map(safeId)
+	if (parsed.some((item) => item === null)) return null
+	return [...new Set(parsed as string[])]
+}
+
+function parseCollection<T extends { id: string }>(
+	value: unknown,
+	max: number,
+	field: QuarantineField,
+	sessionIndex: number,
+	parser: (item: unknown, index: number) => T | null,
+	quarantine: QuarantinedDiscoveryRecord[],
+): T[] {
+	if (!Array.isArray(value)) {
+		quarantine.push(quarantineRecord(sessionIndex, field, -1, "Collection is missing or is not an array."))
+		return []
+	}
+	if (value.length > max) quarantine.push(quarantineRecord(sessionIndex, field, max, `Collection exceeds the ${max.toLocaleString("en-US")} record limit.`))
+	const seen = new Set<string>()
+	const parsed: T[] = []
+	value.slice(0, max).forEach((item, index) => {
+		const row = parser(item, index)
+		if (!row) {
+			quarantine.push(quarantineRecord(sessionIndex, field, index, "Nested record failed schema or bounds validation."))
+			return
+		}
+		if (seen.has(row.id)) {
+			quarantine.push(quarantineRecord(sessionIndex, field, index, `Duplicate id ${row.id} was ignored.`))
+			return
+		}
+		seen.add(row.id)
+		parsed.push(row)
+	})
+	return parsed
 }
 
 function parseEvidence(value: unknown, index: number): EvidenceRef | null {
@@ -354,42 +431,129 @@ function parseTranscript(value: unknown, index: number): TranscriptEntry | null 
 	return { id, text, createdAt, actor: value.actor as TranscriptEntry["actor"], sequence: Number.isSafeInteger(value.sequence) ? Number(value.sequence) : index, evidenceIds }
 }
 
-function parseCurrentSession(value: unknown): DiscoverySession | null {
+function parseInterviewTurn(value: unknown, index: number): InterviewTurn | null {
+	if (!isRecord(value)) return null
+	const id = safeId(value.id), questionId = safeId(value.questionId)
+	const answer = value.answer === null ? null : safeText(value.answer, DISCOVERY_INPUT_LIMIT)
+	if (!id || !questionId || answer === null && value.answer !== null) return null
+	return { id, questionId, answer, sequence: Number.isSafeInteger(value.sequence) ? Number(value.sequence) : index }
+}
+
+function parseFact(value: unknown): DiscoveryFact | null {
+	if (!isRecord(value)) return null
+	const id = safeId(value.id), statement = safeText(value.statement, DISCOVERY_INPUT_LIMIT), evidenceIds = parseIdList(value.evidenceIds, 50)
+	if (!id || !statement?.trim() || !evidenceIds || !["supported", "provisional"].includes(String(value.confidence))) return null
+	return { id, statement, evidenceIds, confidence: value.confidence as DiscoveryFact["confidence"] }
+}
+
+function parseDecision(value: unknown): DecisionRequest | null {
+	if (!isRecord(value)) return null
+	const id = safeId(value.id), question = safeText(value.question, DISCOVERY_INPUT_LIMIT)
+	const answer = value.answer === null ? null : safeText(value.answer, DISCOVERY_INPUT_LIMIT)
+	if (!id || !question?.trim() || answer === null && value.answer !== null || !["open", "resolved", "declined"].includes(String(value.status)) || !["project-owner", "domain-owner"].includes(String(value.authority))) return null
+	return { id, question, answer, status: value.status as DecisionRequest["status"], authority: value.authority as DecisionRequest["authority"] }
+}
+
+function parseGap(value: unknown): DiscoveryGap | null {
+	if (!isRecord(value)) return null
+	const id = safeId(value.id), label = safeText(value.label, 240), detail = safeText(value.detail, DISCOVERY_INPUT_LIMIT), evidenceIds = parseIdList(value.evidenceIds, 50)
+	if (!id || !label?.trim() || detail === null || !evidenceIds || typeof value.material !== "boolean" || !["open", "resolved"].includes(String(value.status))) return null
+	return { id, label, detail, evidenceIds, material: value.material, status: value.status as DiscoveryGap["status"] }
+}
+
+function parseAudit(value: unknown): DiscoveryAuditEvent | null {
+	if (!isRecord(value)) return null
+	const id = safeId(value.id), type = safeText(value.type, 160), objectRef = safeText(value.objectRef, 240), correlation = safeText(value.correlationId, 160), evidenceClass = parseEvidenceClass(value.evidenceClass)
+	if (!id || !type?.trim() || objectRef === null || !correlation?.trim() || !evidenceClass) return null
+	return { id, type, objectRef, correlationId: correlation, evidenceClass }
+}
+
+function parsePackageRef(value: unknown, session: Pick<DiscoverySession, "id" | "projectId">, sessionIndex: number, quarantine: QuarantinedDiscoveryRecord[]): DiscoveryPackageRef | null {
+	if (value === null || value === undefined) return null
+	if (!isRecord(value) || value.version !== 1) {
+		quarantine.push(quarantineRecord(sessionIndex, "packageRef", -1, "Package failed schema validation."))
+		return null
+	}
+	const id = safeId(value.id), projectId = safeId(value.projectId), projectName = safeText(value.projectName, 160), discoveryId = safeId(value.discoveryId), createdAt = safeDate(value.createdAt)
+	if (!id || projectId !== session.projectId || discoveryId !== session.id || !projectName?.trim() || !createdAt || !isRecord(value.authority) || !["project-owner", "member"].includes(String(value.authority.level)) || value.authority.boundedTo !== "planning-input") {
+		quarantine.push(quarantineRecord(sessionIndex, "packageRef", -1, "Package identity, authority, or provenance boundary is invalid."))
+		return null
+	}
+	const provenance: DiscoveryPackageRef["provenance"] = []
+	if (!Array.isArray(value.provenance)) quarantine.push(quarantineRecord(sessionIndex, "packageRef.provenance", -1, "Package provenance is not an array."))
+	else value.provenance.slice(0, 200).forEach((item, index) => {
+		if (!isRecord(item)) {
+			quarantine.push(quarantineRecord(sessionIndex, "packageRef.provenance", index, "Provenance record failed schema validation."))
+			return
+		}
+		const evidenceId = safeId(item.evidenceId), source = safeText(item.source, 160), locator = safeText(item.locator, 500)
+		if (!evidenceId || !source?.trim() || locator === null) quarantine.push(quarantineRecord(sessionIndex, "packageRef.provenance", index, "Provenance record failed schema validation."))
+		else provenance.push({ evidenceId, source, locator })
+	})
+	if (Array.isArray(value.provenance) && value.provenance.length > 200) quarantine.push(quarantineRecord(sessionIndex, "packageRef.provenance", 200, "Package provenance exceeds the 200 record limit."))
+	const unresolvedGapIds = parseIdList(value.unresolvedGapIds, 200)
+	if (!unresolvedGapIds) quarantine.push(quarantineRecord(sessionIndex, "packageRef.unresolvedGapIds", -1, "Unresolved gap ids failed validation."))
+	const rawEvidenceClasses = Array.isArray(value.evidenceClasses) ? value.evidenceClasses.slice(0, 3) : []
+	const evidenceClasses = [...new Set(rawEvidenceClasses.map(parseEvidenceClass).filter((item): item is DiscoveryPackageEvidenceClass => item !== null))]
+	if (!Array.isArray(value.evidenceClasses) || value.evidenceClasses.length > 3 || evidenceClasses.length !== rawEvidenceClasses.length || evidenceClasses.length === 0) quarantine.push(quarantineRecord(sessionIndex, "packageRef.evidenceClasses", -1, "Evidence classes failed validation."))
+	if (!unresolvedGapIds || evidenceClasses.length === 0) return null
+	return { version: 1, id, projectId, projectName, discoveryId, createdAt, provenance, unresolvedGapIds, authority: { level: value.authority.level as DiscoveryPackageRef["authority"]["level"], boundedTo: "planning-input" }, evidenceClasses }
+}
+
+function parseCurrentSession(value: unknown, sessionIndex: number): SessionParseResult | null {
 	if (!isRecord(value) || value.version !== 2) return null
 	const id = safeId(value.id), projectId = safeId(value.projectId), projectName = safeText(value.projectName, 160), title = safeText(value.title, DISCOVERY_INPUT_LIMIT), createdAt = safeDate(value.createdAt), updatedAt = safeDate(value.updatedAt)
 	if (!id || !projectId || !projectName?.trim() || !title?.trim() || !createdAt || !updatedAt || !["tprm", "diligence", "enterprise"].includes(String(value.scenarioKey)) || !["new", "active", "paused", "awaiting-answer", "insufficient-evidence", "offline", "recoverable-error", "complete", "read-only"].includes(String(value.status)) || !["owner", "member", "viewer"].includes(String(value.permission))) return null
-	if (!Array.isArray(value.transcript) || value.transcript.length > MAX_TRANSCRIPT_ENTRIES || !Array.isArray(value.evidence) || value.evidence.length > MAX_EVIDENCE_REFS) return null
-	const transcript = value.transcript.map(parseTranscript).filter((item): item is TranscriptEntry => item !== null)
-	const evidence = value.evidence.map(parseEvidence).filter((item): item is EvidenceRef => item !== null)
-	if (transcript.length !== value.transcript.length || evidence.length !== value.evidence.length) return null
 	const scenarioKey = value.scenarioKey as ScenarioKey
-	return {
-		...createDiscoverySession(title, projectId, projectName, createdAt),
-		...value,
+	const permission = value.permission as DiscoveryPermission
+	const fallback = createDiscoverySession(title, projectId, projectName, permission, createdAt)
+	const quarantine: QuarantinedDiscoveryRecord[] = []
+	const interviewTurns = parseCollection(value.interviewTurns, 2_000, "interviewTurns", sessionIndex, parseInterviewTurn, quarantine).sort((left, right) => left.sequence - right.sequence)
+	const transcript = parseCollection(value.transcript, MAX_TRANSCRIPT_ENTRIES, "transcript", sessionIndex, parseTranscript, quarantine).sort((left, right) => left.sequence - right.sequence)
+	const evidence = parseCollection(value.evidence, MAX_EVIDENCE_REFS, "evidence", sessionIndex, parseEvidence, quarantine).sort((left, right) => left.sequence - right.sequence)
+	const facts = parseCollection(value.facts, 2_000, "facts", sessionIndex, parseFact, quarantine)
+	const decisions = parseCollection(value.decisions, 500, "decisions", sessionIndex, parseDecision, quarantine)
+	const gaps = parseCollection(value.gaps, 2_000, "gaps", sessionIndex, parseGap, quarantine)
+	const audit = parseCollection(value.audit, 400, "audit", sessionIndex, parseAudit, quarantine)
+	const packageRef = parsePackageRef(value.packageRef, { id, projectId }, sessionIndex, quarantine)
+	const provider: DiscoveryProviderState = isRecord(value.provider) && ["online", "offline", "retrying"].includes(String(value.provider.status)) ? {
+		status: value.provider.status as DiscoveryProviderState["status"],
+		attempt: Number.isSafeInteger(value.provider.attempt) ? Math.max(0, Number(value.provider.attempt)) : 0,
+		lastError: value.provider.lastError === null ? null : safeText(value.provider.lastError, 240),
+		manualContinuation: value.provider.manualContinuation === true && value.provider.status !== "online",
+	} : fallback.provider
+	const requestedStatus = value.status as DiscoveryStatus
+	const status = requestedStatus === "complete" && !packageRef ? "recoverable-error" : requestedStatus
+	return { session: {
 		version: 2,
 		id,
 		projectId,
 		projectName,
 		title,
 		scenarioKey,
-		status: value.status as DiscoveryStatus,
-		permission: value.permission as DiscoverySession["permission"],
+		status,
+		permission,
 		draft: safeText(value.draft, DISCOVERY_INPUT_LIMIT) ?? "",
 		questionIndex: Number.isSafeInteger(value.questionIndex) ? Math.min(Math.max(Number(value.questionIndex), 0), SCENARIOS[scenarioKey].ownerInterview.length - 1) : 0,
-		transcript: uniqueById(transcript).sort((left, right) => left.sequence - right.sequence),
-		evidence: uniqueById(evidence).sort((left, right) => left.sequence - right.sequence),
-		provider: isRecord(value.provider) && ["online", "offline", "retrying"].includes(String(value.provider.status)) ? { status: value.provider.status as DiscoveryProviderState["status"], attempt: Number.isSafeInteger(value.provider.attempt) ? Math.max(0, Number(value.provider.attempt)) : 0, lastError: safeText(value.provider.lastError, 240) } : { status: "online", attempt: 0, lastError: null },
-		packageRef: null,
+		interviewTurns,
+		transcript,
+		evidence,
+		facts,
+		decisions,
+		gaps,
+		provider,
+		packageRef,
+		audit,
 		createdAt,
 		updatedAt,
-	} as DiscoverySession
+	}, quarantine }
 }
 
 function migrateLegacyRecord(value: unknown, index: number): DiscoverySession | null {
 	if (!isRecord(value)) return null
 	const id = safeId(value.id), title = safeText(value.title, DISCOVERY_INPUT_LIMIT), brief = safeText(value.brief, DISCOVERY_INPUT_LIMIT), createdAt = safeDate(value.createdAt), updatedAt = safeDate(value.updatedAt)
 	if (!id || !title?.trim() || brief === null || !createdAt || !updatedAt || !["tprm", "diligence", "enterprise"].includes(String(value.scenarioKey))) return null
-	const session = createDiscoverySession(brief || title, "erp-modernization", "ERP modernization", createdAt)
+	const session = createDiscoverySession(brief || title, "erp-modernization", "ERP modernization", "owner", createdAt)
 	return { ...session, id, title, scenarioKey: value.scenarioKey as ScenarioKey, status: value.paused === true ? "paused" : Number(value.phase) >= 7 ? "complete" : value.decision === "pending" ? "insufficient-evidence" : "active", updatedAt, transcript: Array.isArray(value.messages) ? value.messages.map((message, messageIndex) => isRecord(message) ? parseTranscript({ id: safeId(message.id) ?? `${id}:legacy:${messageIndex}`, actor: message.actor === "user" ? "operator" : "max", text: message.text, sequence: messageIndex, createdAt: updatedAt, evidenceIds: [] }, messageIndex) : null).filter((item): item is TranscriptEntry => item !== null) : session.transcript, audit: [{ id: `${id}:event:legacy`, type: "session.migrated", objectRef: `${index}`, evidenceClass: "synthetic-demo", correlationId: correlationId(id, "session.migrated", 1) }] }
 }
 
@@ -399,13 +563,25 @@ function parseDiscoverySlice(value: unknown): DiscoverySlice | null {
 	const sessions: DiscoverySession[] = []
 	const quarantine: QuarantinedDiscoveryRecord[] = []
 	rawSessions.forEach((item, index) => {
-		const parsed = isRecord(item) && item.version === 2 ? parseCurrentSession(item) : migrateLegacyRecord(item, index)
-		if (parsed) sessions.push(parsed)
-		else quarantine.push({ index, reason: "Record failed schema, bounds, or provenance validation." })
+		if (isRecord(item) && item.version === 2) {
+			const parsed = parseCurrentSession(item, index)
+			if (parsed) {
+				sessions.push(parsed.session)
+				quarantine.push(...parsed.quarantine)
+			} else quarantine.push(quarantineRecord(index, "session", index, "Record failed schema, bounds, or provenance validation."))
+			return
+		}
+		const migrated = migrateLegacyRecord(item, index)
+		if (migrated) sessions.push(migrated)
+		else quarantine.push(quarantineRecord(index, "session", index, "Record failed schema, bounds, or provenance validation."))
 	})
 	const activeCandidate = isRecord(value) ? safeId(value.activeSessionId) : null
 	const uniqueSessions = uniqueById(sessions)
-	return { version: 2, sessions: uniqueSessions, activeSessionId: uniqueSessions.some((session) => session.id === activeCandidate) ? activeCandidate : uniqueSessions[0]?.id ?? null, quarantine }
+	const candidateSession = uniqueSessions.find((session) => session.id === activeCandidate)
+	const activeProjectId = isRecord(value) ? safeId(value.activeProjectId) ?? candidateSession?.projectId ?? uniqueSessions[0]?.projectId ?? "erp-modernization" : candidateSession?.projectId ?? uniqueSessions[0]?.projectId ?? "erp-modernization"
+	const persistedPermission = isRecord(value) && ["owner", "member", "viewer"].includes(String(value.activePermission)) ? value.activePermission as DiscoveryPermission : candidateSession?.permission ?? uniqueSessions.find((session) => session.projectId === activeProjectId)?.permission ?? "owner"
+	const scopedCandidate = uniqueSessions.find((session) => session.id === activeCandidate && session.projectId === activeProjectId)
+	return { version: 2, sessions: uniqueSessions, activeSessionId: scopedCandidate?.id ?? uniqueSessions.find((session) => session.projectId === activeProjectId)?.id ?? null, activeProjectId, activePermission: persistedPermission, quarantine }
 }
 
 export const discoveryStateCodec: StateCodec<DiscoverySlice> = {
