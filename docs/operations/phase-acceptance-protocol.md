@@ -18,8 +18,10 @@ exactly that implementation.
 The independent UX verifier and engineering QA both inspect separate clean worktrees detached at C.
 Their committed schema-v2 JSON reports use distinct reviewer labels and one common builder label, and
 bind the program, phase, C, `C:src` tree, absolute verifier worktree, clean-checkout assertion, exact
-acceptance scope, exact checklist, concrete evidence, and PASS verdict. QA additionally binds exactly
-three independent browser runs. These labels and session IDs make reports internally consistent; they
+manifest scope kind, reference-sheet scope, exact checklist, concrete evidence, and PASS verdict. For
+`phase-surfaces` and `all-surfaces`, QA additionally binds exactly three independent browser runs. The
+Phase 11 `package` scope binds no sheet or browser run; both reviewers instead use the exact package
+integrity/traceability/proof-boundary/rollback/bootstrap checklist. These labels and session IDs make reports internally consistent; they
 do not cryptographically authenticate a human. Separation of people/sessions, clean detached worktree
 creation, and custody of the report remain coordinator obligations outside what Git can prove. The
 mandatory command reports bind the exact invocation, timestamps, absolute worktree, clean state before
@@ -61,8 +63,9 @@ All keys are mandatory and unknown keys are rejected.
 
 | Artifact | Exact keys | Binding rule |
 | --- | --- | --- |
-| Independent UX report | `schemaVersion`, `program`, `phase`, `role`, `reviewer`, `builder`, `candidateSha`, `sourceTreeSha1`, `sessionId`, `worktree`, `cleanCheckout`, `referenceSheets`, `checks`, `verdict` | schemaVersion is 2; role/path are unique; reviewer labels differ from QA and builder; candidate/source/scope are exact; worktree is absolute and cleanCheckout is true; checks are the exact ordered UX checklist with PASS and phase-scoped evidence; verdict is PASS |
-| Independent QA report | all UX-report keys plus `browserRuns` | checks are the exact ordered QA checklist; `browserRuns` has exactly three distinct PASS records, each binding run ID, browser/version, viewport, fixture, zero exit, artifact path, and committed artifact SHA-256 |
+| Surface/all-surfaces UX report | `schemaVersion`, `program`, `phase`, `role`, `reviewer`, `builder`, `candidateSha`, `sourceTreeSha1`, `sessionId`, `worktree`, `cleanCheckout`, `scopeKind`, `referenceSheets`, `checks`, `verdict` | `scopeKind` is `phase-surfaces` or `all-surfaces`; schemaVersion is 2; role/path are unique; reviewer labels differ from QA and builder; candidate/source/scope are exact; worktree is absolute and cleanCheckout is true; checks are exactly `figma-context`, `figma-screenshot`, `mobbin-references`, `laws-check`, `interactivity-floor`, `token-gate`, `accessibility`, `responsive-viewports`, in order, each with PASS and phase-scoped evidence; verdict is PASS |
+| Surface/all-surfaces QA report | all surface UX-report keys plus `browserRuns` | checks are exactly `source-quality`, `unit-integration`, `browser-e2e`, `failure-paths`, `security-boundaries`, `phase-acceptance`, in order; `browserRuns` has exactly three distinct clean-C PASS records, each binding C as `runSha`, exact unfiltered `pnpm test:e2e`, UTC start/end, clean-before/after, run ID, browser/version, viewport, fixture, zero exit, artifact path, and committed artifact SHA-256. For `all-surfaces`, `browser-e2e` also binds a schema-v2 `strict-preview-runs.json` whose exact three entries equal the report's records. |
+| Package UX or QA report | the surface UX-report key set, without `browserRuns` | `scopeKind` is exactly `package`; `referenceSheets` is `[]`; both roles use exactly `package-integrity`, `traceability`, `proof-boundary`, `rollback`, `bootstrap`, in order, each with PASS and committed phase-scoped evidence. Figma, Mobbin, laws, accessibility, responsive, and browser claims are forbidden because Phase 11 owns no UI surface. |
 | Clean-C command report | `schemaVersion`, `program`, `phase`, `kind`, `candidateSha`, `sourceTreeSha1`, `id`, `command`, `status`, `exitCode`, `runSha`, `stdout`, `stderr`, `stdoutSha256`, `stderrSha256`, `worktree`, `cleanBefore`, `cleanAfter`, `startedAt`, `finishedAt` | schemaVersion is 2; id-to-command is canonical; run SHA is C; worktree is absolute; checkout is clean before and after; PASS agrees with zero; bounded stream contents match hashes; blob hash/path are in ledger evidence |
 | Gated sheet check | `schemaVersion`, `kind`, `phase`, `sheetId`, `check`, `candidateSha`, `verdict` | path is under matching `phase-N`; sheet belongs to N in C's manifest; blob is newly added at the single direct E child of C; check/sheet/verdict are exact, preventing reuse |
 | Clean-M append receipt | `id`, `command`, `status`, `exitCode`, `runSha`, `stdout`, `stderr`, `stdoutSha256`, `stderrSha256` | generated only by append after executing the canonical command at clean M; complete stream contents match their hashes; input JSON may not provide it |
@@ -80,15 +83,19 @@ C and present at HEAD, and then binding that exact blob hash/path and E in the e
    the phase's RC/ADR/state coverage.
 4. From a clean detached worktree at exact C, run
    `python3 scripts/collect_phase_evidence.py --candidate "$C" --phase N`. The collector alone runs
-   the fixed five command groups, bounds captured output, rechecks exact HEAD/`C:src`/clean status after
-   the last command, and only then writes phase-scoped command JSON. Run the full strict-preview browser
+   the fixed five command groups using an incremental 1 MiB-per-stream process-group bound, rechecks
+   exact HEAD/`C:src`/clean status after the last command, stages and fsyncs the complete command-report
+   directory outside the tracked checkout on the same filesystem, and atomically renames it to the
+   exact phase directory. Before rename no phase directory exists; after rename the complete set exists.
+   A crash after rename leaves a complete idempotent result that a retry refuses to overwrite. Run the full strict-preview browser
    suite three independent times at C with a fresh server/context each time; QA records all three run
    bindings and their committed artifacts. An interrupted, filtered, retried-in-place, or pipe-masked
    run does not count.
 5. Independent UX and engineering reviewers audit separate detached clean worktrees at C. No builder
    self-signoff. Their exact checklists and browser bindings become the phase-scoped schema-v2 reports.
-6. Add E only under the evidence-only rule. Its commit message carries the exact trailer
-   `Phase-Candidate: <C>`. Run `check_phase_acceptance.py`; the hosted PR-head workflow detects the
+6. Add E only under the evidence-only rule. Its commit message carries exactly one trailer in the
+   exact form `Phase-Candidate: <40-character lowercase C>`; missing, duplicate, malformed, or wrong-C
+   values fail. Run `check_phase_acceptance.py`; the hosted PR-head workflow detects the
    distinct E/trailer, checks out `github.event.pull_request.head.sha`, asserts exact HEAD identity,
    runs qualification against that head, and refuses merge-readiness unless C→E passes.
 7. Merge with a two-parent merge commit. M's first parent is exactly B and second parent is exactly E;
@@ -101,7 +108,7 @@ C and present at HEAD, and then binding that exact blob hash/path and E in the e
    then writes the
    resulting M-bound exit codes and stdout/stderr hashes as coordinator-generated `postMergeCommands`.
    Input JSON cannot supply that field or inject a command runner. The independent reviewer obligations
-   and three browser runs are C-bound evidence at E; clean-M is a separate coordinator qualification and
+   and, for a UI scope, three browser runs are C-bound evidence at E; clean-M is a separate coordinator qualification and
    does not retroactively rewrite reviewer reports. Post-merge receipts live in the external record.
    Only after atomic append may M become the successor's B.
 
@@ -130,7 +137,13 @@ record contains program/repository, phase, B/C/E/M, exact target ref, locally an
 subject, protected-object/source-tree/lock/manifest/sheet hashes, reviewer-report bindings, phase-scoped
 evidence, the exact canonical clean-C command set, coordinator-generated clean-M command receipts,
 timestamp, and SHA-256 of the preceding record.
-The external ledger contains exactly one accepted record per phase in strict `0..N` order; it never
+The external ledger root has exactly `schemaVersion`, `program`, `repository`, and `records`. Its
+persisted records reject unknown keys and distinguish raw accepted input (timestamp but no
+`postMergeCommands` or chain hashes), coordinator accepted state (adds `postMergeCommands`), and
+persisted state (adds `previousRecordSha256` and `recordSha256`). Pending tracked records use their own
+exact smaller schema and are never accepted externally. The tracked root has exactly `schemaVersion`,
+`program`, `repository`, `externalAuthority`, `candidatePhase`, `snapshotQualification`,
+`snapshotThroughPhase`, and `phases`. The external ledger contains exactly one accepted record per phase in strict `0..N` order; it never
 contains pending records. Each record's B must equal the prior record's M. The new worktree fetches the
 target branch, checks out M, and runs
 `python3 scripts/program_ledger.py bootstrap --expected-phase N --target-ref refs/remotes/origin/main`. Bootstrap
@@ -152,7 +165,8 @@ If parsing fails after an interrupted write,
 under sibling `corrupt/`, verifies the longest checksum-valid accepted prefix, and atomically restores
 only that prefix. It refuses to invent an empty or unverified ledger. The next candidate exports the
 accepted prefix into the tracked lagging snapshot, with adjacent prior-M→next-B continuity;
-`pnpm check:program-ledger` validates that snapshot without treating it as current-phase authority.
+`pnpm check:program-ledger` validates that snapshot offline, including its external record-hash chain,
+without re-attesting GitHub or treating it as current-phase authority.
 
 The demo stream ends after the demo adoption-package PR. A separate MaxAI production-adoption ledger,
 plan, branch chain, reviewers, and PRs begin from fetched `max-ai-platform/origin/main`; a MaxAI SHA

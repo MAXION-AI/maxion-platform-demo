@@ -17,6 +17,8 @@ from contextlib import contextmanager
 from pathlib import Path, PurePosixPath
 from typing import Any, Iterator
 
+from bounded_process import BoundedProcessError, run_bounded
+
 ROOT = Path(__file__).resolve().parents[1]
 TRACKED_LEDGER = ROOT / "docs" / "operations" / "program-phase-ledger.json"
 DEFAULT_EXTERNAL_LEDGER = Path(
@@ -28,6 +30,8 @@ REPOSITORY = "https://github.com/MAXION-AI/maxion-platform-demo.git"
 TARGET_REF = "refs/remotes/origin/main"
 GITHUB_REPOSITORY = "MAXION-AI/maxion-platform-demo"
 MAX_CAPTURE_BYTES = 1_048_576
+COMMAND_TIMEOUT_SECONDS = 2700
+UNFILTERED_BROWSER_COMMAND = "pnpm test:e2e"
 PENDING_STATUS = "merged-awaiting-clean-sha-independent-acceptance"
 ACCEPTED_STATUS = "accepted"
 ALLOWED_STATUSES = {PENDING_STATUS, ACCEPTED_STATUS}
@@ -78,7 +82,7 @@ SHA1_RE = re.compile(r"^[0-9a-f]{40}$")
 SHA256_RE = re.compile(r"^[0-9a-f]{64}$")
 TIMESTAMP_RE = re.compile(r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$")
 PR_URL_RE = re.compile(r"https://github\.com/MAXION-AI/maxion-platform-demo/pull/\d+")
-REVIEW_CHECKLISTS = {
+SURFACE_REVIEW_CHECKLISTS = {
     "ux": (
         "figma-context", "figma-screenshot", "mobbin-references", "laws-check",
         "interactivity-floor", "token-gate", "accessibility", "responsive-viewports",
@@ -88,6 +92,16 @@ REVIEW_CHECKLISTS = {
         "security-boundaries", "phase-acceptance",
     ),
 }
+PACKAGE_REVIEW_CHECKLISTS = {
+    "ux": (
+        "package-integrity", "traceability", "proof-boundary", "rollback", "bootstrap",
+    ),
+    "qa": (
+        "package-integrity", "traceability", "proof-boundary", "rollback", "bootstrap",
+    ),
+}
+# Backward-compatible name for fixture builders; production selection is scope-specific.
+REVIEW_CHECKLISTS = SURFACE_REVIEW_CHECKLISTS
 COMMON_RECORD_FIELDS = {
     "phase", "status", "baseSha", "candidateSha", "prUrl", "prHeadSha", "mergeSha",
     "independentAcceptanceSha", "evidenceCommitSha", "sourceTreeSha1", "builder", "reviewers",
@@ -97,6 +111,19 @@ ACCEPTED_RECORD_FIELDS = {
     "lockSha256", "manifestSha256", "referenceSheetSha256",
     "referenceSheetContractSha256", "commands", "reviewReports", "protectedObjectSha1",
     "prNumber", "mergeCommitSubject", "targetRef", "postMergeCommands",
+}
+PENDING_RECORD_FIELDS = COMMON_RECORD_FIELDS | {"reasonOpen", "commands"}
+RAW_ACCEPTED_RECORD_FIELDS = (
+    COMMON_RECORD_FIELDS | (ACCEPTED_RECORD_FIELDS - {"postMergeCommands"}) | {"reasonOpen", "timestamp"}
+)
+COORDINATOR_ACCEPTED_RECORD_FIELDS = RAW_ACCEPTED_RECORD_FIELDS | {"postMergeCommands"}
+EXTERNAL_ACCEPTED_RECORD_FIELDS = COORDINATOR_ACCEPTED_RECORD_FIELDS | {
+    "previousRecordSha256", "recordSha256",
+}
+EXTERNAL_DOCUMENT_FIELDS = {"schemaVersion", "program", "repository", "records"}
+TRACKED_DOCUMENT_FIELDS = {
+    "schemaVersion", "program", "repository", "externalAuthority", "candidatePhase",
+    "snapshotQualification", "snapshotThroughPhase", "phases",
 }
 
 
@@ -254,6 +281,9 @@ def _phase_artifact_path(value: Any, field: str, phase: int, *, suffix: str | No
     prefix = f"artifacts/ux-audits/phase-{phase}/"
     if not safe_path.startswith(prefix) or safe_path == prefix:
         raise LedgerError(f"{field} must be inside {prefix}")
+    relative_parts = PurePosixPath(safe_path[len(prefix):]).parts
+    if any(part.startswith(".") or "staging" in part.casefold() for part in relative_parts):
+        raise LedgerError(f"{field} may not refer to a hidden or staging artifact path")
     if suffix is not None and not safe_path.endswith(suffix):
         raise LedgerError(f"{field} must end in {suffix}")
     return safe_path
@@ -293,6 +323,9 @@ def _validate_commands(record: dict[str, Any], *, accepted: bool) -> None:
         _phase_artifact_path(
             result["evidencePath"], "command evidencePath", record["phase"], suffix=".json"
         )
+        expected_path = f"artifacts/ux-audits/phase-{record['phase']}/command-{command_id}.json"
+        if result["evidencePath"] != expected_path:
+            raise LedgerError(f"command {command_id!r} evidencePath must be exactly {expected_path}")
         ids.append(command_id)
     if len(ids) != len(set(ids)):
         raise LedgerError("command result IDs must be unique")
@@ -350,12 +383,13 @@ def _validate_post_merge_commands(record: dict[str, Any], *, required: bool) -> 
 def _validate_review_report_shape(
     report: Any, *, record: dict[str, Any], role: str, repo_root: Path = ROOT
 ) -> None:
+    scope_kind = _phase_scope(record, repo_root)[0]
     expected = {
         "schemaVersion", "program", "phase", "role", "reviewer", "builder",
         "candidateSha", "sourceTreeSha1", "sessionId", "worktree", "cleanCheckout",
-        "referenceSheets", "checks", "verdict",
+        "scopeKind", "referenceSheets", "checks", "verdict",
     }
-    if role == "qa":
+    if role == "qa" and scope_kind != "package":
         expected.add("browserRuns")
     if not isinstance(report, dict) or set(report) != expected:
         raise LedgerError(f"{role} review report has an invalid schema")
@@ -368,6 +402,7 @@ def _validate_review_report_shape(
         "builder": record["builder"],
         "candidateSha": record["candidateSha"],
         "sourceTreeSha1": record["sourceTreeSha1"],
+        "scopeKind": scope_kind,
         "verdict": "PASS",
     }
     for field, expected_value in expected_values.items():
@@ -383,7 +418,11 @@ def _validate_review_report_shape(
     if report.get("cleanCheckout") is not True:
         raise LedgerError(f"{role} review report must attest a clean checkout")
     checks = report.get("checks")
-    expected_ids = REVIEW_CHECKLISTS[role]
+    expected_ids = (
+        PACKAGE_REVIEW_CHECKLISTS[role]
+        if scope_kind == "package"
+        else SURFACE_REVIEW_CHECKLISTS[role]
+    )
     if not isinstance(checks, list) or [check.get("id") for check in checks if isinstance(check, dict)] != list(expected_ids):
         raise LedgerError(f"{role} review report must contain the exact ordered checklist")
     for check in checks:
@@ -397,14 +436,15 @@ def _validate_review_report_shape(
             _git_blob(repo_root, record["evidenceCommitSha"], safe_path)
             if safe_path not in record["evidence"]:
                 raise LedgerError(f"{role} review checklist evidence must be listed in the accepted record")
-    if role == "qa":
+    if role == "qa" and scope_kind != "package":
         runs = report.get("browserRuns")
         if not isinstance(runs, list) or len(runs) != 3:
             raise LedgerError("QA review report must bind exactly three browser runs")
         run_ids: list[str] = []
         artifact_paths: list[str] = []
         run_fields = {
-            "runId", "browser", "browserVersion", "viewport", "fixture", "status",
+            "runId", "runSha", "command", "startedAt", "finishedAt", "cleanBefore",
+            "cleanAfter", "browser", "browserVersion", "viewport", "fixture", "status",
             "exitCode", "artifactPath", "artifactSha256",
         }
         for run in runs:
@@ -412,6 +452,17 @@ def _validate_review_report_shape(
                 raise LedgerError("QA browser run has an invalid schema")
             if run.get("status") != "PASS" or run.get("exitCode") != 0:
                 raise LedgerError("every QA browser run must PASS")
+            if run.get("runSha") != record["candidateSha"]:
+                raise LedgerError("every QA browser runSha must equal candidateSha")
+            if run.get("command") != UNFILTERED_BROWSER_COMMAND:
+                raise LedgerError("every QA browser run must use the exact unfiltered command")
+            if run.get("cleanBefore") is not True or run.get("cleanAfter") is not True:
+                raise LedgerError("every QA browser run must bind clean state before and after")
+            for field in ("startedAt", "finishedAt"):
+                if not isinstance(run.get(field), str) or not TIMESTAMP_RE.fullmatch(run[field]):
+                    raise LedgerError(f"QA browser run {field} must be a UTC timestamp")
+            if run["finishedAt"] < run["startedAt"]:
+                raise LedgerError("QA browser run timestamps are out of order")
             for field in ("runId", "browser", "browserVersion", "fixture"):
                 if not isinstance(run.get(field), str) or not run[field].strip():
                     raise LedgerError(f"QA browser run {field} must be non-empty")
@@ -432,6 +483,36 @@ def _validate_review_report_shape(
             raise LedgerError("QA browser run IDs must be distinct")
         if len(set(artifact_paths)) != 3:
             raise LedgerError("QA browser runs must bind three distinct artifacts")
+        if scope_kind == "all-surfaces":
+            index_path = f"artifacts/ux-audits/phase-{record['phase']}/strict-preview-runs.json"
+            if index_path not in record["evidence"]:
+                raise LedgerError("all-surfaces QA must list strict-preview-runs.json as evidence")
+            browser_check = next(
+                (check for check in checks if check.get("id") == "browser-e2e"), None
+            )
+            if not isinstance(browser_check, dict) or index_path not in browser_check.get("evidence", []):
+                raise LedgerError("all-surfaces browser-e2e check must bind strict-preview-runs.json")
+            try:
+                index = json.loads(_git_blob(repo_root, record["evidenceCommitSha"], index_path))
+            except json.JSONDecodeError as exc:
+                raise LedgerError("strict-preview-runs.json is not valid JSON") from exc
+            expected_index_fields = {
+                "schemaVersion", "program", "phase", "kind", "candidateSha",
+                "sourceTreeSha1", "runs",
+            }
+            if not isinstance(index, dict) or set(index) != expected_index_fields:
+                raise LedgerError("strict-preview-runs.json has an invalid exact schema")
+            expected_index = {
+                "schemaVersion": 2,
+                "program": PROGRAM,
+                "phase": record["phase"],
+                "kind": "strict-preview-runs",
+                "candidateSha": record["candidateSha"],
+                "sourceTreeSha1": record["sourceTreeSha1"],
+                "runs": runs,
+            }
+            if index != expected_index:
+                raise LedgerError("strict-preview-runs.json does not exactly bind the QA browser runs")
 
 
 def _validate_command_report_shape(report: Any, *, record: dict[str, Any], result: dict[str, Any]) -> None:
@@ -476,7 +557,7 @@ def _validate_command_report_shape(report: Any, *, record: dict[str, Any], resul
         raise LedgerError(f"command report {result['id']!r} timestamps are out of order")
 
 
-def _phase_reference_sheets(record: dict[str, Any], repo_root: Path = ROOT) -> set[str]:
+def _phase_scope(record: dict[str, Any], repo_root: Path = ROOT) -> tuple[str, set[str]]:
     try:
         manifest = json.loads(_git_blob(repo_root, record["candidateSha"], "docs/operations/figma-code-map.json"))
     except (json.JSONDecodeError, UnicodeDecodeError) as exc:
@@ -505,8 +586,8 @@ def _phase_reference_sheets(record: dict[str, Any], repo_root: Path = ROOT) -> s
             raise LedgerError("package acceptance scope may not name user-facing reference sheets")
         if scope.get("kind") not in {"all-surfaces", "package"}:
             raise LedgerError("candidate manifest acceptance scope kind is invalid")
-        return scoped
-    return {
+        return str(scope["kind"]), scoped
+    return "phase-surfaces", {
         f"docs/operations/ux-reference-sheets/{item['referenceSheet']}"
         for item in surfaces
         if isinstance(item, dict)
@@ -515,12 +596,14 @@ def _phase_reference_sheets(record: dict[str, Any], repo_root: Path = ROOT) -> s
     }
 
 
+def _phase_reference_sheets(record: dict[str, Any], repo_root: Path = ROOT) -> set[str]:
+    return _phase_scope(record, repo_root)[1]
+
+
 def _validate_shape(record: Any, *, external: bool, require_post_merge: bool = True) -> None:
     if not isinstance(record, dict):
         raise LedgerError("every ledger record must be an object")
     missing = COMMON_RECORD_FIELDS - set(record)
-    if external and "timestamp" not in record:
-        missing.add("timestamp")
     if missing:
         raise LedgerError(f"record is missing required fields: {', '.join(sorted(missing))}")
     if not isinstance(record["phase"], int) or record["phase"] < 0:
@@ -528,6 +611,28 @@ def _validate_shape(record: Any, *, external: bool, require_post_merge: bool = T
     if record["status"] not in ALLOWED_STATUSES:
         raise LedgerError(f"status must be one of: {', '.join(sorted(ALLOWED_STATUSES))}")
     accepted = record["status"] == ACCEPTED_STATUS
+    if accepted:
+        if external:
+            expected_fields = EXTERNAL_ACCEPTED_RECORD_FIELDS
+            boundary = "external persisted accepted"
+        elif require_post_merge:
+            expected_fields = COORDINATOR_ACCEPTED_RECORD_FIELDS
+            boundary = "coordinator accepted"
+        else:
+            expected_fields = RAW_ACCEPTED_RECORD_FIELDS
+            boundary = "raw accepted"
+    else:
+        expected_fields = PENDING_RECORD_FIELDS
+        boundary = "pending"
+    if set(record) != expected_fields:
+        missing_exact = expected_fields - set(record)
+        unknown = set(record) - expected_fields
+        details = []
+        if missing_exact:
+            details.append("missing " + ", ".join(sorted(missing_exact)))
+        if unknown:
+            details.append("unknown " + ", ".join(sorted(unknown)))
+        raise LedgerError(f"{boundary} record has an invalid exact schema: " + "; ".join(details))
     if accepted:
         required_fields = ACCEPTED_RECORD_FIELDS if require_post_merge else ACCEPTED_RECORD_FIELDS - {"postMergeCommands"}
         missing_accepted = required_fields - set(record)
@@ -695,20 +800,27 @@ def _validate_evidence_only(record: dict[str, Any], repo_root: Path) -> None:
     checker = repo_root / "scripts" / "check_phase_acceptance.py"
     environment = os.environ.copy()
     environment["PYTHONDONTWRITEBYTECODE"] = "1"
-    result = subprocess.run(
-        [
-            sys.executable, str(checker), "--repo", str(repo_root),
-            "--candidate", record["candidateSha"], "--evidence", record["evidenceCommitSha"],
-            "--phase", str(record["phase"]),
-        ],
-        capture_output=True,
-        text=True,
-        env=environment,
-        timeout=30,
-        check=False,
-    )
+    try:
+        result = run_bounded(
+            [
+                sys.executable, str(checker), "--repo", str(repo_root),
+                "--candidate", record["candidateSha"], "--evidence", record["evidenceCommitSha"],
+                "--phase", str(record["phase"]),
+            ],
+            cwd=repo_root,
+            env=environment,
+            timeout=30,
+            stdout_limit=MAX_CAPTURE_BYTES,
+            stderr_limit=MAX_CAPTURE_BYTES,
+        )
+    except (BoundedProcessError, OSError, ValueError) as exc:
+        raise LedgerError(f"semantic C-to-E validation could not complete safely: {exc}") from exc
     if result.returncode != 0:
-        detail = result.stdout.strip() or result.stderr.strip() or "semantic evidence-only gate failed"
+        detail = (
+            result.stdout.decode("utf-8", errors="replace").strip()
+            or result.stderr.decode("utf-8", errors="replace").strip()
+            or "semantic evidence-only gate failed"
+        )
         raise LedgerError(f"semantic C-to-E validation failed: {detail}")
 
 
@@ -778,13 +890,16 @@ def validate_record(
     external: bool,
     repo_root: Path = ROOT,
     require_post_merge: bool = True,
+    persisted: bool = False,
 ) -> None:
-    _validate_shape(record, external=external, require_post_merge=require_post_merge)
+    persisted = persisted or external
+    _validate_shape(record, external=persisted, require_post_merge=require_post_merge)
     assert isinstance(record, dict)
     _validate_git_and_artifacts(record, repo_root)
     if external:
         _validate_merge_identity(record, repo_root)
         _validate_evidence_only(record, repo_root)
+    if persisted:
         if not SHA256_RE.fullmatch(str(record.get("previousRecordSha256", ""))):
             raise LedgerError("previousRecordSha256 must be a lowercase SHA-256")
         if not SHA256_RE.fullmatch(str(record.get("recordSha256", ""))):
@@ -796,6 +911,8 @@ def validate_record(
 def _validate_external_chain(document: Any, *, repo_root: Path = ROOT) -> list[dict[str, Any]]:
     if not isinstance(document, dict):
         raise LedgerError("ledger root must be an object")
+    if set(document) != EXTERNAL_DOCUMENT_FIELDS:
+        raise LedgerError("external ledger root has an invalid exact schema")
     if document.get("schemaVersion") != 1:
         raise LedgerError("external ledger schemaVersion must be 1")
     if document.get("program") != PROGRAM or document.get("repository") != REPOSITORY:
@@ -867,7 +984,9 @@ def bootstrap_external(
 
 
 def validate_tracked(document: Any, *, repo_root: Path = ROOT) -> None:
-    if not isinstance(document, dict) or document.get("schemaVersion") != 1:
+    if not isinstance(document, dict) or set(document) != TRACKED_DOCUMENT_FIELDS:
+        raise LedgerError("tracked ledger root has an invalid exact schema")
+    if document.get("schemaVersion") != 1:
         raise LedgerError("tracked ledger schemaVersion must be 1")
     if document.get("program") != PROGRAM or document.get("repository") != REPOSITORY:
         raise LedgerError("tracked ledger program/repository identity is invalid")
@@ -882,8 +1001,9 @@ def validate_tracked(document: Any, *, repo_root: Path = ROOT) -> None:
     if not isinstance(phases, list):
         raise LedgerError("tracked ledger phases must be an array")
     previous_merge: str | None = None
+    previous_record_hash = "0" * 64
     for expected_phase, phase in enumerate(phases):
-        validate_record(phase, external=False, repo_root=repo_root)
+        validate_record(phase, external=False, persisted=True, repo_root=repo_root)
         if phase["phase"] != expected_phase:
             raise LedgerError(
                 f"tracked ledger expected phase {expected_phase}, got {phase['phase']}"
@@ -892,7 +1012,10 @@ def validate_tracked(document: Any, *, repo_root: Path = ROOT) -> None:
             raise LedgerError("tracked ledger may export only already accepted external records")
         if previous_merge is not None and phase["baseSha"] != previous_merge:
             raise LedgerError("tracked ledger adjacent phases must chain prior mergeSha to next baseSha")
+        if phase["previousRecordSha256"] != previous_record_hash:
+            raise LedgerError("tracked ledger record hash chain is broken")
         previous_merge = phase["mergeSha"]
+        previous_record_hash = phase["recordSha256"]
     expected_snapshot = len(phases) - 1
     if document.get("snapshotThroughPhase") != expected_snapshot:
         raise LedgerError(
@@ -1021,16 +1144,18 @@ def _run_canonical_commands(record: dict[str, Any], repo_root: Path) -> list[dic
         exit_code = 0
         for argv in CANONICAL_EXECUTION[command_id]:
             try:
-                result = subprocess.run(
+                result = run_bounded(
                     argv,
                     cwd=repo_root,
                     env=environment,
-                    capture_output=True,
-                    timeout=2700,
-                    check=False,
+                    timeout=COMMAND_TIMEOUT_SECONDS,
+                    stdout_limit=MAX_CAPTURE_BYTES - len(stdout),
+                    stderr_limit=MAX_CAPTURE_BYTES - len(stderr),
                 )
-            except (OSError, subprocess.SubprocessError) as exc:
-                raise LedgerError(f"post-merge command {command_id!r} could not run: {exc}") from exc
+            except (BoundedProcessError, OSError, ValueError) as exc:
+                raise LedgerError(
+                    f"post-merge command {command_id!r} could not complete safely: {exc}; ledger unchanged"
+                ) from exc
             stdout.extend(result.stdout)
             stderr.extend(result.stderr)
             if len(stdout) > MAX_CAPTURE_BYTES or len(stderr) > MAX_CAPTURE_BYTES:

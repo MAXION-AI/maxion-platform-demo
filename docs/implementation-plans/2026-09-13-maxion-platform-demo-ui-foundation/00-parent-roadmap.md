@@ -53,7 +53,7 @@ records exact production mapping decisions and open gaps without changing or qua
 | RC-03 | Major | Shared visual primitives are not yet a portable contract; 1,357 raw colour literals remain under a ratchet | token baseline and large CSS surfaces | technical debt | Open |
 | RC-04 | Major | Multi-thousand-line components and styles couple layout, state, copy, and scenarios, making reuse and review unsafe | module line counts and symbol inventory | architecture | Open |
 | RC-05 | Blocker | Cross-module truth is fragmented across lifted booleans, component state, and module-local storage | `MaxionPlatformPrototypePage.tsx`, Discover storage, `operationsState.ts` | state integrity | Open |
-| RC-06 | Major | Dashboard and Projects must become complete interactive product surfaces, not a shell plus an uncovered list view | current inventory and frame set | UX capability | Open |
+| RC-06 | Major | Dashboard and Projects must become complete interactive product surfaces, not a shell plus an uncovered list view; Phase 0 may fix only shell/dashboard defects that block its own UX acceptance | current inventory and frame set | UX capability | Open — general state/capability work remains Phase 2 |
 | RC-07 | Major | Discover must unify conversation, interview, evidence, facts, decisions, package, recovery, and handoff | `discover-workspace.md` | UX capability | Open |
 | RC-08 | Major | Plan must make the generated artifact primary and support section edit/regenerate, provenance, approval/revert, and Execute handoff | `plan-workspace.md` | UX capability | Open |
 | RC-09 | Blocker | Execute must distinguish simulated, staged, and production-verified evidence and make pause/retry/rollback recoverable | `execute-workspace.md` | trust and safety | Open |
@@ -62,7 +62,7 @@ records exact production mapping decisions and open gaps without changing or qua
 | RC-12 | Major | Consult Max must stay a question surface, cite owning objects, and route into action without starting work implicitly | `consult-max-workspace.md` | UX capability | Open |
 | RC-13 | Major | Administrative surfaces need complete information architecture, states, and reference contracts while staying visually subordinate | `AccountUtilityModule`, `IntegrationsModule` | UX capability | Open |
 | RC-14 | Blocker | Discover → Plan → Execute → Agentix → Consult continuity has no single typed provenance and authority contract | lifted shell state and module handoffs | state integrity | Open |
-| RC-15 | Blocker | Responsive, keyboard, reduced-motion, accessibility, state-matrix, and performance behavior is not yet proven for every surface | reference-sheet evidence tables remain pending | quality | Open |
+| RC-15 | Blocker | Responsive, keyboard, reduced-motion, accessibility, state-matrix, and performance behavior is not yet proven for every surface | reference-sheet evidence tables remain pending | quality | Open — Phase 0 owns only rejected shell rail/composition/transition acceptance defects; Phase 10 owns whole-product closure |
 | RC-16 | Major | Figma, reference sheets, code, and screenshots can drift because exact node/component mappings are recorded manually | current Figma ledger and docs | governance | Open |
 | RC-17 | Blocker | A production adoption boundary is missing; directly importing demo code would bypass MaxAI's real primitives, query layer, auth, and tenancy | production portal inspection | architecture | Open |
 | RC-18 | Major | A browser-only deterministic demo cannot itself prove 10,000-user backend behavior and must not be represented as production qualification | repository architecture | scope/trust | Open |
@@ -300,7 +300,7 @@ hash for every visual or performance result.
 
 | Phase | Objective | Closes | Depends on | Risk |
 | --- | --- | --- | --- | --- |
-| 0 | Accept current candidate work, close dependency/source-quality blockers, and create missing Projects/admin contracts and frames | RC-01, RC-02 | — | high × medium |
+| 0 | Accept current candidate work, remediate only rejected shell rail/dashboard/transition acceptance defects, close dependency/source-quality blockers, and create missing Projects/admin contracts and frames | RC-01, RC-02; bounded RC-15 advance | — | high × medium |
 | 1 | Extract the typed state kernel, shared primitives, token ownership, and Figma/code manifest without visual drift; remove replaced code as each owner migrates | RC-03, RC-04, RC-05, RC-16 | 0 | high × high |
 | 2 | Complete Dashboard and Projects | RC-06 | 1 | medium × medium |
 | 3 | Transform Discover as one evidence-bound workspace | RC-07 | 2 | high × medium |

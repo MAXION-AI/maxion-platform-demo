@@ -56,6 +56,7 @@ class ProgramLedgerTests(unittest.TestCase):
                 self.write(path, f"fixture for {path}\n")
         (self.repo / "scripts").mkdir(parents=True, exist_ok=True)
         shutil.copy(REPO / "scripts" / "program_ledger.py", self.repo / "scripts" / "program_ledger.py")
+        shutil.copy(REPO / "scripts" / "bounded_process.py", self.repo / "scripts" / "bounded_process.py")
         shutil.copy(
             REPO / "scripts" / "check_phase_acceptance.py",
             self.repo / "scripts" / "check_phase_acceptance.py",
@@ -158,18 +159,53 @@ pending
         self.git("commit", "-qm", f"phase {phase} candidate")
         candidate = self.git("rev-parse", "HEAD")
         source_tree = self.git("rev-parse", f"{candidate}:src")
-        manifest = json.loads(self.git("show", f"{candidate}:docs/operations/figma-code-map.json"))
-        owned_sheets = sorted(
-            f"docs/operations/ux-reference-sheets/{item['referenceSheet']}"
-            for item in manifest["surfaces"]
-            if item["acceptancePhase"] == phase
-        )
+        scope_kind = ledger._phase_scope(  # noqa: SLF001 - fixture follows the gate authority
+            {"candidateSha": candidate, "phase": phase}, self.repo
+        )[0]
+        owned_sheets = sorted(ledger._phase_reference_sheets(  # noqa: SLF001
+            {"candidateSha": candidate, "phase": phase}, self.repo
+        ))
         prefix = f"artifacts/ux-audits/phase-{phase}"
         review_evidence = f"{prefix}/review-checks.txt"
         self.write(review_evidence, "independent review evidence\n")
-        browser_paths = [f"{prefix}/browser-run-{index}.json" for index in range(1, 4)]
+        browser_paths = (
+            [f"{prefix}/browser-run-{index}.json" for index in range(1, 4)]
+            if scope_kind != "package" else []
+        )
         for index, path in enumerate(browser_paths, 1):
             self.write(path, canonical({"run": index, "status": "PASS"}))
+        browser_runs = [
+            {
+                "runId": f"phase-{phase}-run-{index}",
+                "runSha": candidate,
+                "command": ledger.UNFILTERED_BROWSER_COMMAND,
+                "startedAt": f"2026-09-13T10:0{index}:00Z",
+                "finishedAt": f"2026-09-13T10:0{index}:30Z",
+                "cleanBefore": True,
+                "cleanAfter": True,
+                "browser": "chromium",
+                "browserVersion": "fixture",
+                "viewport": {"width": 1280, "height": 900},
+                "fixture": f"fixture-{index}",
+                "status": "PASS",
+                "exitCode": 0,
+                "artifactPath": path,
+                "artifactSha256": hashlib.sha256((self.repo / path).read_bytes()).hexdigest(),
+            }
+            for index, path in enumerate(browser_paths, 1)
+        ]
+        strict_index_path = None
+        if scope_kind == "all-surfaces":
+            strict_index_path = f"{prefix}/strict-preview-runs.json"
+            self.write(strict_index_path, canonical({
+                "schemaVersion": 2,
+                "program": ledger.PROGRAM,
+                "phase": phase,
+                "kind": "strict-preview-runs",
+                "candidateSha": candidate,
+                "sourceTreeSha1": source_tree,
+                "runs": browser_runs,
+            }))
         review_paths: dict[str, str] = {}
         for role in ("ux", "qa"):
             report_path = f"{prefix}/independent-{role}.json"
@@ -186,28 +222,24 @@ pending
                 "sessionId": f"session-{role}-{phase}",
                 "worktree": str(self.repo / f"{role}-review-worktree"),
                 "cleanCheckout": True,
+                "scopeKind": scope_kind,
                 "referenceSheets": owned_sheets,
                 "checks": [
                     {"id": check_id, "status": "PASS", "evidence": [review_evidence]}
-                    for check_id in ledger.REVIEW_CHECKLISTS[role]
+                    for check_id in (
+                        ledger.PACKAGE_REVIEW_CHECKLISTS[role]
+                        if scope_kind == "package"
+                        else ledger.SURFACE_REVIEW_CHECKLISTS[role]
+                    )
                 ],
                 "verdict": "PASS",
             }
-            if role == "qa":
-                report["browserRuns"] = [
-                    {
-                        "runId": f"phase-{phase}-run-{index}",
-                        "browser": "chromium",
-                        "browserVersion": "fixture",
-                        "viewport": {"width": 1280, "height": 900},
-                        "fixture": f"fixture-{index}",
-                        "status": "PASS",
-                        "exitCode": 0,
-                        "artifactPath": path,
-                        "artifactSha256": hashlib.sha256((self.repo / path).read_bytes()).hexdigest(),
-                    }
-                    for index, path in enumerate(browser_paths, 1)
-                ]
+            if role == "qa" and scope_kind != "package":
+                report["browserRuns"] = copy.deepcopy(browser_runs)
+                if strict_index_path is not None:
+                    next(
+                        check for check in report["checks"] if check["id"] == "browser-e2e"
+                    )["evidence"].append(strict_index_path)
             self.write(report_path, canonical(report))
         command_results: list[dict[str, object]] = []
         for command_id, command in sorted(ledger.CANONICAL_COMMANDS.items()):
@@ -247,11 +279,14 @@ pending
             })
         evidence_paths = [
             *review_paths.values(), review_evidence, *browser_paths,
+            *([strict_index_path] if strict_index_path is not None else []),
             *[str(item["evidencePath"]) for item in command_results],
         ]
         self.write(phase_doc, self.phase_doc(phase, "accepted", evidence_paths))
         self.git("add", ".")
-        self.git("commit", "-qm", f"phase {phase} evidence")
+        self.git(
+            "commit", "-qm", f"phase {phase} evidence", "-m", f"Phase-Candidate: {candidate}"
+        )
         evidence = self.git("rev-parse", "HEAD")
         self.git("checkout", "main")
         merge_subject = f"Merge pull request #{pr_number} from MAXION-AI/{branch}"
@@ -319,6 +354,13 @@ pending
     def accepted_record(self, phase: int = 0) -> dict[str, object]:
         return copy.deepcopy(self.records[phase])
 
+    @staticmethod
+    def persisted(record: dict[str, object]) -> dict[str, object]:
+        value = copy.deepcopy(record)
+        value["previousRecordSha256"] = "0" * 64
+        value["recordSha256"] = ledger.record_sha256(value)
+        return value
+
     def load(self) -> dict[str, object]:
         return json.loads(self.path.read_text(encoding="utf-8"))
 
@@ -340,8 +382,8 @@ pending
     def test_canonical_runner_executes_fixed_commands_and_hashes_complete_output(self) -> None:
         record = self.accepted_record()
         with mock.patch.object(
-            ledger.subprocess,
-            "run",
+            ledger,
+            "run_bounded",
             return_value=SimpleNamespace(returncode=0, stdout=b"complete output\n", stderr=b""),
         ) as run:
             receipts = ledger._run_canonical_commands(record, self.repo)
@@ -362,14 +404,136 @@ pending
     def test_canonical_runner_rejects_oversized_persisted_output(self) -> None:
         record = self.accepted_record()
         with mock.patch.object(
-            ledger.subprocess,
-            "run",
+            ledger,
+            "run_bounded",
             return_value=SimpleNamespace(
                 returncode=0, stdout=b"x" * (ledger.MAX_CAPTURE_BYTES + 1), stderr=b""
             ),
         ):
             with self.assertRaisesRegex(ledger.LedgerError, "output exceeds"):
                 ledger._run_canonical_commands(record, self.repo)
+
+    def test_bounded_runner_failure_leaves_external_ledger_absent(self) -> None:
+        raw = self.accepted_record()
+        raw.pop("postMergeCommands")
+        real_run_bounded = ledger.run_bounded
+
+        def fail_canonical(argv: list[str], **kwargs: object) -> object:
+            if argv and argv[0] == "pnpm":
+                raise ledger.BoundedProcessError("timed out after 1 seconds")
+            return real_run_bounded(argv, **kwargs)
+
+        with mock.patch.object(
+            ledger,
+            "run_bounded",
+            side_effect=fail_canonical,
+        ):
+            with self.assertRaisesRegex(ledger.LedgerError, "ledger unchanged"):
+                ledger.append_record(
+                    self.path,
+                    raw,
+                    target_ref=ledger.TARGET_REF,
+                    repo_root=self.repo,
+                )
+        self.assertFalse(self.path.exists())
+
+    def test_every_record_boundary_and_root_document_rejects_unknown_keys(self) -> None:
+        coordinator = self.accepted_record()
+        raw = copy.deepcopy(coordinator)
+        raw.pop("postMergeCommands")
+        persisted = copy.deepcopy(coordinator)
+        persisted["previousRecordSha256"] = "0" * 64
+        persisted["recordSha256"] = ledger.record_sha256(persisted)
+        pending = {
+            key: copy.deepcopy(coordinator[key])
+            for key in ledger.COMMON_RECORD_FIELDS
+        }
+        pending.update({
+            "status": ledger.PENDING_STATUS,
+            "independentAcceptanceSha": None,
+            "reasonOpen": "independent review pending",
+            "evidenceQualification": "clean-sha-review-pending",
+            "commands": [],
+        })
+        cases = (
+            (pending, False, True, "pending record"),
+            (raw, False, False, "raw accepted record"),
+            (coordinator, False, True, "coordinator accepted record"),
+            (persisted, True, True, "external persisted accepted record"),
+        )
+        for value, external, require_post_merge, message in cases:
+            with self.subTest(boundary=message):
+                hostile = copy.deepcopy(value)
+                hostile["unexpected"] = True
+                with self.assertRaisesRegex(ledger.LedgerError, message):
+                    ledger._validate_shape(  # noqa: SLF001 - exact boundary regression
+                        hostile,
+                        external=external,
+                        require_post_merge=require_post_merge,
+                    )
+
+        external_document = {
+            "schemaVersion": 1,
+            "program": ledger.PROGRAM,
+            "repository": ledger.REPOSITORY,
+            "records": [],
+            "unexpected": True,
+        }
+        with self.assertRaisesRegex(ledger.LedgerError, "external ledger root"):
+            ledger.validate_external(
+                external_document,
+                target_ref=ledger.TARGET_REF,
+                repo_root=self.repo,
+            )
+        tracked_document = json.loads(ledger.TRACKED_LEDGER.read_text(encoding="utf-8"))
+        tracked_document["unexpected"] = True
+        with self.assertRaisesRegex(ledger.LedgerError, "tracked ledger root"):
+            ledger.validate_tracked(tracked_document, repo_root=self.repo)
+
+    def test_record_boundaries_preserve_timestamp_receipt_and_chain_ownership(self) -> None:
+        coordinator = self.accepted_record()
+        raw = copy.deepcopy(coordinator)
+        raw.pop("postMergeCommands")
+        pending = {
+            key: copy.deepcopy(coordinator[key])
+            for key in ledger.COMMON_RECORD_FIELDS
+        }
+        pending.update({
+            "status": ledger.PENDING_STATUS,
+            "independentAcceptanceSha": None,
+            "reasonOpen": "review pending",
+            "evidenceQualification": "clean-sha-review-pending",
+            "commands": [],
+        })
+
+        missing_timestamp = copy.deepcopy(raw)
+        missing_timestamp.pop("timestamp")
+        with self.assertRaisesRegex(ledger.LedgerError, "raw accepted.*missing timestamp"):
+            ledger._validate_shape(missing_timestamp, external=False, require_post_merge=False)
+
+        premature_receipts = copy.deepcopy(raw)
+        premature_receipts["postMergeCommands"] = []
+        with self.assertRaisesRegex(ledger.LedgerError, "raw accepted.*unknown postMergeCommands"):
+            ledger._validate_shape(premature_receipts, external=False, require_post_merge=False)
+
+        missing_receipts = copy.deepcopy(coordinator)
+        missing_receipts.pop("postMergeCommands")
+        with self.assertRaisesRegex(ledger.LedgerError, "coordinator accepted.*missing postMergeCommands"):
+            ledger._validate_shape(missing_receipts, external=False, require_post_merge=True)
+
+        premature_chain = copy.deepcopy(coordinator)
+        premature_chain["previousRecordSha256"] = "0" * 64
+        with self.assertRaisesRegex(ledger.LedgerError, "coordinator accepted.*unknown previousRecordSha256"):
+            ledger._validate_shape(premature_chain, external=False, require_post_merge=True)
+
+        pending["timestamp"] = coordinator["timestamp"]
+        with self.assertRaisesRegex(ledger.LedgerError, "pending.*unknown timestamp"):
+            ledger._validate_shape(pending, external=False, require_post_merge=True)
+
+        persisted = self.persisted(coordinator)
+        persisted.pop("recordSha256")
+        with self.assertRaisesRegex(ledger.LedgerError, "external persisted.*missing recordSha256"):
+            ledger._validate_shape(persisted, external=True, require_post_merge=True)
 
     def test_append_creates_and_validates_hash_chain(self) -> None:
         first = self.append(self.accepted_record())
@@ -407,6 +571,7 @@ pending
         unmerged["mergeSha"] = unmerged["prHeadSha"]
         for receipt in unmerged["postMergeCommands"]:
             receipt["runSha"] = unmerged["prHeadSha"]
+        unmerged = self.persisted(unmerged)
         with self.assertRaisesRegex(ledger.LedgerError, "merge commit|ancestry"):
             ledger.validate_record(unmerged, external=True, repo_root=self.repo)
         with self.assertRaisesRegex(ledger.LedgerError, "exactly refs/remotes/origin/main"):
@@ -420,6 +585,7 @@ pending
         item = self.accepted_record()
         item["prUrl"] = "https://github.com/MAXION-AI/maxion-platform-demo/pull/999999999"
         item["prNumber"] = 999999999
+        item = self.persisted(item)
         with self.assertRaisesRegex(ledger.LedgerError, "merge commit subject"):
             ledger.validate_record(item, external=True, repo_root=self.repo)
         item = self.accepted_record()
@@ -431,6 +597,12 @@ pending
         item = self.accepted_record()
         item["commands"][0]["evidencePath"] = "README.md"
         self.assert_invalid(item, "must be inside")
+        item = self.accepted_record()
+        item["commands"][0]["evidencePath"] = (
+            f"artifacts/ux-audits/phase-{item['phase']}/.staging/"
+            f"command-{item['commands'][0]['id']}.json"
+        )
+        self.assert_invalid(item, "hidden or staging")
         item = self.accepted_record()
         item["reviewReports"]["qa"] = copy.deepcopy(item["reviewReports"]["ux"])
         self.assert_invalid(item, "distinct committed")
@@ -451,6 +623,94 @@ pending
         qa["browserRuns"][1]["artifactSha256"] = qa["browserRuns"][0]["artifactSha256"]
         with self.assertRaisesRegex(ledger.LedgerError, "three distinct artifacts"):
             ledger._validate_review_report_shape(qa, record=item, role="qa", repo_root=self.repo)
+
+    def test_browser_runs_bind_candidate_command_clean_state_and_time(self) -> None:
+        item = self.accepted_record()
+        qa_path = item["reviewReports"]["qa"]["path"]
+        original = json.loads(self.git("show", f"{item['evidenceCommitSha']}:{qa_path}"))
+        mutations = (
+            ("runSha", "0" * 40, "runSha must equal candidateSha"),
+            ("command", "pnpm test:e2e --grep lucky", "exact unfiltered command"),
+            ("cleanAfter", False, "clean state before and after"),
+            ("startedAt", "not-a-time", "startedAt must be a UTC timestamp"),
+        )
+        for field, value, message in mutations:
+            with self.subTest(field=field):
+                qa = copy.deepcopy(original)
+                qa["browserRuns"][0][field] = value
+                with self.assertRaisesRegex(ledger.LedgerError, message):
+                    ledger._validate_review_report_shape(
+                        qa, record=item, role="qa", repo_root=self.repo
+                    )
+
+    def test_all_surfaces_parses_the_exact_strict_preview_index(self) -> None:
+        self.git("checkout", "main")
+        manifest_path = "docs/operations/figma-code-map.json"
+        manifest = json.loads((self.repo / manifest_path).read_text(encoding="utf-8"))
+        manifest["acceptanceScopes"] = [{
+            "phase": 10,
+            "kind": "all-surfaces",
+            "referenceSheets": sorted(path.rsplit("/", 1)[-1] for path in ledger.REFERENCE_SHEET_PATHS),
+        }]
+        self.write(manifest_path, json.dumps(manifest) + "\n")
+        self.git("add", manifest_path)
+        self.git("commit", "-qm", "all-surfaces scope fixture")
+        all_surfaces = self.make_phase(10, self.git("rev-parse", "HEAD"), 11)
+        qa_path = all_surfaces["reviewReports"]["qa"]["path"]
+        qa = json.loads(self.git("show", f"{all_surfaces['evidenceCommitSha']}:{qa_path}"))
+        ledger._validate_review_report_shape(
+            qa, record=all_surfaces, role="qa", repo_root=self.repo
+        )
+        index_path = "artifacts/ux-audits/phase-10/strict-preview-runs.json"
+        browser_check = next(check for check in qa["checks"] if check["id"] == "browser-e2e")
+        browser_check["evidence"].remove(index_path)
+        with self.assertRaisesRegex(ledger.LedgerError, "browser-e2e check must bind"):
+            ledger._validate_review_report_shape(
+                qa, record=all_surfaces, role="qa", repo_root=self.repo
+            )
+        browser_check["evidence"].append(index_path)
+        real_blob = ledger._git_blob
+
+        def mismatched_index(repo_root: Path, commit: str, path: str) -> bytes:
+            if path == index_path:
+                value = json.loads(real_blob(repo_root, commit, path))
+                value["runs"][0]["command"] = "pnpm test:e2e --grep lucky"
+                return canonical(value)
+            return real_blob(repo_root, commit, path)
+
+        with mock.patch.object(ledger, "_git_blob", side_effect=mismatched_index):
+            with self.assertRaisesRegex(ledger.LedgerError, "does not exactly bind"):
+                ledger._validate_review_report_shape(
+                    qa, record=all_surfaces, role="qa", repo_root=self.repo
+                )
+
+    def test_package_scope_uses_nonvisual_checklists_and_forbids_browser_runs(self) -> None:
+        self.git("checkout", "main")
+        manifest_path = "docs/operations/figma-code-map.json"
+        manifest = json.loads((self.repo / manifest_path).read_text(encoding="utf-8"))
+        manifest["acceptanceScopes"] = [
+            {"phase": 11, "kind": "package", "referenceSheets": []}
+        ]
+        self.write(manifest_path, json.dumps(manifest) + "\n")
+        self.git("add", manifest_path)
+        self.git("commit", "-qm", "package scope fixture")
+        package_base = self.git("rev-parse", "HEAD")
+        package = self.make_phase(11, package_base, 12)
+        ledger.validate_record(package, external=False, repo_root=self.repo)
+        qa_path = package["reviewReports"]["qa"]["path"]
+        qa = json.loads(self.git("show", f"{package['evidenceCommitSha']}:{qa_path}"))
+        self.assertEqual(qa["scopeKind"], "package")
+        self.assertEqual(qa["referenceSheets"], [])
+        self.assertEqual(
+            [check["id"] for check in qa["checks"]],
+            list(ledger.PACKAGE_REVIEW_CHECKLISTS["qa"]),
+        )
+        self.assertNotIn("browserRuns", qa)
+        qa["browserRuns"] = []
+        with self.assertRaisesRegex(ledger.LedgerError, "invalid schema"):
+            ledger._validate_review_report_shape(
+                qa, record=package, role="qa", repo_root=self.repo
+            )
 
     def test_github_attestation_fails_closed(self) -> None:
         record = self.accepted_record()
@@ -611,6 +871,26 @@ pending
         ledger.validate_tracked(document)
         self.assertEqual(document["snapshotThroughPhase"], -1)
         self.assertEqual(document["phases"], [])
+
+    def test_populated_tracked_snapshot_is_offline_and_hash_chained(self) -> None:
+        record = self.persisted(self.accepted_record())
+        document = {
+            "schemaVersion": 1,
+            "program": ledger.PROGRAM,
+            "repository": ledger.REPOSITORY,
+            "externalAuthority": str(ledger.DEFAULT_EXTERNAL_LEDGER),
+            "candidatePhase": 1,
+            "snapshotQualification": "lagging-export-of-external-accepted-records-only",
+            "snapshotThroughPhase": 0,
+            "phases": [record],
+        }
+        self.github_attestation.reset_mock()
+        ledger.validate_tracked(document, repo_root=self.repo)
+        self.github_attestation.assert_not_called()
+        document["phases"][0]["previousRecordSha256"] = "f" * 64
+        document["phases"][0]["recordSha256"] = ledger.record_sha256(document["phases"][0])
+        with self.assertRaisesRegex(ledger.LedgerError, "hash chain"):
+            ledger.validate_tracked(document, repo_root=self.repo)
 
 
 if __name__ == "__main__":

@@ -25,6 +25,8 @@ HANDOFF_RE = re.compile(
 SHA_RE = re.compile(r"^[0-9a-f]{40}$")
 VISIBLE_STATUS_RE = re.compile(r"\*\*Status:\*\*\s*([^|\n]+)")
 REGULAR_BLOB_MODE = "100644"
+TRAILER_RE = re.compile(r"^Phase-Candidate: ([0-9a-f]{40})$")
+TRAILER_CANDIDATE_RE = re.compile(r"^Phase-Candidate\b")
 
 
 def _git(repo: Path, *args: str, binary: bool = False) -> bytes | str:
@@ -171,6 +173,21 @@ def _name_status(repo: Path, candidate: str, evidence: str) -> list[tuple[str, s
     return entries
 
 
+def _check_candidate_trailer(repo: Path, candidate: str, evidence: str) -> list[str]:
+    raw_message = _git(repo, "show", "-s", "--format=%B", evidence, binary=True)
+    assert isinstance(raw_message, bytes)
+    message = raw_message.decode("utf-8", errors="replace")
+    candidate_lines = [line for line in message.splitlines() if TRAILER_CANDIDATE_RE.match(line)]
+    if len(candidate_lines) != 1:
+        return ["evidence E must contain exactly one Phase-Candidate trailer"]
+    match = TRAILER_RE.fullmatch(candidate_lines[0])
+    if not match:
+        return ["evidence E Phase-Candidate trailer must contain one exact lowercase 40-character SHA"]
+    if match.group(1) != candidate:
+        return ["evidence E Phase-Candidate trailer must equal candidate C"]
+    return []
+
+
 def _check_review_reports(
     repo: Path,
     evidence: str,
@@ -255,6 +272,7 @@ def check_acceptance(repo: Path, candidate: str, evidence: str, phase: int) -> l
         if len(parents) != 2 or parents[1] != candidate:
             findings.append("evidence E must be the single direct child of candidate C")
             return findings
+        findings.extend(_check_candidate_trailer(repo, candidate, evidence))
         entries = _name_status(repo, candidate, evidence)
     except (OSError, subprocess.SubprocessError, ValueError) as exc:
         return [f"cannot verify C-to-E history: {exc}"]
@@ -278,6 +296,9 @@ def check_acceptance(repo: Path, candidate: str, evidence: str, phase: int) -> l
         path = destination or source
         if status == "A" and path.startswith(audit_prefix):
             try:
+                program_ledger._phase_artifact_path(  # noqa: SLF001 - shared path authority
+                    path, "evidence E artifact", phase
+                )
                 _require_regular_blob(repo, evidence, path)
             except ValueError as exc:
                 findings.append(str(exc))

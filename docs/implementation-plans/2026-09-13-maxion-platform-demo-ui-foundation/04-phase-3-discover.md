@@ -28,7 +28,8 @@ state, preserve valid drafts, and place the next unresolved gap ahead of seconda
 
 ## Architecture, scale, security, and reliability
 
-`DiscoveryAutonomousPrototypePage.tsx` becomes a composition root over typed interview, transcript,
+`DiscoveryAutonomousPrototypePage.tsx` becomes a composition root over folder-owned
+`src/features/discovery-autonomous/domain/` interview, transcript,
 evidence, fact, decision, gap, and package selectors. Module code may not read or write browser storage
 directly. Transcript/evidence lists are bounded and virtualized beyond 100 entries; a 10,000-item fixture
 must keep mounted rows at 200 or fewer and interactive filtering p95 below 100 ms. Imported text is
@@ -39,7 +40,12 @@ degraded state with retry and manual continuation, never as a fabricated success
 ## Ordered tasks
 
 1. **Characterize and model Discover (3.1).** Freeze current happy/unhappy behavior, then define typed events and invariants for interview turns, transcript entries, evidence, facts, decisions, gaps, and package readiness.
-2. **Extract domain ownership (3.2).** Move persistence and transition logic out of `DiscoveryAutonomousPrototypePage.tsx` into pure reducers/selectors and the shared repository port.
+2. **Extract domain ownership (3.2).** Move persistence and transition logic out of
+   `DiscoveryAutonomousPrototypePage.tsx` into `domain/discoveryState.ts` pure reducers/selectors and
+   `domain/discoveryRepository.ts`; after those production-reachable files exist, update the
+   `discover-workspace` manifest `implementation.owners` and `stateBinding.sourceOwner` in the same
+   task. Domain state/repository/handoff files may not be placed directly at the feature root;
+   `src/features/discovery-autonomous/domain/` is the canonical folder.
 3. **Implement the accepted composition (3.3).** Build the frame's conversation workspace, evidence/fact rail, progress model, persistent composer, and shared loading/empty/error primitives without one-off tokens.
 4. **Complete the state matrices (3.4).** Implement the exact stable IDs above plus every control interaction state in sheet §5; no prose-only synonym counts as coverage.
 5. **Bind the Plan handoff (3.5).** Emit one versioned `DiscoveryPackageRef` with project, provenance, unresolved gaps, authority, and evidence class; never infer readiness from a completion badge.
@@ -50,12 +56,12 @@ degraded state with retry and manual continuation, never as a fabricated success
 
 | Task | Serves | Exact files/symbols | Prerequisite | Focused verification |
 | --- | --- | --- | --- | --- |
-| 3.1 | RC-07 and RC-14 via ADR-3 | `src/features/discovery-autonomous/discoveryState.ts#DiscoveryState`; `src/features/discovery-autonomous/discoveryState.spec.ts#invariants` | Accepted Phase 2 M and project identity contract | `pnpm test -- discoveryState.spec.ts` |
-| 3.2 | RC-04 and RC-07 via ADR-3 | `src/features/discovery-autonomous/discoveryState.ts#reduceDiscovery`; `src/features/discovery-autonomous/DiscoveryAutonomousPrototypePage.tsx#DiscoveryAutonomousPrototypePage` | Task 3.1 characterization and invariants | `pnpm test -- DiscoveryAutonomousPrototypePage.spec.tsx` |
+| 3.1 | RC-07 and RC-14 via ADR-3 | `src/features/discovery-autonomous/domain/discoveryState.ts#DiscoveryState`; `src/features/discovery-autonomous/domain/discoveryState.spec.ts#invariants` | Accepted Phase 2 M and project identity contract | `pnpm test -- src/features/discovery-autonomous/domain/discoveryState.spec.ts` |
+| 3.2 | RC-04 and RC-07 via ADR-3 | `src/features/discovery-autonomous/domain/discoveryState.ts#reduceDiscovery`; `src/features/discovery-autonomous/domain/discoveryRepository.ts#DiscoveryRepository`; `src/features/discovery-autonomous/DiscoveryAutonomousPrototypePage.tsx#DiscoveryAutonomousPrototypePage`; `docs/operations/figma-code-map.json#surfaces[discover-workspace].implementation.owners`; `docs/operations/figma-code-map.json#surfaces[discover-workspace].stateBinding.sourceOwner` | Task 3.1 characterization and invariants | `pnpm test -- src/features/discovery-autonomous/domain/discoveryState.spec.ts src/features/discovery-autonomous/domain/discoveryRepository.spec.ts` |
 | 3.3 | RC-07 and RC-15 via ADR-4 | `src/features/discovery-autonomous/DiscoveryAutonomousPrototypePage.tsx#DiscoveryWorkspace`; `src/features/discovery-autonomous/frontier.css#discovery-workspace` | Task 3.2 selector-driven ownership | `pnpm exec playwright test tests/e2e/discovery-autonomous.spec.ts -g composition` |
 | 3.4 | RC-07 and RC-15 via ADR-2 | `docs/operations/ux-reference-sheets/discover-workspace.md#5.1`; `tests/e2e/discovery-autonomous.spec.ts#discover.new` | Task 3.3 accepted composition | `pnpm exec playwright test tests/e2e/discovery-autonomous.spec.ts -g states` |
-| 3.5 | RC-07 and RC-14 via ADR-3 | `src/features/platform-prototype/contracts.ts#DiscoveryPackageRef`; `src/features/discovery-autonomous/discoveryState.ts#selectDiscoveryPackage` | Task 3.4 exact state coverage | `pnpm test -- discoveryHandoff.spec.ts` |
-| 3.6 | RC-15 and RC-18 via ADR-4 | `src/features/discovery-autonomous/discoveryState.spec.ts#break-it`; `tests/fixtures/discovery-10000.json#items` | Task 3.5 versioned package contract | `pnpm test -- discoveryState.spec.ts -t break-it` |
+| 3.5 | RC-07 and RC-14 via ADR-3 | `src/features/platform-prototype/contracts.ts#DiscoveryPackageRef`; `src/features/discovery-autonomous/domain/discoveryState.ts#selectDiscoveryPackage`; `src/features/discovery-autonomous/domain/discoveryHandoff.spec.ts#package-provenance` | Task 3.4 exact state coverage | `pnpm test -- src/features/discovery-autonomous/domain/discoveryHandoff.spec.ts` |
+| 3.6 | RC-15 and RC-18 via ADR-4 | `src/features/discovery-autonomous/domain/discoveryState.spec.ts#break-it`; `src/features/discovery-autonomous/domain/discoveryRepository.spec.ts#recovery`; `tests/fixtures/discovery-10000.json#items` | Task 3.5 versioned package contract | `pnpm test -- src/features/discovery-autonomous/domain/discoveryState.spec.ts -t break-it` |
 | 3.7 | RC-15 and RC-16 via ADR-8 | `artifacts/ux-audits/phase-3/verification.md`; `docs/operations/phase-acceptance-protocol.md#Evidence-only-closure` | Tasks 3.1 through 3.6 green at C | `python3 scripts/check_phase_acceptance.py --candidate "$C" --evidence "$E" --phase 3` |
 
 ## Contracts and observability
@@ -90,8 +96,8 @@ kernel. The migration must remain backward-readable until the next accepted rele
 
 | Kind | Exact files / outputs / commands | Passing evidence |
 | --- | --- | --- |
-| Production | Refactor `DiscoveryAutonomousPrototypePage.tsx`; create `src/features/discovery-autonomous/domain/**`; migrate/delete direct storage, timers, stale selectors/styles | One canonical Discover state/repository/view owner |
-| Tests/fixtures | Co-located domain/repository tests; existing Discovery Playwright specs; hostile/corrupt/offline and 10,000-entry fixtures | Exact nine state IDs, package handoff, reload/isolation, ≤200 rows |
+| Production | Refactor `src/features/discovery-autonomous/DiscoveryAutonomousPrototypePage.tsx`; create `src/features/discovery-autonomous/domain/discoveryState.ts` and `src/features/discovery-autonomous/domain/discoveryRepository.ts`; update `docs/operations/figma-code-map.json` implementation/state owners to those exact production-reachable symbols; migrate/delete direct storage, timers, stale selectors/styles | One canonical Discover state/repository/view owner under `domain/`; zero feature-root domain alternative |
+| Tests/fixtures | `src/features/discovery-autonomous/domain/discoveryState.spec.ts`; `src/features/discovery-autonomous/domain/discoveryRepository.spec.ts`; `src/features/discovery-autonomous/domain/discoveryHandoff.spec.ts`; existing Discovery Playwright specs; hostile/corrupt/offline and 10,000-entry fixtures | Exact nine state IDs, package handoff, reload/isolation, ≤200 rows |
 | Evidence/commands | `artifacts/ux-audits/phase-3/**`; Discover sheet; standard program/test/build/E2E/audit/diff commands plus focused Discovery specs | State/viewport/Figma/axe/timing evidence and independent reports |
 | PR lifecycle | Verify prior M as B; create isolated phase branch/worktree; commit clean C; independent UX/QA audit C; commit required distinct evidence-only E; merge only as a true B+E two-parent M; rerun clean-M gates; append under lock to the external authority | PR URL, B/C/E/M, protected-object equality, exact target ref, merge/PR identity, post-merge results, successor pin |
 

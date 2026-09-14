@@ -2,7 +2,7 @@
   "schemaVersion": 2,
   "updatedAt": "2026-09-13",
   "authority": "docs/operations/ux-surface-inventory.md",
-  "implementationTree": {"sourceCommit": "73ba9201a63db6d89029d1928ea9ed52da960c80", "srcGitTreeSha1": "a3f62a27cbd490727982b7d5b591f5ec3218a49a"},
+  "implementationTree": {"sourceCommit": "87065211e102d397d174fb11b7328b8b8e7e0a8f", "srcGitTreeSha1": "38fa84931a9123ffd4d701b4ec709849825032bb"},
   "remoteFigmaAttestation": {"verifiedAt": "2026-09-13", "verifier": "roadmap_independent_hardening", "evidencePath": "docs/implementation-plans/2026-09-13-maxion-platform-demo-ui-foundation/HARDENING-LOG.md", "scope": "All 13 frame nodes reopened; component-node ownership was not independently enumerated."},
   "acceptanceScopes": [
     {
@@ -67,7 +67,7 @@
       "addressing": {"mode":"url","canonicalUrl":"/maxion-prototype","sourceMarker":"path=\"/maxion-prototype\""},
       "referenceSheet": "platform-shell-dashboard.md",
       "acceptancePhase": 0,
-      "referenceSheetSha256": "6f15c6f2cb6a38dcdd08de43b3aec2f19684b8f5ee07d6f81c165750eb1d91fa",
+      "referenceSheetSha256": "f787e797672f02d8f21d06a05da6f89017aa8581c0516786835477f15db0be17",
       "phaseDocument": "03-phase-2-dashboard-projects.md",
       "requiredStateIds": ["shell.attention","shell.clear","shell.destination-error","shell.mobile-navigation"],
       "stateBinding": {"status":"scheduled","targetPhase":2,"stateIds":["shell.attention","shell.clear","shell.destination-error","shell.mobile-navigation"],"sourceOwner":"src/features/platform-prototype/MaxionPlatformPrototypePage.tsx#MaxionPlatformPrototypePage","fixturePattern":"tests/fixtures/ux-states/{stateId}.json","browserTestPattern":"tests/e2e/maxion-platform-shell.spec.ts#{stateId}","evidencePattern":"artifacts/ux-audits/phase-2/states/{stateId}.md"},

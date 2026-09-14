@@ -47,10 +47,12 @@ proof are explicitly outside this repository and remain MaxAI release obligation
 5. **Run performance and load-shaped qualification (10.5).** Measure INP/LCP/CLS, initial JS/CSS budgets, lazy loading, mounted-node bounds, memory growth, and 10,000-object fixtures under 4× CPU/Slow 4G.
 6. **Run fresh end-to-end journeys and recovery (10.6).** Execute the complete unfiltered
    strict-preview Playwright suite in three separate clean invocations, each with a fresh server and
-   browser context, on C and again on M. Prove project creation plus
+   browser context, on C. Prove project creation plus
    Discover→Plan→Execute→Agentix→Consult, administrative approval/integration degradation,
    reload/resume, failure/retry/rollback, and no duplicate effects. A retry, filtered run, or continuation
-   after interruption is not one of the three.
+   after interruption is not one of the three. After merge, the append coordinator runs the canonical
+   clean-M `phase-tests` group exactly once (`pnpm test && pnpm test:e2e`) and records its M-bound receipt;
+   that is a separate merge qualification, not three additional reviewer browser artifacts.
 7. **Run independent final QA and freeze evidence (10.7).** A separate verifier audits sheets/code/Figma/evidence and returns GATE PASS only with no blocker/major finding; record limitations and the accepted SHA.
 
 ### Cold-executor contracts
@@ -71,10 +73,13 @@ Evidence includes command logs, browser traces, screenshots, accessibility repor
 bundle output, large-fixture counts, state/recovery IDs, and the immutable accepted SHA. All output uses
 synthetic fixtures and redacts environment details that could contain secrets. No API/schema/package is
 planned.
-`strict-preview-runs.json` contains exactly three PASS entries for C and exactly three for M, each with
-run ID, run SHA, start/end time, clean-status proof, unfiltered command, browser/version, viewport,
-fixture-set hash, exit code, stdout/stderr hashes, and trace/report path. Duplicate run IDs or artifact
-hashes, nonzero exits, a missing browser project, or fewer than three complete runs fail qualification.
+`strict-preview-runs.json` is parsed by the acceptance gate as schema version 2 and contains exactly
+the same three ordered PASS entries as QA's `browserRuns`. Each binds C as run SHA, exact unfiltered
+`pnpm test:e2e`, start/end UTC time, clean-before/after proof, run ID, browser/version, viewport,
+fixture-set identity, exit code, and trace/report artifact path plus SHA-256. Duplicate run IDs or artifact
+hashes, nonzero exits, a missing browser project, or fewer than three complete C runs fail qualification.
+The external ledger's coordinator-generated `postMergeCommands` separately contains one PASS
+`phase-tests` receipt whose `runSha` equals M; no E artifact may claim or predict that post-merge result.
 
 ## Test and failure plan
 
@@ -111,6 +116,8 @@ append-only so failed runs remain inspectable.
   dead-code, or source-quality exemptions; browser traversal proves every retained route.
 - [ ] The qualification report states exactly what the demo proves and does not claim backend concurrency, live providers, deployment, or production readiness.
 - [ ] Independent final QA reports no blocker/major finding and records the accepted demo SHA.
+- [ ] QA binds exactly three clean-C browser runs, while the external ledger binds the one canonical
+  clean-M `phase-tests` rerun; no six-run or precomputed M-artifact claim exists.
 
 ## Hand-off
 

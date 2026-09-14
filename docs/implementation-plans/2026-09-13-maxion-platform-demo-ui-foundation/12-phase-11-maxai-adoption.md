@@ -29,6 +29,12 @@ therefore both review reports use `referenceSheets: []`; acceptance evaluates pa
 integrity, proof-boundary language, and bootstrap safety. Phase 10 is the sole whole-surface
 requalification and Phase 11 may not reopen or silently weaken a sheet contract.
 
+Both independent reports use `scopeKind: "package"` and the exact ordered checklist
+`package-integrity`, `traceability`, `proof-boundary`, `rollback`, `bootstrap`. QA `browserRuns` is
+absent—not empty and not fabricated. Figma/Mobbin comparison, the laws-check, browser UI proof,
+responsive screenshots, and interactivity evidence are inapplicable to this package-only phase and
+must not appear as substitute proof.
+
 ## Architecture, scale, security, and reliability
 
 Create a versioned adoption-package directory containing machine-readable and human-readable contracts.
@@ -55,8 +61,9 @@ or production SLOs. Those become mandatory MaxAI plan inputs.
 4. **Define the separate-stream bootstrap (11.4).** Document that the MaxAI coordinator fetches
    `max-ai-platform/origin/main`, creates a new external ledger and plan in that repository, audits
    real tokens/components/routes/queries/auth/tenancy, and maps every adoption-package row before code.
-5. **Audit and close the package (11.5).** Independent UX and engineering reviewers audit clean C;
-   evidence-only E and merge M follow the phase acceptance protocol; rerun clean-M package/program gates.
+5. **Audit and close the package (11.5).** Independent UX and engineering reviewers audit clean C
+   against the exact five package checks; neither report has `browserRuns`. Evidence-only E and merge
+   M follow the phase acceptance protocol; rerun clean-M package/program gates.
 
 ### Cold-executor contracts
 
@@ -66,7 +73,7 @@ or production SLOs. Those become mandatory MaxAI plan inputs.
 | 11.2 | RC-03 and RC-17 via ADR-6 | `docs/operations/maxai-ui-foundation-adoption/contract.json#surfaces`; `docs/operations/maxai-ui-foundation-adoption/traceability.md#Surface-map` | Task 11.1 frozen inputs | `python3 scripts/check_maxai_adoption_package.py` |
 | 11.3 | RC-16 and RC-17 via ADR-6 | `scripts/check_maxai_adoption_package.py#check_package`; `scripts/tests/test_maxai_adoption_package.py#MaxAIAdoptionPackageTests` | Task 11.2 complete package | `python3 -m unittest scripts.tests.test_maxai_adoption_package` |
 | 11.4 | RC-17 and RC-18 via ADR-1 | `docs/operations/maxai-ui-foundation-adoption/README.md#Separate-production-adoption-stream`; `docs/operations/maxai-ui-foundation-adoption/open-gaps.md#Production-gaps` | Task 11.3 package integrity gate | `python3 scripts/check_maxai_adoption_package.py` |
-| 11.5 | RC-01 and RC-17 via ADR-8 | `artifacts/ux-audits/phase-11/package-review.md`; `docs/operations/phase-acceptance-protocol.md#Evidence-only-closure` | Tasks 11.1 through 11.4 green at C | `python3 scripts/check_phase_acceptance.py --candidate "$C" --evidence "$E" --phase 11` |
+| 11.5 | RC-01 and RC-17 via ADR-8 | `artifacts/ux-audits/phase-11/independent-ux.json`; `artifacts/ux-audits/phase-11/independent-qa.json`; `docs/operations/phase-acceptance-protocol.md#Evidence-only-closure` | Tasks 11.1 through 11.4 green at C | `python3 scripts/check_phase_acceptance.py --candidate "$C" --evidence "$E" --phase 11` |
 
 ## Files, outputs, commands, evidence, and PR closure
 
@@ -74,7 +81,7 @@ or production SLOs. Those become mandatory MaxAI plan inputs.
 | --- | --- | --- |
 | Package | `docs/operations/maxai-ui-foundation-adoption/{README.md,contract.json,traceability.md,open-gaps.md}` | Every demo surface/state/contract maps to a production responsibility or explicit gap |
 | Gate/tests | `scripts/check_maxai_adoption_package.py`; `scripts/tests/test_maxai_adoption_package.py`; register in `check_program_gates.sh` | All six negative fixtures fail for the intended reason; committed package passes |
-| Evidence/commands | `artifacts/ux-audits/phase-11/**`; `pnpm check:program`; `pnpm build`; `pnpm audit --audit-level high`; package self-tests; `git diff --check` | C-bound UX/QA reports, hashes, exact exit codes, no demo runtime import |
+| Evidence/commands | `artifacts/ux-audits/phase-11/**`; `pnpm check:program`; `pnpm build`; `pnpm audit --audit-level high`; package self-tests; `git diff --check` | C-bound UX/QA reports use `scopeKind: "package"`, `referenceSheets: []`, the exact five package checks, and no `browserRuns`; hashes and exit codes are exact; no demo runtime import |
 | PR lifecycle | Verify Phase 10 M as B; isolated adoption-package branch/worktree; commit clean C; independent audits; commit required distinct evidence-only E; true B+E two-parent M; clean-M gates; atomic external-ledger close | Demo PR URL and B/C/E/M; protected-object equality; exact target ref; verified final demo M |
 
 ## Test, failure, and rollback
@@ -92,7 +99,8 @@ unchanged. There is no production flag or deployment rollback in this phase.
 - [ ] The adoption package covers all thirteen surfaces and every stable semantic state exactly once.
 - [ ] All hashes/evidence/attestations point to Phase 10 M and no guessed Figma or production claim exists.
 - [ ] Package negative tests and program/build/security/diff gates pass.
-- [ ] Independent clean-C UX and engineering reports pass; demo PR is merged and clean-M verified.
+- [ ] Independent clean-C UX and engineering reports pass the exact package checklist without
+  Figma/Mobbin/laws/browser UI claims; demo PR is merged and clean-M verified.
 - [ ] External demo ledger closes at M and names the separate MaxAI plan/ledger bootstrap without
   creating or modifying that stream.
 

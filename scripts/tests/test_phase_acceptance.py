@@ -130,12 +130,50 @@ class PhaseAcceptanceTests(unittest.TestCase):
         owned_sheets = sorted(program_ledger._phase_reference_sheets(
             {"candidateSha": self.candidate, "phase": phase}, self.repo
         ))
+        scope_kind = program_ledger._phase_scope(  # noqa: SLF001 - fixture follows gate authority
+            {"candidateSha": self.candidate, "phase": phase}, self.repo
+        )[0]
         prefix = f"artifacts/ux-audits/phase-{phase}"
         review_evidence = f"{prefix}/review-checks.txt"
         self.write(review_evidence, "review evidence\n")
-        browser_paths = [f"{prefix}/browser-run-{index}.json" for index in range(1, 4)]
+        browser_paths = (
+            [f"{prefix}/browser-run-{index}.json" for index in range(1, 4)]
+            if scope_kind != "package" else []
+        )
         for index, path in enumerate(browser_paths, 1):
             self.write(path, json.dumps({"run": index, "status": "PASS"}))
+        browser_runs = [
+            {
+                "runId": f"phase-{phase}-browser-{index}",
+                "runSha": self.candidate,
+                "command": program_ledger.UNFILTERED_BROWSER_COMMAND,
+                "startedAt": f"2026-09-13T10:0{index}:00Z",
+                "finishedAt": f"2026-09-13T10:0{index}:30Z",
+                "cleanBefore": True,
+                "cleanAfter": True,
+                "browser": "chromium",
+                "browserVersion": "fixture",
+                "viewport": {"width": 1280, "height": 900},
+                "fixture": f"fixture-{index}",
+                "status": "PASS",
+                "exitCode": 0,
+                "artifactPath": browser_path,
+                "artifactSha256": hashlib.sha256((self.repo / browser_path).read_bytes()).hexdigest(),
+            }
+            for index, browser_path in enumerate(browser_paths, 1)
+        ]
+        strict_index_path = None
+        if scope_kind == "all-surfaces":
+            strict_index_path = f"{prefix}/strict-preview-runs.json"
+            self.write(strict_index_path, json.dumps({
+                "schemaVersion": 2,
+                "program": program_ledger.PROGRAM,
+                "phase": phase,
+                "kind": "strict-preview-runs",
+                "candidateSha": self.candidate,
+                "sourceTreeSha1": source_tree,
+                "runs": browser_runs,
+            }))
         paths = []
         for role in ("ux", "qa"):
             path = f"{prefix}/independent-{role}.json"
@@ -152,38 +190,61 @@ class PhaseAcceptanceTests(unittest.TestCase):
                 "sessionId": f"session-{role}-{phase}",
                 "worktree": str(self.repo / f"{role}-review-worktree"),
                 "cleanCheckout": True,
+                "scopeKind": scope_kind,
                 "referenceSheets": owned_sheets,
                 "checks": [
                     {"id": check_id, "status": "PASS", "evidence": [review_evidence]}
-                    for check_id in program_ledger.REVIEW_CHECKLISTS[role]
+                    for check_id in (
+                        program_ledger.PACKAGE_REVIEW_CHECKLISTS[role]
+                        if scope_kind == "package"
+                        else program_ledger.SURFACE_REVIEW_CHECKLISTS[role]
+                    )
                 ],
                 "verdict": "PASS",
             }
-            if role == "qa":
-                report["browserRuns"] = [
-                    {
-                        "runId": f"phase-{phase}-browser-{index}",
-                        "browser": "chromium",
-                        "browserVersion": "fixture",
-                        "viewport": {"width": 1280, "height": 900},
-                        "fixture": f"fixture-{index}",
-                        "status": "PASS",
-                        "exitCode": 0,
-                        "artifactPath": browser_path,
-                        "artifactSha256": hashlib.sha256((self.repo / browser_path).read_bytes()).hexdigest(),
-                    }
-                    for index, browser_path in enumerate(browser_paths, 1)
-                ]
+            if role == "qa" and scope_kind != "package":
+                report["browserRuns"] = browser_runs
+                if strict_index_path is not None:
+                    next(
+                        check for check in report["checks"] if check["id"] == "browser-e2e"
+                    )["evidence"].append(strict_index_path)
             self.write(path, json.dumps(report))
+        if strict_index_path is not None:
+            paths.append(strict_index_path)
         self.write(self.phase_doc, self.phase_text("accepted", paths))
         return paths
 
-    def commit(self, message: str = "evidence", *, reports: bool = True) -> str:
+    def commit(
+        self,
+        message: str = "evidence",
+        *,
+        reports: bool = True,
+        trailer_lines: list[str] | None = None,
+    ) -> str:
         if reports:
             self.add_acceptance_reports()
         self.git("add", ".")
-        self.git("commit", "-qm", message)
+        lines = [f"Phase-Candidate: {self.candidate}"] if trailer_lines is None else trailer_lines
+        arguments = ["commit", "-qm", message]
+        for line in lines:
+            arguments.extend(["-m", line])
+        self.git(*arguments)
         return self.git("rev-parse", "HEAD")
+
+    def test_requires_exactly_one_exact_candidate_trailer(self) -> None:
+        cases = (
+            ([], "exactly one Phase-Candidate"),
+            ([f"Phase-Candidate: {self.candidate}", f"Phase-Candidate: {self.candidate}"], "exactly one Phase-Candidate"),
+            (["Phase-Candidate: not-a-sha"], "exact lowercase 40-character"),
+            ([f" Phase-Candidate: {self.candidate}"], "exactly one Phase-Candidate"),
+            ([f"Phase-Candidate: {'0' * 40}"], "must equal candidate C"),
+        )
+        for trailer_lines, expected in cases:
+            with self.subTest(trailer_lines=trailer_lines):
+                self.git("reset", "--hard", self.candidate)
+                evidence = self.commit("invalid trailer", trailer_lines=trailer_lines)
+                findings = acceptance.check_acceptance(self.repo, self.candidate, evidence, 0)
+                self.assertTrue(any(expected in finding for finding in findings), findings)
 
     def test_evidence_cells_and_signoffs_may_change_without_contract_hash_drift(self) -> None:
         changed = SHEET.replace("**Status:** contract", "**Status:** gated")
@@ -350,6 +411,13 @@ class PhaseAcceptanceTests(unittest.TestCase):
         evidence = self.commit("symlink report", reports=False)
         findings = acceptance.check_acceptance(self.repo, self.candidate, evidence, 0)
         self.assertTrue(any("mode 100644" in item for item in findings), findings)
+
+    def test_hidden_staging_artifact_is_never_an_accepted_evidence_path(self) -> None:
+        self.add_acceptance_reports()
+        self.write("artifacts/ux-audits/phase-0/.staging/prefix.json", "{}\n")
+        evidence = self.commit("staging prefix", reports=False)
+        findings = acceptance.check_acceptance(self.repo, self.candidate, evidence, 0)
+        self.assertTrue(any("hidden or staging" in item for item in findings), findings)
 
     def test_phase_10_all_surfaces_and_phase_11_package_scopes_are_accepted(self) -> None:
         for phase, kind, sheets in ((10, "all-surfaces", ["sample.md"]), (11, "package", [])):

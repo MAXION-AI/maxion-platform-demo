@@ -29,11 +29,11 @@
 
 | Element on screen | Maxion component | Tokens used | Reference decision it implements |
 | --- | --- | --- | --- |
-| Product navigation destinations | PortalChrome product tier | --mxp-surface-raised, --mxp-text-muted, --mxp-control-lg | Seven frequent product destinations in the upper region of the 232 px rail, with 44 px rows, 24 px icons, and 4 px row gaps. |
-| Administrative navigation | PortalChrome administration tier | --mxp-surface-raised, --mxp-text-muted, --mxp-control-md | Units and five compact administrative destinations are bottom-anchored, with 36 px desktop rows, 44 px mobile hit areas, 16 px icons, and 2 px row gaps. |
-| Persistent dashboard header | DashboardModule header | --mxp-surface-raised, --mxp-border-subtle, --mxp-control-lg | 72 px operating header keeps greeting/decision count, Search or ask, and the single Open Agentix primary action visible. |
-| Attention summary | NeedsYou panel | --mxp-status-warning, --mxp-border-subtle, --mxp-radius-md | Three actionable, owner-specific decisions form the dominant left panel. |
-| Recent outcomes | RecentOutcomes panel | --mxp-surface-raised, --mxp-text-muted, --mxp-radius-md | Verified operational results replace duplicate module routing in the subordinate right panel. |
+| Product navigation destinations | PortalChrome product tier | --mxp-surface-raised, --mxp-text-muted, --mxp-control-lg | Seven frequent product destinations in the upper region of the 232 px rail, with 44 px rows, 24 px icons, 14 px labels, and 4 px row gaps. |
+| Administrative navigation | PortalChrome administration tier | --mxp-surface-raised, --mxp-text-muted, --mxp-control-md | Five compact administrative destinations are bottom-anchored, with 36 px desktop rows, 44 px mobile hit areas, 16 px icons, and 2 px row gaps; the optional units card hides on short desktop rails before any navigation row shrinks or scrolls out of the initial viewport. |
+| Persistent dashboard header | DashboardModule header | --mxp-surface-raised, --mxp-border-subtle, --mxp-control-lg | 72 px operating header keeps a one-line 190 × 36 px, 12 px Search or ask control and the single 132 × 44 px, 14 px Open Agentix primary action visible. |
+| Attention summary | NeedsYou panel | --mxp-status-warning, --mxp-border-subtle, --mxp-radius-md | Three actionable, owner-specific decisions form the dominant left panel: headings are 20/26 px, row titles and actions 14/21 px, support/evidence 12/16 px, and each action is 132 × 44 px. |
+| Recent outcomes | RecentOutcomes panel | --mxp-surface-raised, --mxp-text-muted, --mxp-radius-md | Verified operational results replace duplicate module routing in the subordinate right panel, using 20/26 px headings, 14/21 px row titles, and 12/16 px support/evidence. |
 | Cross-module command | CommandPalette | --mxp-focus-ring, --mxp-shadow-dialog, --mxp-space-4 | One searchable route into any important job. |
 
 - Raw colour, font, radius or shadow values are forbidden in components; `scripts/check_ux_tokens.py` enforces the ratchet while inherited values are removed.
@@ -43,16 +43,16 @@
 | Law | Requirement for this screen | Number / acceptance | Verified how |
 | --- | --- | --- | --- |
 | Hick's | Keep product work and administrative work in separate bounded regions. | 7 product destinations above; 5 administrative destinations below | Count named destinations at desktop and mobile widths |
-| Fitts's | Product targets carry stronger weight while compact administrative targets remain accessible. | Product rows 44 px with 24 px icons; administration rows 36 px desktop/44 px mobile with 16 px icons; every interactive target ≥24 px desktop and ≥44 px mobile | Computed-style scan of every interactive target at all four viewports |
+| Fitts's | Product targets carry stronger weight while compact administrative targets remain accessible. | Product rows 44 px with 24 px icons; administration rows 36 px desktop/44 px mobile with 16 px icons; dashboard actions 132 × 44 px; every interactive target ≥24 px desktop and ≥44 px mobile | Computed-style scan of every interactive target at all six viewports |
 | Jakob's | Follow the familiar product patterns examined in Cursor, Microsoft Copilot, and v0. | 3 named references applied; no novel core control | Side-by-side interaction audit |
-| Proximity | Keep labels, state, and actions with the object they describe; separate product and administration by flexible space. | 4 px product-row gaps; 2 px administrative-row gaps; administration begins in the lower half of a 900 px frame | Screenshot measurement |
+| Proximity | Keep labels, state, and actions with the object they describe; separate product and administration by flexible space. | 4 px product-row gaps; 2 px administrative-row gaps; product-to-administration gap ≥24 px at 720, 864, and 900 px desktop heights | Screenshot measurement |
 | Miller's | Chunk the rail into product and administrative groups. | 7 product items and 5 administrative items; neither group exceeds 7 | DOM and screenshot count |
 | Doherty | Acknowledge every interaction immediately and show durable progress for longer work. | Visual response within 400 ms | Playwright timing assertion |
 | Von Restorff | Give one primary next action the strongest emphasis. | Exactly 1 primary action per decision state | Visual hierarchy audit |
 | Serial Position | Put identity and current state first; put the terminal action after its evidence. | Primary context in first viewport; terminal action last | Keyboard and reading-order audit |
 | Peak-End | End completed work with a result, evidence, and useful next action. | Completion receipt has all 3 elements | Completion-state test |
 | Zeigarnik | Keep incomplete work and its remaining step visible. | Step N of M or explicit remaining item | State-transition assertion |
-| Prägnanz | Preserve one dominant workspace with quiet supporting rails. | 232 px rail; 72 px module header; 1 dominant Needs you panel and 1 subordinate Recent outcomes panel | Screenshot hierarchy review |
+| Prägnanz | Preserve one dominant workspace with quiet supporting rails and readable Figma-matched hierarchy. | 232 px rail; 72 px module header; 190 × 36 px search; 1 dominant Needs you panel and 1 subordinate Recent outcomes panel; 20/26, 14/21, and 12/16 px type tiers | Screenshot hierarchy and computed-style review |
 | Similarity | Product destinations share one treatment; administrative destinations share a smaller subordinate treatment. | Exactly 2 role-specific treatments: product and administration | Component inventory review |
 | Uniform Connectedness | Enclose related state and actions; separate unrelated decisions. | Every action is inside or immediately adjacent to its object | DOM relationship audit |
 | Tesler's | Resolve system complexity before asking the user for a bounded decision. | At most 1 user decision per card | Decision-card review |
@@ -68,7 +68,7 @@
 
 | State ID | Fixture / event | Visible content | Permitted actions | Recovery / next state | Responsive evidence | Figma / textual authority |
 | --- | --- | --- | --- | --- | --- | --- |
-| shell.attention | Seeded blocking decision | Prioritized attention object, owner, status, and consequence | Open the owning module or dismiss only when policy permits | Owning module; browser Back returns to Dashboard | 375, 768, 1280, and 1536 px captures | Figma 16:2 and §2 Cursor decision |
+| shell.attention | Seeded blocking decision | Prioritized attention object, owner, status, and consequence | Open the owning module or dismiss only when policy permits | Owning module; browser Back returns to Dashboard | 375 × 812, 768 × 900, 1280 × 720/900, and 1536 × 864/900 captures; all five admin rows initially visible with 0–16 px bottom gap | Figma 16:2 and §2 Cursor decision |
 | shell.clear | No actionable work fixture | Honest zero-attention explanation and recent verified outcomes | Start a project or enter a product module | Project creation or selected module | Same four viewports; no blank region | §2 Cursor and v0 decisions |
 | shell.destination-error | Selected module throws through its boundary | Scoped failure, correlation label, rail, and Dashboard recovery | Retry or return to Dashboard | Recovered destination or shell.attention | Mobile drawer and desktop rail remain operable | Textual authority: no-dead-end law row |
 | shell.mobile-navigation | Viewport below desktop breakpoint and menu opened | Modal product/admin navigation; page content inert | Choose destination, close, Escape, or reverse-tab | Selected surface or prior focused opener | 375 and 768 px focus trace | Phase 0 independent UX audit |

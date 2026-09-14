@@ -10,6 +10,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 PLAN_DIR = ROOT / "docs" / "implementation-plans" / "2026-09-13-maxion-platform-demo-ui-foundation"
+ACCEPTANCE_PROTOCOL = ROOT / "docs" / "operations" / "phase-acceptance-protocol.md"
 PHASE_GLOB = "[0-1][0-9]-phase-*.md"
 
 TASK_RE = re.compile(r"^\d+\. \*\*.+?\((\d+\.\d+)\)\.\*\*", re.M)
@@ -116,6 +117,57 @@ def check_parent_ranges(parent: Path, phase_paths: list[Path]) -> list[str]:
     return findings
 
 
+def _normalized_text(path: Path) -> str:
+    return " ".join(path.read_text(encoding="utf-8").casefold().split())
+
+
+def check_qualification_contracts(
+    plan_dir: Path = PLAN_DIR, protocol: Path = ACCEPTANCE_PROTOCOL
+) -> list[str]:
+    """Keep cold-path, Phase 10 run-count, and Phase 11 package invariants truthful."""
+
+    phase_3 = plan_dir / "04-phase-3-discover.md"
+    phase_10 = plan_dir / "11-phase-10-qualification.md"
+    phase_11 = plan_dir / "12-phase-11-maxai-adoption.md"
+    findings: list[str] = []
+    required = {
+        phase_3: (
+            "`src/features/discovery-autonomous/domain/discoverystate.ts#discoverystate`",
+            "`src/features/discovery-autonomous/domain/discoveryrepository.ts#discoveryrepository`",
+            "`src/features/discovery-autonomous/domain/discoveryhandoff.spec.ts#package-provenance`",
+            "`docs/operations/figma-code-map.json#surfaces[discover-workspace].statebinding.sourceowner`",
+        ),
+        phase_10: (
+            "three separate clean invocations",
+            "clean-m `phase-tests` group exactly once",
+            "`strict-preview-runs.json` is parsed by the acceptance gate",
+            "the same three ordered pass entries as qa's `browserruns`",
+            "no six-run or precomputed m-artifact claim exists",
+        ),
+        phase_11: (
+            "the exact ordered checklist `package-integrity`, `traceability`, `proof-boundary`, `rollback`, `bootstrap`",
+            "qa `browserruns` is absent—not empty and not fabricated",
+            "figma/mobbin comparison, the laws-check, browser ui proof",
+        ),
+        protocol: (
+            "qa additionally binds exactly three independent browser runs",
+            "clean-m is a separate coordinator qualification",
+            "phase 11 `package` scope binds no sheet or browser run",
+        ),
+    }
+    for path, phrases in required.items():
+        if not path.is_file():
+            findings.append(f"{path}: required qualification contract is missing")
+            continue
+        text = _normalized_text(path)
+        for phrase in phrases:
+            if phrase not in text:
+                findings.append(f"{path}: missing qualification invariant: {phrase}")
+    if phase_3.is_file() and "src/features/discovery-autonomous/discoverystate" in _normalized_text(phase_3):
+        findings.append(f"{phase_3}: Discover domain state path may not be feature-root-owned")
+    return findings
+
+
 def check_all(plan_dir: Path = PLAN_DIR) -> list[str]:
     paths = sorted(plan_dir.glob(PHASE_GLOB))
     findings: list[str] = []
@@ -130,6 +182,7 @@ def check_all(plan_dir: Path = PLAN_DIR) -> list[str]:
             findings.append(f"{parent}: missing the three-run strict-preview qualification rule")
     else:
         findings.append(f"{plan_dir}: parent roadmap is missing")
+    findings.extend(check_qualification_contracts(plan_dir))
     return findings
 
 

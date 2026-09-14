@@ -16,6 +16,7 @@ sys.path.insert(0, str(REPO / "scripts"))
 
 import collect_phase_evidence as collector  # noqa: E402
 import program_ledger  # noqa: E402
+from bounded_process import BoundedProcessError  # noqa: E402
 
 
 class PhaseEvidenceCollectorTests(unittest.TestCase):
@@ -40,8 +41,8 @@ class PhaseEvidenceCollectorTests(unittest.TestCase):
 
     def test_collects_only_after_all_five_fixed_commands_pass(self) -> None:
         with mock.patch.object(collector, "_git", side_effect=self.fake_git), mock.patch.object(
-            collector.subprocess,
-            "run",
+            collector,
+            "run_bounded",
             return_value=SimpleNamespace(returncode=0, stdout=b"pass\n", stderr=b""),
         ) as run:
             paths = collector.collect(self.repo, self.candidate, 4)
@@ -72,10 +73,21 @@ class PhaseEvidenceCollectorTests(unittest.TestCase):
         ):
             with self.subTest(returncode=result.returncode, size=len(result.stdout)):
                 with mock.patch.object(collector, "_git", side_effect=self.fake_git), mock.patch.object(
-                    collector.subprocess, "run", return_value=result
+                    collector, "run_bounded", return_value=result
                 ):
                     with self.assertRaises(program_ledger.LedgerError):
                         collector.collect(self.repo, self.candidate, 4)
+                self.assertFalse((self.repo / "artifacts").exists())
+
+    def test_runner_timeout_or_overflow_writes_nothing(self) -> None:
+        for detail in ("timed out after 1 seconds", "stdout exceeds 1048576 bytes"):
+            with self.subTest(detail=detail), mock.patch.object(
+                collector, "_git", side_effect=self.fake_git
+            ), mock.patch.object(
+                collector, "run_bounded", side_effect=BoundedProcessError(detail)
+            ):
+                with self.assertRaisesRegex(program_ledger.LedgerError, "no reports were written"):
+                    collector.collect(self.repo, self.candidate, 4)
                 self.assertFalse((self.repo / "artifacts").exists())
 
     def test_successful_command_that_dirties_checkout_writes_nothing(self) -> None:
@@ -89,35 +101,92 @@ class PhaseEvidenceCollectorTests(unittest.TestCase):
             return self.fake_git(_repo, *args)
 
         with mock.patch.object(collector, "_git", side_effect=dirty_after_first_command), mock.patch.object(
-            collector.subprocess,
-            "run",
+            collector,
+            "run_bounded",
             return_value=SimpleNamespace(returncode=0, stdout=b"pass\n", stderr=b""),
         ):
             with self.assertRaisesRegex(program_ledger.LedgerError, "clean candidate checkout"):
                 collector.collect(self.repo, self.candidate, 4)
         self.assertFalse((self.repo / "artifacts").exists())
 
-    def test_mid_publish_failure_rolls_back_the_complete_report_set(self) -> None:
-        real_link = os.link
-        link_calls = 0
+    def test_publish_is_absent_before_rename_and_complete_immediately_after(self) -> None:
+        real_rename = os.rename
+        observed: dict[str, object] = {}
 
-        def fail_second_link(source: str | Path, target: str | Path) -> None:
-            nonlocal link_calls
-            link_calls += 1
-            if link_calls == 2:
-                raise OSError("injected publication failure")
-            real_link(source, target)
+        def probe_rename(source: str | Path, target: str | Path) -> None:
+            source_path = Path(source)
+            target_path = Path(target)
+            observed["target_absent_before"] = not target_path.exists()
+            observed["staged_names"] = sorted(path.name for path in source_path.iterdir())
+            real_rename(source, target)
+            observed["final_names"] = sorted(path.name for path in target_path.iterdir())
 
         with mock.patch.object(collector, "_git", side_effect=self.fake_git), mock.patch.object(
-            collector.subprocess,
-            "run",
+            collector,
+            "run_bounded",
             return_value=SimpleNamespace(returncode=0, stdout=b"pass\n", stderr=b""),
-        ), mock.patch.object(collector.os, "link", side_effect=fail_second_link):
-            with self.assertRaisesRegex(program_ledger.LedgerError, "complete command report set"):
+        ), mock.patch.object(collector.os, "rename", side_effect=probe_rename):
+            paths = collector.collect(self.repo, self.candidate, 4)
+
+        expected = sorted(f"command-{command_id}.json" for command_id in program_ledger.CANONICAL_COMMANDS)
+        self.assertTrue(observed["target_absent_before"])
+        self.assertEqual(observed["staged_names"], expected)
+        self.assertEqual(observed["final_names"], expected)
+        self.assertEqual(sorted(path.name for path in paths), expected)
+
+    def test_pre_rename_publication_failure_leaves_no_final_directory(self) -> None:
+        with mock.patch.object(collector, "_git", side_effect=self.fake_git), mock.patch.object(
+            collector,
+            "run_bounded",
+            return_value=SimpleNamespace(returncode=0, stdout=b"pass\n", stderr=b""),
+        ), mock.patch.object(collector.os, "rename", side_effect=OSError("injected publication failure")):
+            with self.assertRaisesRegex(program_ledger.LedgerError, "no final report directory"):
                 collector.collect(self.repo, self.candidate, 4)
 
         output_dir = self.repo / "artifacts" / "ux-audits" / "phase-4"
-        self.assertEqual(list(output_dir.iterdir()), [])
+        self.assertFalse(output_dir.exists())
+
+    def test_staging_setup_failure_is_caught_and_leaves_no_final_directory(self) -> None:
+        with mock.patch.object(collector, "_git", side_effect=self.fake_git), mock.patch.object(
+            collector,
+            "run_bounded",
+            return_value=SimpleNamespace(returncode=0, stdout=b"pass\n", stderr=b""),
+        ), mock.patch.object(
+            collector.tempfile, "mkdtemp", side_effect=OSError("injected staging failure")
+        ):
+            with self.assertRaisesRegex(program_ledger.LedgerError, "no final report directory"):
+                collector.collect(self.repo, self.candidate, 4)
+
+        self.assertFalse((self.repo / "artifacts" / "ux-audits" / "phase-4").exists())
+
+    def test_post_rename_sync_failure_keeps_complete_idempotent_result(self) -> None:
+        real_fsync = collector._fsync_directory
+        calls = 0
+
+        def fail_parent_sync(path: Path) -> None:
+            nonlocal calls
+            calls += 1
+            if calls == 2:
+                raise OSError("injected parent sync failure")
+            real_fsync(path)
+
+        with mock.patch.object(collector, "_git", side_effect=self.fake_git), mock.patch.object(
+            collector,
+            "run_bounded",
+            return_value=SimpleNamespace(returncode=0, stdout=b"pass\n", stderr=b""),
+        ), mock.patch.object(collector, "_fsync_directory", side_effect=fail_parent_sync):
+            with self.assertRaisesRegex(program_ledger.LedgerError, "complete final directory was published"):
+                collector.collect(self.repo, self.candidate, 4)
+
+        output_dir = self.repo / "artifacts" / "ux-audits" / "phase-4"
+        self.assertEqual(len(list(output_dir.iterdir())), 5)
+        with self.assertRaisesRegex(program_ledger.LedgerError, "refuses to overwrite"):
+            with mock.patch.object(collector, "_git", side_effect=self.fake_git), mock.patch.object(
+                collector,
+                "run_bounded",
+                return_value=SimpleNamespace(returncode=0, stdout=b"pass\n", stderr=b""),
+            ):
+                collector.collect(self.repo, self.candidate, 4)
 
 
 if __name__ == "__main__":

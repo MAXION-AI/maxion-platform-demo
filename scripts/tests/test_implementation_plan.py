@@ -87,6 +87,30 @@ class ImplementationPlanGateTests(unittest.TestCase):
             findings = gate.check_parent_ranges(parent, [phase])
             self.assertTrue(any("1.1–1.1" in item for item in findings), findings)
 
+    def test_repository_qualification_contracts_are_truthful(self) -> None:
+        self.assertEqual(gate.check_qualification_contracts(), [])
+
+    def test_qualification_contract_drift_fails_closed(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            plan_dir = root / "plans"
+            plan_dir.mkdir()
+            for filename in ("11-phase-10-qualification.md", "12-phase-11-maxai-adoption.md"):
+                source = gate.PLAN_DIR / filename
+                (plan_dir / filename).write_text(source.read_text(encoding="utf-8"), encoding="utf-8")
+            protocol = root / "phase-acceptance-protocol.md"
+            protocol.write_text(gate.ACCEPTANCE_PROTOCOL.read_text(encoding="utf-8"), encoding="utf-8")
+            phase_10 = plan_dir / "11-phase-10-qualification.md"
+            phase_10.write_text(
+                phase_10.read_text(encoding="utf-8").replace(
+                    "clean-M `phase-tests` group exactly once",
+                    "three more clean-M browser runs",
+                ),
+                encoding="utf-8",
+            )
+            findings = gate.check_qualification_contracts(plan_dir, protocol)
+            self.assertTrue(any("clean-m `phase-tests`" in item for item in findings), findings)
+
 
 if __name__ == "__main__":
     unittest.main()

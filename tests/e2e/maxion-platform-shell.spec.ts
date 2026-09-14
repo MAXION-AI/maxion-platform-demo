@@ -24,7 +24,9 @@ test("keeps product and administration geometry exact at every acceptance viewpo
 	for (const viewport of [
 		{ width: 375, height: 812 },
 		{ width: 768, height: 900 },
+		{ width: 1280, height: 720 },
 		{ width: 1280, height: 900 },
+		{ width: 1536, height: 864 },
 		{ width: 1536, height: 900 },
 	]) {
 		await page.setViewportSize(viewport)
@@ -44,6 +46,13 @@ test("keeps product and administration geometry exact at every acceptance viewpo
 			productGap: Number.parseFloat(getComputedStyle(element.querySelector(".mxp-product-nav ul")!).rowGap),
 			adminGap: Number.parseFloat(getComputedStyle(element.querySelector(".mxp-administration-nav ul")!).rowGap),
 			sidebarWidth: element.closest(".mxp-portal-sidebar")!.getBoundingClientRect().width,
+			productBottom: element.querySelector<HTMLElement>(".mxp-product-nav")!.getBoundingClientRect().bottom,
+			administrationTop: element.querySelector<HTMLElement>(".mxp-administration-nav")!.getBoundingClientRect().top,
+			administrationBottom: element.querySelector<HTMLElement>(".mxp-administration-nav")!.getBoundingClientRect().bottom,
+			scrollTop: element.getBoundingClientRect().top,
+			scrollBottom: element.getBoundingClientRect().bottom,
+			adminBounds: [...element.querySelectorAll<HTMLElement>('[data-navigation-tier="administration"]')]
+				.map((control) => ({ top: control.getBoundingClientRect().top, bottom: control.getBoundingClientRect().bottom })),
 		}))
 		expect(geometry.productRows, `${viewport.width}px product rows`).toEqual(Array(7).fill(44))
 		expect(geometry.adminRows, `${viewport.width}px administrative rows`).toEqual(Array(5).fill(viewport.width <= 860 ? 44 : 36))
@@ -52,6 +61,15 @@ test("keeps product and administration geometry exact at every acceptance viewpo
 		expect(geometry.productGap).toBe(4)
 		expect(geometry.adminGap).toBe(2)
 		expect(geometry.sidebarWidth).toBe(viewport.width <= 860 ? Math.min(286, viewport.width * 0.88) : 232)
+		if (viewport.width > 860) {
+			expect(geometry.administrationTop - geometry.productBottom, `${viewport.width}×${viewport.height} tier gap`).toBeGreaterThanOrEqual(24)
+			expect(geometry.scrollBottom - geometry.administrationBottom, `${viewport.width}×${viewport.height} bottom gap`).toBeGreaterThanOrEqual(0)
+			expect(geometry.scrollBottom - geometry.administrationBottom, `${viewport.width}×${viewport.height} bottom gap`).toBeLessThanOrEqual(16)
+			for (const bounds of geometry.adminBounds) {
+				expect(bounds.top, `${viewport.width}×${viewport.height} admin row top`).toBeGreaterThanOrEqual(geometry.scrollTop)
+				expect(bounds.bottom, `${viewport.width}×${viewport.height} admin row bottom`).toBeLessThanOrEqual(geometry.scrollBottom)
+			}
+		}
 
 		const undersizedTargets = await page.locator(".mxp-root").evaluate((root, minimum) => {
 			const selector = 'button, a[href], input, textarea, select, summary, [role="button"]'
@@ -84,6 +102,43 @@ test("keeps the shell choice, target, response, and accessibility floor measurab
 		columns: getComputedStyle(document.querySelector<HTMLElement>(".mxp-dashboard-grid")!).gridTemplateColumns.split(" ").length,
 	}))
 	expect(dashboardComposition).toEqual({ rail: 232, header: 72, columns: 2 })
+	const figmaTypography = await page.evaluate(() => {
+		const values = (selector: string) => {
+			const element = document.querySelector<HTMLElement>(selector)
+			if (!element) throw new Error(`Missing ${selector}`)
+			const style = getComputedStyle(element)
+			const rect = element.getBoundingClientRect()
+			return {
+				width: Number(rect.width.toFixed(2)),
+				height: Number(rect.height.toFixed(2)),
+				fontSize: style.fontSize,
+				lineHeight: style.lineHeight,
+				whiteSpace: style.whiteSpace,
+			}
+		}
+		return {
+			productLabel: values('[data-navigation-tier="product"] > span'),
+			search: values(".mxp-dashboard-search"),
+			openAgentix: values(".mxp-dashboard-module-header .mxp-primary"),
+			panelHeading: values(".mxp-dashboard-panel > header h2"),
+			rowTitle: values(".mxp-needs-you article h3"),
+			rowSupport: values(".mxp-needs-you article p"),
+			rowAction: values(".mxp-needs-you article button"),
+			recentTitle: values(".mxp-recent-outcomes strong"),
+			recentSupport: values(".mxp-recent-outcomes small"),
+			recentEvidence: values(".mxp-recent-outcomes time"),
+		}
+	})
+	expect(figmaTypography.productLabel.fontSize).toBe("14px")
+	expect(figmaTypography.search).toMatchObject({ width: 190, height: 36, fontSize: "12px", lineHeight: "16px", whiteSpace: "nowrap" })
+	expect(figmaTypography.openAgentix).toMatchObject({ width: 132, height: 44, fontSize: "14px", lineHeight: "21px", whiteSpace: "nowrap" })
+	expect(figmaTypography.panelHeading).toMatchObject({ fontSize: "20px", lineHeight: "26px" })
+	expect(figmaTypography.rowTitle).toMatchObject({ fontSize: "14px", lineHeight: "21px" })
+	expect(figmaTypography.rowSupport).toMatchObject({ fontSize: "12px", lineHeight: "16px" })
+	expect(figmaTypography.rowAction).toMatchObject({ width: 132, height: 44, fontSize: "14px", lineHeight: "21px", whiteSpace: "nowrap" })
+	expect(figmaTypography.recentTitle).toMatchObject({ fontSize: "14px", lineHeight: "21px" })
+	expect(figmaTypography.recentSupport).toMatchObject({ fontSize: "12px", lineHeight: "16px" })
+	expect(figmaTypography.recentEvidence).toMatchObject({ fontSize: "12px", lineHeight: "16px" })
 
 	const navigation = page.getByRole("navigation", { name: "Portal sections" })
 	const targetHeights = await navigation.locator('[data-navigation-tier="product"]').evaluateAll((controls) =>
@@ -110,9 +165,9 @@ test("keeps the shell choice, target, response, and accessibility floor measurab
 			administrationTargets: [...administration.querySelectorAll<HTMLElement>('[data-navigation-tier="administration"]')].map((control) => control.getBoundingClientRect().height),
 		}
 	})
-	// The flexible gap can collapse to zero on a short desktop viewport, but the
-	// tiers must never overlap and the administrative group must stay bottom-anchored.
-	expect(navigationGeometry.productBottom).toBeLessThanOrEqual(navigationGeometry.administrationTop)
+	// Product work and administration remain visually distinct even on short desktops.
+	expect(navigationGeometry.administrationTop - navigationGeometry.productBottom).toBeGreaterThanOrEqual(24)
+	expect(navigationGeometry.administrationBottomGap).toBeGreaterThanOrEqual(0)
 	expect(navigationGeometry.administrationBottomGap).toBeLessThanOrEqual(16)
 	expect(navigationGeometry.administrationOffset).toBeGreaterThan(navigationGeometry.shellHeight / 2)
 	expect(navigationGeometry.productIcon).toBe(24)
