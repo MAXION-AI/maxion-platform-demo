@@ -40,7 +40,7 @@ import type { AgentixAttention } from "@/features/agentix/prototype/AgentixIniti
 import { listDiscoveryJumpRecords } from "@/features/discovery-autonomous/DiscoveryAutonomousPrototypePage"
 import { DELIVERABLES } from "@/features/discovery-autonomous/deliverables"
 
-import { MaxionSpiralMark, PRODUCT_NAVIGATION } from "./PortalChrome"
+import { MaxionSpiralMark } from "./PortalChrome"
 import {
 	EXECUTE_TASKS,
 	WORKSPACE_CYCLE_RESET,
@@ -126,6 +126,7 @@ function PortalStat({ icon, label, value, hint }: { icon: ReactNode; label: stri
 export function DashboardModule({
 	projects,
 	onNavigate,
+	onCommand,
 	agentix,
 	discoveryReady,
 	planSent,
@@ -133,144 +134,132 @@ export function DashboardModule({
 }: {
 	projects: PortalProject[]
 	onNavigate: Navigate
+	onCommand: () => void
 	agentix: AgentixAttention
 	discoveryReady: boolean
 	planSent: boolean
 	executeVerified: boolean
 }) {
-	const prefersReducedMotion = useReducedMotion()
-	const [historyOpen, setHistoryOpen] = useState(false)
 	const activeProjects = projects.filter((project) => project.status === "active")
 	const dateLabel = new Intl.DateTimeFormat("en-US", {
 		weekday: "long",
 		month: "long",
 		day: "numeric",
-		year: "numeric",
 	}).format(new Date())
-	// Saved Discoveries are the real record; the dashboard counts them instead of
-	// asserting a number that stops being true the moment one is finished.
 	const discoveries = listDiscoveryJumpRecords()
 	const runningDiscoveries = discoveries.filter((record) => record.status !== "completed").length
 	const discoveriesNeedingInput = discoveries.filter((record) => record.status === "needs-input").length
-	const attentionCount = agentix.count + discoveriesNeedingInput
-	const attentionTarget = agentix.count ? "agentix" : discoveriesNeedingInput ? "discovery" : "projects"
-	const attentionLabel = attentionCount ? `Review ${attentionCount} waiting ${attentionCount === 1 ? "item" : "items"}` : "Continue work"
-	// What was already true when this session opened. Anything that has changed since is
-	// something the viewer just did, and a row that says "41m" about it is a lie.
 	const openedWith = useRef({ discoveryReady, planSent, executeVerified, approval: agentix.approval, audience: agentix.audience })
 	const since = (changed: boolean, resting: string) => changed ? "Just now" : resting
 	const agentixChanged = openedWith.current.approval !== agentix.approval || openedWith.current.audience !== agentix.audience
-	const activities = [
+	const needsYou = [
+		{
+			module: "agentix" as const,
+			eyebrow: "AGENTIX · FINANCE",
+			title: agentix.approval ? "Review the July close variance" : "Confirm the finance exception policy",
+			detail: agentix.approval ? "$240 invoice variance · evidence package ready" : "One approval boundary is ready for an owner decision",
+			action: agentix.approval ? "Review decision" : "Review policy",
+			tone: "warning",
+		},
+		{
+			module: "discovery" as const,
+			eyebrow: "DISCOVER · TPRM",
+			title: discoveryReady ? "Confirm the TPRM recommendation" : "Clarify the remaining authority boundary",
+			detail: discoveryReady ? `${DELIVERABLES.length} deliverables · evidence lineage verified` : `${Math.max(discoveriesNeedingInput, 1)} interview decision needs an accountable owner`,
+			action: discoveryReady ? "Review package" : "Answer question",
+			tone: "brand",
+		},
+		{
+			module: "plan" as const,
+			eyebrow: "PLAN · ERP MODERNIZATION",
+			title: planSent ? "Approve the next implementation wave" : "Accept the proposed rollout sequence",
+			detail: "5 flows · 17 build packages · dependencies checked",
+			action: planSent ? "Inspect plan" : "Review proposal",
+			tone: "neutral",
+		},
+	]
+	const outcomes = [
 		{
 			module: "discovery" as const,
 			icon: Compass,
-			title: discoveryReady ? "TPRM decision package generated" : "TPRM owner interview is active",
-			detail: discoveryReady ? `${DELIVERABLES.length} deliverables · evidence lineage verified` : "One authority boundary needs review",
+			title: discoveryReady ? "TPRM package generated" : "TPRM evidence updated",
+			detail: discoveryReady ? `${DELIVERABLES.length} verified deliverables` : "Owner interview preserved",
 			time: since(openedWith.current.discoveryReady !== discoveryReady, "8m"),
-			tone: discoveryReady ? "success" : "attention",
+			tone: discoveryReady ? "success" : "info",
 		},
 		{
 			module: "plan" as const,
 			icon: FlowArrow,
-			title: planSent ? "ERP modernization plan sent to Execute" : "ERP modernization plan updated",
-			detail: "5 flows · 17 build packages · v12",
+			title: planSent ? "ERP plan sent to Execute" : "ERP plan updated",
+			detail: "17 build packages · v12",
 			time: since(openedWith.current.planSent !== planSent, "24m"),
 			tone: "info",
 		},
 		{
 			module: "execute" as const,
 			icon: Cube,
-			title: executeVerified ? "Mission authority engagement verified" : planSent ? "Mission authority implementation progressing" : "Execute is waiting for approved work",
-			detail: executeVerified ? "48 tests passed · release gate clean" : planSent ? "5 isolated workspaces · no blockers" : "No engagement started · authority stays unbound",
+			title: executeVerified ? "Release evidence verified" : planSent ? "Implementation is progressing" : "Execute boundary preserved",
+			detail: executeVerified ? "48 tests passed · gate clean" : planSent ? "5 workspaces · no blockers" : "No unapproved work launched",
 			time: since(openedWith.current.executeVerified !== executeVerified, "41m"),
 			tone: executeVerified ? "success" : planSent ? "live" : "info",
 		},
 		{
 			module: "agentix" as const,
 			icon: Pulse,
-			title: agentix.approval ? "Invoice variance needs one exact approval" : agentix.audience ? "Onboarding needs payroll-owner fulfillment" : "View your deployed agents",
-			detail: agentix.approval ? "$240 price variance · invoice v2" : agentix.audience ? "Completed HR and IT work is preserved" : "Active workloads, exceptions and verified outcomes",
+			title: agentix.approval ? "Invoice evidence assembled" : agentix.audience ? "Onboarding work completed" : "Agent health verified",
+			detail: agentix.approval ? "Invoice v2 · variance isolated" : agentix.audience ? "HR and IT outcomes preserved" : "Active workloads are healthy",
 			time: since(agentixChanged, "1h"),
 			tone: agentix.count ? "attention" : "success",
 		},
 	]
-	// Older entries stay folded away until asked for, so "View all" moves something real.
-	const history = [
-		{ module: "integrations" as const, icon: Plug, title: "SAP S/4HANA connection flagged for review", detail: "Existing access remains active · tenant admin notified", time: "3h", tone: "attention" },
-		{ module: "projects" as const, icon: Stack, title: "Pricing transformation delivered and closed", detail: "Plan completed · evidence retained", time: "Yesterday", tone: "info" },
-		{ module: "integrations" as const, icon: Plug, title: "QuickBooks scope updated", detail: "Tenant admin · Company 934771", time: "Yesterday", tone: "info" },
-	]
-	const visibleActivities = historyOpen ? [...activities, ...history] : activities
 
 	return (
-		<div className="mxp-portal-page mxp-dashboard-page">
-			<motion.div initial={prefersReducedMotion ? false : { y: 10 }} animate={{ y: 0 }} transition={{ duration: prefersReducedMotion ? 0 : 0.32 }}>
-				<section className="mxp-dashboard-welcome">
-					<p>{dateLabel}</p>
-					<h1>Good afternoon, Root Admin</h1>
-					<span>You have {activeProjects.length} active projects and {runningDiscoveries} {runningDiscoveries === 1 ? "discovery" : "discoveries"} in progress.</span>
-					<div role="group" aria-label="Primary workspace actions">
-						<button type="button" className="mxp-primary" onClick={() => onNavigate(attentionTarget)}><ShieldCheck size={16} />{attentionLabel}</button>
-						<button type="button" onClick={() => onNavigate("discovery")}><Compass size={16} />Start Discovery</button>
-						<button type="button" onClick={() => onNavigate("consult")}><MaxionSpiralMark variant="current" className="mxp-inline-spiral" />Ask Max</button>
-					</div>
+		<div className="mxp-dashboard-shell">
+			<header className="mxp-dashboard-module-header">
+				<div><small>Operating overview</small><strong>Good morning, Root Admin</strong><span>{needsYou.length} decisions need you</span></div>
+				<div>
+					<button type="button" className="mxp-dashboard-search" aria-label="Search or ask" onClick={onCommand}><MagnifyingGlass size={16} /><span>Search or ask</span><kbd>⌘K</kbd></button>
+					<button type="button" className="mxp-primary" onClick={() => onNavigate("agentix")}><Pulse size={17} />Open Agentix</button>
+				</div>
+			</header>
+			<div className="mxp-portal-page mxp-dashboard-page">
+				<header className="mxp-dashboard-intro">
+					<small>{dateLabel}</small>
+					<h1>Work that moved. Decisions that wait.</h1>
+					<p>A live operating view of outcomes, exceptions, and the next decisions only you can make.</p>
+				</header>
+
+				<section className="mxp-dashboard-metrics" aria-label="Workspace summary">
+					<article><small>Active projects</small><strong>{activeProjects.length}</strong><span>Across this workspace</span></article>
+					<article><small>Discoveries running</small><strong>{runningDiscoveries}</strong><span>{discoveriesNeedingInput ? `${discoveriesNeedingInput} needs input` : "No blocked interviews"}</span></article>
+					<article><small>Plans created</small><strong>{PLAN_LIBRARY.length}</strong><span>{planSent ? "Latest sent to Execute" : "2 ready for execution"}</span></article>
+					<article><small>Workspace units</small><strong>{WORKSPACE_UNITS_PERCENT}%</strong><span>{100 - WORKSPACE_UNITS_PERCENT}% remains this cycle</span></article>
 				</section>
-			</motion.div>
 
-			<section className="mxp-portal-stats" aria-label="Workspace summary">
-				<PortalStat icon={<Stack size={18} />} label="Active projects" value={String(activeProjects.length)} hint="Across this workspace" />
-				<PortalStat icon={<Compass size={18} />} label="Active discoveries" value={String(runningDiscoveries)} hint={discoveriesNeedingInput ? `${discoveriesNeedingInput === 1 ? "One" : String(discoveriesNeedingInput)} needs your input` : "None need your input"} />
-				<PortalStat icon={<FlowArrow size={18} />} label="Plans created" value={String(PLAN_LIBRARY.length)} hint="Two ready for execution" />
-				<PortalStat icon={<ChartBar size={18} />} label="Workspace units" value={`${WORKSPACE_UNITS_PERCENT}%`} hint={`${100 - WORKSPACE_UNITS_PERCENT}% remains this cycle`} />
-			</section>
-
-			<div className="mxp-dashboard-grid">
-				<div className="mxp-dashboard-main-column">
-					<section className="mxp-portal-card mxp-activity-card">
-						<header><div><h2>Workspace activity</h2><p>{historyOpen ? `Current work and the last ${history.length} closed events` : "Current work across MAXION"}</p></div><button type="button" aria-expanded={historyOpen} onClick={() => setHistoryOpen((open) => !open)}>{historyOpen ? "Show less" : "View all"}</button></header>
+				<div className="mxp-dashboard-grid">
+					<section className="mxp-dashboard-panel mxp-needs-you" aria-labelledby="mxp-needs-you-title">
+						<header><div><h2 id="mxp-needs-you-title">Needs you</h2><p>Decisions that require accountable authority</p></div><span>{needsYou.length}</span></header>
 						<div>
-							{visibleActivities.map((item) => {
-								const Icon = item.icon
-								return (
-									<button type="button" key={item.title} onClick={() => onNavigate(item.module)}>
-										<span className={`mxp-activity-icon is-${item.tone}`}><Icon size={16} weight="duotone" /></span>
-										<span><strong>{item.title}</strong><small>{item.detail}</small></span>
-										<time>{item.time}</time><CaretRight size={14} />
-									</button>
-								)
-							})}
-						</div>
-					</section>
-
-					<section className="mxp-portal-card mxp-dashboard-projects">
-						<header><div><h2>Projects</h2><p>Recently active workspaces</p></div><button type="button" onClick={() => onNavigate("projects")}>View projects</button></header>
-						<div>
-							{activeProjects.slice(0, 3).map((project) => (
-								<button type="button" key={project.id} onClick={() => onNavigate("projects")}>
-									<span className="mxp-project-glyph"><Stack size={16} weight="duotone" /></span>
-									<span><strong>{project.name}</strong><small>{project.description}</small></span>
-									<div className="mxp-avatar-stack">{project.members.slice(0, 3).map((member) => <i key={member.name} title={member.name}>{member.initials}</i>)}</div>
-									<time>{project.updated}</time>
-								</button>
+							{needsYou.map((item) => (
+								<article key={item.eyebrow}>
+									<i data-tone={item.tone} aria-hidden="true" />
+									<div><small>{item.eyebrow}</small><h3>{item.title}</h3><p>{item.detail}</p></div>
+									<button type="button" onClick={() => onNavigate(item.module)}>{item.action}<CaretRight size={14} /></button>
+								</article>
 							))}
 						</div>
 					</section>
-				</div>
 
-				<aside className="mxp-dashboard-side-column">
-					<section className="mxp-portal-card mxp-quick-nav">
-						<header><h2>Quick navigation</h2></header>
+					<section className="mxp-dashboard-panel mxp-recent-outcomes" aria-labelledby="mxp-recent-outcomes-title">
+						<header><div><h2 id="mxp-recent-outcomes-title">Recent outcomes</h2><p>Verified work completed across MAXION</p></div></header>
 						<div>
-							{PRODUCT_NAVIGATION.filter((item) => item.id !== "dashboard" && item.id !== "agentix").map((item) => {
+							{outcomes.map((item) => {
 								const Icon = item.icon
-								return <button type="button" key={item.id} onClick={() => onNavigate(item.id)}>{item.spiral ? <MaxionSpiralMark className="mxp-quick-icon" /> : Icon ? <Icon className="mxp-quick-icon" weight="duotone" /> : null}<span><strong>{item.label}</strong><small>{item.id === "projects" ? "Manage projects and members" : item.id === "discovery" ? "Run autonomous discovery work" : item.id === "plan" ? "Create and refine delivery plans" : item.id === "execute" ? "Run governed development workspaces" : "Work with MAX across the platform"}</small></span><CaretRight size={13} /></button>
+								return <button type="button" key={item.title} onClick={() => onNavigate(item.module)}><span className={`mxp-activity-icon is-${item.tone}`}><Icon size={16} weight="duotone" /></span><span><strong>{item.title}</strong><small>{item.detail}</small></span><time>{item.time}</time></button>
 							})}
 						</div>
 					</section>
-					<section className="mxp-portal-card mxp-connected-context">
-						<Plug size={18} weight="duotone" /><div><strong>6 systems connected</strong><small>Salesforce, Jira, SharePoint, SAP and more</small></div><button type="button" onClick={() => onNavigate("integrations")}>Manage</button>
-					</section>
-				</aside>
+				</div>
 			</div>
 		</div>
 	)
