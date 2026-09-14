@@ -26,7 +26,22 @@ SHA_RE = re.compile(r"^[0-9a-f]{40}$")
 VISIBLE_STATUS_RE = re.compile(r"\*\*Status:\*\*\s*([^|\n]+)")
 REGULAR_BLOB_MODE = "100644"
 TRAILER_RE = re.compile(r"^Phase-Candidate: ([0-9a-f]{40})$")
-TRAILER_CANDIDATE_RE = re.compile(r"^Phase-Candidate\b")
+TRAILER_CANDIDATE_RE = re.compile(r"^\s*Phase-Candidate(?:\s*[:=]|\s|$)", re.IGNORECASE)
+SHEET_STATUS_RE = re.compile(r"^- \*\*Status:\*\*[ \t]*(\w+)[ \t]*$", re.MULTILINE)
+SHEET_ID_RE = re.compile(r"^- \*\*Sheet id:\*\*[ \t]*([^\s]+)[ \t]*$", re.MULTILINE)
+SHEET_SIGNOFF_RE = re.compile(
+    r"^- \*\*(Builder|Verifier|QA):\*\*[ \t]*(.+?)[ \t]+[—-][ \t]+(.+?)[ \t]*$",
+    re.MULTILINE,
+)
+SHEET_EVIDENCE_CHECKS = (
+    "Side-by-side: built screen vs Figma frame vs Mobbin reference",
+    "Token lint (`scripts/check_ux_tokens.py`)",
+    "State-matrix test (every §5 cell rendered)",
+    "Accessibility check (WCAG 2.1 AA, keyboard, reduced motion)",
+    "Visual regression vs approved frame (tolerance stated)",
+    "Independent audit report (law + reference per finding)",
+    "Static-report test on every state",
+)
 
 
 def _git(repo: Path, *args: str, binary: bool = False) -> bytes | str:
@@ -173,19 +188,155 @@ def _name_status(repo: Path, candidate: str, evidence: str) -> list[tuple[str, s
     return entries
 
 
-def _check_candidate_trailer(repo: Path, candidate: str, evidence: str) -> list[str]:
+def _candidate_trailer(repo: Path, evidence: str) -> tuple[str | None, list[str]]:
     raw_message = _git(repo, "show", "-s", "--format=%B", evidence, binary=True)
     assert isinstance(raw_message, bytes)
     message = raw_message.decode("utf-8", errors="replace")
-    candidate_lines = [line for line in message.splitlines() if TRAILER_CANDIDATE_RE.match(line)]
-    if len(candidate_lines) != 1:
-        return ["evidence E must contain exactly one Phase-Candidate trailer"]
-    match = TRAILER_RE.fullmatch(candidate_lines[0])
+    lines = message.splitlines()
+    while lines and not lines[-1].strip():
+        lines.pop()
+    candidate_indices = [index for index, line in enumerate(lines) if TRAILER_CANDIDATE_RE.match(line)]
+    if len(candidate_indices) != 1:
+        return None, ["evidence E must contain exactly one Phase-Candidate trailer"]
+    candidate_index = candidate_indices[0]
+    block_start = candidate_index
+    while block_start > 0 and lines[block_start - 1].strip():
+        block_start -= 1
+    trailer_block = lines[block_start:]
+    if block_start == 0 or lines[block_start - 1].strip() or trailer_block != [lines[candidate_index]]:
+        return None, ["evidence E Phase-Candidate must be the only line in the final Git trailer block"]
+    candidate_line = lines[candidate_index]
+    try:
+        parsed = subprocess.run(
+            ["git", "interpret-trailers", "--parse"],
+            input=message,
+            capture_output=True,
+            text=True,
+            check=False,
+            timeout=10,
+        )
+    except (OSError, subprocess.SubprocessError) as exc:
+        return None, [f"cannot parse evidence E Git trailers: {exc}"]
+    if parsed.returncode != 0 or parsed.stdout.splitlines() != [candidate_line]:
+        return None, ["evidence E Phase-Candidate must be one genuine Git trailer"]
+    match = TRAILER_RE.fullmatch(candidate_line)
     if not match:
-        return ["evidence E Phase-Candidate trailer must contain one exact lowercase 40-character SHA"]
-    if match.group(1) != candidate:
+        return None, ["evidence E Phase-Candidate trailer must contain one exact lowercase 40-character SHA"]
+    return match.group(1), []
+
+
+def _check_candidate_trailer(repo: Path, candidate: str, evidence: str) -> list[str]:
+    declared, findings = _candidate_trailer(repo, evidence)
+    if findings:
+        return findings
+    if declared != candidate:
         return ["evidence E Phase-Candidate trailer must equal candidate C"]
     return []
+
+
+def _markdown_rows(body: str) -> list[list[str]]:
+    rows: list[list[str]] = []
+    table_started = False
+    for line in body.splitlines():
+        if not line.lstrip().startswith("|"):
+            if table_started:
+                break
+            continue
+        cells = [cell.strip() for cell in line.strip().strip("|").split("|")]
+        if all(re.fullmatch(r":?-{3,}:?", cell) for cell in cells if cell):
+            table_started = True
+        elif table_started:
+            rows.append(cells)
+    return rows
+
+
+def _section_body(text: str, heading: str, next_heading: str) -> str | None:
+    start = re.search(rf"^{re.escape(heading)}[^\n]*$", text, re.MULTILINE)
+    end = re.search(rf"^{re.escape(next_heading)}[^\n]*$", text, re.MULTILINE)
+    if not start or not end or end.start() <= start.end():
+        return None
+    return text[start.end():end.start()]
+
+
+def _check_gated_sheet(
+    repo: Path,
+    candidate: str,
+    evidence: str,
+    path: str,
+    phase: int,
+    added_audits: set[str],
+) -> list[str]:
+    try:
+        text = _blob(repo, evidence, path).decode("utf-8")
+    except (ValueError, UnicodeDecodeError) as exc:
+        return [f"cannot validate gated phase-owned reference sheet {path}: {exc}"]
+    findings: list[str] = []
+    statuses = SHEET_STATUS_RE.findall(text)
+    if statuses != ["gated"]:
+        findings.append(f"phase-owned reference sheet at E must have exactly one Status gated marker: {path}")
+    sheet_ids = SHEET_ID_RE.findall(text)
+    if len(sheet_ids) != 1:
+        findings.append(f"phase-owned reference sheet at E must have exactly one sheet id: {path}")
+        return findings
+    sheet_id = sheet_ids[0]
+    evidence_body = _section_body(text, "## 7. Evidence", "## 8. Sign-off")
+    if evidence_body is None:
+        findings.append(f"phase-owned reference sheet at E is missing its evidence table: {path}")
+        return findings
+    rows = _markdown_rows(evidence_body)
+    if len(rows) != len(SHEET_EVIDENCE_CHECKS):
+        findings.append(f"phase-owned reference sheet at E must bind exactly seven evidence rows: {path}")
+    matched_checks: set[str] = set()
+    for row in rows:
+        if len(row) != 3:
+            findings.append(f"phase-owned reference sheet at E has an incomplete evidence row: {path}")
+            continue
+        check, artifact, result = row[:3]
+        if check not in SHEET_EVIDENCE_CHECKS or check in matched_checks:
+            findings.append(f"phase-owned reference sheet at E has an unknown or duplicate evidence check {check!r}: {path}")
+            continue
+        matched_checks.add(check)
+        if result != "PASS":
+            findings.append(f"phase-owned reference sheet evidence result must be PASS for {check!r}: {path}")
+        try:
+            safe_artifact = program_ledger._phase_artifact_path(  # noqa: SLF001 - shared path authority
+                artifact, "reference-sheet evidence artifact", phase, suffix=".json"
+            )
+        except (ValueError, program_ledger.LedgerError) as exc:
+            findings.append(f"phase-owned reference sheet evidence path is invalid for {check!r}: {exc}")
+            continue
+        if safe_artifact not in added_audits:
+            findings.append(f"phase-owned reference sheet evidence must be newly added at E for {check!r}: {safe_artifact}")
+            continue
+        try:
+            report = json.loads(_blob(repo, evidence, safe_artifact))
+        except (ValueError, UnicodeDecodeError, json.JSONDecodeError):
+            findings.append(f"phase-owned reference sheet evidence must be machine-readable JSON: {safe_artifact}")
+            continue
+        expected = {
+            "schemaVersion": 1,
+            "kind": "ux-sheet-evidence",
+            "phase": phase,
+            "sheetId": sheet_id,
+            "check": check,
+            "candidateSha": candidate,
+            "verdict": "PASS",
+        }
+        if report != expected:
+            findings.append(f"phase-owned reference sheet evidence does not exactly bind C/sheet/check: {safe_artifact}")
+    if matched_checks != set(SHEET_EVIDENCE_CHECKS):
+        findings.append(f"phase-owned reference sheet at E does not cover the exact seven checks: {path}")
+    signoffs = SHEET_SIGNOFF_RE.findall(text)
+    if [role for role, _, _ in signoffs] != ["Builder", "Verifier", "QA"]:
+        findings.append(f"phase-owned reference sheet at E must carry Builder, Verifier, and QA sign-offs once in order: {path}")
+    else:
+        names = [name.strip().casefold() for _, name, _ in signoffs]
+        dates = [date.strip().casefold() for _, _, date in signoffs]
+        if len(set(names)) != 3 or any(not name or name.startswith("unassigned") or name == "pending" for name in names):
+            findings.append(f"phase-owned reference sheet at E must carry three distinct assigned sign-offs: {path}")
+        if any(not re.fullmatch(r"\d{4}-\d{2}-\d{2}", date) for date in dates):
+            findings.append(f"phase-owned reference sheet at E sign-off dates must use YYYY-MM-DD: {path}")
+    return findings
 
 
 def _check_review_reports(
@@ -329,6 +480,9 @@ def check_acceptance(repo: Path, candidate: str, evidence: str, phase: int) -> l
         owned_sheets=owned_sheets,
     )
     findings.extend(report_findings)
+    missing_sheets = owned_sheets - modified_paths
+    for path in sorted(missing_sheets):
+        findings.append(f"evidence E must update every phase-owned reference sheet to gated: {path}")
     if phase_doc is not None and phase_doc not in modified_paths:
         findings.append("evidence E must update the predetermined structured phase hand-off")
     elif phase_doc is not None:
@@ -364,6 +518,11 @@ def check_acceptance(repo: Path, candidate: str, evidence: str, phase: int) -> l
             else:
                 if before_hash != after_hash:
                     findings.append(f"immutable reference-sheet contract changed from C to E: {path}")
+                findings.extend(
+                    _check_gated_sheet(
+                        repo, candidate, evidence, path, phase, set(added_audits)
+                    )
+                )
         elif path == phase_doc:
             findings.extend(_check_phase_delta(before, after, phase))
     return findings
@@ -371,11 +530,23 @@ def check_acceptance(repo: Path, candidate: str, evidence: str, phase: int) -> l
 
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--candidate", required=True)
+    parser.add_argument("--candidate")
     parser.add_argument("--evidence", required=True)
     parser.add_argument("--phase", required=True, type=int)
     parser.add_argument("--repo", type=Path, default=ROOT)
+    parser.add_argument("--extract-candidate", action="store_true")
     args = parser.parse_args(argv)
+    if args.extract_candidate:
+        candidate, findings = _candidate_trailer(args.repo.resolve(), args.evidence)
+        if findings:
+            for finding in findings:
+                print(finding, file=sys.stderr)
+            return 1
+        assert candidate is not None
+        print(candidate)
+        return 0
+    if args.candidate is None:
+        parser.error("--candidate is required unless --extract-candidate is used")
     findings = check_acceptance(args.repo.resolve(), args.candidate, args.evidence, args.phase)
     if findings:
         print(f"Phase acceptance gate: {len(findings)} finding(s)")

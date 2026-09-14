@@ -269,13 +269,20 @@ def check_contract(
         item.get("referenceSheet") for item in surfaces if isinstance(item.get("referenceSheet"), str)
     )
     expected_scopes = [
+        {"phase": 1, "kind": "phase-surfaces", "referenceSheets": expected_all_sheets},
+        {
+            "phase": 2,
+            "kind": "phase-surfaces",
+            "referenceSheets": ["platform-shell-dashboard.md", "projects-workspace.md"],
+        },
         {"phase": 10, "kind": "all-surfaces", "referenceSheets": expected_all_sheets},
         {"phase": 11, "kind": "package", "referenceSheets": []},
     ]
     if acceptance_scopes != expected_scopes:
         findings.append(
-            f"{manifest_path}: acceptanceScopes must requalify all 13 sheets in Phase 10 "
-            "and declare a non-surface package scope in Phase 11"
+            f"{manifest_path}: acceptanceScopes must bind all 13 shared-kernel sheets in Phase 1, "
+            "exactly Dashboard and Projects in Phase 2, all 13 sheets in Phase 10, and the "
+            "non-surface package in Phase 11"
         )
     canonical_routes = {
         item.get("path") for item in routes

@@ -3,8 +3,10 @@
 
 from __future__ import annotations
 
-import re
+import ast
 import json
+import re
+import shlex
 import sys
 from pathlib import Path
 
@@ -24,6 +26,107 @@ HANDOFF_RE = re.compile(
     re.M | re.S,
 )
 PARENT_RANGE_RE = re.compile(r"\| (RC-[^|]+) \| Phase (\d+) tasks (\d+\.\d+)–(\d+\.\d+)(?:,[^|]*)? \|")
+
+
+def _declared_paths(rows: dict[str, tuple[str, str, str, str]], through_task: str) -> set[str]:
+    paths: set[str] = set()
+    for task, (_, files, _, _) in rows.items():
+        if tuple(map(int, task.split("."))) > tuple(map(int, through_task.split("."))):
+            continue
+        for target in CODE_RE.findall(files):
+            paths.add(target.split("#", 1)[0])
+    return paths
+
+
+def _python_module_reference_finding(module: str, declared_paths: set[str]) -> str | None:
+    parts = module.split(".")
+    for prefix_length in range(len(parts), 0, -1):
+        module_path = "/".join(parts[:prefix_length]) + ".py"
+        resolved = ROOT / module_path
+        if not resolved.is_file() and module_path not in declared_paths:
+            continue
+        symbols = parts[prefix_length:]
+        if not symbols or not resolved.is_file():
+            return None
+        try:
+            nodes = ast.parse(resolved.read_text(encoding="utf-8")).body
+        except (OSError, SyntaxError) as exc:
+            return f"cannot inspect python module {module!r}: {exc}"
+        for symbol in symbols:
+            matched = next(
+                (
+                    node
+                    for node in nodes
+                    if isinstance(node, (ast.ClassDef, ast.FunctionDef, ast.AsyncFunctionDef))
+                    and node.name == symbol
+                ),
+                None,
+            )
+            if matched is None:
+                return f"python verification references missing symbol {module!r}"
+            nodes = matched.body
+        return None
+    return f"python verification references missing module {module!r}"
+
+
+def _command_reference_finding(command: str, declared_paths: set[str]) -> str | None:
+    try:
+        argv = shlex.split(command)
+    except ValueError:
+        return "focused verification command has invalid shell quoting"
+    if not argv:
+        return "focused verification command is empty"
+    if argv[0] == "pnpm":
+        try:
+            scripts = json.loads((ROOT / "package.json").read_text(encoding="utf-8"))["scripts"]
+        except (OSError, KeyError, json.JSONDecodeError, TypeError):
+            return "cannot resolve package.json scripts for focused verification"
+        if len(argv) < 2:
+            return "pnpm verification command is missing its executable target"
+        if argv[1] == "exec":
+            if len(argv) < 3 or argv[2] != "playwright":
+                return "pnpm exec verification must name the pinned Playwright executable"
+        elif argv[1] not in scripts:
+            return f"pnpm verification references missing package script {argv[1]!r}"
+        return None
+    if argv[0] == "python3":
+        if len(argv) < 2:
+            return "python3 verification command is missing its script or module"
+        if argv[1] == "-m":
+            if len(argv) < 3:
+                return "python3 -m verification command is missing its module"
+            if argv[2] == "json.tool":
+                if len(argv) < 4:
+                    return "python3 -m json.tool verification is missing its input"
+                target = argv[3]
+                if not (ROOT / target).is_file() and target not in declared_paths:
+                    return f"python3 -m json.tool references missing input {target!r}"
+                return None
+            if argv[2] == "unittest":
+                modules = [item for item in argv[3:] if not item.startswith("-")]
+                if not modules:
+                    return "python3 -m unittest verification is missing its test module"
+                for module in modules:
+                    issue = _python_module_reference_finding(module, declared_paths)
+                    if issue:
+                        return issue
+                return None
+            return _python_module_reference_finding(argv[2], declared_paths)
+        script = argv[1]
+        resolved = ROOT / script
+        if resolved.is_dir():
+            return f"python3 verification passes a directory where a script is required: {script}"
+        if not resolved.is_file() and script not in declared_paths:
+            return f"python3 verification references missing script {script!r}"
+        for argument in argv[2:]:
+            if not argument.startswith("-") and (ROOT / argument).is_dir():
+                return f"python3 verification passes unsupported directory argument {argument!r}"
+        return None
+    if argv[0] == "git":
+        if len(argv) < 2 or argv[1] not in {"diff", "status"}:
+            return "git verification must use the reviewed diff or status command"
+        return None
+    return f"focused verification executable {argv[0]!r} is not allowed"
 
 
 def _ordered_section(text: str) -> str:
@@ -69,11 +172,18 @@ def check_plan(path: Path) -> list[str]:
             findings.append(f"{path}: {task}: files/symbols must be exact backticked targets without globs")
         if len(prerequisite.strip()) < 8 or prerequisite.strip().lower() in {"none", "n/a", "tbd"}:
             findings.append(f"{path}: {task}: prerequisite must name a concrete accepted state or prior task")
-        commands = CODE_RE.findall(verify)
-        if not commands or not any(
-            command.startswith(("pnpm ", "python3 ", "git ")) for command in commands
-        ):
+        commands = [
+            command for command in CODE_RE.findall(verify)
+            if command.startswith(("pnpm ", "python3 ", "git "))
+        ]
+        if not commands:
             findings.append(f"{path}: {task}: focused verification must provide an exact runnable command")
+        else:
+            declared_paths = _declared_paths(rows, task)
+            for command in commands:
+                issue = _command_reference_finding(command, declared_paths)
+                if issue:
+                    findings.append(f"{path}: {task}: {issue}")
     handoff_match = HANDOFF_RE.search(text)
     if not handoff_match:
         findings.append(f"{path}: missing structured acceptance hand-off")

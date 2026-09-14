@@ -14,6 +14,46 @@ async function openShellMenu(page: import("@playwright/test").Page) {
 	return shellMenu(page)
 }
 
+test("autofocuses, contains focus, inerts the shell, and restores a meaningful opener on every close path", async ({ page }) => {
+	await page.goto("/maxion-prototype")
+	const opener = page.getByRole("button", { name: "Search or ask" })
+	await opener.click()
+	let menu = shellMenu(page)
+	const search = menu.getByRole("textbox", { name: "Search MAXION commands" })
+	await expect(search).toBeFocused()
+	for (const selector of [".mxp-portal-sidebar", ".mxp-stage"]) {
+		await expect(page.locator(selector)).toHaveAttribute("inert", "")
+		await expect(page.locator(selector)).toHaveAttribute("aria-hidden", "true")
+	}
+
+	const last = menu.getByRole("button").last()
+	await last.focus()
+	await page.keyboard.press("Tab")
+	await expect(search).toBeFocused()
+	await page.keyboard.press("Shift+Tab")
+	await expect(last).toBeFocused()
+	await page.keyboard.press("Escape")
+	await expect(menu).toHaveCount(0)
+	await expect(opener).toBeFocused()
+	for (const selector of [".mxp-portal-sidebar", ".mxp-stage"]) {
+		await expect(page.locator(selector)).not.toHaveAttribute("inert", "")
+		await expect(page.locator(selector)).not.toHaveAttribute("aria-hidden", "true")
+	}
+
+	await opener.click()
+	menu = shellMenu(page)
+	await page.locator(".mxp-command-layer").click({ position: { x: 4, y: 4 } })
+	await expect(menu).toHaveCount(0)
+	await expect(opener).toBeFocused()
+
+	await opener.click()
+	menu = shellMenu(page)
+	await menu.getByRole("button", { name: /^Projects/ }).click()
+	await expect(menu).toHaveCount(0)
+	await expect(page.getByRole("heading", { name: "Projects" })).toBeVisible()
+	await expect(page.getByRole("navigation", { name: "Portal sections" }).getByRole("button", { name: "Projects" })).toBeFocused()
+})
+
 test("the global command menu filters, arrow-navigates, and runs the active item", async ({ page }) => {
 	const runtimeErrors: string[] = []
 	page.on("console", (message) => {

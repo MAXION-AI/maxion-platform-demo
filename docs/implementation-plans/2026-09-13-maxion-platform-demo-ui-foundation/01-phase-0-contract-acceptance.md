@@ -55,7 +55,7 @@ append. Phase 1 uses only the externally accepted final M as B. Until then RC-01
    an explicitly lagging export through Phase -1; it cannot claim this phase's E/M. After a required
    distinct evidence-only E and true merge M exist, append their verified identities only to the
    external authority defined by `docs/operations/phase-acceptance-protocol.md`; verify with
-   `git status`, `git diff --check`, and `pnpm check:program`.
+   `git status`, the collector's resolved `git diff --check "$B" "$C" --`, and `pnpm check:program`.
 2. **Remediate and independently audit the bounded foundation/shell slice (0.2).** Change only
    `PortalChrome`, `DashboardModule`, their existing shared styles, transition styles, and their direct
    unit/Playwright contracts. Run `docs/operations/ux-independent-audit-prompt.md` from a separate
@@ -85,7 +85,7 @@ append. Phase 1 uses only the externally accepted final M as B. Until then RC-01
 | 0.1 | RC-01 via ADR-8 | `docs/operations/program-phase-ledger.json#candidatePhase`; `docs/operations/phase-acceptance-protocol.md#Identities` | Read-only target-ref and ledger verification | `python3 scripts/program_ledger.py validate-tracked` |
 | 0.2 | RC-01 and bounded RC-15 acceptance via ADR-2 | `src/features/platform-prototype/PortalChrome.tsx#PortalSidebar`; `src/features/platform-prototype/PortalReplicaModules.tsx#DashboardModule`; `src/features/platform-prototype/portal-replica.css#mxp-portal-sidebar-scroll`; `src/features/platform-prototype/maxion-platform-prototype.css#mxp-root`; `tests/e2e/maxion-platform-shell.spec.ts#accepted-shell`; `artifacts/ux-audits/phase-0/independent-qa.json` | Task 0.1 candidate identity; rejected Phase 0 findings only | `pnpm exec playwright test tests/e2e/maxion-platform-shell.spec.ts` |
 | 0.3 | RC-02 and RC-16 via ADR-2 | `docs/operations/ux-surface-inventory.md#Route-and-address-ownership-at-Phase-0`; `docs/operations/figma-code-map.json#surfaces` | Task 0.2 audit findings | `python3 scripts/check_ux_contract_coverage.py` |
-| 0.4 | RC-02 via ADR-2 | `docs/operations/ux-reference-sheets/settings-workspace.md#5.1`; `docs/operations/ux-reference-sheets/help-workspace.md#5.1` | Task 0.3 complete inventory | `python3 scripts/check_ux_reference_sheet.py docs/operations/ux-reference-sheets` |
+| 0.4 | RC-02 via ADR-2 | `docs/operations/ux-reference-sheets/settings-workspace.md#5.1`; `docs/operations/ux-reference-sheets/help-workspace.md#5.1` | Task 0.3 complete inventory | `python3 scripts/check_ux_reference_sheet.py --all` |
 | 0.5 | RC-02 and RC-16 via ADR-2 | `docs/operations/figma-code-map.json#schemaVersion`; `scripts/check_ux_contract_coverage.py#check_contract` | Task 0.4 complete sheets and approved Figma frames | `python3 -m unittest scripts.tests.test_ux_gates.ContractCoverageGateTests` |
 | 0.6 | RC-03 and RC-19 via ADR-7 | `scripts/check_production_sources.py#check_sources`; `package.json#check:source-quality` | Task 0.5 complete contract map | `pnpm check:source-quality` |
 

@@ -9,6 +9,9 @@
 Extract a portable contract layer without changing accepted visible behavior: semantic tokens,
 shared primitives, typed cross-module objects/events/selectors, bounded persistence, lazy module
 loading, and a checked Figma-to-code manifest. Module-specific recomposition remains in Phases 2–9.
+Because this work migrates the common shell, route grammar, provider, primitives, and style contract
+used by every module, the candidate manifest explicitly assigns all thirteen reference sheets to
+Phase 1's `phase-surfaces` acceptance scope. An empty shared-kernel surface review is forbidden.
 
 ## Entry criteria
 
@@ -68,7 +71,9 @@ task's focused gate, not later cleanup.
 - **Scale:** reducer operations stay O(1) or O(log n) for lookup; lists are capped at 10,000 logical objects and no more than 200 mounted nodes. Initial bundle target is ≤250 kB gzip JS and ≤60 kB gzip CSS.
 - **Robustness:** invalid persisted data resets only the affected slice with an accessible recovery notice; module load failure stays inside `ModuleErrorBoundary`.
 - **Threat surface:** browser storage is hostile input—schema/version/length validation, synthetic data only, no authority derived from it.
-- **UX source:** `platform-shell-dashboard.md`, the program laws table, and Figma `UhLxGyXphdHHNLGMomBq6n:16:2`. Visual output must remain within the recorded tolerance; this phase is architecture, not redesign.
+- **UX source:** all thirteen sheets explicitly listed in the manifest's Phase 1 acceptance scope,
+  their recorded Figma frames, and the program laws table. Visual output must remain within each
+  recorded tolerance; this phase is architecture, not redesign.
 
 ## Phase-specific laws-check
 
@@ -164,7 +169,7 @@ retain the Phase 0 UI. A provider-behavior flag is allowed only when both values
 | --- | --- | --- | --- |
 | Production | `src/features/platform-prototype/{contracts.ts,platformState.ts,PlatformDemoProvider.tsx,persistence/DemoStateRepository.ts,system/**}`; migrated owners; deleted aliases/predecessors/styles | Tasks 1.2–1.8; no compatibility UI survives | C source tree and zero-debt ownership report |
 | Tests/fixtures | Co-located domain/system tests, `scripts/tests/test_ux_gates.py`, shell/cross-module Playwright specs, deterministic 10,000-object fixtures | `pnpm test`; `pnpm test:e2e`; negative ownership suite | Counts, traces, fixture/mounted-node metrics |
-| Contracts/evidence | Schema-v2 manifest, affected sheets, `artifacts/ux-audits/phase-1/**` | `pnpm check:program`; `pnpm build`; `pnpm audit --audit-level high`; `git diff --check` | Hashes, 250/60 bundle proof, Figma attestation, UX/QA reports |
+| Contracts/evidence | Schema-v2 manifest, all thirteen shared-shell sheets, `artifacts/ux-audits/phase-1/**` | `pnpm check:program`; `pnpm build`; `pnpm audit --audit-level high`; `git diff --check "$B" "$C" --` | Full E-sheet and immutable C-contract hashes, 250/60 bundle proof, Figma attestation, UX/QA reports |
 | PR lifecycle | One Phase 1 branch/worktree from B | Protocol: clean C, independent UX/QA, required distinct evidence-only E, true two-parent M, clean-M gates, external-ledger append | PR URL, B/C/E/M, protected-object equality, exact target ref, successor pin |
 
 ## Definition of Done
@@ -178,6 +183,8 @@ retain the Phase 0 UI. A provider-behavior flag is allowed only when both values
 - [ ] Both compatibility aliases are removed; all thirteen surfaces and the Agentix run are URL-addressable.
 - [ ] Stale-selector baseline is zero and initial-route bundles are ≤250 kB JS / ≤60 kB CSS gzip.
 - [ ] Characterization, cross-module, accessibility, bundle, and program gates pass.
+- [ ] All thirteen Phase 1-owned sheets reach `Status: gated`, bind seven newly committed C-bound
+  evidence reports, and carry distinct builder/verifier/QA sign-offs at E.
 - [ ] Separate reviewer records no blocker/major finding.
 
 ## Hand-off

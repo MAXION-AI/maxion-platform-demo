@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import os
+import subprocess
 import sys
 import tempfile
 import unittest
@@ -27,12 +28,15 @@ class PhaseEvidenceCollectorTests(unittest.TestCase):
         self.tempdir = tempfile.TemporaryDirectory()
         self.addCleanup(self.tempdir.cleanup)
         self.repo = Path(self.tempdir.name).resolve()
+        self.base = "c" * 40
         self.candidate = "a" * 40
         self.source_tree = "b" * 40
 
     def fake_git(self, _repo: Path, *args: str) -> str:
         values = {
             ("rev-parse", f"{self.candidate}:src"): self.source_tree,
+            ("rev-parse", f"{self.base}^{{commit}}"): self.base,
+            ("merge-base", self.base, self.candidate): self.base,
             ("rev-parse", "HEAD^{commit}"): self.candidate,
             ("rev-parse", "HEAD:src"): self.source_tree,
             ("status", "--porcelain=v1"): "",
@@ -45,18 +49,20 @@ class PhaseEvidenceCollectorTests(unittest.TestCase):
             "run_bounded",
             return_value=SimpleNamespace(returncode=0, stdout=b"pass\n", stderr=b""),
         ) as run:
-            paths = collector.collect(self.repo, self.candidate, 4)
+            paths = collector.collect(self.repo, self.base, self.candidate, 4)
         self.assertEqual(len(paths), 5)
         # Tuple-style access works on every supported Python 3 unittest.mock implementation.
         invoked = [call[0][0] for call in run.call_args_list]
         expected = [
             argv
             for command_id in program_ledger.CANONICAL_COMMANDS
-            for argv in program_ledger.CANONICAL_EXECUTION[command_id]
+            for argv in program_ledger._canonical_execution(
+                command_id, base_sha=self.base, run_sha=self.candidate
+            )
         ]
         self.assertEqual(invoked, expected)
         report = json.loads(paths[0].read_text(encoding="utf-8"))
-        self.assertEqual(report["schemaVersion"], 2)
+        self.assertEqual(report["schemaVersion"], 3)
         self.assertEqual(report["candidateSha"], self.candidate)
         self.assertEqual(report["sourceTreeSha1"], self.source_tree)
         self.assertEqual(report["worktree"], str(self.repo))
@@ -76,7 +82,7 @@ class PhaseEvidenceCollectorTests(unittest.TestCase):
                     collector, "run_bounded", return_value=result
                 ):
                     with self.assertRaises(program_ledger.LedgerError):
-                        collector.collect(self.repo, self.candidate, 4)
+                        collector.collect(self.repo, self.base, self.candidate, 4)
                 self.assertFalse((self.repo / "artifacts").exists())
 
     def test_runner_timeout_or_overflow_writes_nothing(self) -> None:
@@ -87,7 +93,7 @@ class PhaseEvidenceCollectorTests(unittest.TestCase):
                 collector, "run_bounded", side_effect=BoundedProcessError(detail)
             ):
                 with self.assertRaisesRegex(program_ledger.LedgerError, "no reports were written"):
-                    collector.collect(self.repo, self.candidate, 4)
+                    collector.collect(self.repo, self.base, self.candidate, 4)
                 self.assertFalse((self.repo / "artifacts").exists())
 
     def test_successful_command_that_dirties_checkout_writes_nothing(self) -> None:
@@ -106,7 +112,33 @@ class PhaseEvidenceCollectorTests(unittest.TestCase):
             return_value=SimpleNamespace(returncode=0, stdout=b"pass\n", stderr=b""),
         ):
             with self.assertRaisesRegex(program_ledger.LedgerError, "clean candidate checkout"):
-                collector.collect(self.repo, self.candidate, 4)
+                collector.collect(self.repo, self.base, self.candidate, 4)
+        self.assertFalse((self.repo / "artifacts").exists())
+
+    def test_committed_whitespace_in_full_base_to_candidate_range_is_rejected(self) -> None:
+        subprocess.run(["git", "-C", str(self.repo), "init", "-q"], check=True)
+        subprocess.run(["git", "-C", str(self.repo), "config", "user.email", "test@example.com"], check=True)
+        subprocess.run(["git", "-C", str(self.repo), "config", "user.name", "Test"], check=True)
+        source = self.repo / "src" / "app.ts"
+        source.parent.mkdir(parents=True, exist_ok=True)
+        source.write_text("export const clean = true\n", encoding="utf-8")
+        subprocess.run(["git", "-C", str(self.repo), "add", "."], check=True)
+        subprocess.run(["git", "-C", str(self.repo), "commit", "-qm", "base"], check=True)
+        base = subprocess.check_output(["git", "-C", str(self.repo), "rev-parse", "HEAD"], text=True).strip()
+        source.write_text("export const clean = true \n", encoding="utf-8")
+        subprocess.run(["git", "-C", str(self.repo), "add", "."], check=True)
+        subprocess.run(["git", "-C", str(self.repo), "commit", "-qm", "candidate"], check=True)
+        candidate = subprocess.check_output(["git", "-C", str(self.repo), "rev-parse", "HEAD"], text=True).strip()
+        real_runner = collector.run_bounded
+
+        def run_with_real_diff(argv: list[str], **kwargs: object) -> object:
+            if argv[:3] == ["git", "diff", "--check"]:
+                return real_runner(argv, **kwargs)
+            return SimpleNamespace(returncode=0, stdout=b"pass\n", stderr=b"")
+
+        with mock.patch.object(collector, "run_bounded", side_effect=run_with_real_diff):
+            with self.assertRaisesRegex(program_ledger.LedgerError, "diff-check.*failed"):
+                collector.collect(self.repo, base, candidate, 4)
         self.assertFalse((self.repo / "artifacts").exists())
 
     def test_publish_is_absent_before_rename_and_complete_immediately_after(self) -> None:
@@ -126,7 +158,7 @@ class PhaseEvidenceCollectorTests(unittest.TestCase):
             "run_bounded",
             return_value=SimpleNamespace(returncode=0, stdout=b"pass\n", stderr=b""),
         ), mock.patch.object(collector.os, "rename", side_effect=probe_rename):
-            paths = collector.collect(self.repo, self.candidate, 4)
+            paths = collector.collect(self.repo, self.base, self.candidate, 4)
 
         expected = sorted(f"command-{command_id}.json" for command_id in program_ledger.CANONICAL_COMMANDS)
         self.assertTrue(observed["target_absent_before"])
@@ -141,7 +173,7 @@ class PhaseEvidenceCollectorTests(unittest.TestCase):
             return_value=SimpleNamespace(returncode=0, stdout=b"pass\n", stderr=b""),
         ), mock.patch.object(collector.os, "rename", side_effect=OSError("injected publication failure")):
             with self.assertRaisesRegex(program_ledger.LedgerError, "no final report directory"):
-                collector.collect(self.repo, self.candidate, 4)
+                collector.collect(self.repo, self.base, self.candidate, 4)
 
         output_dir = self.repo / "artifacts" / "ux-audits" / "phase-4"
         self.assertFalse(output_dir.exists())
@@ -155,7 +187,7 @@ class PhaseEvidenceCollectorTests(unittest.TestCase):
             collector.tempfile, "mkdtemp", side_effect=OSError("injected staging failure")
         ):
             with self.assertRaisesRegex(program_ledger.LedgerError, "no final report directory"):
-                collector.collect(self.repo, self.candidate, 4)
+                collector.collect(self.repo, self.base, self.candidate, 4)
 
         self.assertFalse((self.repo / "artifacts" / "ux-audits" / "phase-4").exists())
 
@@ -176,7 +208,7 @@ class PhaseEvidenceCollectorTests(unittest.TestCase):
             return_value=SimpleNamespace(returncode=0, stdout=b"pass\n", stderr=b""),
         ), mock.patch.object(collector, "_fsync_directory", side_effect=fail_parent_sync):
             with self.assertRaisesRegex(program_ledger.LedgerError, "complete final directory was published"):
-                collector.collect(self.repo, self.candidate, 4)
+                collector.collect(self.repo, self.base, self.candidate, 4)
 
         output_dir = self.repo / "artifacts" / "ux-audits" / "phase-4"
         self.assertEqual(len(list(output_dir.iterdir())), 5)
@@ -186,7 +218,7 @@ class PhaseEvidenceCollectorTests(unittest.TestCase):
                 "run_bounded",
                 return_value=SimpleNamespace(returncode=0, stdout=b"pass\n", stderr=b""),
             ):
-                collector.collect(self.repo, self.candidate, 4)
+                collector.collect(self.repo, self.base, self.candidate, 4)
 
 
 if __name__ == "__main__":

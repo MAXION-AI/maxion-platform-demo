@@ -61,11 +61,10 @@ jobs:
       - name: Require evidence-only PR head for merge readiness
         if: github.event_name == 'pull_request'
         run: |
-          message="$(git show -s --format=%B HEAD)"
-          mentions="$(printf '%s\n' "$message" | grep -Ec '^Phase-Candidate([:[:space:]]|$)' || true)"
-          test "$mentions" -eq 1
-          candidate="$(printf '%s\n' "$message" | sed -nE 's/^Phase-Candidate: ([0-9a-f]{40})$/\1/p')"
-          test "${#candidate}" -eq 40
+          candidate="$(python3 scripts/check_phase_acceptance.py \
+            --extract-candidate \
+            --evidence "$(git rev-parse HEAD)" \
+            --phase "$MAXION_PROGRAM_PHASE")"
           test "$candidate" != "$(git rev-parse HEAD)"
           python3 scripts/check_phase_acceptance.py \
             --candidate "$candidate" \

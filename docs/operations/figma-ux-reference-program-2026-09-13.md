@@ -106,7 +106,7 @@ visually inspected after creation; they are candidate contract frames, not build
 
 - `pnpm check:program`: PASS
 - UX reference sheets: 13/13 pass at contract stage
-- UX token ratchet: PASS at 10 baselined files and 1,357 literals, with no growth
+- UX token ratchet: PASS at 10 baselined files and 1,342 literals at `34abf62aae1dbb47ded211fbf84a2146d8af0fa9`, with no growth
 - Discovered gate self-test suite: PASS; the pinned CI run records the exact count for its SHA
 - TypeScript: PASS
 - Focused Playwright sidebar geometry, interaction timing, reduced motion, and axe check: PASS

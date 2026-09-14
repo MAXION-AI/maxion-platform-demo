@@ -181,8 +181,13 @@ class ReferenceSheetGateTests(unittest.TestCase):
             extra.write_text("later commit\n", encoding="utf-8")
             subprocess.run(["git", "-C", str(self.tmp), "add", "."], check=True)
             subprocess.run(["git", "-C", str(self.tmp), "commit", "-qm", "later"], check=True)
+            self.assertEqual(sheet_gate.check_sheet(path), [])
+            first_artifact = self.tmp / "artifacts/ux-audits/phase-0/check-0.json"
+            first_artifact.write_text(first_artifact.read_text(encoding="utf-8") + "\n", encoding="utf-8")
+            subprocess.run(["git", "-C", str(self.tmp), "add", "."], check=True)
+            subprocess.run(["git", "-C", str(self.tmp), "commit", "-qm", "tamper"], check=True)
             findings = sheet_gate.check_sheet(path)
-            self.assertTrue(any("single direct E child" in finding for finding in findings), findings)
+            self.assertTrue(any("changed after" in finding for finding in findings), findings)
         finally:
             sheet_gate.ROOT = previous_root
 
@@ -196,6 +201,37 @@ class ReferenceSheetGateTests(unittest.TestCase):
         path.write_text(text, encoding="utf-8")
         findings = sheet_gate.check_sheet(path)
         self.assertTrue(any("safe phase-scoped" in finding for finding in findings), findings)
+
+    def test_candidate_sheet_phase_includes_explicit_requalification_scopes(self) -> None:
+        previous_root = sheet_gate.ROOT
+        try:
+            sheet_gate.ROOT = self.tmp
+            subprocess.run(["git", "-C", str(self.tmp), "init", "-q"], check=True)
+            subprocess.run(["git", "-C", str(self.tmp), "config", "user.email", "test@example.com"], check=True)
+            subprocess.run(["git", "-C", str(self.tmp), "config", "user.name", "Test"], check=True)
+            manifest = self.tmp / "docs/operations/figma-code-map.json"
+            manifest.parent.mkdir(parents=True, exist_ok=True)
+            manifest.write_text(json.dumps({
+                "surfaces": [{
+                    "surfaceId": "agentix-run-canvas",
+                    "referenceSheet": "agentix-run-canvas.md",
+                    "acceptancePhase": 0,
+                }],
+                "acceptanceScopes": [{
+                    "phase": 1,
+                    "kind": "phase-surfaces",
+                    "referenceSheets": ["agentix-run-canvas.md"],
+                }],
+            }), encoding="utf-8")
+            subprocess.run(["git", "-C", str(self.tmp), "add", "."], check=True)
+            subprocess.run(["git", "-C", str(self.tmp), "commit", "-qm", "candidate"], check=True)
+            candidate = subprocess.run(
+                ["git", "-C", str(self.tmp), "rev-parse", "HEAD"],
+                check=True, capture_output=True, text=True,
+            ).stdout.strip()
+            self.assertEqual(sheet_gate._candidate_sheet_phases(candidate, "agentix-run-canvas"), {0, 1})
+        finally:
+            sheet_gate.ROOT = previous_root
 
     def test_status_must_be_known(self) -> None:
         path = self.mutated(r"^- \*\*Status:\*\* contract$", "- **Status:** done")
@@ -317,12 +353,16 @@ class ContractCoverageGateTests(unittest.TestCase):
         )
         self.assertTrue(any("acceptancePhase is missing or incorrect" in finding for finding in findings), findings)
 
-    def test_phase_ten_and_eleven_acceptance_scopes_are_fixed(self) -> None:
+    def test_phase_one_two_ten_and_eleven_acceptance_scopes_are_fixed(self) -> None:
         findings = self.check_mutation(lambda value: value["acceptanceScopes"][0]["referenceSheets"].pop())
         self.assertTrue(any("acceptanceScopes" in finding for finding in findings), findings)
 
         self.manifest = json.loads(MANIFEST.read_text(encoding="utf-8"))
-        findings = self.check_mutation(lambda value: value["acceptanceScopes"][1].update(kind="all-surfaces"))
+        findings = self.check_mutation(lambda value: value["acceptanceScopes"][1]["referenceSheets"].pop())
+        self.assertTrue(any("acceptanceScopes" in finding for finding in findings), findings)
+
+        self.manifest = json.loads(MANIFEST.read_text(encoding="utf-8"))
+        findings = self.check_mutation(lambda value: value["acceptanceScopes"][3].update(kind="all-surfaces"))
         self.assertTrue(any("acceptanceScopes" in finding for finding in findings), findings)
 
     def test_compatibility_alias_can_never_be_a_canonical_surface_url(self) -> None:

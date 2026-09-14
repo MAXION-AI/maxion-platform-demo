@@ -62,6 +62,23 @@ class ImplementationPlanGateTests(unittest.TestCase):
         findings = self.check(VALID.replace("`pnpm test -- state.spec.ts`", "run the tests"))
         self.assertTrue(any("verification" in item for item in findings), findings)
 
+    def test_verification_rejects_missing_scripts_modules_and_directory_arguments(self) -> None:
+        mutations = (
+            "`pnpm fictional-check`",
+            "`python3 scripts/does_not_exist.py`",
+            "`python3 -m scripts.tests.does_not_exist`",
+            "`python3 -m unittest scripts.tests.test_ux_gates.DoesNotExist`",
+            "`python3 scripts/check_ux_reference_sheet.py docs/operations/ux-reference-sheets`",
+        )
+        for command in mutations:
+            with self.subTest(command=command):
+                findings = self.check(VALID.replace("`pnpm test -- state.spec.ts`", command))
+                self.assertTrue(any("missing" in item or "directory" in item for item in findings), findings)
+
+    def test_verification_accepts_an_existing_unittest_class(self) -> None:
+        command = "`python3 -m unittest scripts.tests.test_ux_gates.ContractCoverageGateTests`"
+        self.assertEqual(self.check(VALID.replace("`pnpm test -- state.spec.ts`", command)), [])
+
     def test_handoff_is_required_and_identity_bound(self) -> None:
         missing = VALID.split("### Structured acceptance hand-off", 1)[0]
         self.assertTrue(any("hand-off" in item for item in self.check(missing)))

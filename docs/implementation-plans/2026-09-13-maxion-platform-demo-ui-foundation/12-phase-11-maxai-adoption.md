@@ -70,7 +70,7 @@ or production SLOs. Those become mandatory MaxAI plan inputs.
 | Task | Serves | Exact files/symbols | Prerequisite | Focused verification |
 | --- | --- | --- | --- | --- |
 | 11.1 | RC-16 and RC-17 via ADR-6 | `docs/operations/maxai-ui-foundation-adoption/contract.json#source`; `docs/operations/program-phase-ledger.json#phases[10]` | Accepted Phase 10 M and frozen demo evidence | `python3 scripts/program_ledger.py validate-tracked` |
-| 11.2 | RC-03 and RC-17 via ADR-6 | `docs/operations/maxai-ui-foundation-adoption/contract.json#surfaces`; `docs/operations/maxai-ui-foundation-adoption/traceability.md#Surface-map` | Task 11.1 frozen inputs | `python3 scripts/check_maxai_adoption_package.py` |
+| 11.2 | RC-03 and RC-17 via ADR-6 | `docs/operations/maxai-ui-foundation-adoption/contract.json#surfaces`; `docs/operations/maxai-ui-foundation-adoption/traceability.md#Surface-map` | Task 11.1 frozen inputs | `python3 -m json.tool docs/operations/maxai-ui-foundation-adoption/contract.json` |
 | 11.3 | RC-16 and RC-17 via ADR-6 | `scripts/check_maxai_adoption_package.py#check_package`; `scripts/tests/test_maxai_adoption_package.py#MaxAIAdoptionPackageTests` | Task 11.2 complete package | `python3 -m unittest scripts.tests.test_maxai_adoption_package` |
 | 11.4 | RC-17 and RC-18 via ADR-1 | `docs/operations/maxai-ui-foundation-adoption/README.md#Separate-production-adoption-stream`; `docs/operations/maxai-ui-foundation-adoption/open-gaps.md#Production-gaps` | Task 11.3 package integrity gate | `python3 scripts/check_maxai_adoption_package.py` |
 | 11.5 | RC-01 and RC-17 via ADR-8 | `artifacts/ux-audits/phase-11/independent-ux.json`; `artifacts/ux-audits/phase-11/independent-qa.json`; `docs/operations/phase-acceptance-protocol.md#Evidence-only-closure` | Tasks 11.1 through 11.4 green at C | `python3 scripts/check_phase_acceptance.py --candidate "$C" --evidence "$E" --phase 11` |
@@ -81,7 +81,7 @@ or production SLOs. Those become mandatory MaxAI plan inputs.
 | --- | --- | --- |
 | Package | `docs/operations/maxai-ui-foundation-adoption/{README.md,contract.json,traceability.md,open-gaps.md}` | Every demo surface/state/contract maps to a production responsibility or explicit gap |
 | Gate/tests | `scripts/check_maxai_adoption_package.py`; `scripts/tests/test_maxai_adoption_package.py`; register in `check_program_gates.sh` | All six negative fixtures fail for the intended reason; committed package passes |
-| Evidence/commands | `artifacts/ux-audits/phase-11/**`; `pnpm check:program`; `pnpm build`; `pnpm audit --audit-level high`; package self-tests; `git diff --check` | C-bound UX/QA reports use `scopeKind: "package"`, `referenceSheets: []`, the exact five package checks, and no `browserRuns`; hashes and exit codes are exact; no demo runtime import |
+| Evidence/commands | `artifacts/ux-audits/phase-11/**`; `pnpm check:program`; `pnpm build`; `pnpm audit --audit-level high`; package self-tests; `git diff --check "$B" "$C" --` | C-bound UX/QA reports use `scopeKind: "package"`, `referenceSheets: []`, the exact five package checks, and no `browserRuns`; hashes, resolved range revisions, and exit codes are exact; no demo runtime import |
 | PR lifecycle | Verify Phase 10 M as B; isolated adoption-package branch/worktree; commit clean C; independent audits; commit required distinct evidence-only E; true B+E two-parent M; clean-M gates; atomic external-ledger close | Demo PR URL and B/C/E/M; protected-object equality; exact target ref; verified final demo M |
 
 ## Test, failure, and rollback

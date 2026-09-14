@@ -45,9 +45,15 @@ immutable states
 immutable thresholds
 
 ## 7. Evidence plan
-| Viewport | State / fixture | Required proof | Artifact | Status |
-| --- | --- | --- | --- | --- |
-| 1280 | ready | screenshot | pending | pending |
+| Check | Artifact path (repo-relative) | Result |
+| --- | --- | --- |
+| Side-by-side: built screen vs Figma frame vs Mobbin reference | pending | pending |
+| Token lint (`scripts/check_ux_tokens.py`) | pending | pending |
+| State-matrix test (every §5 cell rendered) | pending | pending |
+| Accessibility check (WCAG 2.1 AA, keyboard, reduced motion) | pending | pending |
+| Visual regression vs approved frame (tolerance stated) | pending | pending |
+| Independent audit report (law + reference per finding) | pending | pending |
+| Static-report test on every state | pending | pending |
 
 ## 8. Sign-off
 - **Builder:** builder — pending
@@ -142,6 +148,33 @@ class PhaseAcceptanceTests(unittest.TestCase):
         )
         for index, path in enumerate(browser_paths, 1):
             self.write(path, json.dumps({"run": index, "status": "PASS"}))
+        sheet_evidence_paths: list[str] = []
+        for sheet_path in owned_sheets:
+            sheet_file = self.repo / sheet_path
+            sheet_text = sheet_file.read_text(encoding="utf-8")
+            sheet_id = acceptance.SHEET_ID_RE.search(sheet_text)
+            assert sheet_id is not None
+            sheet_text = acceptance.SHEET_STATUS_RE.sub("- **Status:** gated", sheet_text, count=1)
+            for index, check in enumerate(acceptance.SHEET_EVIDENCE_CHECKS, 1):
+                row = next(line for line in sheet_text.splitlines() if line.startswith("|") and check in line)
+                full_check = row.strip().strip("|").split("|")[0].strip()
+                artifact = f"{prefix}/sheet-{sheet_id.group(1)}-{index}.json"
+                self.write(artifact, json.dumps({
+                    "schemaVersion": 1,
+                    "kind": "ux-sheet-evidence",
+                    "phase": phase,
+                    "sheetId": sheet_id.group(1),
+                    "check": full_check,
+                    "candidateSha": self.candidate,
+                    "verdict": "PASS",
+                }))
+                sheet_evidence_paths.append(artifact)
+                sheet_text = sheet_text.replace(row, f"| {full_check} | {artifact} | PASS |")
+            sheet_text = sheet_text.replace("- **Builder:** builder — pending", "- **Builder:** builder — 2026-09-13")
+            sheet_text = sheet_text.replace("- **Verifier:** unassigned — pending", "- **Verifier:** independent-ux — 2026-09-13")
+            sheet_text = sheet_text.replace("- **QA:** unassigned — pending", "- **QA:** independent-qa — 2026-09-13")
+            self.write(sheet_path, sheet_text)
+        browser_projects = ["chromium", "webkit", "chromium"] if scope_kind == "all-surfaces" else ["chromium"] * 3
         browser_runs = [
             {
                 "runId": f"phase-{phase}-browser-{index}",
@@ -151,7 +184,7 @@ class PhaseAcceptanceTests(unittest.TestCase):
                 "finishedAt": f"2026-09-13T10:0{index}:30Z",
                 "cleanBefore": True,
                 "cleanAfter": True,
-                "browser": "chromium",
+                "browser": browser_projects[index - 1],
                 "browserVersion": "fixture",
                 "viewport": {"width": 1280, "height": 900},
                 "fixture": f"fixture-{index}",
@@ -211,6 +244,7 @@ class PhaseAcceptanceTests(unittest.TestCase):
             self.write(path, json.dumps(report))
         if strict_index_path is not None:
             paths.append(strict_index_path)
+        paths.extend(sheet_evidence_paths)
         self.write(self.phase_doc, self.phase_text("accepted", paths))
         return paths
 
@@ -236,7 +270,7 @@ class PhaseAcceptanceTests(unittest.TestCase):
             ([], "exactly one Phase-Candidate"),
             ([f"Phase-Candidate: {self.candidate}", f"Phase-Candidate: {self.candidate}"], "exactly one Phase-Candidate"),
             (["Phase-Candidate: not-a-sha"], "exact lowercase 40-character"),
-            ([f" Phase-Candidate: {self.candidate}"], "exactly one Phase-Candidate"),
+            ([f" Phase-Candidate: {self.candidate}"], "one genuine Git trailer"),
             ([f"Phase-Candidate: {'0' * 40}"], "must equal candidate C"),
         )
         for trailer_lines, expected in cases:
@@ -246,13 +280,63 @@ class PhaseAcceptanceTests(unittest.TestCase):
                 findings = acceptance.check_acceptance(self.repo, self.candidate, evidence, 0)
                 self.assertTrue(any(expected in finding for finding in findings), findings)
 
+    def test_candidate_trailer_rejects_subject_body_and_mixed_trailer_lookalikes(self) -> None:
+        cases = (
+            (f"Phase-Candidate: {self.candidate}", [], "final Git trailer block"),
+            ("body lookalike", [f"Phase-Candidate: {self.candidate}", "not a trailer"], "final Git trailer block"),
+            (f"Phase-Candidate: {self.candidate}", [f"Phase-Candidate: {self.candidate}"], "exactly one Phase-Candidate"),
+            ("evidence", [f"Signed-off-by: Reviewer <reviewer@example.com>\nPhase-Candidate: {self.candidate}"], "only line in the final Git trailer block"),
+        )
+        for subject, paragraphs, expected in cases:
+            with self.subTest(subject=subject, paragraphs=paragraphs):
+                self.git("reset", "--hard", self.candidate)
+                self.add_acceptance_reports()
+                self.git("add", ".")
+                arguments = ["commit", "-qm", subject]
+                for paragraph in paragraphs:
+                    arguments.extend(["-m", paragraph])
+                self.git(*arguments)
+                evidence = self.git("rev-parse", "HEAD")
+                findings = acceptance.check_acceptance(self.repo, self.candidate, evidence, 0)
+                self.assertTrue(any(expected in finding for finding in findings), findings)
+
     def test_evidence_cells_and_signoffs_may_change_without_contract_hash_drift(self) -> None:
-        changed = SHEET.replace("**Status:** contract", "**Status:** gated")
-        changed = changed.replace("| pending | pending |", "| artifacts/ux-audits/phase-0/proof.json | PASS |")
-        changed = changed.replace("unassigned — pending", "independent — 2026-09-13")
-        self.write("docs/operations/ux-reference-sheets/sample.md", changed)
         evidence = self.commit()
         self.assertEqual(acceptance.check_acceptance(self.repo, self.candidate, evidence, 0), [])
+
+    def test_every_owned_sheet_must_be_gated_with_new_exact_evidence_and_distinct_signoffs(self) -> None:
+        self.add_acceptance_reports()
+        sheet_path = "docs/operations/ux-reference-sheets/sample.md"
+        valid = (self.repo / sheet_path).read_text(encoding="utf-8")
+        mutations = (
+            (valid.replace("**Status:** gated", "**Status:** contract"), "Status gated"),
+            (valid.replace("independent-qa — 2026-09-13", "independent-ux — 2026-09-13"), "distinct assigned sign-offs"),
+        )
+        for changed, expected in mutations:
+            with self.subTest(expected=expected):
+                self.git("reset", "--hard", self.candidate)
+                self.add_acceptance_reports()
+                self.write(sheet_path, changed)
+                evidence = self.commit("hostile gated sheet", reports=False)
+                findings = acceptance.check_acceptance(self.repo, self.candidate, evidence, 0)
+                self.assertTrue(any(expected in finding for finding in findings), findings)
+
+        self.git("reset", "--hard", self.candidate)
+        paths = self.add_acceptance_reports()
+        artifact = next(path for path in paths if "sheet-sample-1.json" in path)
+        report = json.loads((self.repo / artifact).read_text(encoding="utf-8"))
+        report["candidateSha"] = "0" * 40
+        self.write(artifact, json.dumps(report))
+        evidence = self.commit("mismatched sheet evidence", reports=False)
+        findings = acceptance.check_acceptance(self.repo, self.candidate, evidence, 0)
+        self.assertTrue(any("does not exactly bind" in finding for finding in findings), findings)
+
+        self.git("reset", "--hard", self.candidate)
+        self.add_acceptance_reports()
+        self.write(sheet_path, SHEET)
+        evidence = self.commit("ungated owned sheet", reports=False)
+        findings = acceptance.check_acceptance(self.repo, self.candidate, evidence, 0)
+        self.assertTrue(any("update every phase-owned reference sheet" in finding for finding in findings), findings)
 
     def test_source_test_script_manifest_config_and_bulk_changes_are_rejected(self) -> None:
         for path in (
@@ -284,7 +368,7 @@ class PhaseAcceptanceTests(unittest.TestCase):
 
         self.git("reset", "--hard", self.candidate)
         self.git("rm", "docs/operations/ux-reference-sheets/sample.md")
-        evidence = self.commit("delete")
+        evidence = self.commit("delete", reports=False)
         self.assertTrue(any("D is forbidden" in item for item in acceptance.check_acceptance(self.repo, self.candidate, evidence, 0)))
 
         self.git("reset", "--hard", self.candidate)

@@ -38,8 +38,9 @@ The first post-foundation browser run passed 43 of 44 journeys and exposed one s
 contrast violation in Discovery metadata (3.56–3.66:1 versus the 4.5:1 requirement). The semantic
 dark-text token replaced the inherited value and the exact Playwright/axe test then passed. The final
 complete browser rerun passed 44 of 44 journeys. The shared token pass reduced the ratchet to 10 files
-and 1,364 literals. Removing the remaining commented-out retired theme then reduced the current
-ratchet to 1,357 literals.
+and 1,364 literals. Removing the remaining commented-out retired theme reduced the then-current
+ratchet to 1,357 literals; later candidate cleanup leaves 1,342 literals in 10 files at
+`34abf62aae1dbb47ded211fbf84a2146d8af0fa9`.
 
 ## Visual baseline
 

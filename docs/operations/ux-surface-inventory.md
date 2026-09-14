@@ -50,7 +50,7 @@ both must be zero before Phase 1 can merge.
   evidence, and sign-off remain required.
 - Existing raw color literals are debt under a ratchet: 13 files and 1,463 literals at the initial
   2026-09-13 baseline. The shared-system pass and removal of a retired commented theme reduced that
-  to 10 files and 1,357 literals; new literals are forbidden and later module phases must continue
+  to 10 files and 1,342 literals at `34abf62aae1dbb47ded211fbf84a2146d8af0fa9`; new literals are forbidden and later module phases must continue
   shrinking it.
 
 ## Implementation order

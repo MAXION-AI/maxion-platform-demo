@@ -3,7 +3,7 @@
 - **Source:** `docs/operations/program-phase-ledger.json`, `docs/operations/phase-acceptance-protocol.md`, `docs/operations/ux-surface-inventory.md`, all UX reference sheets, editable Figma file `UhLxGyXphdHHNLGMomBq6n` including Agentix run node `46:933`, and the inspected demo/production portal source trees
 - **Date:** 2026-09-13
 - **Author:** Codex planning session 2026-09-13
-- **Status:** Plan hardened; Phase 0 acceptance pending at clean C/E/M
+- **Status:** PLAN GATE remediation candidate; independent clean-round count is zero and Phase 0 acceptance remains pending at clean C/E/M
 - **Plan directory:** `docs/implementation-plans/2026-09-13-maxion-platform-demo-ui-foundation/`
 - **Execution handoff:** `implementation-cadence`; every phase uses its own isolated implementation
   session and worktree, independent UX and engineering gates pinned to the candidate SHA, and one
@@ -31,7 +31,7 @@ records exact production mapping decisions and open gaps without changing or qua
 | Thirteen editable 1440 × 900 product and administration frames exist | Verified | `docs/operations/figma-ux-reference-program-2026-09-13.md`; `figma-code-map.json` |
 | Projects and the five administrative destinations have standalone contract-stage sheets and exact Figma frames | Verified | `docs/operations/ux-surface-inventory.md`; `docs/operations/ux-reference-sheets/` |
 | The demo shell uses lifted booleans while Discover and Agentix also persist separate local state | Verified | `MaxionPlatformPrototypePage.tsx`, `DiscoveryAutonomousPrototypePage.tsx`, `operationsState.ts` |
-| Core module implementations remain monolithic and CSS is split across large surface files | Verified | Discovery 2,707 TSX lines; Plan 1,972; Execute 724; production CSS inventory exceeds 12,000 lines combined |
+| Core module implementations remain monolithic and CSS is split across large surface files | Verified at `34abf62aae1dbb47ded211fbf84a2146d8af0fa9` | Discovery 2,707 TSX lines; Plan 1,972; `ExecuteDeliveryWorkspace.tsx` 747; production CSS inventory exceeds 12,000 lines combined |
 | The current production portal already owns the real shell, primitives, auth/query boundary, and compact bottom navigation | Verified | `max-ai-platform/apps/max-user-portal/src/app/components/layout/PortalSidebar.tsx`, `components/ui/*`, `shell/usePortalCommands.ts` |
 | Current local `max-ai-platform/main` is behind its `origin/main` by 19 commits and has owner untracked paths | Verified | read-only fetch/status on 2026-09-13 |
 | Historical Phase 0 validation passed program gates, build, 38/38 unit tests, and 45/45 Chromium E2E journeys on a dirty pre-commit tree | Verified but non-accepting | Phase 0 evidence reports; the superseding hardening PR requires fresh detached-C and clean-M reruns |
@@ -50,7 +50,7 @@ records exact production mapping decisions and open gaps without changing or qua
 | --- | --- | --- | --- | --- | --- |
 | RC-01 | Blocker | Candidate foundation and shell work requires independent clean-SHA acceptance plus a verified merged immutable SHA before later phases can inherit it | `program-phase-ledger.json`; Phase 0 reports | governance | Open — current C/E/M must be accepted and final M must become Phase 1 B |
 | RC-02 | Blocker | Projects, Settings, Integrations, My approvals, Usage, and Help are user-facing but lack standalone sheets and Figma frames | `ux-surface-inventory.md` | missing capability | Closed in Phase 0 candidate |
-| RC-03 | Major | Shared visual primitives are not yet a portable contract; 1,357 raw colour literals remain under a ratchet | token baseline and large CSS surfaces | technical debt | Open |
+| RC-03 | Major | Shared visual primitives are not yet a portable contract; 1,342 raw colour literals remain under a ratchet at `34abf62aae1dbb47ded211fbf84a2146d8af0fa9` | token baseline and large CSS surfaces | technical debt | Open |
 | RC-04 | Major | Multi-thousand-line components and styles couple layout, state, copy, and scenarios, making reuse and review unsafe | module line counts and symbol inventory | architecture | Open |
 | RC-05 | Blocker | Cross-module truth is fragmented across lifted booleans, component state, and module-local storage | `MaxionPlatformPrototypePage.tsx`, Discover storage, `operationsState.ts` | state integrity | Open |
 | RC-06 | Major | Dashboard and Projects must become complete interactive product surfaces, not a shell plus an uncovered list view; Phase 0 may fix only shell/dashboard defects that block its own UX acceptance | current inventory and frame set | UX capability | Open — general state/capability work remains Phase 2 |
@@ -253,7 +253,7 @@ object/evidence. Surface-specific references and stricter numbers live in each r
 | Client data scale | 10,000 logical rows/cases with no more than 200 mounted DOM rows; virtualize beyond 100 | load-shaped browser fixtures |
 | Interaction latency | INP p75 ≤200 ms; visible acknowledgement <400 ms | Chromium throttled 4× CPU and Slow 4G |
 | Loading stability | CLS ≤0.1; LCP ≤2.5 s on representative entry routes | Lighthouse/Playwright profile |
-| Bundle | initial JS ≤250 kB gzip and CSS ≤60 kB gzip; modules lazy-loaded | build artifact gate; current 387.56/85.90 kB are debt |
+| Bundle | initial JS ≤250 kB gzip and CSS ≤60 kB gzip; modules lazy-loaded | build artifact gate; the build at `34abf62aae1dbb47ded211fbf84a2146d8af0fa9` measured 386,220-byte gzip JS and 84,699-byte gzip CSS, both open debt |
 | Availability | No new availability claim in the static demo | The adoption package records required MaxAI SLO dependencies; it does not inherit or prove them |
 
 ### Security and threat review
@@ -282,7 +282,7 @@ pnpm test
 pnpm build
 pnpm test:e2e
 pnpm audit --audit-level high
-git diff --check
+git diff --check "$B" "$C" --
 ```
 
 The execution session records command, exit code, duration, B/C/E/M identities, PR URL, and evidence

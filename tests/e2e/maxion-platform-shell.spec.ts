@@ -93,6 +93,7 @@ test("keeps the shell choice, target, response, and accessibility floor measurab
 	await expect(page.getByRole("button", { name: "Open Agentix" })).toHaveClass(/mxp-primary/)
 	await expect(page.getByRole("heading", { name: "Needs you" })).toBeVisible()
 	await expect(page.getByRole("heading", { name: "Recent outcomes" })).toBeVisible()
+	await expect(page.getByRole("banner")).toHaveCount(0)
 	await expect(page.getByText("Quick navigation", { exact: true })).toHaveCount(0)
 	await expect(page.locator(".mxp-needs-you article")).toHaveCount(3)
 	await expect(page.locator(".mxp-recent-outcomes button")).toHaveCount(4)
@@ -120,7 +121,7 @@ test("keeps the shell choice, target, response, and accessibility floor measurab
 			productLabel: values('[data-navigation-tier="product"] > span'),
 			search: values(".mxp-dashboard-search"),
 			openAgentix: values(".mxp-dashboard-module-header .mxp-primary"),
-			panelHeading: values(".mxp-dashboard-panel > header h2"),
+			panelHeading: values(".mxp-dashboard-panel-header h2"),
 			rowTitle: values(".mxp-needs-you article h3"),
 			rowSupport: values(".mxp-needs-you article p"),
 			rowAction: values(".mxp-needs-you article button"),
@@ -235,6 +236,7 @@ test("contains mobile navigation focus and restores it after Escape", async ({ p
 	await opener.click()
 	const drawer = page.getByRole("dialog", { name: "Main navigation" })
 	await expect(drawer).toBeVisible()
+	await expect(drawer).toHaveJSProperty("tagName", "DIV")
 	await expect(drawer).toHaveAttribute("aria-modal", "true")
 	await expect(drawer.getByRole("button", { name: "Close navigation" })).toBeFocused()
 	expect(await page.locator(".mxp-stage").evaluate((stage) => ({ inert: stage.hasAttribute("inert"), hidden: stage.getAttribute("aria-hidden") }))).toEqual({ inert: true, hidden: "true" })

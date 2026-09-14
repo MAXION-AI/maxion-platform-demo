@@ -22,6 +22,9 @@ phase must not carry or substitute another app list. The full one-row-per-law ta
 matrices in both sheets are binding. Additional hard numbers: one filled
 action per view, 44 px primary targets, 4–8/16–32 px spacing, no more than four top-level regions,
 acknowledgement under 400 ms, and all first value paths within three actions.
+The manifest's explicit Phase 2 `phase-surfaces` scope contains exactly
+`platform-shell-dashboard.md` and `projects-workspace.md`; no fallback acceptance-phase inference and
+no other sheet may widen or narrow this review.
 
 - **Required surface state IDs (`platform-shell-dashboard`):** `shell.attention`, `shell.clear`, `shell.destination-error`, `shell.mobile-navigation`
 - **Required surface state IDs (`projects-workspace`):** `projects.ready`, `projects.loading`, `projects.empty`, `projects.error`, `projects.permission-denied`, `projects.create-review`, `projects.selected`
@@ -73,7 +76,7 @@ Rollback reverts only Phase 2 while retaining Phase 1 contracts. No new dependen
 | --- | --- | --- |
 | Production | Create `dashboard/DashboardModule.tsx`, `dashboard/selectors.ts`, `projects/ProjectsModule.tsx`, and `projects/{domain,selectors,commands}.ts` under `src/features/platform-prototype/`; reduce `PortalReplicaModules.tsx` to imports and delete superseded dashboard/project owners/selectors | One folder-owned runtime owner per surface; manifest and sheet hashes updated |
 | Tests/fixtures | Co-located project/selector tests; platform shell unit spec; `tests/e2e/maxion-platform-shell.spec.ts`; deterministic 0/1/10,000 fixtures | Create→Dashboard→open, denial, empty, keyboard/mobile, ≤200 mounted rows |
-| Evidence/commands | `artifacts/ux-audits/phase-2/**`; both sheets §7/§8; `pnpm check:program && pnpm test && pnpm build && pnpm test:e2e && pnpm audit --audit-level high`; `git diff --check` | Exact exit codes, viewport/Figma diffs, timing/axe reports |
+| Evidence/commands | `artifacts/ux-audits/phase-2/**`; both sheets §7/§8; `pnpm check:program && pnpm test && pnpm build && pnpm test:e2e && pnpm audit --audit-level high`; `git diff --check "$B" "$C" --` | Exact exit codes, completed E-sheet hashes, viewport/Figma diffs, timing/axe reports |
 | PR lifecycle | Verify prior M as B; create isolated phase branch/worktree; commit clean C; independent UX/QA audit C; commit required distinct evidence-only E; merge only as a true B+E two-parent M; rerun clean-M gates; append under lock to the external authority | PR URL, B/C/E/M, protected-object equality, exact target ref, merge/PR identity, post-merge results, successor pin |
 
 ## Definition of Done

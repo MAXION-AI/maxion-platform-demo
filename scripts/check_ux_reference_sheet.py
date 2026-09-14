@@ -65,13 +65,13 @@ REQUIRED_SECTIONS = [
 ]
 
 EVIDENCE_CHECKS = [
-    "Side-by-side",
-    "Token lint",
-    "State-matrix test",
-    "Accessibility check",
-    "Visual regression",
-    "Independent audit report",
-    "Static-report test",
+    "Side-by-side: built screen vs Figma frame vs Mobbin reference",
+    "Token lint (`scripts/check_ux_tokens.py`)",
+    "State-matrix test (every §5 cell rendered)",
+    "Accessibility check (WCAG 2.1 AA, keyboard, reduced motion)",
+    "Visual regression vs approved frame (tolerance stated)",
+    "Independent audit report (law + reference per finding)",
+    "Static-report test on every state",
 ]
 
 STAGES = ("contract", "built", "gated")
@@ -178,7 +178,7 @@ def _committed_blob(path: str) -> tuple[bytes | None, str | None]:
     return result.stdout, None
 
 
-def _candidate_sheet_phase(candidate: str, sheet_id: str) -> int | None:
+def _candidate_sheet_phases(candidate: str, sheet_id: str) -> set[int] | None:
     result = subprocess.run(
         ["git", "-C", str(ROOT), "show", f"{candidate}:docs/operations/figma-code-map.json"],
         capture_output=True, timeout=10, check=False,
@@ -189,12 +189,53 @@ def _candidate_sheet_phase(candidate: str, sheet_id: str) -> int | None:
         manifest = json.loads(result.stdout)
     except (UnicodeDecodeError, json.JSONDecodeError):
         return None
-    matches = [
-        item.get("acceptancePhase")
+    if not isinstance(manifest, dict):
+        return None
+    surfaces = [
+        item
         for item in manifest.get("surfaces", [])
         if isinstance(item, dict) and item.get("surfaceId") == sheet_id
-    ] if isinstance(manifest, dict) else []
-    return matches[0] if len(matches) == 1 and isinstance(matches[0], int) else None
+    ]
+    if len(surfaces) != 1 or not isinstance(surfaces[0].get("acceptancePhase"), int):
+        return None
+    phases = {surfaces[0]["acceptancePhase"]}
+    reference_sheet = surfaces[0].get("referenceSheet")
+    for scope in manifest.get("acceptanceScopes", []):
+        if (
+            isinstance(scope, dict)
+            and isinstance(scope.get("phase"), int)
+            and isinstance(scope.get("referenceSheets"), list)
+            and reference_sheet in scope["referenceSheets"]
+        ):
+            phases.add(scope["phase"])
+    return phases
+
+
+def _evidence_commit(candidate: str, path: str) -> tuple[str | None, str | None]:
+    ancestor = subprocess.run(
+        ["git", "-C", str(ROOT), "merge-base", "--is-ancestor", candidate, "HEAD"],
+        capture_output=True, timeout=10, check=False,
+    )
+    if ancestor.returncode != 0:
+        return None, "gated evidence candidate is not an ancestor of HEAD"
+    introduced = subprocess.run(
+        [
+            "git", "-C", str(ROOT), "log", "--format=%H", "--diff-filter=A",
+            f"{candidate}..HEAD", "--", path,
+        ],
+        capture_output=True, text=True, timeout=10, check=False,
+    )
+    commits = introduced.stdout.splitlines() if introduced.returncode == 0 else []
+    if len(commits) != 1:
+        return None, "gated evidence artifact must be introduced exactly once after candidate C"
+    evidence = commits[0]
+    parents = subprocess.run(
+        ["git", "-C", str(ROOT), "rev-list", "--parents", "-n", "1", evidence],
+        capture_output=True, text=True, timeout=10, check=False,
+    ).stdout.split()
+    if len(parents) != 2 or parents[1] != candidate:
+        return None, "gated evidence artifact must be introduced at the single direct E child of candidate C"
+    return evidence, None
 
 
 def _validate_gated_report(path: str, *, sheet_id: str, check: str) -> list[str]:
@@ -233,19 +274,24 @@ def _validate_gated_report(path: str, *, sheet_id: str, check: str) -> list[str]
     elif candidate == head:
         findings.append("gated evidence report must bind a candidate before evidence HEAD")
     else:
-        parents = subprocess.run(
-            ["git", "-C", str(ROOT), "rev-list", "--parents", "-n", "1", head],
-            capture_output=True, text=True, timeout=10, check=False,
-        ).stdout.split()
-        if len(parents) != 2 or parents[1] != candidate:
-            findings.append("gated evidence report must exist at the single direct E child of candidate C")
         existed = subprocess.run(
             ["git", "-C", str(ROOT), "cat-file", "-e", f"{candidate}:{path}"],
             capture_output=True, timeout=10, check=False,
         )
         if existed.returncode == 0:
             findings.append("gated evidence report was reused from candidate C")
-        if _candidate_sheet_phase(candidate, sheet_id) != path_phase:
+        evidence, evidence_error = _evidence_commit(candidate, path)
+        if evidence_error:
+            findings.append(evidence_error)
+        elif evidence is not None:
+            at_e = subprocess.run(
+                ["git", "-C", str(ROOT), "show", f"{evidence}:{path}"],
+                capture_output=True, timeout=10, check=False,
+            )
+            if at_e.returncode != 0 or at_e.stdout != blob:
+                findings.append("gated evidence artifact changed after its evidence-only E commit")
+        phases = _candidate_sheet_phases(candidate, sheet_id)
+        if phases is None or path_phase not in phases:
             findings.append("gated evidence report phase does not match the candidate manifest sheet owner")
     return findings
 
@@ -371,13 +417,15 @@ def check_sheet(path: Path, stage_override: str | None = None) -> list[str]:
 
     evidence = _section(parts, "## 7. Evidence") or ""
     ev_rows = _table_rows(evidence)
-    seen_checks = {row[0] for row in ev_rows if row}
+    seen_checks = [row[0] for row in ev_rows if row]
     for check in EVIDENCE_CHECKS:
-        if not any(check in c for c in seen_checks):
+        if check not in seen_checks:
             findings.append(f"{rel}: §7 missing evidence row {check!r}")
+    if len(ev_rows) != len(EVIDENCE_CHECKS) or set(seen_checks) != set(EVIDENCE_CHECKS):
+        findings.append(f"{rel}: §7 must contain exactly the seven canonical evidence rows")
     if stage in ("built", "gated"):
         for row in ev_rows:
-            if len(row) < 3:
+            if len(row) != 3:
                 findings.append(f"{rel}: §7 row incomplete: {row}")
                 continue
             check, artifact, result = row[0], row[1], row[2]
@@ -408,6 +456,8 @@ def check_sheet(path: Path, stage_override: str | None = None) -> list[str]:
             findings.append(f"{rel}: §8 sign-offs must be three distinct people or sessions: {names}")
         if any(d.lower() == "pending" for _, d in roles.values()):
             findings.append(f"{rel}: §8 gated sheet has a pending sign-off date")
+        if any(not re.fullmatch(r"\d{4}-\d{2}-\d{2}", d) for _, d in roles.values()):
+            findings.append(f"{rel}: §8 gated sign-off dates must use YYYY-MM-DD")
 
     return findings
 

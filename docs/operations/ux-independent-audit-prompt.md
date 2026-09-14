@@ -92,12 +92,18 @@ records with keys `runId`, `runSha`, `command`, `startedAt`, `finishedAt`, `clea
 `artifactSha256`. Each record binds C, exact unfiltered `pnpm test:e2e`, UTC times, clean state before
 and after, PASS/zero, and a distinct committed phase-scoped artifact. For Phase 10 `all-surfaces`, the
 `browser-e2e` checklist evidence also names `strict-preview-runs.json`; that schema-v2 index binds C,
-`C:src`, and exactly the same three ordered run records. A filtered or edited retry cannot satisfy it.
+`C:src`, and exactly the same three ordered run records. The three artifact paths and their committed
+content SHA-256 values are pairwise distinct. Phase 10's records cover exactly Chromium and WebKit,
+with both projects represented. A filtered, relabelled, copied, or edited retry cannot satisfy it.
 
 For either scope:
 
 - Save detailed evidence under `artifacts/ux-audits/phase-<N>/`. Every checklist evidence
   path below must name a committed regular artifact in that directory.
+- At E, every sheet in the candidate manifest's acceptance scope must be `Status: gated`; all seven
+  evidence rows must bind newly added exact-schema sheet/check/C PASS artifacts, and Builder,
+  Independent verifier, and Engineering QA must be complete and distinct. The accepted record binds
+  each completed E sheet blob hash while its immutable-contract hash continues to bind C to E.
 - Emit exactly one machine-readable report at
   `artifacts/ux-audits/phase-<N>/independent-ux.json`. Use schema version 2 and exactly these keys;
   unknown keys fail the gate:
@@ -162,8 +168,9 @@ package checklist; neither report contains `browserRuns`:
 ```
 
 Replace every example `0` with the input phase. `referenceSheets` must equal the acceptance scope from
-the candidate manifest: the phase-owned sheets normally, all 13 sheets in Phase 10, and `[]` for the
-Phase 11 package scope. Use `scopeKind: "all-surfaces"` for Phase 10 and
+the candidate manifest: all 13 shared-shell sheets in Phase 1, exactly the Dashboard and Projects
+sheets in Phase 2, the normally phase-owned sheets in Phases 0 and 3–9, all 13 sheets in Phase 10,
+and `[]` for the Phase 11 package scope. Use `scopeKind: "all-surfaces"` for Phase 10 and
 `scopeKind: "phase-surfaces"` for ordinary UI phases. If any checklist item fails, do not fabricate
 this PASS report; return GATE FAIL and leave the phase open.
 

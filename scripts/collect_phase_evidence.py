@@ -116,23 +116,33 @@ def _publish_reports(repo: Path, output_dir: Path, reports: list[dict[str, Any]]
     return [output_dir / filename for filename in filenames]
 
 
-def collect(repo: Path, candidate: str, phase: int) -> list[Path]:
+def collect(repo: Path, base: str, candidate: str, phase: int) -> list[Path]:
+    if not program_ledger.SHA1_RE.fullmatch(base):
+        raise program_ledger.LedgerError("base must be an exact lowercase 40-character SHA-1")
     if not program_ledger.SHA1_RE.fullmatch(candidate):
         raise program_ledger.LedgerError("candidate must be an exact lowercase 40-character SHA-1")
     repo = repo.resolve()
+    resolved_base = _git(repo, "rev-parse", f"{base}^{{commit}}")
+    if resolved_base != base or _git(repo, "merge-base", base, candidate) != base:
+        raise program_ledger.LedgerError("collector base B must be an exact ancestor of candidate C")
     source_tree = _git(repo, "rev-parse", f"{candidate}:src")
     _assert_clean_candidate(repo, candidate, source_tree)
     environment = os.environ.copy()
     environment["MAXION_PROGRAM_PHASE"] = str(phase)
     environment["MAXION_BUILD_REVISION"] = candidate
     reports: list[dict[str, Any]] = []
-    for command_id, command in program_ledger.CANONICAL_COMMANDS.items():
+    for command_id in program_ledger.CANONICAL_COMMANDS:
+        command = program_ledger._canonical_command(  # noqa: SLF001 - one command authority
+            command_id, base_sha=base, run_sha=candidate
+        )
         _assert_clean_candidate(repo, candidate, source_tree)
         started_at = _timestamp()
         stdout = bytearray()
         stderr = bytearray()
         exit_code = 0
-        for argv in program_ledger.CANONICAL_EXECUTION[command_id]:
+        for argv in program_ledger._canonical_execution(  # noqa: SLF001 - one command authority
+            command_id, base_sha=base, run_sha=candidate
+        ):
             try:
                 result = run_bounded(
                     argv,
@@ -164,7 +174,7 @@ def collect(repo: Path, candidate: str, phase: int) -> list[Path]:
         stdout_text = stdout.decode("utf-8", errors="replace")
         stderr_text = stderr.decode("utf-8", errors="replace")
         reports.append({
-            "schemaVersion": 2,
+            "schemaVersion": 3,
             "program": program_ledger.PROGRAM,
             "phase": phase,
             "kind": "command-result",
@@ -175,6 +185,8 @@ def collect(repo: Path, candidate: str, phase: int) -> list[Path]:
             "status": "PASS",
             "exitCode": 0,
             "runSha": candidate,
+            "rangeBaseSha": base if command_id == "diff-check" else None,
+            "rangeHeadSha": candidate if command_id == "diff-check" else None,
             "stdout": stdout_text,
             "stderr": stderr_text,
             "stdoutSha256": hashlib.sha256(stdout_text.encode("utf-8")).hexdigest(),
@@ -196,12 +208,13 @@ def collect(repo: Path, candidate: str, phase: int) -> list[Path]:
 
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--base", required=True)
     parser.add_argument("--candidate", required=True)
     parser.add_argument("--phase", required=True, type=int)
     parser.add_argument("--repo", type=Path, default=ROOT)
     args = parser.parse_args(argv)
     try:
-        paths = collect(args.repo, args.candidate, args.phase)
+        paths = collect(args.repo, args.base, args.candidate, args.phase)
     except program_ledger.LedgerError as exc:
         print(f"Phase evidence collector: FAIL: {exc}", file=sys.stderr)
         return 1
