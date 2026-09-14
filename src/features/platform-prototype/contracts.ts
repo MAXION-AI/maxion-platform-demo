@@ -40,6 +40,22 @@ export type DiscoveryPackageRef = {
 	evidenceClasses: DiscoveryPackageEvidenceClass[]
 }
 
+export type PlanArtifactRef = {
+	version: 1
+	id: string
+	artifactId: string
+	artifactVersion: number
+	projectId: string
+	projectName: string
+	discoveryPackageId: string
+	approvedAt: string
+	approvedByRole: "owner"
+	sourceIds: string[]
+	unresolvedGapIds: string[]
+	authority: { boundedTo: "execute-input" }
+	contentDigest: string
+}
+
 export type AgentixAttention = { count: number; audience: boolean; approval: boolean }
 export type AgentixIntent =
 	| { type: "workflow"; id: WorkflowId }
@@ -72,7 +88,7 @@ export type PlatformState = {
 	projects: ProjectWorkspaceState
 	handoffs: {
 		discovery: { ready: boolean; packageRef: DiscoveryPackageRef | null; evidence: PlatformEvidence[]; decisions: PlatformDecision[]; progress: PlatformProgress }
-		plan: { sent: boolean; snapshot: string }
+		plan: { sent: boolean; artifactRef: PlanArtifactRef | null }
 		execute: { verified: boolean; environment: PlatformEnvironment }
 	}
 	agentix: { attention: AgentixAttention }
@@ -107,7 +123,7 @@ export type PlatformEvent =
 	| { type: "discovery/operational-opened"; workflowId: WorkflowId }
 	| { type: "discovery/operational-closed" }
 	| { type: "plan/artifact-opened"; artifactId: string }
-	| { type: "plan/sent"; snapshot: string }
+	| { type: "plan/approved"; artifactRef: PlanArtifactRef }
 	| { type: "execute/workspace-opened"; taskId: ExecuteWorkspaceId }
 	| { type: "execute/hub-opened"; target: "approvals" | "engagements" }
 	| { type: "execute/verified" }

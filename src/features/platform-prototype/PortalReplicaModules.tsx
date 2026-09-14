@@ -1,5 +1,4 @@
 import {
-	Activity,
 	ArrowLeft,
 	ArrowRight,
 	BellRinging,
@@ -8,11 +7,9 @@ import {
 	Check,
 	CheckCircle,
 	Code,
-	Compass,
 	Database,
 	FileText,
 	FlowArrow,
-	FolderPlus,
 	GearSix,
 	MagnifyingGlass,
 	Plug,
@@ -20,7 +17,6 @@ import {
 	Question,
 	ShieldCheck,
 	PencilSimpleLine,
-	Stack,
 	TerminalWindow,
 	WarningCircle,
 	X,
@@ -39,10 +35,16 @@ import {
 	workspaceUnitsLabel,
 	type ExecuteLaunchIntent,
 	type MaxionModuleId,
-	type PortalProject,
 } from "./model"
 
 type Navigate = (module: MaxionModuleId) => void
+
+const PLAN_LIBRARY = [
+	{ id: "erp", name: "ERP modernization delivery plan", project: "ERP modernization", status: "active", detail: "6 approved sections" },
+	{ id: "northbridge", name: "NorthBridge 100-day plan", project: "NorthBridge acquisition", status: "generated", detail: "Decision package ready" },
+	{ id: "customer", name: "Customer data foundation", project: "Customer 360", status: "active", detail: "11 outcomes" },
+	{ id: "pricing", name: "Pricing transformation roadmap", project: "Pricing transformation", status: "completed", detail: "Fully delivered" },
+] as const
 
 // motion's hook settles a tick after mount; the media query is the truth jsdom forces,
 // so timed theater checks both and takes the instant path if either says reduce.
@@ -79,65 +81,6 @@ function PortalStat({ icon, label, value, hint }: { icon: ReactNode; label: stri
 			<span>{icon}</span>
 			<div><small>{label}</small><strong>{value}</strong><p>{hint}</p></div>
 		</article>
-	)
-}
-
-const PLAN_LIBRARY = [
-	{ id: "erp", name: "ERP modernization delivery plan", project: "ERP modernization", status: "active", detail: "5 flows · 17 build packages", updated: "12 minutes ago" },
-	{ id: "northbridge", name: "NorthBridge 100-day plan", project: "NorthBridge acquisition", status: "generated", detail: "Investment committee package ready", updated: "Yesterday" },
-	{ id: "customer", name: "Customer data foundation", project: "Customer 360", status: "active", detail: "11 outcomes · 38 delivery items", updated: "4 days ago" },
-	{ id: "pricing", name: "Pricing transformation roadmap", project: "Pricing transformation", status: "completed", detail: "Fully delivered", updated: "Jun 18" },
-] as const
-
-export function PlanLibraryModule({ projects, onOpenPlan, onStartPlan, onNavigate }: { projects: PortalProject[]; onOpenPlan: () => void; onStartPlan: () => void; onNavigate: Navigate }) {
-	const [tab, setTab] = useState<"all" | "active" | "generated" | "completed">("all")
-	const [createOpen, setCreateOpen] = useState(false)
-	const [projectId, setProjectId] = useState(projects.find((project) => project.status === "active")?.id ?? "")
-	const [objective, setObjective] = useState("")
-	const [source, setSource] = useState<"discovery" | "documents" | "integrations" | "project" | "manual">("discovery")
-	const filtered = PLAN_LIBRARY.filter((plan) => tab === "all" || plan.status === tab)
-	const startPlan = (event: FormEvent<HTMLFormElement>) => {
-		event.preventDefault()
-		if (!projectId || (source === "manual" && !objective.trim())) return
-		setCreateOpen(false)
-		onStartPlan()
-	}
-	const planSources = [
-		{ id: "discovery", label: "Verified Discovery", detail: "Recommended · 124 claims ready", icon: Compass },
-		{ id: "documents", label: "Documents", detail: "Upload briefs, specs, or policies", icon: FileText },
-		{ id: "integrations", label: "Connected systems", detail: "Jira, ServiceNow, SharePoint", icon: Plug },
-		{ id: "project", label: "Project context", detail: "Use goals, members, and activity", icon: Stack },
-		{ id: "manual", label: "Describe it", detail: "Start from a short objective", icon: PencilSimpleLine },
-	] as const
-	return (
-		<div className="mxp-portal-page mxp-plan-library">
-			<PortalPageHeader eyebrow="Plan" title="From evidence to implementation-ready" description="Give MAX a goal or verified context. It decomposes the work, draws every architecture flow, challenges the guidance, and returns only when your decision is needed." actions={<><button type="button" onClick={() => onNavigate("projects")}><FolderPlus size={16} />Create Project</button><button type="button" className="mxp-primary" onClick={() => setCreateOpen(true)}><Plus size={16} />Create Plan</button></>} />
-			<section className="mxp-portal-stats" aria-label="Plan summary"><PortalStat icon={<FlowArrow size={18} />} label="Total plans" value="4" hint="Across all projects" /><PortalStat icon={<Activity size={18} />} label="Autonomous runs" value="2" hint="MAX is working" /><PortalStat icon={<ShieldCheck size={18} />} label="Needs your input" value="1" hint="One exact decision" /><PortalStat icon={<CheckCircle size={18} />} label="Execute-ready" value="2" hint="L3 and L4 complete" /></section>
-			<section className="mxp-plan-resume"><span><MaxionSpiralMark className="mxp-plan-resume-spiral" /><div><small>MAX finished this run</small><strong>ERP modernization delivery plan</strong><p>Five implementation flows are decomposed through L2–L4 and critic-checked. The implementation boundary is ready for your approval.</p></div></span><button type="button" onClick={onOpenPlan}>Resume plan<ArrowRight size={14} /></button></section>
-			<section className="mxp-portal-card mxp-plan-list-card"><header><div><h2>Plans</h2><p>Current plans across your projects</p></div></header><nav role="tablist" aria-label="Plan status">{(["all", "active", "generated", "completed"] as const).map((value) => <button key={value} type="button" role="tab" aria-selected={tab === value} className={tab === value ? "is-active" : ""} onClick={() => setTab(value)}>{value[0].toUpperCase() + value.slice(1)} <span>{value === "all" ? PLAN_LIBRARY.length : PLAN_LIBRARY.filter((plan) => plan.status === value).length}</span></button>)}</nav><div>{filtered.map((plan) => <button type="button" key={plan.id} onClick={onOpenPlan}><span className="mxp-plan-item-icon"><FlowArrow size={17} weight="duotone" /></span><span><strong>{plan.name}</strong><small>{plan.project} · {plan.detail}</small></span>{plan.status !== "active" ? <i className={`is-${plan.status}`}>{plan.status}</i> : null}<time>{plan.updated}</time><CaretRight size={14} /></button>)}</div></section>
-			{createOpen ? (
-				<div className="mxp-dialog-layer" onMouseDown={(event) => { if (event.currentTarget === event.target) setCreateOpen(false) }}>
-					<section role="dialog" aria-modal="true" aria-labelledby="create-plan-title" className="mxp-portal-dialog mxp-plan-create-dialog">
-						<header className="mxp-plan-create-header">
-							<div><span className="mxp-dialog-icon"><MaxionSpiralMark variant="current" className="mxp-dialog-mark" /></span><div><small>Autonomous plan</small><h2 id="create-plan-title">Start a plan with MAX</h2><p>Choose the strongest context. MAX builds the implementation map from there.</p></div></div>
-							<button type="button" aria-label="Close create plan dialog" onClick={() => setCreateOpen(false)}><X size={17} /></button>
-						</header>
-						<form onSubmit={startPlan}>
-							<label className="mxp-plan-project-field">Project<select value={projectId} onChange={(event) => setProjectId(event.target.value)} required>{projects.filter((project) => project.status === "active" && project.role !== "Viewer").map((project) => <option key={project.id} value={project.id}>{project.name}</option>)}</select></label>
-							<fieldset className="mxp-plan-source-picker">
-								<legend>Starting context</legend><p className="mxp-plan-source-description">MAX uses the strongest available source. Add more only when it changes the implementation boundary.</p>
-								<div className="mxp-plan-source-options">
-									{planSources.map(({ id, label, detail, icon: Icon }) => <button key={id} type="button" aria-pressed={source === id} onClick={() => setSource(id)}><span className="mxp-plan-source-icon"><Icon size={16} /></span><span className="mxp-plan-source-copy"><strong>{label}</strong><small>{detail}</small></span>{source === id ? <CheckCircle className="mxp-plan-source-check" size={16} weight="fill" /> : <span className="mxp-plan-source-empty" aria-hidden="true" />}</button>)}
-								</div>
-							</fieldset>
-							<label className="mxp-plan-steering-field">{source === "manual" ? "What should this plan accomplish?" : "Add a constraint (optional)"}<textarea autoFocus={source === "manual"} value={objective} onChange={(event) => setObjective(event.target.value)} rows={2} placeholder={source === "manual" ? "Describe the outcome and any hard constraints." : "For example: protect the October cutover, use the approved vendors, or make the architecture decision by Friday."} required={source === "manual"} /></label>
-							<section className="mxp-plan-launch-summary" aria-label="What MAX will deliver"><div><MaxionSpiralMark /><span><small>MAX will deliver</small><strong>Implementation-ready guidance</strong></span></div><ul><li>Flows decomposed through L2–L4</li><li>Architecture diagrams for each flow</li><li>Owner-routed decisions and approvals</li></ul></section>
-							<footer className="mxp-plan-create-actions"><p><ShieldCheck size={14} />Project membership, evidence policy, cost limits, and approvals are inherited.</p><div><button type="button" onClick={() => setCreateOpen(false)}>Cancel</button><button type="submit" className="mxp-primary" disabled={!projectId || (source === "manual" && !objective.trim())}>Start autonomous plan<ArrowRight size={14} /></button></div></footer>
-						</form>
-					</section>
-				</div>
-			) : null}
-		</div>
 	)
 }
 

@@ -193,14 +193,12 @@ test("jumps across modules from wherever the viewer already is", async ({ page }
 	await navigation.getByRole("button", { name: /^Agentix/ }).click()
 	await expect(page.getByRole("main", { name: "Agentix workspace" })).toBeVisible()
 
-	// From Agentix, "INT-02" lands on the Plan contract — the plan opens itself at L3.
+	// From Agentix, a Plan section command lands on the evidence-gated Plan surface.
 	let menu = await openShellMenu(page)
-	await menu.getByRole("textbox", { name: "Search MAXION commands" }).fill("INT-02")
-	await expect(menu.locator("button.is-active")).toContainText("INT-02")
+	await menu.getByRole("textbox", { name: "Search MAXION commands" }).fill("Workstreams")
+	await expect(menu.locator("button.is-active")).toContainText("Workstreams")
 	await menu.getByRole("textbox", { name: "Search MAXION commands" }).press("Enter")
-	await expect(page.getByRole("heading", { name: "See the flow. Understand the behavior. Know what to build." })).toBeVisible()
-	await expect(page.getByRole("group", { name: "L3 diagram for ServiceNow to Workday financial integration" })).toBeVisible()
-	await expect(page.getByRole("region", { name: "L3 executable handoff" }).getByText("INT-01")).toBeVisible()
+	await expect(page.getByRole("heading", { name: "No evidence-backed plan yet" })).toBeVisible()
 
 	// From Plan, an Execute workspace opens directly into its agent session.
 	menu = await openShellMenu(page)

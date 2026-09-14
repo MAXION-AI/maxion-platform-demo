@@ -10,6 +10,22 @@ import {
 	selectPersistedPlatformState,
 } from "../platformState"
 
+const planArtifactRef = {
+	version: 1 as const,
+	id: "plan-project-1-approved-v1",
+	artifactId: "plan-project-1",
+	artifactVersion: 1,
+	projectId: INITIAL_PROJECTS[0].id,
+	projectName: INITIAL_PROJECTS[0].name,
+	discoveryPackageId: "discovery-project-1-v1",
+	approvedAt: "2026-09-14T12:00:00.000Z",
+	approvedByRole: "owner" as const,
+	sourceIds: ["source-1"],
+	unresolvedGapIds: [],
+	authority: { boundedTo: "execute-input" as const },
+	contentDigest: "fnv1a-deadbeef",
+}
+
 describe("platform state kernel", () => {
 	it("owns navigation and emits monotonically increasing one-shot handoffs", () => {
 		let state = createInitialPlatformState("dashboard")
@@ -31,7 +47,7 @@ describe("platform state kernel", () => {
 	it("persists bounded synthetic state and rejects hostile project payloads", () => {
 		let state = createInitialPlatformState("dashboard")
 		state = { ...state, projects: { ...state.projects, records: Array.from({ length: 120 }, (_, index) => ({ ...INITIAL_PROJECTS[0], id: `project-${index}` })) } }
-		state = platformReducer(state, { type: "plan/sent", snapshot: "v13" })
+		state = platformReducer(state, { type: "plan/approved", artifactRef: planArtifactRef })
 		state = platformReducer(state, { type: "execute/verified" })
 		const persisted = selectPersistedPlatformState(state)
 		expect(persisted.projects).toHaveLength(120)

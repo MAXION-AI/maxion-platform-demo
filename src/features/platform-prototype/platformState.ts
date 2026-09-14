@@ -1,4 +1,4 @@
-import type { DiscoveryPackageRef, PlatformEvent, PlatformState, PortalProject } from "./contracts"
+import type { DiscoveryPackageRef, PlanArtifactRef, PlatformEvent, PlatformState, PortalProject } from "./contracts"
 import { INITIAL_PROJECTS } from "./model"
 import type { StateCodec } from "./persistence/DemoStateRepository"
 
@@ -11,8 +11,9 @@ type PersistedPlatformState = {
 	selectedProjectId: string | null
 	discoveryReady: boolean
 	discoveryPackage?: DiscoveryPackageRef | null
-	planSent: boolean
-	planSnapshot: string
+	planArtifactRef?: PlanArtifactRef | null
+	planSent?: boolean
+	planSnapshot?: string
 	executeVerified: boolean
 }
 
@@ -35,6 +36,18 @@ function parseDiscoveryPackage(value: unknown): DiscoveryPackageRef | null {
 
 function boundedText(value: unknown, max: number) {
 	return typeof value === "string" && value.length <= max ? value : null
+}
+
+function parsePlanArtifactRef(value: unknown): PlanArtifactRef | null {
+	if (typeof value !== "object" || value === null || Array.isArray(value)) return null
+	const item = value as Partial<PlanArtifactRef>
+	const id = boundedText(item.id, 180), artifactId = boundedText(item.artifactId, 160), projectId = boundedText(item.projectId, 160), projectName = boundedText(item.projectName, 240), discoveryPackageId = boundedText(item.discoveryPackageId, 160), approvedAt = boundedText(item.approvedAt, 80), contentDigest = boundedText(item.contentDigest, 160)
+	if (item.version !== 1 || !id || !artifactId || !projectId || !projectName || !discoveryPackageId || !approvedAt || !Number.isFinite(Date.parse(approvedAt)) || !contentDigest || !Number.isInteger(item.artifactVersion) || Number(item.artifactVersion) < 1) return null
+	if (item.approvedByRole !== "owner" || item.authority?.boundedTo !== "execute-input") return null
+	if (!Array.isArray(item.sourceIds) || item.sourceIds.length === 0 || item.sourceIds.length > 1_000 || !Array.isArray(item.unresolvedGapIds) || item.unresolvedGapIds.length !== 0) return null
+	const sourceIds = item.sourceIds.map((entry) => boundedText(entry, 160))
+	if (sourceIds.some((entry) => !entry)) return null
+	return { version: 1, id, artifactId, artifactVersion: Number(item.artifactVersion), projectId, projectName, discoveryPackageId, approvedAt, approvedByRole: "owner", sourceIds: sourceIds as string[], unresolvedGapIds: [], authority: { boundedTo: "execute-input" }, contentDigest }
 }
 
 function parseProject(value: unknown): PortalProject | null {
@@ -68,9 +81,7 @@ function parsePersistedState(value: unknown): PersistedPlatformState | null {
 	if (projects.some((project) => project === null)) return null
 	const typedProjects = projects as PortalProject[]
 	if (new Set(typedProjects.map((project) => project.id)).size !== typedProjects.length) return null
-	if ([state.discoveryReady, state.planSent, state.executeVerified].some((item) => typeof item !== "boolean")) return null
-	const planSnapshot = boundedText(state.planSnapshot, 80)
-	if (!planSnapshot) return null
+	if ([state.discoveryReady, state.executeVerified].some((item) => typeof item !== "boolean")) return null
 	const selectedProjectId = state.selectedProjectId === undefined || state.selectedProjectId === null
 		? null
 		: boundedText(state.selectedProjectId, 80)
@@ -78,13 +89,14 @@ function parsePersistedState(value: unknown): PersistedPlatformState | null {
 	if (selectedProjectId && !typedProjects.some((project) => project.id === selectedProjectId)) return null
 	const discoveryPackage = state.discoveryPackage === undefined || state.discoveryPackage === null ? null : parseDiscoveryPackage(state.discoveryPackage)
 	if (state.discoveryPackage !== undefined && state.discoveryPackage !== null && discoveryPackage === null) return null
+	const planArtifactRef = state.planArtifactRef === undefined || state.planArtifactRef === null ? null : parsePlanArtifactRef(state.planArtifactRef)
+	if (state.planArtifactRef !== undefined && state.planArtifactRef !== null && planArtifactRef === null) return null
 	return {
 		projects: typedProjects,
 		selectedProjectId,
 		discoveryReady: state.discoveryReady as boolean,
 		discoveryPackage,
-		planSent: state.planSent as boolean,
-		planSnapshot,
+		planArtifactRef,
 		executeVerified: state.executeVerified as boolean,
 	}
 }
@@ -106,7 +118,7 @@ export function createInitialPlatformState(active: PlatformState["navigation"]["
 		},
 		handoffs: {
 			discovery: { ready: persisted?.discoveryReady ?? false, packageRef: persisted?.discoveryPackage ?? null, evidence: [], decisions: [], progress: { completed: 0, total: 1, status: persisted?.discoveryReady ? "verified" : "idle" } },
-			plan: { sent: persisted?.planSent ?? false, snapshot: persisted?.planSnapshot ?? "v12" },
+			plan: { sent: Boolean(persisted?.planArtifactRef), artifactRef: persisted?.planArtifactRef ?? null },
 			execute: { verified: persisted?.executeVerified ?? false, environment: "development" },
 		},
 		agentix: { attention: { count: 0, audience: false, approval: false } },
@@ -121,8 +133,7 @@ export function selectPersistedPlatformState(state: Pick<PlatformState, "project
 		selectedProjectId: state.projects.records.some((project) => project.id === state.projects.selectedId) ? state.projects.selectedId : null,
 		discoveryReady: state.handoffs.discovery.ready,
 		discoveryPackage: state.handoffs.discovery.packageRef,
-		planSent: state.handoffs.plan.sent,
-		planSnapshot: state.handoffs.plan.snapshot,
+		planArtifactRef: state.handoffs.plan.artifactRef,
 		executeVerified: state.handoffs.execute.verified,
 	}
 }
@@ -274,7 +285,7 @@ export function platformReducer(state: PlatformState, event: PlatformEvent): Pla
 			const next = withIntentTick(state)
 			return { ...state, intents: { ...next.intents, planJump: { tick: next.tick, artifactId: event.artifactId } } }
 		}
-		case "plan/sent": return { ...state, handoffs: { ...state.handoffs, plan: { sent: true, snapshot: event.snapshot.slice(0, 80) || state.handoffs.plan.snapshot } } }
+		case "plan/approved": return { ...state, handoffs: { ...state.handoffs, plan: { sent: true, artifactRef: event.artifactRef } } }
 		case "execute/workspace-opened": {
 			const next = withIntentTick(state)
 			return { ...state, intents: { ...next.intents, executeJump: { tick: next.tick, target: { kind: "workspace", taskId: event.taskId } } } }
