@@ -2,7 +2,7 @@
   "schemaVersion": 2,
   "updatedAt": "2026-09-13",
   "authority": "docs/operations/ux-surface-inventory.md",
-  "implementationTree": {"sourceCommit": "8231f589e17526fd49646ad6a7175a4327f84594", "srcGitTreeSha1": "ebff5712c3136005d7f018a61d56b2b261c2722f"},
+  "implementationTree": {"sourceCommit": "1670e6b0ce577773c1537a7c8fa81661ff290e7a", "srcGitTreeSha1": "82fadc911c5bc94255dd8b81e68c9d5890101dc1"},
   "remoteFigmaAttestation": {"verifiedAt": "2026-09-13", "verifier": "roadmap_independent_hardening", "evidencePath": "docs/implementation-plans/2026-09-13-maxion-platform-demo-ui-foundation/HARDENING-LOG.md", "scope": "All 13 frame nodes reopened; component-node ownership was not independently enumerated."},
   "acceptanceScopes": [
     {

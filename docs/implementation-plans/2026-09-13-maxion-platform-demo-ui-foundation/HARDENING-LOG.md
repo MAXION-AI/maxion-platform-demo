@@ -33,6 +33,7 @@ remain only when they do not change implementation behavior or acceptance and ha
 | C3-UX | UX/accessibility review of `34abf62aae1dbb47ded211fbf84a2146d8af0fa9` | 1 | 0 | 2 | Rejected; findings H-52 through H-54 require fresh review after remediation |
 | C3-QA | Engineering QA of `34abf62aae1dbb47ded211fbf84a2146d8af0fa9` | 0 | 3 | 0 | Rejected; findings H-55 through H-57 require fresh review after remediation |
 | C3-R1 | Roadmap Round 1 review of `34abf62aae1dbb47ded211fbf84a2146d8af0fa9` | 3 | 4 | 1 | Rejected; findings H-59 through H-66 require a fresh independent review after remediation |
+| C4-Q0 | Exact clean-candidate qualification of `a4b83ee538a4a30629f7e0256281bf282e066a6d` | 1 | 0 | 0 | Rejected; browser runs 1 and 2 passed 50/50, but required run 3 failed the Discovery destination-focus assertion. H-68 requires C5 and restarts the three-run count at zero |
 
 ## Finding register
 
@@ -107,6 +108,7 @@ remain only when they do not change implementation behavior or acceptance and ha
 | H-65 | Major | C3's accepted record bound candidate-sheet blobs rather than the fully completed sheet blobs at E | Bind `referenceSheetSha256` to each completed E blob while retaining separate immutable-contract hashes from C across C→E | Completed-E versus pending-C sheet-hash regression |
 | H-66 | Minor | C3 documentation presented drifted token, bundle, and Execute line measurements as current | Pin current measurements to `34abf62aae1dbb47ded211fbf84a2146d8af0fa9`: 1,342 literals, 386,220-byte gzip JS, 84,699-byte gzip CSS, and 747-line `ExecuteDeliveryWorkspace.tsx`; retain older values only as labelled history | Exact baseline/line/build measurement scan |
 | H-67 | Blocker | Root C4 review found that a sheet gated at E failed the ordinary program gate at merge M and on every later descendant because the sheet checker required current HEAD itself to be E; explicit Phase 1/2/10 requalification scopes also conflicted with single `acceptancePhase` ownership | Resolve the unique artifact-introduction E from history, require it to be the direct child of its bound C, require the committed artifact to remain byte-identical on descendants, and authorize a sheet through either its native phase or an explicit manifest scope | Gated-sheet regression passes after a later descendant commit, rejects post-E artifact mutation, and resolves explicit multi-phase sheet ownership |
+| H-68 | Blocker | C4 command-action closure raced destination autofocus: after “Start a Discovery” focused the brief, delayed modal cleanup could restore the original Dashboard opener and steal focus | Distinguish dismissals from executed actions; dismissals restore the captured opener, while actions preserve meaningful destination focus and otherwise fall back to the current destination control | Repeated focused browser runs cover Discovery autofocus plus Escape, backdrop, and cross-module selection restoration before the full three-run qualification restarts |
 
 ### Current disposition of rejected-candidate findings
 
@@ -114,7 +116,8 @@ remain only when they do not change implementation behavior or acceptance and ha
 | --- | --- | --- |
 | `128ce43222fc8d9085f159dd5aed643b5a1d2457` | H-37–H-40 | Remediated in the current working candidate; the original candidate remains rejected and no acceptance is claimed. |
 | `1f02cd4dcbf3b849be3e56b3df3b256f6c7a1252` | H-41–H-51, including H-45a and H-46a | Remediated in the current working candidate; fresh independent review is still required and no acceptance is claimed. |
-| `34abf62aae1dbb47ded211fbf84a2146d8af0fa9` | H-52–H-67 | Remediated in the current candidate revision; fresh independent UX, QA, two clean plan rounds, and final review are still required. No pass or acceptance is claimed. |
+| `34abf62aae1dbb47ded211fbf84a2146d8af0fa9` | H-52–H-66 | Remediated in the current candidate revision; fresh independent UX, QA, two clean plan rounds, and final review are still required. No pass or acceptance is claimed. |
+| `a4b83ee538a4a30629f7e0256281bf282e066a6d` | H-67–H-68 | H-67 is remediated in C4; H-68 is remediated only in the current C5 working tree. C4 is rejected and contributes zero clean browser rounds. |
 
 Round 4's Figma review reopened all thirteen mapped frame nodes in file
 `UhLxGyXphdHHNLGMomBq6n` and confirmed the recorded 1440 × 900 frame identities. It did not enumerate
