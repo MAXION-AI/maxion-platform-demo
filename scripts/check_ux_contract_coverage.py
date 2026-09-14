@@ -6,6 +6,7 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import os
 import re
 import subprocess
 import sys
@@ -49,6 +50,21 @@ PHASE_STATE_RE = re.compile(
 STATE_TOKEN_RE = re.compile(r"\x60([a-z][a-z0-9-]*(?:\.[a-z][a-z0-9-]*)+)\x60")
 FORBIDDEN_LEGACY_MARKERS = ["@deprecated", "legacyOwner", "obsoleteRoute", "compatibilityShim"]
 PHASE_0_STALE_SELECTOR_BASELINE = 339
+ACCEPTANCE_PHASES = {
+    "platform-shell-dashboard": 0,
+    "projects-workspace": 2,
+    "discover-workspace": 3,
+    "plan-workspace": 4,
+    "execute-workspace": 5,
+    "agentix-operations": 6,
+    "agentix-run-canvas": 7,
+    "consult-max-workspace": 8,
+    "settings-workspace": 9,
+    "integrations-workspace": 9,
+    "approvals-workspace": 9,
+    "usage-workspace": 9,
+    "help-workspace": 9,
+}
 
 
 def _load_json(path: Path) -> tuple[dict[str, Any] | None, list[str]]:
@@ -116,17 +132,24 @@ def _git(*args: str, allow_status_one: bool = False) -> str | bool:
     return result.stdout.strip() if result.returncode == 0 else ""
 
 
-def _accepted_phase() -> int:
+def _candidate_phase(explicit: int | None = None) -> int:
+    """Resolve the phase under test; accepted-predecessor lag can never defer a deadline."""
+
     ledger_path = ROOT / "docs" / "operations" / "program-phase-ledger.json"
     try:
         ledger = json.loads(ledger_path.read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError):
-        return -1
-    phases = ledger.get("phases", []) if isinstance(ledger, dict) else []
-    return max(
-        (item.get("phase", -1) for item in phases if isinstance(item, dict) and item.get("status") == "accepted"),
-        default=-1,
-    )
+        raise ValueError(f"cannot load candidate phase from {ledger_path}")
+    declared = ledger.get("candidatePhase") if isinstance(ledger, dict) else None
+    if not isinstance(declared, int) or declared < 0:
+        raise ValueError("tracked ledger must declare a non-negative candidatePhase")
+    env_value = os.environ.get("MAXION_PROGRAM_PHASE")
+    selected = explicit if explicit is not None else int(env_value) if env_value is not None else declared
+    if selected != declared:
+        raise ValueError(
+            f"candidate phase mismatch: selected {selected}, tracked ledger declares {declared}"
+        )
+    return selected
 
 
 def _resolve_import(source: Path, specifier: str) -> Path | None:
@@ -183,7 +206,7 @@ def check_contract(
     manifest_path: Path = DEFAULT_MANIFEST,
     inventory_path: Path = DEFAULT_INVENTORY,
     entry_path: Path | None = None,
-    accepted_phase: int | None = None,
+    candidate_phase: int | None = None,
     head_commit: str = "HEAD",
 ) -> list[str]:
     manifest, findings = _load_json(manifest_path)
@@ -204,7 +227,7 @@ def check_contract(
         for path in sources
         if path.suffix in {".ts", ".tsx", ".js", ".jsx"}
     )
-    accepted_phase = _accepted_phase() if accepted_phase is None else accepted_phase
+    candidate_phase = _candidate_phase(candidate_phase)
 
     route_entries = manifest.get("routes")
     routes = route_entries if isinstance(route_entries, list) else []
@@ -225,7 +248,7 @@ def check_contract(
         ):
             findings.append(f"{manifest_path}: compatibility alias needs removal phase and reason")
         if kind == "compatibility-alias" and isinstance(item.get("removeByPhase"), int):
-            if accepted_phase >= item["removeByPhase"]:
+            if candidate_phase >= item["removeByPhase"]:
                 findings.append(f"{manifest_path}: compatibility alias {item.get('path')!r} missed its phase deadline")
         if kind == "redirect":
             target = item.get("target")
@@ -256,6 +279,8 @@ def check_contract(
 
     for surface in surfaces:
         sid = str(surface.get("surfaceId", ""))
+        if surface.get("acceptancePhase") != ACCEPTANCE_PHASES.get(sid):
+            findings.append(f"{manifest_path}: {sid}: acceptancePhase is missing or incorrect")
         sheet_name = surface.get("referenceSheet")
         if not isinstance(sheet_name, str):
             findings.append(f"{manifest_path}: {sid}: referenceSheet is required")
@@ -285,12 +310,16 @@ def check_contract(
             marker = address.get("sourceMarker")
             if not isinstance(url, str) or url.split("?", 1)[0] not in actual_routes:
                 findings.append(f"{manifest_path}: {sid}: URL address is not registered")
+            elif url.split("?", 1)[0] not in canonical_routes:
+                findings.append(f"{manifest_path}: {sid}: canonicalUrl cannot use a compatibility alias")
             if not isinstance(marker, str) or marker not in main_text:
                 findings.append(f"{manifest_path}: {sid}: fictional URL address source marker")
         else:
             entry_route = address.get("entryRoute")
             if entry_route not in declared_routes:
                 findings.append(f"{manifest_path}: {sid}: interaction entryRoute is not registered")
+            elif entry_route not in canonical_routes:
+                findings.append(f"{manifest_path}: {sid}: interaction entryRoute must be canonical")
             if not address.get("action"):
                 findings.append(f"{manifest_path}: {sid}: interaction-only address needs an action")
             marker = address.get("sourceMarker")
@@ -305,7 +334,7 @@ def check_contract(
             target_phase = address.get("targetPhase")
             if not isinstance(target_phase, int):
                 findings.append(f"{manifest_path}: {sid}: interaction-only address needs targetPhase")
-            elif accepted_phase >= target_phase:
+            elif candidate_phase >= target_phase:
                 findings.append(f"{manifest_path}: {sid}: interaction-only address missed its phase deadline")
 
         figma = surface.get("figma")
@@ -375,7 +404,7 @@ def check_contract(
             if status not in {"scheduled", "implemented"} or not isinstance(target_phase, int):
                 findings.append(f"{manifest_path}: {sid}: invalid semantic state binding status/phase")
             elif status == "scheduled":
-                if accepted_phase >= target_phase:
+                if candidate_phase >= target_phase:
                     findings.append(f"{manifest_path}: {sid}: scheduled semantic state binding missed its deadline")
                 if STATUS_RE.search(sheet_text) and STATUS_RE.search(sheet_text).group(1) != "contract":
                     findings.append(f"{manifest_path}: {sid}: built/gated sheet may not claim scheduled states")
@@ -438,6 +467,10 @@ def check_contract(
         findings.append(f"{manifest_path}: stale CSS selector debt grew to {stale_count}")
     if baseline.get("mustBeZeroByPhase") != 1:
         findings.append(f"{manifest_path}: stale selector baseline must expire in Phase 1")
+    elif candidate_phase >= 1 and stale_count != 0:
+        findings.append(
+            f"{manifest_path}: stale selector deadline requires zero in Phase 1; found {stale_count}"
+        )
     markers = source_ownership.get("forbiddenLegacyMarkers")
     if markers != FORBIDDEN_LEGACY_MARKERS:
         findings.append(f"{manifest_path}: forbidden legacy marker policy is immutable")
@@ -488,8 +521,15 @@ def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--manifest", type=Path, default=DEFAULT_MANIFEST)
     parser.add_argument("--inventory", type=Path, default=DEFAULT_INVENTORY)
+    parser.add_argument("--phase", type=int)
     args = parser.parse_args(argv)
-    findings = check_contract(args.manifest.resolve(), args.inventory.resolve())
+    try:
+        findings = check_contract(
+            args.manifest.resolve(), args.inventory.resolve(), candidate_phase=args.phase
+        )
+    except (OSError, ValueError, json.JSONDecodeError) as exc:
+        print(f"UX contract coverage gate: candidate phase unavailable: {exc}", file=sys.stderr)
+        return 2
     if findings:
         print(f"UX contract coverage gate: {len(findings)} finding(s)")
         for finding in findings:

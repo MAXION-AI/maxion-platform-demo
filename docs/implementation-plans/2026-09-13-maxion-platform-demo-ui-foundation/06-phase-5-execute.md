@@ -53,7 +53,7 @@ success or promotes `simulated` evidence to `production-verified`.
 | 5.4 | RC-09 and RC-15 via ADR-5 | `src/features/platform-prototype/executeState.ts#executeCommand`; `tests/e2e/execute-command-layer.spec.ts#execute.paused` | Task 5.3 accepted composition | `pnpm exec playwright test tests/e2e/execute-command-layer.spec.ts -g recovery` |
 | 5.5 | RC-09 and RC-14 via ADR-5 | `src/features/platform-prototype/contracts.ts#ExecutionResultRef`; `src/features/platform-prototype/executeState.ts#selectExecutionEvidence` | Task 5.4 legal command transitions | `pnpm test -- executeHandoff.spec.ts` |
 | 5.6 | RC-15 and RC-18 via ADR-4 | `src/features/platform-prototype/executeState.spec.ts#load`; `tests/fixtures/execute-events-10000.json#events` | Task 5.5 result provenance | `pnpm test -- executeState.spec.ts -t load` |
-| 5.7 | RC-15 and RC-16 via ADR-8 | `artifacts/ux-audits/phase-5/verification.md`; `docs/operations/program-phase-ledger.json#phases[5]` | Tasks 5.1 through 5.6 green at C | `python3 scripts/check_phase_acceptance.py --candidate "$C" --evidence "$E" --phase 5` |
+| 5.7 | RC-15 and RC-16 via ADR-8 | `artifacts/ux-audits/phase-5/verification.md`; `docs/operations/phase-acceptance-protocol.md#Evidence-only-closure` | Tasks 5.1 through 5.6 green at C | `python3 scripts/check_phase_acceptance.py --candidate "$C" --evidence "$E" --phase 5` |
 
 ## Contracts and observability
 
@@ -89,7 +89,7 @@ history. There is no infrastructure rollback because this phase performs no depl
 | Production | Refactor `ExecuteDeliveryWorkspace.tsx` and `ExecuteHubModule`; create `src/features/platform-prototype/execute/{machine,selectors,commands,components}/**`; delete replaced timers/styles/owners | One Execute state machine and one owner per command |
 | Tests/fixtures | State-machine/command tests; Execute unit/browser specs; stale/race/failure/rollback/10,000-event fixtures | Exact seven state IDs; evidence-class safety; ≤200 events |
 | Evidence/commands | `artifacts/ux-audits/phase-5/**`; Execute sheet; standard program/test/build/E2E/audit/diff commands plus focused Execute specs | State/viewport/Figma/axe/timing evidence and independent reports |
-| PR lifecycle | Verify prior M as B; create isolated `phase-5/**` branch/worktree; commit C; push and open one PR; independent UX/QA audit clean C; optional evidence-only E; require program/build/audit/phase/E2E checks; merge; verify C ancestry in M; rerun clean-M gates; atomically update ledger | PR URL, B/C/E/M, source-tree equality, merge ancestry, post-merge results, successor pin |
+| PR lifecycle | Verify prior M as B; create isolated phase branch/worktree; commit clean C; independent UX/QA audit C; commit required distinct evidence-only E; merge only as a true B+E two-parent M; rerun clean-M gates; append under lock to the external authority | PR URL, B/C/E/M, protected-object equality, exact target ref, merge/PR identity, post-merge results, successor pin |
 
 ## Definition of Done
 
@@ -102,3 +102,9 @@ history. There is no infrastructure rollback because this phase performs no depl
 
 Phase 6 starts from the accepted Phase 5 SHA and consumes typed execution results and decisions as inputs
 to persistent agent responsibilities; it does not consume Execute component state.
+
+### Structured acceptance hand-off
+
+```json
+{"schemaVersion":1,"phase":5,"nextPhase":6,"status":"pending","evidence":[],"reviewers":{"ux":"pending","qa":"pending"}}
+```

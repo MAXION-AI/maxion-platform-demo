@@ -33,10 +33,17 @@ dispatch idempotent intents. A 10,000-event fixture keeps mounted events at 200 
 not steal focus or override an operator who has scrolled away. Stop and approval actions are fail-closed,
 authority-bound, and audit-shaped. Untrusted message/artifact content is rendered safely and bounded.
 Connection loss preserves the draft and exposes reconnect/retry without inventing progress.
+Question and approval waits reuse Phase 6 `HumanStep` and its injected `Clock`: the canvas renders the
+same UTC deadline in its declared IANA display zone, derives overdue without a second stored flag, shows
+the next escalation level/recipient without exposing secret contact data, and dispatches an idempotent
+escalation command only when policy and authority allow it. Refresh/reconnect cannot duplicate an
+escalation or move a deadline.
 
 ## Ordered tasks
 
-1. **Model the run interaction contract (7.1).** Define run focus, timeline events, questions, proposals, approvals, composer intents, artifacts, evidence, and legal terminal states with invariants.
+1. **Model the run interaction contract (7.1).** Define run focus, timeline events, questions, proposals,
+   approvals, HumanStep deadline/escalation links, composer intents, artifacts, evidence, and legal
+   terminal states with invariants.
 2. **Decompose the run canvas (7.2).** Extract direct timers/local state and split the page into independently testable selector-driven regions.
 3. **Implement the exact-node composition (7.3).** Match the accepted canvas hierarchy, density, responsive behavior, shared tokens/primitives, skeletons, and error boundaries.
 4. **Make every state actionable (7.4).** Implement steer, stop, answer, approve, amend, edit, regenerate, retry, reconnect, and return-to-operations flows with focus-safe keyboard behavior.
@@ -48,13 +55,13 @@ Connection loss preserves the draft and exposes reconnect/retry without inventin
 
 | Task | Serves | Exact files/symbols | Prerequisite | Focused verification |
 | --- | --- | --- | --- | --- |
-| 7.1 | RC-11 and RC-14 via ADR-5 | `src/features/agentix/prototype/runState.ts#AgentixRunState`; `src/features/agentix/prototype/runState.spec.ts#invariants` | Accepted Phase 6 M and ResponsibilityRef | `pnpm test -- runState.spec.ts` |
+| 7.1 | RC-11 and RC-14 via ADR-5 | `src/features/agentix/prototype/runState.ts#AgentixRunState`; `src/features/agentix/prototype/runState.ts#RunHumanStepRef`; `src/features/agentix/prototype/runState.spec.ts#invariants` | Accepted Phase 6 M and ResponsibilityRef | `pnpm test -- runState.spec.ts` |
 | 7.2 | RC-04 and RC-11 via ADR-3 | `src/features/agentix/prototype/DeployedAgentsPage.tsx#RunCanvas`; `src/features/agentix/prototype/runState.ts#reduceRun` | Task 7.1 interaction contract | `pnpm test -- DeployedAgentsPage.spec.tsx` |
 | 7.3 | RC-11 and RC-15 via ADR-4 | `src/features/agentix/prototype/DeployedAgentsPage.tsx#RunCanvas`; `src/features/agentix/prototype/workspace.css#run-canvas` | Task 7.2 selector-driven regions | `pnpm exec playwright test tests/e2e/agentix-operations.spec.ts -g run-canvas` |
 | 7.4 | RC-11 and RC-15 via ADR-2 | `src/features/agentix/prototype/runState.ts#runCommand`; `tests/e2e/agentix-operations.spec.ts#run.live` | Task 7.3 exact-node composition | `pnpm exec playwright test tests/e2e/agentix-operations.spec.ts -g run-state` |
 | 7.5 | RC-11 and RC-14 via ADR-5 | `src/features/platform-prototype/contracts.ts#AgentixRunResultRef`; `src/features/agentix/prototype/runState.ts#selectRunEnding` | Task 7.4 actionable states | `pnpm test -- runHandoff.spec.ts` |
 | 7.6 | RC-15 and RC-18 via ADR-4 | `src/features/agentix/prototype/runState.spec.ts#races`; `tests/fixtures/agentix-events-10000.json#events` | Task 7.5 terminal authority | `pnpm test -- runState.spec.ts -t races` |
-| 7.7 | RC-15 and RC-16 via ADR-8 | `artifacts/ux-audits/phase-7/verification.md`; `docs/operations/program-phase-ledger.json#phases[7]` | Tasks 7.1 through 7.6 green at C | `python3 scripts/check_phase_acceptance.py --candidate "$C" --evidence "$E" --phase 7` |
+| 7.7 | RC-15 and RC-16 via ADR-8 | `artifacts/ux-audits/phase-7/verification.md`; `docs/operations/phase-acceptance-protocol.md#Evidence-only-closure` | Tasks 7.1 through 7.6 green at C | `python3 scripts/check_phase_acceptance.py --candidate "$C" --evidence "$E" --phase 7` |
 
 ## Contracts and observability
 
@@ -68,7 +75,8 @@ prompt body, artifact body, credentials, and PII. No server/API/schema/package i
 Unit tests cover legal transitions, command idempotency, authority checks, event ordering, follow-tail,
 terminal requirements, and schema migration. Integration tests prove operations→run→operations continuity.
 Playwright covers steer/stop, question answer, proposal amend/approve, artifact edit/regenerate, failure
-recovery, reconnect, refresh, keyboard-only, mobile, reduced motion, and large-event behavior.
+recovery, reconnect, refresh, exact-deadline/overdue/escalation states under a fixed clock and DST zone,
+keyboard-only, mobile, reduced motion, and large-event behavior.
 
 | Failure | Required fallback |
 | --- | --- |
@@ -90,7 +98,7 @@ available through the prior operations experience.
 | Production | Refactor `DeployedAgentsPage.tsx` and `OperationsViews.tsx#RunDetail`; create Agentix run domain/selectors/commands/components; delete direct timers/local-state/predecessor styles | Canonical URL-addressed RunRef opens one run owner |
 | Tests/fixtures | Run unit/browser specs; race/stale/disconnect/hostile/10,000-event fixtures | Exact seven state IDs, authority-safe endings, ≤200 events |
 | Evidence/commands | `artifacts/ux-audits/phase-7/**`; run sheet; standard program/test/build/E2E/audit/diff plus focused run specs | State/viewport/Figma/axe/timing evidence and independent reports |
-| PR lifecycle | Verify prior M as B; create isolated `phase-7/**` branch/worktree; commit C; push and open one PR; independent UX/QA audit clean C; optional evidence-only E; require program/build/audit/phase/E2E checks; merge; verify C ancestry in M; rerun clean-M gates; atomically update ledger | PR URL, B/C/E/M, source-tree equality, merge ancestry, post-merge results, successor pin |
+| PR lifecycle | Verify prior M as B; create isolated phase branch/worktree; commit clean C; independent UX/QA audit C; commit required distinct evidence-only E; merge only as a true B+E two-parent M; rerun clean-M gates; append under lock to the external authority | PR URL, B/C/E/M, protected-object equality, exact target ref, merge/PR identity, post-merge results, successor pin |
 
 ## Definition of Done
 
@@ -103,3 +111,9 @@ available through the prior operations experience.
 
 Phase 8 starts from the accepted Phase 7 SHA with Consult able to cite and deep-link to run objects and
 evidence without acquiring run mutation authority.
+
+### Structured acceptance hand-off
+
+```json
+{"schemaVersion":1,"phase":7,"nextPhase":8,"status":"pending","evidence":[],"reviewers":{"ux":"pending","qa":"pending"}}
+```

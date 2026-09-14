@@ -34,9 +34,21 @@ All filters are deterministic and URL- or state-addressable. Connection health n
 Approval, activation, pause, archive, and permission changes identify object, version, role, and consequence;
 production authority is not simulated by client state.
 
+Human-owned work uses one `HumanStep` contract: immutable tenant/project/responsibility/run IDs;
+`status` (`open`, `completed`, `cancelled`); `dueAt` as an RFC 3339 UTC instant; `displayTimeZone` as a
+validated IANA zone; `assignee`; `escalationPolicy` with ordered level/delay/recipient records;
+`escalatedThroughLevel`; and nullable `completedAt`/`cancelledAt`. `isOverdue` is derived only when
+status is open and the injected `Clock.now()` is at or past `dueAt`; it is never persisted as competing
+truth. Escalation is an idempotent domain command keyed by step and level, never sends to an unlisted
+recipient, records one synthetic audit event, and does not widen approval authority. Tests use a fixed
+clock and explicit time zones, including DST boundaries; production code may not call `Date.now()` in
+the reducer or selectors.
+
 ## Ordered tasks
 
-1. **Unify the Agentix domain (6.1).** Define responsibility, deployment version, run summary, approval, activity, and connection-health invariants, preserving readable v3 state through migration.
+1. **Unify the Agentix domain (6.1).** Define responsibility, deployment version, run summary, approval,
+   human-step/deadline/escalation, activity, clock, and connection-health invariants, preserving readable
+   v3 state through migration.
 2. **Extract selectors and commands (6.2).** Remove direct storage/view coordination; implement shared filters, counts, readiness, and degraded-state selectors plus idempotent commands.
 3. **Implement the accepted operations composition (6.3).** Build Today, Work, Approvals, Activity, and Connections with shared primitives and responsive/empty/loading/error states.
 4. **Complete persistent responsibility workflows (6.4).** Support deploy, pause, resume, filter, inspect version, resolve approval, diagnose connection, and recover failed state without dead ends.
@@ -48,25 +60,27 @@ production authority is not simulated by client state.
 
 | Task | Serves | Exact files/symbols | Prerequisite | Focused verification |
 | --- | --- | --- | --- | --- |
-| 6.1 | RC-10 and RC-14 via ADR-3 | `src/features/agentix/prototype/operationsState.ts#AgentixOperationsState`; `src/features/agentix/prototype/operationsState.spec.ts#migration` | Accepted Phase 5 M and ExecutionResultRef | `pnpm test -- operationsState.spec.ts` |
+| 6.1 | RC-10 and RC-14 via ADR-3 | `src/features/agentix/prototype/operationsState.ts#AgentixOperationsState`; `src/features/agentix/prototype/operationsState.ts#HumanStep`; `src/features/agentix/prototype/operationsState.ts#Clock`; `src/features/agentix/prototype/operationsState.spec.ts#migration` | Accepted Phase 5 M and ExecutionResultRef | `pnpm test -- operationsState.spec.ts` |
 | 6.2 | RC-04 and RC-10 via ADR-3 | `src/features/agentix/prototype/operationsState.ts#reduceOperations`; `src/features/agentix/prototype/operationsState.ts#selectResponsibilities` | Task 6.1 versioned domain | `pnpm test -- operationsState.spec.ts -t selectors` |
 | 6.3 | RC-10 and RC-15 via ADR-4 | `src/features/agentix/prototype/DeployedAgentsPage.tsx#DeployedAgentsPage`; `src/features/agentix/prototype/operations.css#agentix-operations` | Task 6.2 selector/command API | `pnpm exec playwright test tests/e2e/agentix-operations.spec.ts -g operations` |
 | 6.4 | RC-10 and RC-15 via ADR-2 | `src/features/agentix/prototype/DeployedAgentsPage.tsx#ResponsibilityActions`; `tests/e2e/agentix-operations.spec.ts#agentix-ops.today` | Task 6.3 accepted composition | `pnpm exec playwright test tests/e2e/agentix-operations.spec.ts -g workflow` |
 | 6.5 | RC-10 and RC-14 via ADR-5 | `src/features/platform-prototype/contracts.ts#ResponsibilityRef`; `src/features/agentix/prototype/operationsState.ts#selectResponsibilityProvenance` | Task 6.4 persistent workflows | `pnpm test -- agentixHandoff.spec.ts` |
 | 6.6 | RC-15 and RC-18 via ADR-4 | `src/features/agentix/prototype/operationsState.spec.ts#isolation`; `tests/fixtures/agentix-items-10000.json#items` | Task 6.5 provenance contract | `pnpm test -- operationsState.spec.ts -t isolation` |
-| 6.7 | RC-15 and RC-16 via ADR-8 | `artifacts/ux-audits/phase-6/verification.md`; `docs/operations/program-phase-ledger.json#phases[6]` | Tasks 6.1 through 6.6 green at C | `python3 scripts/check_phase_acceptance.py --candidate "$C" --evidence "$E" --phase 6` |
+| 6.7 | RC-15 and RC-16 via ADR-8 | `artifacts/ux-audits/phase-6/verification.md`; `docs/operations/phase-acceptance-protocol.md#Evidence-only-closure` | Tasks 6.1 through 6.6 green at C | `python3 scripts/check_phase_acceptance.py --candidate "$C" --evidence "$E" --phase 6` |
 
 ## Contracts and observability
 
-Add `AgentResponsibility`, `DeploymentVersion`, `RunSummary`, `ApprovalRequest`, `ActivityRecord`, and
-`ConnectionHealth`. All collections are tenant/project-keyed in fixtures and bounded in browser storage.
+Add `AgentResponsibility`, `DeploymentVersion`, `RunSummary`, `ApprovalRequest`, `HumanStep`,
+`EscalationPolicy`, `Clock`, `ActivityRecord`, and `ConnectionHealth`. All collections are
+tenant/project-keyed in fixtures and bounded in browser storage.
 Synthetic events record correlation/object/version/status/timing only. No credentials, real recipients,
 API/schema, or new dependency are introduced.
 
 ## Test and failure plan
 
 Unit tests cover migration, bounds, filters, counts, readiness, version transitions, stale approvals,
-idempotency, and tenant/project isolation. Integration tests cover upstream artifact ingestion and reload.
+idempotency, deadline equality, UTC/IANA rendering, DST changes, overdue derivation, single-delivery
+escalation, and tenant/project isolation. Integration tests cover upstream artifact ingestion and reload.
 Playwright covers deploy→Today, filter→run open, approval resolution, degraded connection recovery,
 permission denial, empty/loading/error, keyboard, mobile, and 10,000-row fixture behavior.
 
@@ -90,7 +104,7 @@ accepted upstream artifacts.
 | Production | Refactor `DeployedAgentsPage.tsx`, `OperationsViews.tsx`, `operationsState.ts`; create Agentix domain/selectors/commands/components; delete replaced storage, timers, owners, selectors | One discriminated operations owner per view/state |
 | Tests/fixtures | Agentix unit/browser specs; migration/stale/degraded/permission and 10,000-row fixtures | Exact eight state IDs, upstream provenance, ≤200 rows |
 | Evidence/commands | `artifacts/ux-audits/phase-6/**`; operations sheet; standard program/test/build/E2E/audit/diff plus focused Agentix specs | State/viewport/Figma/axe/timing evidence and independent reports |
-| PR lifecycle | Verify prior M as B; create isolated `phase-6/**` branch/worktree; commit C; push and open one PR; independent UX/QA audit clean C; optional evidence-only E; require program/build/audit/phase/E2E checks; merge; verify C ancestry in M; rerun clean-M gates; atomically update ledger | PR URL, B/C/E/M, source-tree equality, merge ancestry, post-merge results, successor pin |
+| PR lifecycle | Verify prior M as B; create isolated phase branch/worktree; commit clean C; independent UX/QA audit C; commit required distinct evidence-only E; merge only as a true B+E two-parent M; rerun clean-M gates; append under lock to the external authority | PR URL, B/C/E/M, protected-object equality, exact target ref, merge/PR identity, post-merge results, successor pin |
 
 ## Definition of Done
 
@@ -103,3 +117,9 @@ accepted upstream artifacts.
 
 Phase 7 starts from the accepted Phase 6 SHA and opens a run through a typed `RunRef`, preserving filter
 and return context without sharing view-local state.
+
+### Structured acceptance hand-off
+
+```json
+{"schemaVersion":1,"phase":6,"nextPhase":7,"status":"pending","evidence":[],"reviewers":{"ux":"pending","qa":"pending"}}
+```

@@ -1,6 +1,25 @@
 import AxeBuilder from "@axe-core/playwright"
 import { expect, test } from "@playwright/test"
 
+test("preserves text contrast throughout dashboard and sidebar entrance frames", async ({ page }) => {
+	await page.goto("/maxion-prototype", { waitUntil: "domcontentloaded" })
+	await page.getByRole("button", { name: "View all" }).waitFor({ state: "attached" })
+
+	for (let frame = 0; frame < 12; frame += 1) {
+		const result = await new AxeBuilder({ page })
+			.include(".mxp-root")
+			.withRules(["color-contrast"])
+			.analyze()
+		expect(result.violations, `contrast at entrance sample ${frame}`).toEqual([])
+		await page.waitForTimeout(20)
+	}
+
+	const inverseText = await page.locator(".mxp-account-divider span, .mxp-sidebar-user small").evaluateAll((elements) =>
+		elements.map((element) => getComputedStyle(element).color),
+	)
+	expect(new Set(inverseText)).toEqual(new Set(["rgb(168, 179, 177)"]))
+})
+
 test("keeps product and administration geometry exact at every acceptance viewport", async ({ page }) => {
 	for (const viewport of [
 		{ width: 375, height: 812 },

@@ -3,281 +3,460 @@
 from __future__ import annotations
 
 import copy
-import functools
+import hashlib
 import json
+import shutil
+import subprocess
 import sys
 import tempfile
 import unittest
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
+from types import SimpleNamespace
+from unittest import mock
 
 REPO = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(REPO / "scripts"))
 
 import program_ledger as ledger  # noqa: E402
 
-EVIDENCE = "artifacts/ux-audits/phase-0-foundation-independent-ux-2026-09-13.md"
 
-
-@functools.lru_cache(maxsize=1)
-def _accepted_template() -> dict[str, object]:
-    head = str(ledger._git(REPO, "rev-parse", "HEAD"))
-    source_tree = ledger._git_tree(REPO, head, "src")
-    sheet_hashes = {
-        path: ledger._git_blob_sha256(REPO, head, path)
-        for path in ledger.REFERENCE_SHEET_PATHS
-    }
-    contract_hashes = {
-        path: ledger.reference_sheet_contract_sha256(ledger._git_blob(REPO, head, path))
-        for path in ledger.REFERENCE_SHEET_PATHS
-    }
-    commands = [
-        {
-            "id": command_id,
-            "command": command_id,
-            "status": "PASS",
-            "exitCode": 0,
-            "evidencePath": EVIDENCE,
-        }
-        for command_id in sorted(ledger.REQUIRED_COMMAND_IDS)
-    ]
-    return {
-        "phase": 0,
-        "status": ledger.ACCEPTED_STATUS,
-        "baseSha": head,
-        "candidateSha": head,
-        "prUrl": "https://github.com/MAXION-AI/maxion-platform-demo/pull/1",
-        "prHeadSha": head,
-        "mergeSha": head,
-        "independentAcceptanceSha": head,
-        "evidenceCommitSha": head,
-        "sourceTreeSha1": source_tree,
-        "lockSha256": ledger._git_blob_sha256(REPO, head, "pnpm-lock.yaml"),
-        "manifestSha256": ledger._git_blob_sha256(
-            REPO, head, "docs/operations/figma-code-map.json"
-        ),
-        "referenceSheetSha256": sheet_hashes,
-        "referenceSheetContractSha256": contract_hashes,
-        "builder": "builder-session",
-        "reviewers": {"ux": "independent-ux", "qa": "independent-qa"},
-        "evidence": [EVIDENCE],
-        "evidenceQualification": ledger.ACCEPTED_EVIDENCE_QUALIFICATION,
-        "reasonOpen": None,
-        "commands": commands,
-        "timestamp": "2026-09-13T12:00:00Z",
-    }
-
-
-def accepted_record(phase: int = 0) -> dict[str, object]:
-    result = copy.deepcopy(_accepted_template())
-    result["phase"] = phase
-    result["prUrl"] = f"https://github.com/MAXION-AI/maxion-platform-demo/pull/{phase + 1}"
-    result["timestamp"] = f"2026-09-13T12:00:{phase:02d}Z"
-    return result
+def canonical(value: object) -> bytes:
+    return json.dumps(value, indent=2, sort_keys=True).encode("utf-8") + b"\n"
 
 
 class ProgramLedgerTests(unittest.TestCase):
     def setUp(self) -> None:
         self.tempdir = tempfile.TemporaryDirectory()
         self.addCleanup(self.tempdir.cleanup)
-        self.path = Path(self.tempdir.name) / "ledger.json"
+        root = Path(self.tempdir.name)
+        self.repo = root / "repo"
+        self.repo.mkdir()
+        self.path = root / "ledger.json"
+        self.git("init", "-q", "-b", "main")
+        self.git("config", "user.email", "test@example.com")
+        self.git("config", "user.name", "Test")
+        self.write("src/app.ts", "export const value = 0\n")
+        self.write("tests/fixture.txt", "test\n")
+        self.write("package.json", "{}\n")
+        self.write("pnpm-lock.yaml", "lockfileVersion: '9.0'\n")
+        self.write("playwright.config.ts", "export default {}\n")
+        self.write("vite.config.ts", "export default {}\n")
+        self.write(".github/workflows/gates.yml", "name: gates\n")
+        (self.repo / "scripts").mkdir(parents=True, exist_ok=True)
+        shutil.copy(REPO / "scripts" / "program_ledger.py", self.repo / "scripts" / "program_ledger.py")
+        shutil.copy(
+            REPO / "scripts" / "check_phase_acceptance.py",
+            self.repo / "scripts" / "check_phase_acceptance.py",
+        )
+        for index, path in enumerate(sorted(ledger.REFERENCE_SHEET_PATHS)):
+            self.write(path, self.sheet(path))
+        self.write(
+            "docs/operations/figma-code-map.json",
+            json.dumps({
+                "surfaces": [
+                    {
+                        "surfaceId": f"surface-{index}",
+                        "referenceSheet": Path(path).name,
+                        "acceptancePhase": 0 if index == 0 else 99,
+                    }
+                    for index, path in enumerate(sorted(ledger.REFERENCE_SHEET_PATHS))
+                ]
+            }) + "\n",
+        )
+        self.write("docs/operations/program-phase-ledger.json", "{}\n")
+        self.git("add", ".")
+        self.git("commit", "-qm", "fixture base")
+        self.base = self.git("rev-parse", "HEAD")
+        self.records: dict[int, dict[str, object]] = {}
+        self.records[0] = self.make_phase(0, self.base, 1)
+
+    @staticmethod
+    def sheet(path: str) -> str:
+        return f"""# {Path(path).stem}
+
+- **Sheet id:** {Path(path).stem}
+- **Status:** contract
+
+## 1. Job and route contract
+contract
+
+## 2. Examined references and decisions
+references
+
+## 3. Figma and token mapping
+mapping
+
+## 4. Laws-check
+laws
+
+## 5. State and interaction contract
+states
+
+## 6. Responsive and accessibility contract
+responsive
+
+## 7. Evidence plan
+| Check | Artifact |
+| --- | --- |
+| proof | pending |
+
+## 8. Sign-off
+pending
+"""
+
+    @staticmethod
+    def phase_doc(phase: int, status: str, evidence: list[str] | None = None) -> str:
+        handoff = {
+            "schemaVersion": 1,
+            "phase": phase,
+            "nextPhase": phase + 1 if phase < 11 else None,
+            "status": status,
+            "evidence": evidence or [],
+            "reviewers": {"ux": "pending", "qa": "pending"} if status == "pending" else {
+                "ux": f"ux-{phase}", "qa": f"qa-{phase}"
+            },
+        }
+        return (
+            f"# Phase {phase}\n\n- **Status:** {status}\n\n## Hand-off\n\nImmutable.\n\n"
+            "### Structured acceptance hand-off\n\n```json\n"
+            + json.dumps(handoff, indent=2)
+            + "\n```\n"
+        )
+
+    def write(self, relative: str, body: str | bytes) -> None:
+        path = self.repo / relative
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_bytes(body if isinstance(body, bytes) else body.encode("utf-8"))
+
+    def git(self, *args: str) -> str:
+        return subprocess.run(
+            ["git", "-C", str(self.repo), *args], check=True, capture_output=True, text=True
+        ).stdout.strip()
+
+    def make_phase(self, phase: int, base: str, pr_number: int) -> dict[str, object]:
+        branch = f"phase-{phase}"
+        self.git("checkout", "-qb", branch, base)
+        self.write("src/app.ts", f"export const value = {phase + 1}\n")
+        phase_doc = (
+            f"docs/implementation-plans/2026-09-13-maxion-platform-demo-ui-foundation/"
+            f"{phase + 1:02d}-phase-{phase}-fixture.md"
+        )
+        self.write(phase_doc, self.phase_doc(phase, "pending"))
+        self.git("add", ".")
+        self.git("commit", "-qm", f"phase {phase} candidate")
+        candidate = self.git("rev-parse", "HEAD")
+        source_tree = self.git("rev-parse", f"{candidate}:src")
+        manifest = json.loads(self.git("show", f"{candidate}:docs/operations/figma-code-map.json"))
+        owned_sheets = sorted(
+            f"docs/operations/ux-reference-sheets/{item['referenceSheet']}"
+            for item in manifest["surfaces"]
+            if item["acceptancePhase"] == phase
+        )
+        prefix = f"artifacts/ux-audits/phase-{phase}"
+        review_paths: dict[str, str] = {}
+        for role in ("ux", "qa"):
+            report_path = f"{prefix}/independent-{role}.json"
+            review_paths[role] = report_path
+            self.write(report_path, canonical({
+                "schemaVersion": 1,
+                "program": ledger.PROGRAM,
+                "phase": phase,
+                "role": role,
+                "reviewer": f"{role}-{phase}",
+                "builder": f"builder-{phase}",
+                "candidateSha": candidate,
+                "sourceTreeSha1": source_tree,
+                "referenceSheets": owned_sheets,
+                "checks": [f"independent-{role}-gate"],
+                "verdict": "PASS",
+            }))
+        command_results: list[dict[str, object]] = []
+        for command_id, command in sorted(ledger.CANONICAL_COMMANDS.items()):
+            stdout_hash = hashlib.sha256(f"{command_id}:pass\n".encode()).hexdigest()
+            stderr_hash = hashlib.sha256(b"").hexdigest()
+            report_path = f"{prefix}/command-{command_id}.json"
+            report = {
+                "schemaVersion": 1,
+                "program": ledger.PROGRAM,
+                "phase": phase,
+                "kind": "command-result",
+                "candidateSha": candidate,
+                "sourceTreeSha1": source_tree,
+                "id": command_id,
+                "command": command,
+                "status": "PASS",
+                "exitCode": 0,
+                "runSha": candidate,
+                "stdout": f"{command_id}:pass\n",
+                "stderr": "",
+                "stdoutSha256": stdout_hash,
+                "stderrSha256": stderr_hash,
+            }
+            report_bytes = canonical(report)
+            self.write(report_path, report_bytes)
+            command_results.append({
+                **{key: report[key] for key in (
+                    "id", "command", "status", "exitCode", "runSha", "stdoutSha256", "stderrSha256"
+                )},
+                "evidencePath": report_path,
+                "evidenceSha256": hashlib.sha256(report_bytes).hexdigest(),
+            })
+        evidence_paths = [*review_paths.values(), *[str(item["evidencePath"]) for item in command_results]]
+        self.write(phase_doc, self.phase_doc(phase, "accepted", evidence_paths))
+        self.git("add", ".")
+        self.git("commit", "-qm", f"phase {phase} evidence")
+        evidence = self.git("rev-parse", "HEAD")
+        self.git("checkout", "main")
+        merge_subject = f"Merge pull request #{pr_number} from MAXION-AI/{branch}"
+        self.git("merge", "--no-ff", "-qm", merge_subject, branch)
+        merge = self.git("rev-parse", "HEAD")
+        self.git("update-ref", "refs/remotes/origin/main", merge)
+        record: dict[str, object] = {
+            "phase": phase,
+            "status": ledger.ACCEPTED_STATUS,
+            "baseSha": base,
+            "candidateSha": candidate,
+            "prUrl": f"https://github.com/MAXION-AI/maxion-platform-demo/pull/{pr_number}",
+            "prNumber": pr_number,
+            "prHeadSha": evidence,
+            "mergeSha": merge,
+            "mergeCommitSubject": merge_subject,
+            "targetRef": "refs/remotes/origin/main",
+            "independentAcceptanceSha": candidate,
+            "evidenceCommitSha": evidence,
+            "sourceTreeSha1": source_tree,
+            "protectedObjectSha1": {
+                path: self.git("rev-parse", f"{candidate}:{path}")
+                for path in ledger.PROTECTED_OBJECT_PATHS
+            },
+            "lockSha256": ledger._git_blob_sha256(self.repo, candidate, "pnpm-lock.yaml"),
+            "manifestSha256": ledger._git_blob_sha256(
+                self.repo, candidate, "docs/operations/figma-code-map.json"
+            ),
+            "referenceSheetSha256": {
+                path: ledger._git_blob_sha256(self.repo, candidate, path)
+                for path in ledger.REFERENCE_SHEET_PATHS
+            },
+            "referenceSheetContractSha256": {
+                path: ledger.reference_sheet_contract_sha256(ledger._git_blob(self.repo, candidate, path))
+                for path in ledger.REFERENCE_SHEET_PATHS
+            },
+            "builder": f"builder-{phase}",
+            "reviewers": {"ux": f"ux-{phase}", "qa": f"qa-{phase}"},
+            "reviewReports": {
+                role: {"path": path, "sha256": ledger._git_blob_sha256(self.repo, evidence, path)}
+                for role, path in review_paths.items()
+            },
+            "evidence": evidence_paths,
+            "evidenceQualification": ledger.ACCEPTED_EVIDENCE_QUALIFICATION,
+            "reasonOpen": None,
+            "commands": command_results,
+            "postMergeCommands": [
+                {
+                    "id": result["id"],
+                    "command": result["command"],
+                    "status": "PASS",
+                    "exitCode": 0,
+                    "runSha": merge,
+                    "stdout": f"{result['id']}:pass\n",
+                    "stderr": "",
+                    "stdoutSha256": result["stdoutSha256"],
+                    "stderrSha256": result["stderrSha256"],
+                }
+                for result in command_results
+            ],
+            "timestamp": f"2026-09-13T12:00:{phase:02d}Z",
+        }
+        return record
+
+    def accepted_record(self, phase: int = 0) -> dict[str, object]:
+        return copy.deepcopy(self.records[phase])
 
     def load(self) -> dict[str, object]:
         return json.loads(self.path.read_text(encoding="utf-8"))
 
     def assert_invalid(self, record: dict[str, object], message: str) -> None:
         with self.assertRaisesRegex(ledger.LedgerError, message):
-            ledger.validate_record(record, external=False)
+            ledger.validate_record(record, external=False, repo_root=self.repo)
+
+    def append(self, record: dict[str, object]) -> dict[str, object]:
+        raw = copy.deepcopy(record)
+        receipts = raw.pop("postMergeCommands")
+        return ledger.append_record(
+            self.path,
+            raw,
+            target_ref="refs/remotes/origin/main",
+            repo_root=self.repo,
+            command_runner=lambda _record, _repo: copy.deepcopy(receipts),
+        )
+
+    def test_canonical_runner_executes_fixed_commands_and_hashes_complete_output(self) -> None:
+        record = self.accepted_record()
+        with mock.patch.object(
+            ledger.subprocess,
+            "run",
+            return_value=SimpleNamespace(returncode=0, stdout=b"complete output\n", stderr=b""),
+        ) as run:
+            receipts = ledger.run_canonical_commands(record, self.repo)
+        invoked = [call[0][0] for call in run.call_args_list]
+        expected = [
+            argv
+            for command_id in ledger.CANONICAL_COMMANDS
+            for argv in ledger.CANONICAL_EXECUTION[command_id]
+        ]
+        self.assertEqual(invoked, expected)
+        self.assertEqual({item["id"] for item in receipts}, ledger.REQUIRED_COMMAND_IDS)
+        self.assertTrue(all(item["runSha"] == record["mergeSha"] for item in receipts))
+        self.assertTrue(all(
+            item["stdout"] == "complete output\n" * len(ledger.CANONICAL_EXECUTION[item["id"]])
+            for item in receipts
+        ))
 
     def test_append_creates_and_validates_hash_chain(self) -> None:
-        first = ledger.append_record(self.path, accepted_record())
-        second = ledger.append_record(self.path, accepted_record(1))
+        first = self.append(self.accepted_record())
+        second_record = self.make_phase(1, str(first["mergeSha"]), 2)
+        second = self.append(second_record)
         document = self.load()
-        ledger.validate_external(document)
+        ledger.validate_external(document, target_ref="refs/remotes/origin/main", repo_root=self.repo)
         self.assertEqual(first["previousRecordSha256"], "0" * 64)
         self.assertEqual(second["previousRecordSha256"], first["recordSha256"])
-        self.assertFalse(any(self.path.parent.glob(f".{self.path.name}.*")))
 
-    def test_concurrent_appends_preserve_atomic_hash_chain(self) -> None:
-        records = [accepted_record() for _ in range(4)]
+    def test_concurrent_duplicate_append_has_one_winner(self) -> None:
+        records = [self.accepted_record() for _ in range(4)]
         with ThreadPoolExecutor(max_workers=4) as pool:
-            futures = [pool.submit(ledger.append_record, self.path, item) for item in records]
-        successes = [future.result() for future in futures if future.exception() is None]
-        failures = [future.exception() for future in futures if future.exception() is not None]
-        document = self.load()
-        self.assertEqual(len(successes), 1)
-        self.assertEqual(len(failures), 3)
-        self.assertTrue(all(isinstance(error, ledger.LedgerError) for error in failures))
-        self.assertEqual(len(document["records"]), 1)
-        ledger.validate_external(document)
+            futures = [pool.submit(self.append, item) for item in records]
+        self.assertEqual(sum(future.exception() is None for future in futures), 1)
+        self.assertEqual(len(self.load()["records"]), 1)
 
-    def test_external_ledger_rejects_duplicate_skipped_and_pending_phases(self) -> None:
-        ledger.append_record(self.path, accepted_record())
-        with self.assertRaisesRegex(ledger.LedgerError, "expected phase 1"):
-            ledger.append_record(self.path, accepted_record())
-
-        skipped = Path(self.tempdir.name) / "skipped.json"
+    def test_external_rejects_skip_pending_wrong_target_and_unmerged_sha(self) -> None:
+        skipped = self.make_phase(1, str(self.records[0]["mergeSha"]), 2)
         with self.assertRaisesRegex(ledger.LedgerError, "expected phase 0"):
-            ledger.append_record(skipped, accepted_record(1))
-        self.assertFalse(skipped.exists())
-
-        pending = accepted_record()
-        pending["status"] = ledger.PENDING_STATUS
-        pending["independentAcceptanceSha"] = None
-        pending["reasonOpen"] = "independent review pending"
-        pending["evidenceQualification"] = "clean-sha-review-pending"
-        pending["commands"] = []
-        pending_path = Path(self.tempdir.name) / "pending.json"
+            self.append(skipped)
+        pending = self.accepted_record()
+        pending.update({
+            "status": ledger.PENDING_STATUS,
+            "independentAcceptanceSha": None,
+            "reasonOpen": "review pending",
+            "evidenceQualification": "clean-sha-review-pending",
+            "commands": [],
+        })
         with self.assertRaisesRegex(ledger.LedgerError, "only accepted"):
-            ledger.append_record(pending_path, pending)
-        self.assertFalse(pending_path.exists())
+            self.append(pending)
+        with self.assertRaisesRegex(ledger.LedgerError, "targetRef|target ref"):
+            ledger.append_record(self.path, self.accepted_record(), target_ref=self.base, repo_root=self.repo)
+        unmerged = self.accepted_record()
+        unmerged["mergeSha"] = unmerged["prHeadSha"]
+        for receipt in unmerged["postMergeCommands"]:
+            receipt["runSha"] = unmerged["prHeadSha"]
+        with self.assertRaisesRegex(ledger.LedgerError, "merge commit|ancestry"):
+            ledger.validate_record(unmerged, external=True, repo_root=self.repo)
 
-    def test_external_phase_base_must_equal_previous_merge(self) -> None:
-        ledger.append_record(self.path, accepted_record())
-        second = accepted_record(1)
-        second["baseSha"] = str(ledger._git(REPO, "rev-parse", "HEAD^"))
-        with self.assertRaisesRegex(ledger.LedgerError, "prior phase mergeSha"):
-            ledger.append_record(self.path, second)
+    def test_fake_pr_command_evidence_and_reviewer_reports_are_rejected(self) -> None:
+        item = self.accepted_record()
+        item["prUrl"] = "https://github.com/MAXION-AI/maxion-platform-demo/pull/999999999"
+        item["prNumber"] = 999999999
+        with self.assertRaisesRegex(ledger.LedgerError, "merge commit subject"):
+            ledger.validate_record(item, external=True, repo_root=self.repo)
+        item = self.accepted_record()
+        item["commands"][0]["command"] = "check-program"
+        self.assert_invalid(item, "canonical invocation")
+        item = self.accepted_record()
+        item["postMergeCommands"][0]["command"] = "echo fabricated"
+        self.assert_invalid(item, "post-merge command")
+        item = self.accepted_record()
+        item["commands"][0]["evidencePath"] = "README.md"
+        self.assert_invalid(item, "must be inside")
+        item = self.accepted_record()
+        item["reviewReports"]["qa"] = copy.deepcopy(item["reviewReports"]["ux"])
+        self.assert_invalid(item, "distinct committed")
 
-    def test_bootstrap_requires_latest_phase_exact_merge_and_checkout(self) -> None:
-        ledger.append_record(self.path, accepted_record())
+    def test_append_rejects_user_supplied_or_invalid_post_merge_receipts(self) -> None:
+        with self.assertRaisesRegex(ledger.LedgerError, "coordinator-generated"):
+            ledger.append_record(
+                self.path,
+                self.accepted_record(),
+                target_ref="refs/remotes/origin/main",
+                repo_root=self.repo,
+            )
+        raw = self.accepted_record()
+        raw.pop("postMergeCommands")
+        with self.assertRaisesRegex(ledger.LedgerError, "exact canonical command set"):
+            ledger.append_record(
+                self.path,
+                raw,
+                target_ref="refs/remotes/origin/main",
+                repo_root=self.repo,
+                command_runner=lambda _record, _repo: [],
+            )
+
+    def test_command_report_must_be_listed_in_evidence_and_match_hash(self) -> None:
+        item = self.accepted_record()
+        command_path = item["commands"][0]["evidencePath"]
+        item["evidence"].remove(command_path)
+        self.assert_invalid(item, "must be listed")
+        item = self.accepted_record()
+        item["commands"][0]["evidenceSha256"] = "0" * 64
+        self.assert_invalid(item, "evidence SHA-256")
+        item = self.accepted_record()
+        item["commands"][0]["stdoutSha256"] = "0" * 64
+        self.assert_invalid(item, "stdoutSha256")
+        item = self.accepted_record()
+        item["postMergeCommands"][0]["stdout"] = "fabricated output\n"
+        self.assert_invalid(item, "stdout content")
+
+    def test_source_and_all_protected_objects_are_identity_bound(self) -> None:
+        item = self.accepted_record()
+        item["sourceTreeSha1"] = "0" * 40
+        self.assert_invalid(item, "sourceTreeSha1")
+        item = self.accepted_record()
+        item["protectedObjectSha1"]["tests"] = "0" * 40
+        self.assert_invalid(item, "protected object tests")
+
+    def test_bootstrap_requires_exact_merge_and_clean_checkout(self) -> None:
+        self.append(self.accepted_record())
         document = self.load()
-        head = str(ledger._git(REPO, "rev-parse", "HEAD"))
+        merge = self.accepted_record()["mergeSha"]
         self.assertEqual(
             ledger.bootstrap_external(
                 document,
                 expected_phase=0,
-                target_ref=head,
+                target_ref="refs/remotes/origin/main",
+                repo_root=self.repo,
                 require_clean=False,
             ),
-            head,
+            merge,
         )
         with self.assertRaisesRegex(ledger.LedgerError, "expected accepted phase 1"):
             ledger.bootstrap_external(
                 document,
                 expected_phase=1,
-                target_ref=head,
-                require_clean=False,
-            )
-        with self.assertRaisesRegex(ledger.LedgerError, "target ref"):
-            ledger.bootstrap_external(
-                document,
-                expected_phase=0,
-                target_ref="HEAD^",
+                target_ref="refs/remotes/origin/main",
+                repo_root=self.repo,
                 require_clean=False,
             )
 
-    def test_tampering_is_rejected_before_an_append(self) -> None:
-        ledger.append_record(self.path, accepted_record())
-        document = self.load()
-        document["records"][0]["builder"] = "tampered"
-        self.path.write_text(json.dumps(document), encoding="utf-8")
-        with self.assertRaisesRegex(ledger.LedgerError, "recordSha256"):
-            ledger.append_record(self.path, accepted_record(1))
+    def test_recovery_preserves_corrupt_bytes_and_restores_last_valid_prefix(self) -> None:
+        self.append(self.accepted_record())
+        good = self.path.read_bytes()
+        damaged = good[:-3] + b', {"phase": 1, "truncated"'
+        self.path.write_bytes(damaged)
+        preserved, merge = ledger.recover_external(self.path, repo_root=self.repo)
+        self.assertEqual(preserved.read_bytes(), damaged)
+        self.assertEqual(merge, self.accepted_record()["mergeSha"])
+        ledger.validate_external(self.load(), target_ref="refs/remotes/origin/main", repo_root=self.repo)
 
-    def test_status_is_finite(self) -> None:
-        item = accepted_record()
-        item["status"] = "ship-it"
-        self.assert_invalid(item, "status must be one of")
+    def test_recovery_refuses_when_no_valid_record_exists(self) -> None:
+        self.path.write_text('{"records": [{"bad":', encoding="utf-8")
+        with self.assertRaisesRegex(ledger.LedgerError, "no checksum-valid"):
+            ledger.recover_external(self.path, repo_root=self.repo)
+        self.assertEqual(self.path.read_text(encoding="utf-8"), '{"records": [{"bad":')
 
-    def test_ux_and_qa_reviewers_must_be_distinct_and_not_builder(self) -> None:
-        item = accepted_record()
-        item["reviewers"] = {"ux": "same", "qa": "same"}
-        self.assert_invalid(item, "must be distinct")
-        item = accepted_record()
-        item["reviewers"] = {"ux": "builder-session", "qa": "different"}
-        self.assert_invalid(item, "builder may not")
-
-    def test_pending_status_requires_reason_and_historical_qualification(self) -> None:
-        item = accepted_record()
-        item["status"] = ledger.PENDING_STATUS
-        item["independentAcceptanceSha"] = None
-        item["reasonOpen"] = ""
-        item["evidenceQualification"] = "clean-sha-independent-acceptance"
-        self.assert_invalid(item, "reasonOpen")
-        item["reasonOpen"] = "review pending"
-        self.assert_invalid(item, "evidenceQualification")
-
-    def test_accepted_status_requires_acceptance_identity_and_hash_fields(self) -> None:
-        item = accepted_record()
-        item["independentAcceptanceSha"] = None
-        self.assert_invalid(item, "requires independentAcceptanceSha")
-        item = accepted_record()
-        del item["manifestSha256"]
-        self.assert_invalid(item, "missing required fields")
-
-    def test_commands_must_be_structured_complete_and_passing(self) -> None:
-        item = accepted_record()
-        item["commands"] = ["pnpm check:program: PASS"]
-        self.assert_invalid(item, "command result must contain exactly")
-        item = accepted_record()
-        item["commands"] = item["commands"][:-1]
-        self.assert_invalid(item, "missing required commands")
-        item = accepted_record()
-        item["commands"][0]["status"] = "FAIL"
-        item["commands"][0]["exitCode"] = 1
-        self.assert_invalid(item, "every accepted-record command must PASS")
-
-    def test_evidence_paths_are_safe_and_exist_at_recorded_commit(self) -> None:
-        item = accepted_record()
-        item["evidence"] = ["../outside.md"]
-        self.assert_invalid(item, "safe repository-relative")
-        item = accepted_record()
-        item["evidence"] = ["artifacts/ux-audits/missing.md"]
-        self.assert_invalid(item, "Git verification failed|does not exist")
-
-    def test_every_recorded_commit_must_exist(self) -> None:
-        item = accepted_record()
-        item["candidateSha"] = "f" * 40
-        self.assert_invalid(item, "candidateSha does not identify an existing Git commit")
-
-    def test_b_to_c_to_e_to_m_ancestry_is_required(self) -> None:
-        item = accepted_record()
-        parent = str(ledger._git(REPO, "rev-parse", "HEAD^"))
-        item["candidateSha"] = parent
-        item["baseSha"] = item["mergeSha"]
-        self.assert_invalid(item, "B -> C")
-        item = accepted_record()
-        item["evidenceCommitSha"] = item["mergeSha"]
-        item["prHeadSha"] = str(ledger._git(REPO, "rev-parse", "HEAD^"))
-        self.assert_invalid(item, "C -> E/PR head|evidenceCommitSha")
-
-    def test_source_tree_is_verified_at_candidate_evidence_merge_and_acceptance(self) -> None:
-        item = accepted_record()
-        item["sourceTreeSha1"] = "0" * 40
-        self.assert_invalid(item, "sourceTreeSha1 does not match")
-
-    def test_lock_manifest_and_exact_sheet_hashes_are_verified_at_acceptance(self) -> None:
-        for field in ("lockSha256", "manifestSha256"):
-            with self.subTest(field=field):
-                item = accepted_record()
-                item[field] = "0" * 64
-                self.assert_invalid(item, "recorded SHA-256 does not match")
-        item = accepted_record()
-        item["referenceSheetSha256"].pop(next(iter(ledger.REFERENCE_SHEET_PATHS)))
-        self.assert_invalid(item, "exactly the 13")
-        item = accepted_record()
-        key = next(iter(ledger.REFERENCE_SHEET_PATHS))
-        item["referenceSheetSha256"][key] = "0" * 64
-        self.assert_invalid(item, "recorded SHA-256 does not match")
-        item = accepted_record()
-        item["referenceSheetContractSha256"][key] = "0" * 64
-        self.assert_invalid(item, "immutable-contract SHA-256 does not match")
-
-    def test_committed_tracked_ledger_is_valid(self) -> None:
-        ledger.validate_tracked(json.loads(ledger.TRACKED_LEDGER.read_text(encoding="utf-8")))
-
-    def test_tracked_ledger_requires_status_pr_reason_qualification_and_identities(self) -> None:
-        original = json.loads(ledger.TRACKED_LEDGER.read_text(encoding="utf-8"))
-        for field in (
-            "status", "prUrl", "reasonOpen", "evidenceQualification", "builder", "reviewers",
-            "baseSha", "candidateSha", "prHeadSha", "mergeSha", "evidenceCommitSha",
-        ):
-            with self.subTest(field=field):
-                document = copy.deepcopy(original)
-                del document["phases"][0][field]
-                with self.assertRaises(ledger.LedgerError):
-                    ledger.validate_tracked(document)
+    def test_committed_tracked_ledger_is_a_lagging_export(self) -> None:
+        document = json.loads(ledger.TRACKED_LEDGER.read_text(encoding="utf-8"))
+        ledger.validate_tracked(document)
+        self.assertEqual(document["snapshotThroughPhase"], -1)
+        self.assertEqual(document["phases"], [])
 
 
 if __name__ == "__main__":

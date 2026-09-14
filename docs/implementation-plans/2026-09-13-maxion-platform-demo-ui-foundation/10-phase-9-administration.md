@@ -59,7 +59,7 @@ help data may degrade without blocking product modules.
 | 9.4 | RC-13 and RC-14 via ADR-5 | `src/features/platform-prototype/PortalReplicaModules.tsx#AccountUtilityModule`; `src/features/platform-prototype/adminState.ts#approvalCommand` | Task 9.3 settings and integration owners | `pnpm exec playwright test tests/e2e/maxion-platform-shell.spec.ts -g approvals` |
 | 9.5 | RC-13 and RC-15 via ADR-4 | `src/features/platform-prototype/PortalReplicaModules.tsx#AccountUtilityModule`; `src/features/platform-prototype/adminState.ts#selectUsage` | Task 9.4 authority-safe approvals | `pnpm exec playwright test tests/e2e/maxion-platform-shell.spec.ts -g 'Usage|Help'` |
 | 9.6 | RC-15 and RC-18 via ADR-4 | `src/features/platform-prototype/adminState.spec.ts#break-it`; `tests/fixtures/admin-rows-10000.json#rows` | Tasks 9.3 through 9.5 complete states | `pnpm test -- adminState.spec.ts -t break-it` |
-| 9.7 | RC-15 and RC-16 via ADR-8 | `artifacts/ux-audits/phase-9/verification.md`; `docs/operations/program-phase-ledger.json#phases[9]` | Tasks 9.1 through 9.6 green at C | `python3 scripts/check_phase_acceptance.py --candidate "$C" --evidence "$E" --phase 9` |
+| 9.7 | RC-15 and RC-16 via ADR-8 | `artifacts/ux-audits/phase-9/verification.md`; `docs/operations/phase-acceptance-protocol.md#Evidence-only-closure` | Tasks 9.1 through 9.6 green at C | `python3 scripts/check_phase_acceptance.py --candidate "$C" --evidence "$E" --phase 9` |
 
 ## Contracts and observability
 
@@ -95,7 +95,7 @@ records remain backward-readable and no actual external connection is changed.
 | Production | Replace `AccountUtilityModule`/`IntegrationsModule` with `src/features/platform-prototype/admin/{settings,integrations,approvals,usage,help}/**`; preserve `PortalChrome` geometry; delete catch-all owners/styles | Five exclusive route/state owners; admin rows exactly 36 px/16 px |
 | Tests/fixtures | Admin domain/unit/browser specs; invalid/stale/denied/outage and 10,000 approval/usage fixtures | Exact five sheet state-ID sets; ≤200 rows |
 | Evidence/commands | `artifacts/ux-audits/phase-9/**`; five admin sheets; standard program/test/build/E2E/audit/diff plus computed rail geometry at 375/768/1280/1536 | State/Figma/axe/timing/geometry evidence and independent reports |
-| PR lifecycle | Verify prior M as B; create isolated `phase-9/**` branch/worktree; commit C; push and open one PR; independent UX/QA audit clean C; optional evidence-only E; require program/build/audit/phase/E2E checks; merge; verify C ancestry in M; rerun clean-M gates; atomically update ledger | PR URL, B/C/E/M, source-tree equality, merge ancestry, post-merge results, successor pin |
+| PR lifecycle | Verify prior M as B; create isolated phase branch/worktree; commit clean C; independent UX/QA audit C; commit required distinct evidence-only E; merge only as a true B+E two-parent M; rerun clean-M gates; append under lock to the external authority | PR URL, B/C/E/M, protected-object equality, exact target ref, merge/PR identity, post-merge results, successor pin |
 
 ## Definition of Done
 
@@ -108,3 +108,9 @@ records remain backward-readable and no actual external connection is changed.
 
 Phase 10 starts from the accepted Phase 9 SHA with no uncontracted user-facing destination and no known
 blocker/major sheet finding.
+
+### Structured acceptance hand-off
+
+```json
+{"schemaVersion":1,"phase":9,"nextPhase":10,"status":"pending","evidence":[],"reviewers":{"ux":"pending","qa":"pending"}}
+```

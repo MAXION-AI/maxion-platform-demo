@@ -50,7 +50,7 @@ acknowledgement under 400 ms, and all first value paths within three actions.
 | 2.3 | RC-05 and RC-06 via ADR-3 | `src/features/platform-prototype/projectsState.ts#reduceProjectsState`; `src/features/platform-prototype/projectsState.ts#selectProjects` | Task 2.1 shared dashboard summary | `pnpm test -- projectsState.spec.ts` |
 | 2.4 | RC-06 and RC-15 via ADR-4 | `src/features/platform-prototype/PortalReplicaModules.tsx#ProjectsModule`; `tests/e2e/maxion-platform-shell.spec.ts#projects.ready` | Task 2.3 project state seam | `pnpm exec playwright test tests/e2e/maxion-platform-shell.spec.ts -g Projects` |
 | 2.5 | RC-06 and RC-14 via ADR-3 | `src/features/platform-prototype/platformState.ts#selectRecentProjects`; `tests/e2e/maxion-platform-shell.spec.ts#dashboard-project-continuity` | Tasks 2.2 and 2.4 accepted surfaces | `pnpm exec playwright test tests/e2e/maxion-platform-shell.spec.ts -g continuity` |
-| 2.6 | RC-15 and RC-16 via ADR-8 | `artifacts/ux-audits/phase-2/verification.md`; `docs/operations/program-phase-ledger.json#phases[2]` | Tasks 2.1 through 2.5 green at C | `python3 scripts/check_phase_acceptance.py --candidate "$C" --evidence "$E" --phase 2` |
+| 2.6 | RC-15 and RC-16 via ADR-8 | `artifacts/ux-audits/phase-2/verification.md`; `docs/operations/phase-acceptance-protocol.md#Evidence-only-closure` | Tasks 2.1 through 2.5 green at C | `python3 scripts/check_phase_acceptance.py --candidate "$C" --evidence "$E" --phase 2` |
 
 ## Data/contracts, tests, failures, rollback
 
@@ -74,7 +74,7 @@ Rollback reverts only Phase 2 while retaining Phase 1 contracts. No new dependen
 | Production | Modify `PortalReplicaModules.tsx#DashboardModule/#ProjectsModule`; create project domain/selectors under `src/features/platform-prototype/projects/`; delete superseded dashboard/project owners and selectors | One runtime owner per surface; manifest and sheet hashes updated |
 | Tests/fixtures | Co-located project/selector tests; platform shell unit spec; `tests/e2e/maxion-platform-shell.spec.ts`; deterministic 0/1/10,000 fixtures | Create→Dashboard→open, denial, empty, keyboard/mobile, ≤200 mounted rows |
 | Evidence/commands | `artifacts/ux-audits/phase-2/**`; both sheets §7/§8; `pnpm check:program && pnpm test && pnpm build && pnpm test:e2e && pnpm audit --audit-level high`; `git diff --check` | Exact exit codes, viewport/Figma diffs, timing/axe reports |
-| PR lifecycle | Verify prior M as B; create isolated `phase-2/**` branch/worktree; commit C; push and open one PR; independent UX/QA audit clean C; optional evidence-only E; require program/build/audit/phase/E2E checks; merge; verify C ancestry in M; rerun clean-M gates; atomically update ledger | PR URL, B/C/E/M, source-tree equality, merge ancestry, post-merge results, successor pin |
+| PR lifecycle | Verify prior M as B; create isolated phase branch/worktree; commit clean C; independent UX/QA audit C; commit required distinct evidence-only E; merge only as a true B+E two-parent M; rerun clean-M gates; append under lock to the external authority | PR URL, B/C/E/M, protected-object equality, exact target ref, merge/PR identity, post-merge results, successor pin |
 
 ## Definition of Done
 
@@ -87,3 +87,9 @@ Rollback reverts only Phase 2 while retaining Phase 1 contracts. No new dependen
 
 Phase 3 begins from the accepted Phase 2 SHA with project identity available as the parent context for
 new or resumed Discover work.
+
+### Structured acceptance hand-off
+
+```json
+{"schemaVersion":1,"phase":2,"nextPhase":3,"status":"pending","evidence":[],"reviewers":{"ux":"pending","qa":"pending"}}
+```

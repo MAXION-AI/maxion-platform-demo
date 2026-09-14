@@ -40,7 +40,12 @@ as B; it must never use `beae208` as the acceptance base. Until then RC-01 and P
 
 ## Ordered tasks
 
-1. **Freeze the candidate identity (0.1).** Record branch, B/C/E/M identities, dirty paths, commands, screenshots, Figma file/node IDs, and token baseline in `docs/operations/program-phase-ledger.json` and the external program ledger defined by `docs/operations/phase-acceptance-protocol.md`; verify with `git status`, `git diff --check`, and `pnpm check:program`.
+1. **Freeze the candidate identity (0.1).** At C, record branch/B/C, dirty-path census, commands,
+   screenshots, Figma file/node IDs, token baseline, and `candidatePhase: 0`. The tracked ledger remains
+   an explicitly lagging export through Phase -1; it cannot claim this phase's E/M. After a required
+   distinct evidence-only E and true merge M exist, append their verified identities only to the
+   external authority defined by `docs/operations/phase-acceptance-protocol.md`; verify with
+   `git status`, `git diff --check`, and `pnpm check:program`.
 2. **Independently audit the current foundation/shell (0.2).** Run `docs/operations/ux-independent-audit-prompt.md` from a separate session against the live 375, 768, 1280, and 1536 px states and Figma `UhLxGyXphdHHNLGMomBq6n:16:2`; record every finding by law and reference. Acceptance requires exactly seven large top destinations—Dashboard, Projects, Discover, Plan, Execute, Agentix, Consult—with 44 px rows and 20–24 px icons, a desktop product cluster occupying no more than half the rail, a flexible spacer of at least 24 px, and exactly five compact bottom destinations—Settings, Integrations, My approvals, Usage, Help—with 36 px rows.
 3. **Expand the surface inventory (0.3).** Add Projects, Settings, Integrations, My approvals, Usage, and Help to `docs/operations/ux-surface-inventory.md`; verify every visible route has exactly one owner sheet.
 4. **Create six missing reference sheets (0.4).** Use `ux-reference-sheet.template.md`, examined Mobbin decisions, full laws tables, state matrices, production-component mappings, and distinct owner/verifier/QA fields.
@@ -55,7 +60,7 @@ as B; it must never use `beae208` as the acceptance base. Until then RC-01 and P
 
 | Task | Serves | Exact files/symbols | Prerequisite | Focused verification |
 | --- | --- | --- | --- | --- |
-| 0.1 | RC-01 via ADR-8 | `docs/operations/program-phase-ledger.json#phases[0]`; `docs/operations/phase-acceptance-protocol.md#Identities` | PR 2 historical B/C/M identities | `python3 scripts/program_ledger.py validate` |
+| 0.1 | RC-01 via ADR-8 | `docs/operations/program-phase-ledger.json#candidatePhase`; `docs/operations/phase-acceptance-protocol.md#Identities` | PR 2 historical B/C/M identities | `python3 scripts/program_ledger.py validate-tracked` |
 | 0.2 | RC-01 and RC-15 via ADR-2 | `tests/e2e/maxion-platform-shell.spec.ts#accepted-shell`; `artifacts/ux-audits/phase-0-foundation-independent-qa-2026-09-13.md` | Task 0.1 candidate identity | `pnpm exec playwright test tests/e2e/maxion-platform-shell.spec.ts` |
 | 0.3 | RC-02 and RC-16 via ADR-2 | `docs/operations/ux-surface-inventory.md#Route-and-address-ownership-at-Phase-0`; `docs/operations/figma-code-map.json#surfaces` | Task 0.2 audit findings | `python3 scripts/check_ux_contract_coverage.py` |
 | 0.4 | RC-02 via ADR-2 | `docs/operations/ux-reference-sheets/settings-workspace.md#5.1`; `docs/operations/ux-reference-sheets/help-workspace.md#5.1` | Task 0.3 complete inventory | `python3 scripts/check_ux_reference_sheet.py docs/operations/ux-reference-sheets` |
@@ -96,8 +101,8 @@ together; it never resets or mutates the owner's dirty checkout.
 | Kind | Exact files / outputs / commands | Passing evidence |
 | --- | --- | --- |
 | Historical lineage | PR #2 head `dfc0347c876b36dc9932808b786d219c2cb8c949`; merge `beae208b30ad31202c4ff92abbfbd6c1ef51af18` | Runtime provenance only; never Phase 1 B |
-| Superseding candidate | Hardening PR clean C, evidence-only E if needed, and final M | C/E/M ancestry, semantic evidence-only gate, hosted checks, clean-M rerun |
-| Evidence-only closure | UX/QA reports plus tracked/external ledger updates only; no source/test/script/contract change | C→E source tree unchanged and allowlist diff passes |
+| Superseding candidate | Hardening PR clean C, required distinct evidence-only E, and final M | C/E/M ancestry, semantic evidence-only gate, hosted PR-head checks, clean-M rerun |
+| Evidence-only closure | Phase-scoped UX/QA/command JSON reports, owned-sheet evidence/sign-off cells, and the Phase 0 structured hand-off only; no ledger/source/test/script/contract change | C→E protected objects unchanged and exact allowlist diff passes |
 | PR lifecycle | Existing PR URL/head/M recorded; if rerun exposes a defect, create a remediation PR from M and restart clean-C review | Verified final M and atomic external-ledger successor pin |
 
 ## Definition of Done
@@ -109,10 +114,17 @@ together; it never resets or mutates the owner's dirty checkout.
 - [x] All sheet/token/program gates pass; no builder self-signs verifier or QA.
 - [x] `pnpm audit --audit-level high` reports zero critical/high findings and strict TypeScript reports no unused symbols.
 - [x] `pnpm check:source-quality` is deterministic, registered in the program gate, and has no unreviewed finding.
-- [ ] PR URL, head, merge SHA, audit paths, hashes, and Figma inventory are recorded in both tracked
-  and external durable ledgers.
+- [ ] PR URL, E, M, audit paths, hashes, canonical command reports, and Figma inventory are recorded in
+  the external authority; the tracked ledger remains a truthful lagging snapshot and is exported only
+  by a later candidate.
 
 ## Hand-off
 
 Phase 1 starts only from the superseding hardening PR's accepted final M and re-runs this Definition of Done. No runtime
 implementation is authorized by a candidate-only frame.
+
+### Structured acceptance hand-off
+
+```json
+{"schemaVersion":1,"phase":0,"nextPhase":1,"status":"pending","evidence":[],"reviewers":{"ux":"pending","qa":"pending"}}
+```

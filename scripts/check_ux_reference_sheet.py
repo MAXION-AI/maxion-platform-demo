@@ -22,9 +22,11 @@ Exit code 0 = pass; 1 = findings (printed one per line); 2 = usage error.
 from __future__ import annotations
 
 import argparse
+import json
 import re
+import subprocess
 import sys
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 
 ROOT = Path(__file__).resolve().parents[1]
 SHEETS_DIR = ROOT / "docs" / "operations" / "ux-reference-sheets"
@@ -85,6 +87,7 @@ FIGMA_RE = re.compile(r"file `([0-9A-Za-z]{22,128})`.*?node `(\d+:\d+)`", re.S)
 FIGMA_MISSING_RE = re.compile(r"Figma frame:\*\*\s*(?:unavailable|not supplied) because\s+.{12,}", re.I)
 STATUS_RE = re.compile(r"^- \*\*Status:\*\*\s*(\w+)", re.M)
 SIGNOFF_RE = re.compile(r"^- \*\*(Builder|Verifier|QA):\*\*\s*(.+?)\s*[—-]\s*(.+)$", re.M)
+SHA_RE = re.compile(r"^[0-9a-f]{40}$")
 
 
 def _sections(text: str) -> dict[str, str]:
@@ -147,6 +150,106 @@ def semantic_state_ids(text: str) -> list[str]:
     return [row[0] for row in _table_rows(semantic) if row]
 
 
+def _safe_evidence_path(value: str) -> str | None:
+    if not value or "\\" in value or ":" in value:
+        return None
+    path = PurePosixPath(value)
+    if path.is_absolute() or any(part in {"", ".", ".."} for part in path.parts):
+        return None
+    if str(path) != value or len(path.parts) < 4:
+        return None
+    if path.parts[:2] != ("artifacts", "ux-audits") or not re.fullmatch(r"phase-\d+", path.parts[2]):
+        return None
+    return value
+
+
+def _committed_blob(path: str) -> tuple[bytes | None, str | None]:
+    result = subprocess.run(
+        ["git", "-C", str(ROOT), "show", f"HEAD:{path}"], capture_output=True, timeout=10, check=False
+    )
+    if result.returncode != 0:
+        return None, "artifact is not committed at evidence HEAD"
+    mode = subprocess.run(
+        ["git", "-C", str(ROOT), "ls-tree", "HEAD", "--", path],
+        capture_output=True, text=True, timeout=10, check=False,
+    )
+    if mode.returncode != 0 or not mode.stdout.startswith(("100644 ", "100755 ")):
+        return None, "artifact is not a committed regular file"
+    return result.stdout, None
+
+
+def _candidate_sheet_phase(candidate: str, sheet_id: str) -> int | None:
+    result = subprocess.run(
+        ["git", "-C", str(ROOT), "show", f"{candidate}:docs/operations/figma-code-map.json"],
+        capture_output=True, timeout=10, check=False,
+    )
+    if result.returncode != 0:
+        return None
+    try:
+        manifest = json.loads(result.stdout)
+    except (UnicodeDecodeError, json.JSONDecodeError):
+        return None
+    matches = [
+        item.get("acceptancePhase")
+        for item in manifest.get("surfaces", [])
+        if isinstance(item, dict) and item.get("surfaceId") == sheet_id
+    ] if isinstance(manifest, dict) else []
+    return matches[0] if len(matches) == 1 and isinstance(matches[0], int) else None
+
+
+def _validate_gated_report(path: str, *, sheet_id: str, check: str) -> list[str]:
+    blob, error = _committed_blob(path)
+    if error:
+        return [error]
+    assert blob is not None
+    try:
+        report = json.loads(blob)
+    except (UnicodeDecodeError, json.JSONDecodeError):
+        return ["gated evidence artifact must be a machine-readable JSON report"]
+    expected = {"schemaVersion", "kind", "phase", "sheetId", "check", "candidateSha", "verdict"}
+    if not isinstance(report, dict) or set(report) != expected:
+        return ["gated evidence report has an invalid schema"]
+    findings: list[str] = []
+    exact = {
+        "schemaVersion": 1,
+        "kind": "ux-sheet-evidence",
+        "sheetId": sheet_id,
+        "check": check,
+        "verdict": "PASS",
+    }
+    for field, value in exact.items():
+        if report.get(field) != value:
+            findings.append(f"gated evidence report {field} does not match this sheet/check")
+    candidate = report.get("candidateSha")
+    path_phase_match = re.match(r"^artifacts/ux-audits/phase-(\d+)/", path)
+    path_phase = int(path_phase_match.group(1)) if path_phase_match else -1
+    if report.get("phase") != path_phase:
+        findings.append("gated evidence report phase does not match its artifact directory")
+    head = subprocess.run(
+        ["git", "-C", str(ROOT), "rev-parse", "HEAD"], capture_output=True, text=True, timeout=10, check=False
+    ).stdout.strip()
+    if not isinstance(candidate, str) or not SHA_RE.fullmatch(candidate):
+        findings.append("gated evidence report candidateSha is invalid")
+    elif candidate == head:
+        findings.append("gated evidence report must bind a candidate before evidence HEAD")
+    else:
+        parents = subprocess.run(
+            ["git", "-C", str(ROOT), "rev-list", "--parents", "-n", "1", head],
+            capture_output=True, text=True, timeout=10, check=False,
+        ).stdout.split()
+        if len(parents) != 2 or parents[1] != candidate:
+            findings.append("gated evidence report must exist at the single direct E child of candidate C")
+        existed = subprocess.run(
+            ["git", "-C", str(ROOT), "cat-file", "-e", f"{candidate}:{path}"],
+            capture_output=True, timeout=10, check=False,
+        )
+        if existed.returncode == 0:
+            findings.append("gated evidence report was reused from candidate C")
+        if _candidate_sheet_phase(candidate, sheet_id) != path_phase:
+            findings.append("gated evidence report phase does not match the candidate manifest sheet owner")
+    return findings
+
+
 def check_sheet(path: Path, stage_override: str | None = None) -> list[str]:
     findings: list[str] = []
     try:
@@ -165,6 +268,8 @@ def check_sheet(path: Path, stage_override: str | None = None) -> list[str]:
     if stage not in STAGES:
         findings.append(f"{rel}: Status must be one of {STAGES}; found {stage or 'none'!r}")
         stage = "contract"
+    sheet_id_match = re.search(r"^- \*\*Sheet id:\*\*\s*([^\s]+)\s*$", text, re.M)
+    sheet_id = sheet_id_match.group(1) if sheet_id_match else ""
 
     for placeholder in PLACEHOLDER_RE.findall(text):
         findings.append(f"{rel}: unfilled placeholder {placeholder!r}")
@@ -278,8 +383,15 @@ def check_sheet(path: Path, stage_override: str | None = None) -> list[str]:
             check, artifact, result = row[0], row[1], row[2]
             if artifact.lower() == "pending" or not artifact:
                 findings.append(f"{rel}: §7 {check!r} has no artifact (stage {stage})")
-            elif not (ROOT / artifact).exists():
-                findings.append(f"{rel}: §7 {check!r} artifact not found: {artifact}")
+            elif _safe_evidence_path(artifact) is None:
+                findings.append(f"{rel}: §7 {check!r} artifact path is not a safe phase-scoped evidence path: {artifact}")
+            else:
+                candidate = ROOT / artifact
+                if not candidate.is_file() or candidate.is_symlink():
+                    findings.append(f"{rel}: §7 {check!r} artifact not found as a regular file: {artifact}")
+                elif stage == "gated":
+                    for issue in _validate_gated_report(artifact, sheet_id=sheet_id, check=check):
+                        findings.append(f"{rel}: §7 {check!r} {issue}: {artifact}")
             if stage == "gated" and result.strip().upper() != "PASS":
                 findings.append(f"{rel}: §7 {check!r} result is {result!r}, not PASS")
 

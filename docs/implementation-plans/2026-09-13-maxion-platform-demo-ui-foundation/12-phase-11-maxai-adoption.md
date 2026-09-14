@@ -57,11 +57,11 @@ or production SLOs. Those become mandatory MaxAI plan inputs.
 
 | Task | Serves | Exact files/symbols | Prerequisite | Focused verification |
 | --- | --- | --- | --- | --- |
-| 11.1 | RC-16 and RC-17 via ADR-6 | `docs/operations/maxai-ui-foundation-adoption/contract.json#source`; `docs/operations/program-phase-ledger.json#phases[10]` | Accepted Phase 10 M and frozen demo evidence | `python3 scripts/program_ledger.py validate` |
+| 11.1 | RC-16 and RC-17 via ADR-6 | `docs/operations/maxai-ui-foundation-adoption/contract.json#source`; `docs/operations/program-phase-ledger.json#phases[10]` | Accepted Phase 10 M and frozen demo evidence | `python3 scripts/program_ledger.py validate-tracked` |
 | 11.2 | RC-03 and RC-17 via ADR-6 | `docs/operations/maxai-ui-foundation-adoption/contract.json#surfaces`; `docs/operations/maxai-ui-foundation-adoption/traceability.md#Surface-map` | Task 11.1 frozen inputs | `python3 scripts/check_maxai_adoption_package.py` |
 | 11.3 | RC-16 and RC-17 via ADR-6 | `scripts/check_maxai_adoption_package.py#check_package`; `scripts/tests/test_maxai_adoption_package.py#MaxAIAdoptionPackageTests` | Task 11.2 complete package | `python3 -m unittest scripts.tests.test_maxai_adoption_package` |
 | 11.4 | RC-17 and RC-18 via ADR-1 | `docs/operations/maxai-ui-foundation-adoption/README.md#Separate-production-adoption-stream`; `docs/operations/maxai-ui-foundation-adoption/open-gaps.md#Production-gaps` | Task 11.3 package integrity gate | `python3 scripts/check_maxai_adoption_package.py` |
-| 11.5 | RC-01 and RC-17 via ADR-8 | `artifacts/ux-audits/phase-11/package-review.md`; `docs/operations/program-phase-ledger.json#phases[11]` | Tasks 11.1 through 11.4 green at C | `python3 scripts/check_phase_acceptance.py --candidate "$C" --evidence "$E" --phase 11` |
+| 11.5 | RC-01 and RC-17 via ADR-8 | `artifacts/ux-audits/phase-11/package-review.md`; `docs/operations/phase-acceptance-protocol.md#Evidence-only-closure` | Tasks 11.1 through 11.4 green at C | `python3 scripts/check_phase_acceptance.py --candidate "$C" --evidence "$E" --phase 11` |
 
 ## Files, outputs, commands, evidence, and PR closure
 
@@ -70,7 +70,7 @@ or production SLOs. Those become mandatory MaxAI plan inputs.
 | Package | `docs/operations/maxai-ui-foundation-adoption/{README.md,contract.json,traceability.md,open-gaps.md}` | Every demo surface/state/contract maps to a production responsibility or explicit gap |
 | Gate/tests | `scripts/check_maxai_adoption_package.py`; `scripts/tests/test_maxai_adoption_package.py`; register in `check_program_gates.sh` | All six negative fixtures fail for the intended reason; committed package passes |
 | Evidence/commands | `artifacts/ux-audits/phase-11/**`; `pnpm check:program`; `pnpm build`; `pnpm audit --audit-level high`; package self-tests; `git diff --check` | C-bound UX/QA reports, hashes, exact exit codes, no demo runtime import |
-| PR lifecycle | Verify Phase 10 M as B; isolated `phase-11/adoption-package` branch/worktree; commit C; push/open one demo PR; independent clean-C audits; optional evidence-only E; required checks; merge; verify ancestry; clean-M gates; atomic demo-ledger close | Demo PR URL and B/C/E/M; source-tree equality; verified final demo M |
+| PR lifecycle | Verify Phase 10 M as B; isolated adoption-package branch/worktree; commit clean C; independent audits; commit required distinct evidence-only E; true B+E two-parent M; clean-M gates; atomic external-ledger close | Demo PR URL and B/C/E/M; protected-object equality; exact target ref; verified final demo M |
 
 ## Test, failure, and rollback
 
@@ -96,3 +96,9 @@ unchanged. There is no production flag or deployment rollback in this phase.
 The demo repository is immutable after this accepted merge except for reviewed corrections. A new,
 separately approved implementation plan in `max-ai-platform` consumes this package from a fetched
 `origin/main` base. Its SHAs and PRs are unrelated to the demo ancestry chain.
+
+### Structured acceptance hand-off
+
+```json
+{"schemaVersion":1,"phase":11,"nextPhase":null,"status":"pending","evidence":[],"reviewers":{"ux":"pending","qa":"pending"}}
+```

@@ -38,20 +38,25 @@ proof are explicitly outside this repository and remain MaxAI release obligation
 3. **Run every state matrix (10.3).** Exercise each declared normal, empty, loading, error, offline/degraded, permission, destructive, long-content, and recovery state at required viewports.
 4. **Run accessibility and interaction qualification (10.4).** Verify keyboard order, focus trap/return, screen-reader names, axe, contrast, zoom/reflow, reduced motion, target geometry, and <400 ms acknowledgement.
 5. **Run performance and load-shaped qualification (10.5).** Measure INP/LCP/CLS, initial JS/CSS budgets, lazy loading, mounted-node bounds, memory growth, and 10,000-object fixtures under 4× CPU/Slow 4G.
-6. **Run fresh end-to-end journeys and recovery (10.6).** Prove project creation plus Discover→Plan→Execute→Agentix→Consult, administrative approval/integration degradation, reload/resume, failure/retry/rollback, and no duplicate effects.
+6. **Run fresh end-to-end journeys and recovery (10.6).** Execute the complete unfiltered
+   strict-preview Playwright suite in three separate clean invocations, each with a fresh server and
+   browser context, on C and again on M. Prove project creation plus
+   Discover→Plan→Execute→Agentix→Consult, administrative approval/integration degradation,
+   reload/resume, failure/retry/rollback, and no duplicate effects. A retry, filtered run, or continuation
+   after interruption is not one of the three.
 7. **Run independent final QA and freeze evidence (10.7).** A separate verifier audits sheets/code/Figma/evidence and returns GATE PASS only with no blocker/major finding; record limitations and the accepted SHA.
 
 ### Cold-executor contracts
 
 | Task | Serves | Exact files/symbols | Prerequisite | Focused verification |
 | --- | --- | --- | --- | --- |
-| 10.1 | RC-01 and RC-16 via ADR-8 | `docs/operations/program-phase-ledger.json#phases[10]`; `playwright.config.ts#projects` | Accepted Phase 9 M and clean qualification worktree | `python3 scripts/program_ledger.py validate` |
+| 10.1 | RC-01 and RC-16 via ADR-8 | `docs/operations/program-phase-ledger.json#candidatePhase`; `playwright.config.ts#projects` | Accepted Phase 9 M and clean qualification worktree | `python3 scripts/program_ledger.py validate-tracked` |
 | 10.2 | RC-03 and RC-19 via ADR-7 | `scripts/check_program_gates.sh#program-gates`; `scripts/check_production_sources.py#check_sources` | Task 10.1 frozen candidate C | `pnpm check:program` |
 | 10.3 | RC-15 and RC-16 via ADR-2 | `docs/operations/figma-code-map.json#surfaces`; `tests/e2e/maxion-platform-shell.spec.ts#semantic-states` | Task 10.2 static gates green | `pnpm exec playwright test -g semantic-state` |
 | 10.4 | RC-15 via ADR-4 | `tests/e2e/maxion-platform-shell.spec.ts#accessibility`; `artifacts/ux-audits/phase-10/accessibility.md` | Task 10.3 complete state runs | `pnpm exec playwright test -g accessibility` |
 | 10.5 | RC-15 and RC-18 via ADR-1 | `scripts/check_bundle_budget.py#check_budget`; `artifacts/ux-audits/phase-10/performance.json` | Task 10.4 interaction qualification | `pnpm check:bundle` |
-| 10.6 | RC-09 and RC-14 via ADR-5 | `tests/e2e/maxion-platform-shell.spec.ts#full-continuity`; `tests/e2e/execute-command-layer.spec.ts#rollback` | Task 10.5 performance budgets green | `pnpm exec playwright test -g 'full-continuity|rollback'` |
-| 10.7 | RC-01 and RC-15 via ADR-8 | `artifacts/ux-audits/phase-10/final-qa.md`; `docs/operations/program-phase-ledger.json#phases[10]` | Tasks 10.1 through 10.6 green at C | `python3 scripts/check_phase_acceptance.py --candidate "$C" --evidence "$E" --phase 10` |
+| 10.6 | RC-09 and RC-14 via ADR-5 | `tests/e2e/maxion-platform-shell.spec.ts#full-continuity`; `tests/e2e/execute-command-layer.spec.ts#rollback`; `artifacts/ux-audits/phase-10/strict-preview-runs.json#runs` | Task 10.5 performance budgets green | `pnpm test:e2e` |
+| 10.7 | RC-01 and RC-15 via ADR-8 | `artifacts/ux-audits/phase-10/final-qa.md`; `docs/operations/phase-acceptance-protocol.md#Evidence-only-closure` | Tasks 10.1 through 10.6 green at C | `python3 scripts/check_phase_acceptance.py --candidate "$C" --evidence "$E" --phase 10` |
 
 ## Evidence and observability
 
@@ -59,6 +64,10 @@ Evidence includes command logs, browser traces, screenshots, accessibility repor
 bundle output, large-fixture counts, state/recovery IDs, and the immutable accepted SHA. All output uses
 synthetic fixtures and redacts environment details that could contain secrets. No API/schema/package is
 planned.
+`strict-preview-runs.json` contains exactly three PASS entries for C and exactly three for M, each with
+run ID, run SHA, start/end time, clean-status proof, unfiltered command, browser/version, viewport,
+fixture-set hash, exit code, stdout/stderr hashes, and trace/report path. Duplicate run IDs or artifact
+hashes, nonzero exits, a missing browser project, or fewer than three complete runs fail qualification.
 
 ## Test and failure plan
 
@@ -85,7 +94,7 @@ append-only so failed runs remain inspectable.
 | Production | No planned feature owner; qualification fixes name exact existing files and delete, never waive, the superseded owner | Final source graph has zero alias/stale-selector/suppression/legacy exemptions |
 | Tests/fixtures | All unit and Playwright specs; WebKit project; deterministic every-state and 10,000-object fixtures | Every manifest state ID and cross-module recovery runs fresh |
 | Evidence/commands | `artifacts/ux-audits/phase-10/**`; all sheets; standard program/test/build/E2E/audit/diff plus bundle/INP/LCP/CLS/DOM measurements | Fresh C-bound reports and every numeric threshold |
-| PR lifecycle | Verify prior M as B; create isolated `phase-10/**` branch/worktree; commit C; push and open one PR; independent UX/QA audit clean C; optional evidence-only E; require program/build/audit/phase/E2E checks; merge; verify C ancestry in M; rerun clean-M gates; atomically update ledger | PR URL, B/C/E/M, source-tree equality, merge ancestry, post-merge results, successor pin |
+| PR lifecycle | Verify prior M as B; create isolated phase branch/worktree; commit clean C; independent UX/QA audit C; commit required distinct evidence-only E; merge only as a true B+E two-parent M; rerun clean-M gates; append under lock to the external authority | PR URL, B/C/E/M, protected-object equality, exact target ref, merge/PR identity, post-merge results, successor pin |
 
 ## Definition of Done
 
@@ -101,3 +110,9 @@ append-only so failed runs remain inspectable.
 Phase 11 may use only the Phase 10 accepted SHA, frozen Figma/code manifest, accepted sheets, and fresh
 qualification evidence as inputs to the demo-owned MaxAI adoption package. Production implementation
 requires its own approved MaxAI plan, ledger, worktree chain, independent gates, and PR lifecycle.
+
+### Structured acceptance hand-off
+
+```json
+{"schemaVersion":1,"phase":10,"nextPhase":11,"status":"pending","evidence":[],"reviewers":{"ux":"pending","qa":"pending"}}
+```

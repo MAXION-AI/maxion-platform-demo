@@ -6,6 +6,7 @@ from __future__ import annotations
 import argparse
 import gzip
 import json
+import os
 import sys
 from pathlib import Path
 from typing import Any
@@ -18,21 +19,23 @@ CSS_LIMIT = 60 * 1024
 ENFORCE_FROM_PHASE = 1
 
 
-def active_phase(ledger_path: Path = LEDGER) -> int:
-    """Return the highest recorded phase so a pending Phase 1 cannot inherit Phase 0's waiver."""
+def active_phase(ledger_path: Path = LEDGER, explicit: int | None = None) -> int:
+    """Resolve the candidate phase and refuse explicit/CI/ledger disagreement."""
 
     try:
         document = json.loads(ledger_path.read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError):
-        return -1
-    return max(
-        (
-            item.get("phase", -1)
-            for item in document.get("phases", [])
-            if isinstance(item, dict)
-        ),
-        default=-1,
-    )
+        raise ValueError(f"cannot load candidate phase from {ledger_path}")
+    declared = document.get("candidatePhase") if isinstance(document, dict) else None
+    if not isinstance(declared, int) or declared < 0:
+        raise ValueError("tracked ledger must declare a non-negative candidatePhase")
+    env_value = os.environ.get("MAXION_PROGRAM_PHASE")
+    selected = explicit if explicit is not None else int(env_value) if env_value is not None else declared
+    if selected != declared:
+        raise ValueError(
+            f"candidate phase mismatch: selected {selected}, tracked ledger declares {declared}"
+        )
+    return selected
 
 
 def measure(dist: Path) -> tuple[dict[str, Any] | None, list[str]]:
@@ -100,8 +103,13 @@ def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--dist", type=Path, default=DEFAULT_DIST)
     parser.add_argument("--metadata-out", type=Path)
+    parser.add_argument("--phase", type=int)
     args = parser.parse_args(argv)
-    phase = active_phase()
+    try:
+        phase = active_phase(explicit=args.phase)
+    except (OSError, ValueError, json.JSONDecodeError) as exc:
+        print(f"Bundle budget gate: candidate phase unavailable: {exc}", file=sys.stderr)
+        return 2
     result, findings = check_budget(args.dist.resolve(), phase)
     if result is not None:
         result = {

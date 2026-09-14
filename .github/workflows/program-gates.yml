@@ -17,11 +17,35 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 45
     steps:
-      - name: Check out exact revision
+      - name: Check out exact PR head revision
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
         with:
+          ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
           persist-credentials: false
           fetch-depth: 0
+      - name: Prove checked-out revision identity
+        env:
+          EXPECTED_SHA: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
+        run: test "$(git rev-parse HEAD)" = "$EXPECTED_SHA"
+      - name: Load explicit candidate phase
+        run: |
+          phase="$(python3 -c 'import json; print(json.load(open("docs/operations/program-phase-ledger.json", encoding="utf-8"))["candidatePhase"])')"
+          test "$phase" -ge 0
+          echo "MAXION_PROGRAM_PHASE=$phase" >> "$GITHUB_ENV"
+      - name: Prove evidence-only PR-head lineage
+        if: github.event_name == 'pull_request'
+        env:
+          PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+        run: |
+          evidence_pattern="^artifacts/ux-audits/phase-${MAXION_PROGRAM_PHASE}/"
+          if git diff --diff-filter=A --name-only "$PR_BASE_SHA" HEAD | grep -Eq "$evidence_pattern"; then
+            candidate="$(git show -s --format='%(trailers:key=Phase-Candidate,valueonly)' HEAD | tr -d '[:space:]')"
+            test "${#candidate}" -eq 40
+            python3 scripts/check_phase_acceptance.py \
+              --candidate "$candidate" \
+              --evidence "$(git rev-parse HEAD)" \
+              --phase "$MAXION_PROGRAM_PHASE"
+          fi
       - name: Activate pinned Node runtime
         uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
         with:
@@ -38,7 +62,7 @@ jobs:
         run: pnpm check:program
       - name: Production build and bundle metadata gate
         run: |
-          MAXION_BUILD_REVISION="$GITHUB_SHA" pnpm build
+          MAXION_BUILD_REVISION="$(git rev-parse HEAD)" pnpm build
           pnpm check:bundle --metadata-out test-results/bundle-budget.json
       - name: Unit tests
         run: pnpm test

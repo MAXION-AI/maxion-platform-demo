@@ -169,9 +169,11 @@ demo has server concurrency.
 
 - **Serves:** RC-01, RC-16, RC-19.
 - **Decision:** every phase follows `docs/operations/phase-acceptance-protocol.md`: independent
-  reviewers audit a clean implementation commit C; a later E is evidence-only and preserves C's
-  source tree; merge M is ancestry-verified and post-merge qualified. Demo rollback uses a reviewed
-  revert PR, never a hidden predecessor UI or dual runtime.
+  reviewers audit a clean implementation commit C; a required distinct E is evidence-only and
+  preserves every protected object from C; a true two-parent merge M is identity/target-ref verified
+  and post-merge qualified. The external ledger is the sole current-phase authority; the tracked file
+  is only a lagging export. Demo rollback uses a reviewed revert PR, never a hidden predecessor UI or
+  dual runtime.
 - **Alternatives:** branch-name review, dirty-tree review, and feature-flagged old/new UI ownership
   are rejected because none binds evidence to the merged implementation.
 - **Trade-off:** evidence may require a second commit and post-merge checks; the reviewed code identity
@@ -194,7 +196,7 @@ demo has server concurrency.
 - **Objects:** `WorkObjectRef`, `EvidenceRef`, `DecisionRequest`, `ProgressState`, `AuthorityBoundary`,
   and `ExecutionEnvironment` use the same vocabulary across modules.
 - **Figma mapping:** schema-v2 `figma-code-map.json` maps each classified production route,
-  truthful URL or interaction-only address, stable state ID, frame and component IDs (or an explicit
+  truthful canonical URL or explicitly temporary interaction-only address, stable state ID, frame and component IDs (or an explicit
   frame-level ownership reason), sheet hash, implementation tree, runtime/style/timer owners, evidence,
   and last connector attestation.
 - **Figma operation:** any execution session loads the repository Figma workflow before using Figma,
@@ -289,6 +291,9 @@ The execution session records command, exit code, duration, B/C/E/M identities, 
 path under `docs/operations/phase-acceptance-protocol.md`. `.impl-cadence/` is disposable local
 scratch, not cross-worktree authority. A successor begins only from the checksum-verified external
 ledger record whose M is the fetched target-branch ancestor.
+Three complete independent strict-preview runs of the Playwright suite execute on C and again on clean M.
+Every run starts a fresh server/browser context and records its own unfiltered result; an interrupted,
+filtered, retried-in-place, or pipe-masked run is not one of the three.
 Phase 10 also records browser/version, CPU/network profile, viewport, fixture, Figma node, and sheet
 hash for every visual or performance result.
 
@@ -321,8 +326,8 @@ state/CSS would trade calendar time for integration risk.
 
 | RC | Closed by |
 | --- | --- |
-| RC-01, RC-02 | Phase 0 tasks 0.1–0.5 |
-| RC-03, RC-04, RC-05, RC-16 | Phase 1 tasks 1.1–1.7 |
+| RC-01, RC-02 | Phase 0 tasks 0.1–0.6 |
+| RC-03, RC-04, RC-05, RC-16 | Phase 1 tasks 1.1–1.8 |
 | RC-06 | Phase 2 tasks 2.1–2.6 |
 | RC-07 | Phase 3 tasks 3.1–3.7 |
 | RC-08 | Phase 4 tasks 4.1–4.7 |
@@ -332,7 +337,7 @@ state/CSS would trade calendar time for integration risk.
 | RC-12, RC-14 | Phase 8 tasks 8.1–8.7 |
 | RC-13 | Phase 9 tasks 9.1–9.7 |
 | RC-15, RC-18 | Phase 10 tasks 10.1–10.7 |
-| RC-17 | Phase 11 tasks 11.1–11.7 |
+| RC-17 | Phase 11 tasks 11.1–11.5 |
 | RC-19 | Phase 10 tasks 10.1–10.7, enforced incrementally in every earlier phase |
 
 There are zero uncovered register rows and no deferred requirements.

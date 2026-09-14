@@ -53,7 +53,7 @@ and synthetic correlation ID; the client never grants authority.
 | 4.4 | RC-08 and RC-15 via ADR-2 | `src/features/platform-prototype/PlanAgenticModule.tsx#PlanCommands`; `tests/e2e/maxion-platform-shell.spec.ts#plan.section-editing` | Task 4.3 accepted composition | `pnpm exec playwright test tests/e2e/maxion-platform-shell.spec.ts -g plan-state` |
 | 4.5 | RC-08 and RC-14 via ADR-5 | `src/features/platform-prototype/contracts.ts#PlanArtifactRef`; `src/features/platform-prototype/planState.ts#selectExecuteReadyPlan` | Task 4.4 operable states | `pnpm test -- planHandoff.spec.ts` |
 | 4.6 | RC-15 via ADR-3 | `src/features/platform-prototype/planState.spec.ts#recovery`; `tests/fixtures/plan-oversized.json#sections` | Task 4.5 immutable handoff | `pnpm test -- planState.spec.ts -t recovery` |
-| 4.7 | RC-15 and RC-16 via ADR-8 | `artifacts/ux-audits/phase-4/verification.md`; `docs/operations/program-phase-ledger.json#phases[4]` | Tasks 4.1 through 4.6 green at C | `python3 scripts/check_phase_acceptance.py --candidate "$C" --evidence "$E" --phase 4` |
+| 4.7 | RC-15 and RC-16 via ADR-8 | `artifacts/ux-audits/phase-4/verification.md`; `docs/operations/phase-acceptance-protocol.md#Evidence-only-closure` | Tasks 4.1 through 4.6 green at C | `python3 scripts/check_phase_acceptance.py --candidate "$C" --evidence "$E" --phase 4` |
 
 ## Contracts and observability
 
@@ -89,7 +89,7 @@ may be deleted by rollback.
 | Production | Refactor `PlanAgenticModule.tsx`; create `src/features/platform-prototype/plan/{domain,selectors,commands,components}/**`; delete replaced Plan state/styles/exports | One Plan owner; immutable approved artifact handoff |
 | Tests/fixtures | Co-located version/command tests; Plan browser spec; stale/failed/permission/1,000-section fixtures | Exact eight state IDs; no duplicate revision; ≤200 mounted sections |
 | Evidence/commands | `artifacts/ux-audits/phase-4/**`; Plan sheet; standard program/test/build/E2E/audit/diff commands plus focused Plan specs | State/viewport/Figma/axe/timing evidence and independent reports |
-| PR lifecycle | Verify prior M as B; create isolated `phase-4/**` branch/worktree; commit C; push and open one PR; independent UX/QA audit clean C; optional evidence-only E; require program/build/audit/phase/E2E checks; merge; verify C ancestry in M; rerun clean-M gates; atomically update ledger | PR URL, B/C/E/M, source-tree equality, merge ancestry, post-merge results, successor pin |
+| PR lifecycle | Verify prior M as B; create isolated phase branch/worktree; commit clean C; independent UX/QA audit C; commit required distinct evidence-only E; merge only as a true B+E two-parent M; rerun clean-M gates; append under lock to the external authority | PR URL, B/C/E/M, protected-object equality, exact target ref, merge/PR identity, post-merge results, successor pin |
 
 ## Definition of Done
 
@@ -102,3 +102,9 @@ may be deleted by rollback.
 
 Phase 5 begins from the accepted Phase 4 SHA and receives an approved `PlanArtifactRef`; it may not read
 mutable Plan state or infer approval from route access.
+
+### Structured acceptance hand-off
+
+```json
+{"schemaVersion":1,"phase":4,"nextPhase":5,"status":"pending","evidence":[],"reviewers":{"ux":"pending","qa":"pending"}}
+```

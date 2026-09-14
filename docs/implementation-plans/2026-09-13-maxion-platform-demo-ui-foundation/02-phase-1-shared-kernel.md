@@ -31,6 +31,40 @@ and never modifies a future-schema generation during downgrade. A rollback valid
 head; it never rewrites payloads in place. Because localStorage has no cross-process CAS, a changed head
 between read and swap is a deterministic conflict that retries from the new head instead of overwriting it.
 
+`routeCodec.ts` is the sole address encoder/decoder. It lowercases only fixed route keywords, uses
+`encodeURIComponent`/strict single-pass decoding for identifiers, rejects empty, repeated, malformed,
+unknown, or dot segments, and round-trips every accepted location to exactly one canonical URL:
+
+| Job | Canonical URL |
+| --- | --- |
+| Dashboard | `/maxion-prototype` |
+| Projects | `/maxion-prototype/projects` |
+| Discover | `/maxion-prototype/discover` |
+| Plan | `/maxion-prototype/plan` |
+| Execute | `/maxion-prototype/execute` |
+| Agentix operations | `/maxion-prototype/agentix` |
+| Agentix responsibility | `/maxion-prototype/agentix/responsibilities/:responsibilityId` |
+| Agentix case/run | `/maxion-prototype/agentix/responsibilities/:responsibilityId/cases/:caseId` |
+| Consult Max | `/maxion-prototype/consult` |
+| Settings / Integrations / My approvals / Usage / Help | `/maxion-prototype/settings`, `/maxion-prototype/integrations`, `/maxion-prototype/approvals`, `/maxion-prototype/usage`, `/maxion-prototype/help` |
+
+`/agentix-prototype` and `/discovery-prototype` are compatibility aliases in the Phase 0 manifest only.
+Phase 1 deletes their explicit route entries, tests, and source markers; neither may be emitted by the
+codec, represented as canonical, or retained as a hidden alternate owner.
+
+The temporary migration boundary is equally explicit:
+
+| Concern | Temporary adapter allowed inside task | Final Phase 1 owner | Required deletion before C |
+| --- | --- | --- | --- |
+| Lifted shell booleans | `LegacyShellStateAdapter` inside task 1.3 only | `PlatformDemoProvider.tsx#PlatformDemoProvider` and `platformState.ts#reducePlatformState` | adapter, direct prop reads, adapter tests and exports |
+| Per-module localStorage | `LegacyStorageReader` inside task 1.4 only, read-once migration | `persistence/DemoStateRepository.ts#DemoStateRepository` | old writers, keys, fixtures, imports and adapter after migration tests |
+| Direct/alias routes | `LegacyRouteDecoder` inside tasks 1.6–1.7 only | `routing/routeCodec.ts#parsePlatformRoute` and `routing/routeCodec.ts#formatPlatformRoute` | explicit aliases, alias tests/markers and decoder |
+| Duplicate primitives/styles | no cross-task adapter | `system/StatusBadge.tsx#StatusBadge` and named system owners | predecessor components, exports, selectors and normalization rules |
+
+No temporary adapter may exist in the clean C, its build graph, test graph, manifest, or source-quality
+inventory. A caller and its replacement migrate in the same ordered task; deletion is part of that
+task's focused gate, not later cleanup.
+
 - **Scale:** reducer operations stay O(1) or O(log n) for lookup; lists are capped at 10,000 logical objects and no more than 200 mounted nodes. Initial bundle target is ≤250 kB gzip JS and ≤60 kB gzip CSS.
 - **Robustness:** invalid persisted data resets only the affected slice with an accessible recovery notice; module load failure stays inside `ModuleErrorBoundary`.
 - **Threat surface:** browser storage is hostile input—schema/version/length validation, synthetic data only, no authority derived from it.
@@ -69,7 +103,7 @@ between read and swap is a deterministic conflict that retries from the new head
 5. **Extract shared primitives and tokens (1.5).** Move recurring status, decision, progress, composer, evidence, and empty/error patterns into `system/`; migrate callers before deleting duplicates; reduce raw-colour count.
 6. **Split route/module bundles (1.6).** Lazy-load heavy module entry points with stable skeletons and error boundaries; assert hidden modules do not run timers.
 7. **Close schema-v2 address and ownership debt (1.7).** Replace every `interaction-only` address
-   with a canonical URL codec/source marker; remove `/agentix-prototype` and
+   with the canonical `routeCodec.ts` grammar/source marker above; remove `/agentix-prototype` and
    `/discovery-prototype`; make the Agentix run address encode responsibility/case IDs; attach
    independently attested component IDs or retain explicit frame ownership; require zero stale
    selectors, aliases, suppressions, obsolete markers, unowned timers/styles/routes, unreachable
@@ -90,8 +124,8 @@ between read and swap is a deterministic conflict that retries from the new head
 | 1.4 | RC-05 and RC-14 via ADR-3 | `src/features/platform-prototype/persistence/DemoStateRepository.ts#DemoStateRepository`; `src/features/platform-prototype/persistence/DemoStateRepository.spec.ts#copy-on-write` | Task 1.3 reducer and selector ownership | `pnpm test -- DemoStateRepository.spec.ts` |
 | 1.5 | RC-03 and RC-04 via ADR-1 | `src/features/platform-prototype/system/StatusBadge.tsx#StatusBadge`; `scripts/ux_tokens_baseline.json#files` | Task 1.3 provider API and Task 1.4 repository | `python3 scripts/check_ux_tokens.py` |
 | 1.6 | RC-04 and RC-15 via ADR-4 | `src/App.tsx#routes`; `tests/e2e/maxion-platform-shell.spec.ts#lazy-bundles` | Task 1.5 shared primitives migrated | `pnpm check:bundle` |
-| 1.7 | RC-16 and RC-19 via ADR-7 | `docs/operations/figma-code-map.json#surfaces`; `scripts/check_ux_contract_coverage.py#check_contract` | Task 1.6 canonical lazy route graph | `python3 scripts/check_ux_contract_coverage.py` |
-| 1.8 | RC-04 and RC-19 via ADR-7 | `scripts/check_production_sources.py#check_sources`; `tests/e2e/maxion-platform-shell.spec.ts#route-owners` | Task 1.7 exact address and owner map | `pnpm check:source-quality` |
+| 1.7 | RC-16 and RC-19 via ADR-7 | `src/features/platform-prototype/routing/routeCodec.ts#parsePlatformRoute`; `src/features/platform-prototype/routing/routeCodec.ts#formatPlatformRoute`; `docs/operations/figma-code-map.json#surfaces`; `scripts/check_ux_contract_coverage.py#check_contract` | Task 1.6 canonical lazy route graph | `python3 scripts/check_ux_contract_coverage.py` |
+| 1.8 | RC-04 and RC-19 via ADR-7 | `scripts/check_production_sources.py#check_sources`; `tests/e2e/maxion-platform-shell.spec.ts#route-owners`; `src/features/platform-prototype/routing/routeCodec.spec.ts#legacy-alias-rejection` | Task 1.7 exact address and owner map | `pnpm check:source-quality` |
 
 ## Tests and passing bar
 
@@ -131,7 +165,7 @@ retain the Phase 0 UI. A provider-behavior flag is allowed only when both values
 | Production | `src/features/platform-prototype/{contracts.ts,platformState.ts,PlatformDemoProvider.tsx,persistence/DemoStateRepository.ts,system/**}`; migrated owners; deleted aliases/predecessors/styles | Tasks 1.2–1.8; no compatibility UI survives | C source tree and zero-debt ownership report |
 | Tests/fixtures | Co-located domain/system tests, `scripts/tests/test_ux_gates.py`, shell/cross-module Playwright specs, deterministic 10,000-object fixtures | `pnpm test`; `pnpm test:e2e`; negative ownership suite | Counts, traces, fixture/mounted-node metrics |
 | Contracts/evidence | Schema-v2 manifest, affected sheets, `artifacts/ux-audits/phase-1/**` | `pnpm check:program`; `pnpm build`; `pnpm audit --audit-level high`; `git diff --check` | Hashes, 250/60 bundle proof, Figma attestation, UX/QA reports |
-| PR lifecycle | One Phase 1 branch/worktree from B | Protocol: C, clean-C UX/QA, optional evidence-only E, PR, M, clean-M gates, ledger update | PR URL, B/C/E/M, ancestry/source-tree equality, successor pin |
+| PR lifecycle | One Phase 1 branch/worktree from B | Protocol: clean C, independent UX/QA, required distinct evidence-only E, true two-parent M, clean-M gates, external-ledger append | PR URL, B/C/E/M, protected-object equality, exact target ref, successor pin |
 
 ## Definition of Done
 
@@ -150,3 +184,9 @@ retain the Phase 0 UI. A provider-behavior flag is allowed only when both values
 
 Phase 2 consumes only the accepted provider/selectors/primitives and exact Figma mappings. It must not
 re-introduce module-local cross-module truth.
+
+### Structured acceptance hand-off
+
+```json
+{"schemaVersion":1,"phase":1,"nextPhase":2,"status":"pending","evidence":[],"reviewers":{"ux":"pending","qa":"pending"}}
+```

@@ -3,11 +3,13 @@
 from __future__ import annotations
 
 import json
+import os
 import random
 import sys
 import tempfile
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 REPO = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(REPO / "scripts"))
@@ -65,10 +67,17 @@ class BundleBudgetTests(unittest.TestCase):
     def test_pending_phase_one_activates_the_hard_gate(self) -> None:
         ledger = self.dist / "ledger.json"
         ledger.write_text(
-            json.dumps({"phases": [{"phase": 0, "status": "accepted"}, {"phase": 1, "status": "merged-awaiting-clean-sha-independent-acceptance"}]}),
+            json.dumps({"candidatePhase": 1, "phases": [{"phase": 0, "status": "accepted"}]}),
             encoding="utf-8",
         )
-        self.assertEqual(bundle.active_phase(ledger), 1)
+        with patch.dict(os.environ, {}, clear=True):
+            self.assertEqual(bundle.active_phase(ledger), 1)
+
+    def test_explicit_phase_cannot_disagree_with_tracked_candidate(self) -> None:
+        ledger = self.dist / "ledger.json"
+        ledger.write_text(json.dumps({"candidatePhase": 0, "phases": []}), encoding="utf-8")
+        with self.assertRaisesRegex(ValueError, "candidate phase mismatch"):
+            bundle.active_phase(ledger, explicit=1)
 
 
 if __name__ == "__main__":

@@ -18,6 +18,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import re
 import subprocess
 import sys
@@ -107,6 +108,24 @@ def accepted_predecessor(
     return commit, phase
 
 
+def candidate_phase(
+    explicit: int | None = None, ledger_path: Path = LEDGER
+) -> int:
+    """Resolve the candidate phase without inheriting a predecessor's deadline waivers."""
+
+    ledger = json.loads(ledger_path.read_text(encoding="utf-8"))
+    declared = ledger.get("candidatePhase") if isinstance(ledger, dict) else None
+    if not isinstance(declared, int) or declared < 0:
+        raise ValueError("tracked ledger must declare a non-negative candidatePhase")
+    env_value = os.environ.get("MAXION_PROGRAM_PHASE")
+    selected = explicit if explicit is not None else int(env_value) if env_value is not None else declared
+    if selected != declared:
+        raise ValueError(
+            f"candidate phase mismatch: selected {selected}, tracked ledger declares {declared}"
+        )
+    return selected
+
+
 def load_baseline_at_commit(commit: str, root: Path = ROOT) -> dict[str, int]:
     raw = _git(root, "show", f"{commit}:scripts/ux_tokens_baseline.json")
     data = json.loads(raw)
@@ -167,6 +186,7 @@ def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--update-baseline", action="store_true")
     parser.add_argument("--list", action="store_true")
+    parser.add_argument("--phase", type=int)
     args = parser.parse_args(argv)
 
     if not PORTAL_SRC.exists():
@@ -179,7 +199,8 @@ def main(argv: list[str] | None = None) -> int:
             for ln, lit in hits:
                 print(f"{file}:{ln}: {lit}")
     try:
-        predecessor_commit, accepted_phase = accepted_predecessor()
+        predecessor_commit, _ = accepted_predecessor()
+        active_candidate_phase = candidate_phase(args.phase)
         predecessor = load_baseline_at_commit(predecessor_commit)
     except (KeyError, OSError, ValueError, json.JSONDecodeError) as exc:
         print(f"UX token gate: predecessor baseline unavailable: {exc}", file=sys.stderr)
@@ -187,7 +208,7 @@ def main(argv: list[str] | None = None) -> int:
 
     if args.update_baseline:
         next_baseline = {key: len(hits) for key, hits in found.items()}
-        findings = validate_ratchet(found, next_baseline, predecessor, accepted_phase)
+        findings = validate_ratchet(found, next_baseline, predecessor, active_candidate_phase)
         if findings:
             print(f"UX token gate: refusing baseline update ({len(findings)} finding(s))")
             for finding in findings:
@@ -197,7 +218,7 @@ def main(argv: list[str] | None = None) -> int:
         print(f"baseline written: {len(found)} file(s), {sum(len(v) for v in found.values())} literal(s)")
         return 0
 
-    findings = validate_ratchet(found, load_baseline(), predecessor, accepted_phase)
+    findings = validate_ratchet(found, load_baseline(), predecessor, active_candidate_phase)
     if findings:
         print(f"UX token gate: {len(findings)} finding(s)")
         for f in findings:

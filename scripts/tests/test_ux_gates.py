@@ -4,9 +4,11 @@ from __future__ import annotations
 
 import re
 import json
+import subprocess
 import sys
 import tempfile
 import unittest
+from unittest import mock
 from pathlib import Path
 
 REPO = Path(__file__).resolve().parents[2]
@@ -125,19 +127,71 @@ class ReferenceSheetGateTests(unittest.TestCase):
         path.write_text(text, encoding="utf-8")
 
         findings = sheet_gate.check_sheet(path)
-        self.assertTrue(any("artifact not found" in finding for finding in findings), findings)
+        self.assertTrue(any("safe phase-scoped" in finding for finding in findings), findings)
         self.assertTrue(any("three distinct" in finding for finding in findings), findings)
 
         previous_root = sheet_gate.ROOT
         try:
             sheet_gate.ROOT = self.tmp
-            artifact = self.tmp / "artifacts" / "ux-audits" / "x.md"
-            artifact.parent.mkdir(parents=True)
-            artifact.write_text("report", encoding="utf-8")
-            path.write_text(text.replace("- **Verifier:** alice", "- **Verifier:** bob"), encoding="utf-8")
+            subprocess.run(["git", "-C", str(self.tmp), "init", "-q"], check=True)
+            subprocess.run(["git", "-C", str(self.tmp), "config", "user.email", "test@example.com"], check=True)
+            subprocess.run(["git", "-C", str(self.tmp), "config", "user.name", "Test"], check=True)
+            path.write_text(EXAMPLE.read_text(encoding="utf-8"), encoding="utf-8")
+            manifest = self.tmp / "docs/operations/figma-code-map.json"
+            manifest.parent.mkdir(parents=True, exist_ok=True)
+            manifest.write_text(json.dumps({
+                "surfaces": [{
+                    "surfaceId": "agentix-run-canvas",
+                    "referenceSheet": "agentix-run-canvas.md",
+                    "acceptancePhase": 0,
+                }]
+            }), encoding="utf-8")
+            subprocess.run(["git", "-C", str(self.tmp), "add", "."], check=True)
+            subprocess.run(["git", "-C", str(self.tmp), "commit", "-qm", "candidate"], check=True)
+            candidate = subprocess.run(
+                ["git", "-C", str(self.tmp), "rev-parse", "HEAD"],
+                check=True, capture_output=True, text=True,
+            ).stdout.strip()
+            gated = text.replace("- **Verifier:** alice", "- **Verifier:** bob")
+            evidence_section = sheet_gate._section(sheet_gate._sections(gated), "## 7. Evidence") or ""
+            for index, row in enumerate(sheet_gate._table_rows(evidence_section)):
+                check = row[0]
+                artifact_path = f"artifacts/ux-audits/phase-0/check-{index}.json"
+                gated = gated.replace("artifacts/ux-audits/x.md", artifact_path, 1)
+                artifact = self.tmp / artifact_path
+                artifact.parent.mkdir(parents=True, exist_ok=True)
+                artifact.write_text(json.dumps({
+                    "schemaVersion": 1,
+                    "kind": "ux-sheet-evidence",
+                    "phase": 0,
+                    "sheetId": "agentix-run-canvas",
+                    "check": check,
+                    "candidateSha": candidate,
+                    "verdict": "PASS",
+                }), encoding="utf-8")
+            path.write_text(gated, encoding="utf-8")
+            subprocess.run(["git", "-C", str(self.tmp), "add", "."], check=True)
+            subprocess.run(["git", "-C", str(self.tmp), "commit", "-qm", "evidence"], check=True)
             self.assertEqual(sheet_gate.check_sheet(path), [])
+            extra = self.tmp / "after-evidence.txt"
+            extra.write_text("later commit\n", encoding="utf-8")
+            subprocess.run(["git", "-C", str(self.tmp), "add", "."], check=True)
+            subprocess.run(["git", "-C", str(self.tmp), "commit", "-qm", "later"], check=True)
+            findings = sheet_gate.check_sheet(path)
+            self.assertTrue(any("single direct E child" in finding for finding in findings), findings)
         finally:
             sheet_gate.ROOT = previous_root
+
+    def test_absolute_external_or_reused_gated_evidence_is_rejected(self) -> None:
+        text = EXAMPLE.read_text(encoding="utf-8").replace("- **Status:** contract", "- **Status:** gated")
+        text = substitute(text, r"\| pending\s+\| pending\s+\|", "| /etc/passwd | PASS |", count=7)
+        text = text.replace("- **Builder:** Codex session 2026-09-13 — pending", "- **Builder:** alice — 2026-09-13")
+        text = text.replace("- **Verifier:** unassigned — pending", "- **Verifier:** bob — 2026-09-13")
+        text = text.replace("- **QA:** unassigned — pending", "- **QA:** carol — 2026-09-13")
+        path = self.tmp / "sheet.md"
+        path.write_text(text, encoding="utf-8")
+        findings = sheet_gate.check_sheet(path)
+        self.assertTrue(any("safe phase-scoped" in finding for finding in findings), findings)
 
     def test_status_must_be_known(self) -> None:
         path = self.mutated(r"^- \*\*Status:\*\* contract$", "- **Status:** done")
@@ -247,6 +301,23 @@ class ContractCoverageGateTests(unittest.TestCase):
         )
         self.assertTrue(any("interaction entryRoute is not registered" in finding for finding in findings), findings)
 
+    def test_surface_acceptance_phase_is_fixed(self) -> None:
+        findings = self.check_mutation(
+            lambda value: value["surfaces"][0].update(acceptancePhase=9)
+        )
+        self.assertTrue(any("acceptancePhase is missing or incorrect" in finding for finding in findings), findings)
+
+    def test_compatibility_alias_can_never_be_a_canonical_surface_url(self) -> None:
+        def mutate(value) -> None:
+            value["surfaces"][5]["addressing"] = {
+                "mode": "url",
+                "canonicalUrl": "/agentix-prototype",
+                "sourceMarker": 'path="/agentix-prototype"',
+            }
+
+        findings = self.check_mutation(mutate)
+        self.assertTrue(any("canonicalUrl cannot use a compatibility alias" in finding for finding in findings), findings)
+
     def test_interaction_address_must_bind_to_production_action_source(self) -> None:
         def mutate(value) -> None:
             value["surfaces"][1]["addressing"]["sourceMarker"] = {
@@ -257,10 +328,12 @@ class ContractCoverageGateTests(unittest.TestCase):
         findings = self.check_mutation(mutate)
         self.assertTrue(any("interaction action marker is missing" in finding for finding in findings), findings)
 
-    def test_interaction_and_alias_deadlines_are_enforced_at_accepted_phase(self) -> None:
-        findings = self.check_mutation(lambda value: None, accepted_phase=1)
+    def test_interaction_and_alias_deadlines_are_enforced_at_candidate_phase(self) -> None:
+        with mock.patch.object(coverage_gate, "_candidate_phase", return_value=1):
+            findings = self.check_mutation(lambda value: None)
         self.assertTrue(any("compatibility alias" in finding and "deadline" in finding for finding in findings), findings)
         self.assertTrue(any("interaction-only address missed" in finding for finding in findings), findings)
+        self.assertTrue(any("stale selector deadline requires zero in Phase 1" in finding for finding in findings), findings)
 
     def test_fictional_url_state_is_a_finding(self) -> None:
         def mutate(value) -> None:
@@ -342,7 +415,8 @@ class ContractCoverageGateTests(unittest.TestCase):
         self.assertTrue(any("complete semantic state binding is required" in finding for finding in findings), findings)
 
     def test_scheduled_state_binding_cannot_outlive_its_phase(self) -> None:
-        findings = self.check_mutation(lambda value: None, accepted_phase=2)
+        with mock.patch.object(coverage_gate, "_candidate_phase", return_value=2):
+            findings = self.check_mutation(lambda value: None)
         self.assertTrue(any("scheduled semantic state binding missed" in finding for finding in findings), findings)
 
     def test_implemented_state_binding_requires_real_fixture_test_and_evidence(self) -> None:

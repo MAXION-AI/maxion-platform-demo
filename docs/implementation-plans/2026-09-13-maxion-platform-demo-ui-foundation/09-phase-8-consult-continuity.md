@@ -53,7 +53,7 @@ answer, never a fabricated citation.
 | 8.4 | RC-12 and RC-15 via ADR-2 | `src/features/platform-prototype/consultState.ts#consultCommand`; `tests/e2e/maxion-platform-shell.spec.ts#consult.empty` | Task 8.3 accepted frame | `pnpm exec playwright test tests/e2e/maxion-platform-shell.spec.ts -g consult-state` |
 | 8.5 | RC-14 via ADR-5 | `tests/e2e/maxion-platform-shell.spec.ts#full-continuity`; `src/features/platform-prototype/contracts.ts#ObjectRef` | Task 8.4 all Consult states | `pnpm exec playwright test tests/e2e/maxion-platform-shell.spec.ts -g full-continuity` |
 | 8.6 | RC-15 and RC-18 via ADR-4 | `src/features/platform-prototype/consultState.spec.ts#isolation`; `tests/fixtures/consult-sources-10000.json#sources` | Task 8.5 end-to-end identity chain | `pnpm test -- consultState.spec.ts -t isolation` |
-| 8.7 | RC-15 and RC-16 via ADR-8 | `artifacts/ux-audits/phase-8/verification.md`; `docs/operations/program-phase-ledger.json#phases[8]` | Tasks 8.1 through 8.6 green at C | `python3 scripts/check_phase_acceptance.py --candidate "$C" --evidence "$E" --phase 8` |
+| 8.7 | RC-15 and RC-16 via ADR-8 | `artifacts/ux-audits/phase-8/verification.md`; `docs/operations/phase-acceptance-protocol.md#Evidence-only-closure` | Tasks 8.1 through 8.6 green at C | `python3 scripts/check_phase_acceptance.py --candidate "$C" --evidence "$E" --phase 8` |
 
 ## Contracts and observability
 
@@ -90,7 +90,7 @@ remains readable if its schema version is valid; invalid records recover without
 | Production | Extract `ConsultModule` from `MaxionPlatformPrototypePage.tsx`; create `src/features/platform-prototype/consult/{domain,index,selectors,components}/**`; delete shell-local Consult state/styles | Read-only grounded owner with explicit route intents |
 | Tests/fixtures | Consult unit/browser specs; conflict/stale/denied/injection-shaped/10,000-source fixtures; full continuity fixture | Exact nine state IDs and canonical five-module trace |
 | Evidence/commands | `artifacts/ux-audits/phase-8/**`; Consult sheet; standard program/test/build/E2E/audit/diff plus focused/cross-module specs | State/viewport/Figma/axe/timing evidence and independent reports |
-| PR lifecycle | Verify prior M as B; create isolated `phase-8/**` branch/worktree; commit C; push and open one PR; independent UX/QA audit clean C; optional evidence-only E; require program/build/audit/phase/E2E checks; merge; verify C ancestry in M; rerun clean-M gates; atomically update ledger | PR URL, B/C/E/M, source-tree equality, merge ancestry, post-merge results, successor pin |
+| PR lifecycle | Verify prior M as B; create isolated phase branch/worktree; commit clean C; independent UX/QA audit C; commit required distinct evidence-only E; merge only as a true B+E two-parent M; rerun clean-M gates; append under lock to the external authority | PR URL, B/C/E/M, protected-object equality, exact target ref, merge/PR identity, post-merge results, successor pin |
 
 ## Definition of Done
 
@@ -103,3 +103,9 @@ remains readable if its schema version is valid; invalid records recover without
 
 Phase 9 starts from the accepted Phase 8 SHA with shared project, authority, connection-health, approval,
 and usage concepts available to administrative screens without moving them into the product-module group.
+
+### Structured acceptance hand-off
+
+```json
+{"schemaVersion":1,"phase":8,"nextPhase":9,"status":"pending","evidence":[],"reviewers":{"ux":"pending","qa":"pending"}}
+```

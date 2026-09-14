@@ -56,7 +56,7 @@ degraded state with retry and manual continuation, never as a fabricated success
 | 3.4 | RC-07 and RC-15 via ADR-2 | `docs/operations/ux-reference-sheets/discover-workspace.md#5.1`; `tests/e2e/discovery-autonomous.spec.ts#discover.new` | Task 3.3 accepted composition | `pnpm exec playwright test tests/e2e/discovery-autonomous.spec.ts -g states` |
 | 3.5 | RC-07 and RC-14 via ADR-3 | `src/features/platform-prototype/contracts.ts#DiscoveryPackageRef`; `src/features/discovery-autonomous/discoveryState.ts#selectDiscoveryPackage` | Task 3.4 exact state coverage | `pnpm test -- discoveryHandoff.spec.ts` |
 | 3.6 | RC-15 and RC-18 via ADR-4 | `src/features/discovery-autonomous/discoveryState.spec.ts#break-it`; `tests/fixtures/discovery-10000.json#items` | Task 3.5 versioned package contract | `pnpm test -- discoveryState.spec.ts -t break-it` |
-| 3.7 | RC-15 and RC-16 via ADR-8 | `artifacts/ux-audits/phase-3/verification.md`; `docs/operations/program-phase-ledger.json#phases[3]` | Tasks 3.1 through 3.6 green at C | `python3 scripts/check_phase_acceptance.py --candidate "$C" --evidence "$E" --phase 3` |
+| 3.7 | RC-15 and RC-16 via ADR-8 | `artifacts/ux-audits/phase-3/verification.md`; `docs/operations/phase-acceptance-protocol.md#Evidence-only-closure` | Tasks 3.1 through 3.6 green at C | `python3 scripts/check_phase_acceptance.py --candidate "$C" --evidence "$E" --phase 3` |
 
 ## Contracts and observability
 
@@ -93,7 +93,7 @@ kernel. The migration must remain backward-readable until the next accepted rele
 | Production | Refactor `DiscoveryAutonomousPrototypePage.tsx`; create `src/features/discovery-autonomous/domain/**`; migrate/delete direct storage, timers, stale selectors/styles | One canonical Discover state/repository/view owner |
 | Tests/fixtures | Co-located domain/repository tests; existing Discovery Playwright specs; hostile/corrupt/offline and 10,000-entry fixtures | Exact nine state IDs, package handoff, reload/isolation, ≤200 rows |
 | Evidence/commands | `artifacts/ux-audits/phase-3/**`; Discover sheet; standard program/test/build/E2E/audit/diff commands plus focused Discovery specs | State/viewport/Figma/axe/timing evidence and independent reports |
-| PR lifecycle | Verify prior M as B; create isolated `phase-3/**` branch/worktree; commit C; push and open one PR; independent UX/QA audit clean C; optional evidence-only E; require program/build/audit/phase/E2E checks; merge; verify C ancestry in M; rerun clean-M gates; atomically update ledger | PR URL, B/C/E/M, source-tree equality, merge ancestry, post-merge results, successor pin |
+| PR lifecycle | Verify prior M as B; create isolated phase branch/worktree; commit clean C; independent UX/QA audit C; commit required distinct evidence-only E; merge only as a true B+E two-parent M; rerun clean-M gates; append under lock to the external authority | PR URL, B/C/E/M, protected-object equality, exact target ref, merge/PR identity, post-merge results, successor pin |
 
 ## Definition of Done
 
@@ -106,3 +106,9 @@ kernel. The migration must remain backward-readable until the next accepted rele
 
 Phase 4 starts from the accepted Phase 3 SHA and consumes only the versioned discovery package, never
 Discover component internals or visual completion state.
+
+### Structured acceptance hand-off
+
+```json
+{"schemaVersion":1,"phase":3,"nextPhase":4,"status":"pending","evidence":[],"reviewers":{"ux":"pending","qa":"pending"}}
+```
