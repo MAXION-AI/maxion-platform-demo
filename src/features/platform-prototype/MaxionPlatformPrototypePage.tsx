@@ -486,6 +486,8 @@ type ShellCommandItem = {
 	run: () => void
 }
 
+type CommandCloseReason = "dismiss" | "action"
+
 const COMMAND_FOCUSABLE_SELECTOR = "button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex='-1'])"
 
 type ShellCommandContext = {
@@ -563,7 +565,7 @@ function rankShellCommandItem(item: ShellCommandItem, query: string) {
 	return 4
 }
 
-function CommandMenu({ context, onClose, onAfterClose }: { context: ShellCommandContext; onClose: () => void; onAfterClose: () => void }) {
+function CommandMenu({ context, onClose, onAfterClose }: { context: ShellCommandContext; onClose: (reason: CommandCloseReason) => void; onAfterClose: () => void }) {
 	const [query, setQuery] = useState("")
 	const [active, setActive] = useState(0)
 	const dialogRef = useRef<HTMLElement>(null)
@@ -608,13 +610,18 @@ function CommandMenu({ context, onClose, onAfterClose }: { context: ShellCommand
 			onAfterClose()
 		}
 	}, [onAfterClose])
-	const run = (item: ShellCommandItem) => { item.run(); onClose() }
+	const run = (item: ShellCommandItem) => {
+		// Mark the close before a command mutates navigation state. Some commands close
+		// the menu as part of navigation, and cleanup must already know this is an action.
+		onClose("action")
+		item.run()
+	}
 	return (
 		<div
 			className="mxp-command-layer"
-			onMouseDown={(event) => { if (event.currentTarget === event.target) { event.preventDefault(); onClose() } }}
+			onMouseDown={(event) => { if (event.currentTarget === event.target) { event.preventDefault(); onClose("dismiss") } }}
 			onKeyDown={(event) => {
-				if (event.key === "Escape") { event.preventDefault(); event.stopPropagation(); onClose(); return }
+				if (event.key === "Escape") { event.preventDefault(); event.stopPropagation(); onClose("dismiss"); return }
 				if (event.key !== "Tab") return
 				const dialog = dialogRef.current
 				if (!dialog) return
@@ -702,6 +709,7 @@ export function MaxionPlatformPrototypePage() {
 	const commandOpenRef = useRef(commandOpen)
 	const commandOpenerRef = useRef<HTMLElement | null>(null)
 	const restoreCommandFocusRef = useRef(false)
+	const commandCloseReasonRef = useRef<CommandCloseReason>("dismiss")
 	commandOpenRef.current = commandOpen
 
 	const openCommand = useCallback(() => {
@@ -710,23 +718,31 @@ export function MaxionPlatformPrototypePage() {
 			commandOpenerRef.current = activeElement === document.body || activeElement === document.documentElement ? null : activeElement
 		}
 		restoreCommandFocusRef.current = true
+		commandCloseReasonRef.current = "dismiss"
 		setMobileNavOpen(false)
 		setCommandOpen(true)
 	}, [])
 	const restoreCommandFocus = useCallback(() => {
 		window.requestAnimationFrame(() => {
 			if (commandOpenRef.current || !restoreCommandFocusRef.current) return
-			const opener = commandOpenerRef.current
 			const canReceiveFocus = (element: HTMLElement | null): element is HTMLElement => {
 				if (!element || !document.contains(element) || element.closest("[hidden], [inert]")) return false
 				const style = window.getComputedStyle(element)
 				return style.display !== "none" && style.visibility !== "hidden" && element.getClientRects().length > 0
 			}
-			if (canReceiveFocus(opener)) opener.focus()
-			else {
+			const activeElement = document.activeElement instanceof HTMLElement ? document.activeElement : null
+			// Commands may establish a more useful destination focus (for example, a new
+			// Discovery brief). Never overwrite that intentional hand-off.
+			const actionEstablishedFocus = commandCloseReasonRef.current === "action"
+				&& canReceiveFocus(activeElement)
+				&& !activeElement.closest(".mxp-command-layer")
+			if (!actionEstablishedFocus) {
 				const currentDestination = document.querySelector<HTMLElement>('.mxp-portal-sidebar button[aria-current="page"]')
 				const mobileTrigger = document.querySelector<HTMLElement>(".mxp-mobile-nav-trigger")
-				const fallback = canReceiveFocus(currentDestination)
+				const opener = commandOpenerRef.current
+				const fallback = commandCloseReasonRef.current === "dismiss" && canReceiveFocus(opener)
+					? opener
+					: canReceiveFocus(currentDestination)
 					? currentDestination
 					: canReceiveFocus(mobileTrigger)
 						? mobileTrigger
@@ -735,9 +751,13 @@ export function MaxionPlatformPrototypePage() {
 			}
 			commandOpenerRef.current = null
 			restoreCommandFocusRef.current = false
+			commandCloseReasonRef.current = "dismiss"
 		})
 	}, [])
-	const closeCommand = useCallback(() => setCommandOpen(false), [])
+	const closeCommand = useCallback((reason: CommandCloseReason = "dismiss") => {
+		commandCloseReasonRef.current = reason
+		setCommandOpen(false)
+	}, [])
 
 	useEffect(() => {
 		const onKeyDown = (event: KeyboardEvent) => {
@@ -774,7 +794,7 @@ export function MaxionPlatformPrototypePage() {
 		}
 	}, [closeCommand, openCommand])
 
-	const navigate = (module: MaxionModuleId) => {
+	const navigate = (module: MaxionModuleId, focusDestination = false) => {
 		// Execute is a focused, long-running workspace. Keep MAXION navigation one
 		// action away without taking meaningful width away from the work surface — and
 		// hand the sidebar back exactly as it was when the viewer leaves again.
@@ -787,6 +807,13 @@ export function MaxionPlatformPrototypePage() {
 		setActiveModule(module)
 		setCommandOpen(false)
 		setMobileNavOpen(false)
+		if (focusDestination) {
+			window.requestAnimationFrame(() => {
+				window.requestAnimationFrame(() => {
+					document.querySelector<HTMLElement>('.mxp-portal-sidebar button[aria-current="page"]')?.focus()
+				})
+			})
+		}
 	}
 	const startDiscoverySetup = () => {
 		setOperationalDiscovery(null)
@@ -807,7 +834,7 @@ export function MaxionPlatformPrototypePage() {
 		active: activeModule,
 		agentix: agentixAttention,
 		discoveries: commandOpen ? listDiscoveryJumpRecords() : [],
-		navigate,
+		navigate: (module) => navigate(module, true),
 		startDiscovery: startDiscoverySetup,
 		openPlanArtifact,
 		openExecuteWorkspace,
