@@ -182,6 +182,7 @@ export function PortalSidebar({
 					type="button"
 					className={`mxp-portal-nav-item is-${tier}${isAdministration ? " is-compact" : ""}${isActive ? " is-active" : ""}`}
 					data-navigation-tier={tier}
+					data-navigation-id={item.id}
 					aria-current={isActive ? "page" : undefined}
 					title={collapsed ? item.label : undefined}
 					onClick={() => navigate(item.id)}>
