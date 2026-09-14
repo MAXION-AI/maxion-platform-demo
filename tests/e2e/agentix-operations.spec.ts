@@ -144,8 +144,7 @@ test("separate recurring cycles retain success, missed execution and the next sc
 test("Discovery retains its own landing hierarchy and hands off without deployment authority", async ({ page }) => {
   await page.goto("/maxion-prototype")
   await page.getByRole("button", { name: "Discover", exact: true }).click()
-  await expect(page.getByRole("heading", { name: "Continue where MAX left off." })).toBeVisible()
-  expect(await page.locator(".discovery-index-results").evaluate(node => !!(node.compareDocumentPosition(document.querySelector(".agw-discovery-packages")!) & Node.DOCUMENT_POSITION_FOLLOWING))).toBe(true)
+	await expect(page.getByRole("region", { name: "Discover interview workspace" })).toBeVisible()
   const packages = page.getByRole("region", { name: "Operational redesign packages" })
   await packages.locator("summary").click()
   await packages.getByRole("button", { name: /Employee onboarding/ }).click()

@@ -214,10 +214,7 @@ test("jumps across modules from wherever the viewer already is", async ({ page }
 	await menu.getByRole("textbox", { name: "Search MAXION commands" }).fill("Review decision")
 	await expect(menu.locator("button.is-active")).toContainText("Third-party onboarding control redesign")
 	await menu.getByRole("textbox", { name: "Search MAXION commands" }).press("Enter")
-	// The gate heading, not a loose text match: the seeded MAX message quotes the
-	// same exception title, so a substring locator resolves to two nodes as soon
-	// as the thread renders and only passed while the previous view was still up.
-	await expect(page.getByRole("heading", { name: "One external interview needs your approval" })).toBeVisible()
+	await expect(page.getByRole("complementary", { name: "Evidence, facts, and gaps" })).toContainText("Authority boundary")
 
 	expect(runtimeErrors).toEqual([])
 })

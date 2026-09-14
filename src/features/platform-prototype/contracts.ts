@@ -25,6 +25,21 @@ type PlatformProgress = {
 	status: "idle" | "working" | "waiting" | "verified"
 }
 
+export type DiscoveryPackageEvidenceClass = "connected-source" | "operator-statement" | "synthetic-demo"
+
+export type DiscoveryPackageRef = {
+	version: 1
+	id: string
+	projectId: string
+	projectName: string
+	discoveryId: string
+	createdAt: string
+	provenance: Array<{ evidenceId: string; source: string; locator: string }>
+	unresolvedGapIds: string[]
+	authority: { level: "project-owner" | "member"; boundedTo: "planning-input" }
+	evidenceClasses: DiscoveryPackageEvidenceClass[]
+}
+
 export type AgentixAttention = { count: number; audience: boolean; approval: boolean }
 export type AgentixIntent =
 	| { type: "workflow"; id: WorkflowId }
@@ -56,7 +71,7 @@ export type PlatformState = {
 	}
 	projects: ProjectWorkspaceState
 	handoffs: {
-		discovery: { ready: boolean; evidence: PlatformEvidence[]; decisions: PlatformDecision[]; progress: PlatformProgress }
+		discovery: { ready: boolean; packageRef: DiscoveryPackageRef | null; evidence: PlatformEvidence[]; decisions: PlatformDecision[]; progress: PlatformProgress }
 		plan: { sent: boolean; snapshot: string }
 		execute: { verified: boolean; environment: PlatformEnvironment }
 	}
@@ -86,6 +101,7 @@ export type PlatformEvent =
 	| { type: "projects/action-denied"; projectId: string; action: string }
 	| { type: "projects/notice-cleared" }
 	| { type: "discovery/ready" }
+	| { type: "discovery/package-ready"; packageRef: DiscoveryPackageRef }
 	| { type: "discovery/setup-started" }
 	| { type: "discovery/record-opened"; recordId: string; jump: DiscoveryOpenSignal["jump"] }
 	| { type: "discovery/operational-opened"; workflowId: WorkflowId }

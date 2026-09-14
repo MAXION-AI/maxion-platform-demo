@@ -240,12 +240,10 @@ test("keeps the canonical MAXION shell functional across core modules", async ({
 	await expect(page.getByRole("region", { name: "Projects", exact: true })).toBeVisible()
 
 	await navigation.getByRole("button", { name: "Discover" }).click()
-	await expect(page.getByRole("heading", { name: "Continue where MAX left off." })).toBeVisible()
+	await expect(page.getByRole("region", { name: "Discover interview workspace" })).toBeVisible()
 	await page.getByRole("button", { name: "New Discovery" }).click()
 	const discoveryBrief = page.getByRole("textbox", { name: "Discovery brief" })
-	await discoveryBrief.click()
-	expect(await discoveryBrief.evaluate((element) => getComputedStyle(element).outlineStyle)).toBe("none")
-	await expect(page.locator(".brief-editor")).toHaveClass(/is-pointer-focused/)
+	await expect(discoveryBrief).toBeFocused()
 
 	await navigation.getByRole("button", { name: "Plan" }).click()
 	await expect(page.getByRole("heading", { name: "From evidence to implementation-ready" })).toBeVisible()

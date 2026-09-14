@@ -24,7 +24,7 @@ import { useEffect, useRef, useState, type CSSProperties } from "react"
 
 import { MaxionSpiralMark } from "./PortalChrome"
 import { PlanLibraryModule } from "./PortalReplicaModules"
-import type { PlanJumpSignal } from "./contracts"
+import type { DiscoveryPackageRef, PlanJumpSignal } from "./contracts"
 import { type MaxionModuleId, type PortalProject } from "./model"
 import "./plan-behavior-flow.css"
 
@@ -925,16 +925,18 @@ function PlanCommandPalette({ readyForExecute, runMode = false, onRun, onClose }
 
 export function PlanModule({
 	projects,
+	discoveryPackage = null,
 	onSendToExecute,
 	onNavigate,
 	jumpSignal = null,
 }: {
 	projects: PortalProject[]
+	discoveryPackage?: DiscoveryPackageRef | null
 	onSendToExecute: (snapshot: string) => void
 	onNavigate: (module: MaxionModuleId) => void
 	jumpSignal?: PlanJumpSignal | null
 }) {
-	const [workspace, setWorkspace] = useState<"closed" | "live" | "resume">("closed")
+	const [workspace, setWorkspace] = useState<"closed" | "live" | "resume">(discoveryPackage ? "resume" : "closed")
 	// A shell jump opens the plan of record if the library is showing, then hands the
 	// artifact to the workspace. The pending jump is cleared once consumed, so re-opening
 	// the plan later never replays it.
@@ -949,10 +951,10 @@ export function PlanModule({
 	if (workspace === "closed") {
 		return <PlanLibraryModule projects={projects} onOpenPlan={() => setWorkspace("resume")} onStartPlan={() => setWorkspace("live")} onNavigate={onNavigate} />
 	}
-	return <PlanWorkspaceModule key={workspace} live={workspace === "live"} onBack={() => setWorkspace("closed")} onSendToExecute={onSendToExecute} jump={pendingJump} onJumpConsumed={() => setPendingJump(null)} />
+	return <PlanWorkspaceModule key={workspace} live={workspace === "live"} discoveryPackage={discoveryPackage} onBack={() => setWorkspace("closed")} onSendToExecute={onSendToExecute} jump={pendingJump} onJumpConsumed={() => setPendingJump(null)} />
 }
 
-function PlanWorkspaceModule({ live, onBack, onSendToExecute, jump = null, onJumpConsumed }: { live: boolean; onBack: () => void; onSendToExecute: (snapshot: string) => void; jump?: PlanJumpSignal | null; onJumpConsumed?: () => void }) {
+function PlanWorkspaceModule({ live, discoveryPackage = null, onBack, onSendToExecute, jump = null, onJumpConsumed }: { live: boolean; discoveryPackage?: DiscoveryPackageRef | null; onBack: () => void; onSendToExecute: (snapshot: string) => void; jump?: PlanJumpSignal | null; onJumpConsumed?: () => void }) {
 	const [view, setView] = useState<PlanView>("plan")
 	const [stage, setStage] = useState(live ? 0 : PLAN_RUN_STAGES.length)
 	const [approved, setApproved] = useState(false)
@@ -1176,7 +1178,7 @@ function PlanWorkspaceModule({ live, onBack, onSendToExecute, jump = null, onJum
 		<div className="apn-shell" ref={shellRef}>
 			<section className="apn-workspace">
 				<header className="apn-topbar">
-					<div><button type="button" className="apn-back" onClick={onBack}><ArrowLeft size={15} /><span>All plans</span></button><button type="button" className="apn-mobile-back" onClick={onBack}><ArrowLeft size={14} />Plans</button><div className="apn-topbar-title"><span>ERP modernization delivery plan</span><button type="button" className="apn-snapshot" onClick={() => { if (complete) openLedger("history") }}>Verified Discovery · snapshot {snapshot}</button></div></div>
+					<div><button type="button" className="apn-back" onClick={onBack}><ArrowLeft size={15} /><span>All plans</span></button><button type="button" className="apn-mobile-back" onClick={onBack}><ArrowLeft size={14} />Plans</button><div className="apn-topbar-title"><span>{discoveryPackage?.projectName ?? "ERP modernization"} delivery plan</span><button type="button" className="apn-snapshot" onClick={() => { if (complete) openLedger("history") }}>{discoveryPackage ? `Discovery package v${discoveryPackage.version} · ${discoveryPackage.provenance.length} sources` : `Verified Discovery · snapshot ${snapshot}`}</button></div></div>
 					<div>
 						<button type="button" className="apn-search-btn" aria-label="Search plan" title={complete ? "Search the plan · ⌘K" : "Pass commands · ⌘K"} onClick={() => setPaletteOpen(true)}><MagnifyingGlass size={15} /></button>
 						<span className={`apn-autonomy${!complete ? " is-working" : ""}`}><i />{complete ? "MAX maintaining this plan" : `MAX working · ${PLAN_RUN_STAGES[stage].live.toLowerCase()}`}</span>
