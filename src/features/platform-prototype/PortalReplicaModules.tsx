@@ -204,7 +204,7 @@ export function DashboardModule({
 
 	return (
 		<div className="mxp-portal-page mxp-dashboard-page">
-			<motion.div initial={prefersReducedMotion ? false : { opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: prefersReducedMotion ? 0 : 0.32 }}>
+			<motion.div initial={prefersReducedMotion ? false : { y: 10 }} animate={{ y: 0 }} transition={{ duration: prefersReducedMotion ? 0 : 0.32 }}>
 				<section className="mxp-dashboard-welcome">
 					<p>{dateLabel}</p>
 					<h1>Good afternoon, Root Admin</h1>

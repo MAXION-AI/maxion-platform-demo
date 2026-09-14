@@ -688,7 +688,9 @@
 .mxp-spin { animation: mxp-spin 900ms linear infinite; }
 @keyframes mxp-spin { to { transform: rotate(360deg); } }
 @keyframes mxp-pulse { 50% { opacity: 0.3; transform: scale(0.72); } }
-@keyframes mxp-stage-enter { from { opacity: 0; transform: translateY(3px); } to { opacity: 1; transform: translateY(0); } }
+/* Never animate an ancestor's opacity: doing so temporarily blends every text colour with the
+   canvas and can push otherwise conforming controls below WCAG contrast during the first frame. */
+@keyframes mxp-stage-enter { from { transform: translateY(3px); } to { transform: translateY(0); } }
 @keyframes mxp-stage-scrim { from { opacity: 0.9; } to { opacity: 0; } }
 
 @media (max-width: 980px) {
