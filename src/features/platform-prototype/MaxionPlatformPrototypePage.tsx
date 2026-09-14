@@ -25,6 +25,7 @@ import {
 } from "@/features/discovery-autonomous/DiscoverWorkspace"
 
 import { PLAN_JUMP_ENTRIES, PlanModule } from "./PlanAgenticModule"
+import type { AdministrationModuleProps } from "./AdministrationModules"
 import { ConsultModule } from "./ConsultModule"
 import type { RouteProposal } from "./consultState"
 import { DashboardModule } from "./DashboardModule"
@@ -32,10 +33,6 @@ import { ExecuteDeliveryWorkspace } from "./ExecuteDeliveryWorkspace"
 import { ADMINISTRATION_NAVIGATION, MaxionSpiralMark, PortalSidebar, PRODUCT_NAVIGATION } from "./PortalChrome"
 import { PlatformDemoProvider, usePlatformDispatch, usePlatformSelector } from "./PlatformDemoProvider"
 import { ModuleErrorBoundary } from "./ModuleErrorBoundary"
-import {
-	AccountUtilityModule,
-	IntegrationsModule,
-} from "./PortalReplicaModules"
 import { ProjectsModule } from "./ProjectsModule"
 import type { AgentixAttention, AgentixIntent, MaxionModuleId, PlanArtifactRef, PortalProject } from "./contracts"
 import type { AgentixModuleProps } from "./modules/AgentixModule"
@@ -61,6 +58,7 @@ import "./execute-agentic.css"
 import "./platform-design-contract.css"
 
 const loadAgentixModule = () => import("./modules/AgentixModule")
+const loadAdministrationModule = () => import("./AdministrationModules")
 const loadDiscoveryModule = () => import("./modules/DiscoveryModule")
 
 
@@ -546,8 +544,7 @@ function MaxionPlatformPrototype() {
 				{visitedModules.has("execute") ? <div className={stageClass("execute", "mxp-stage-view--execute")} hidden={activeModule !== "execute"}><ModuleErrorBoundary moduleName="Execute" resetKey={activeModule} onReturnToDashboard={() => navigate("dashboard")}><ExecuteModule onNavigate={navigate} onCommand={openCommand} planArtifact={planArtifactRef} projectRole={projects.find((project) => project.id === planArtifactRef?.projectId)?.role} onVerified={() => dispatch({ type: "execute/verified" })} /></ModuleErrorBoundary></div> : null}
 				{visitedModules.has("agentix") ? <div className={stageClass("agentix")} hidden={activeModule !== "agentix"}><DeferredModule<AgentixModuleProps> load={loadAgentixModule} moduleName="Agentix" onReturnToDashboard={() => navigate("dashboard")} moduleProps={{ active: activeModule === "agentix", intentSignal: agentixIntent, onAttentionChange: setAgentixAttention, onOpenDiscovery: openOperationalDiscovery }} /></div> : null}
 				{visitedModules.has("consult") ? <div className={stageClass("consult")} hidden={activeModule !== "consult"}><ModuleErrorBoundary moduleName="Consult Max" resetKey={activeModule} onReturnToDashboard={() => navigate("dashboard")}><ConsultModule key={selectedProject?.id ?? "no-project"} context={{ tenantId: "maxion-demo", project: selectedProject, discoveryPackage, planArtifact: planArtifactRef, executeVerified, agentix: agentixAttention, agentixProjectId }} onCommand={openCommand} onRoute={openConsultTarget} /></ModuleErrorBoundary></div> : null}
-				{visitedModules.has("integrations") ? <div className={stageClass("integrations")} hidden={activeModule !== "integrations"}><ModuleErrorBoundary moduleName="Integrations" resetKey={activeModule} onReturnToDashboard={() => navigate("dashboard")}><IntegrationsModule /></ModuleErrorBoundary></div> : null}
-				{(["settings", "approvals", "usage", "help"] as const).map((module) => visitedModules.has(module) ? <div key={module} className={stageClass(module)} hidden={activeModule !== module}><ModuleErrorBoundary moduleName={module[0].toUpperCase() + module.slice(1)} resetKey={activeModule} onReturnToDashboard={() => navigate("dashboard")}><AccountUtilityModule module={module} onNavigate={navigate} approvalOpen={agentixAttention.approval} onOpenApproval={() => openAgentix({ type: "decision", id: "approval" })} /></ModuleErrorBoundary></div> : null)}
+				{(["settings", "integrations", "approvals", "usage", "help"] as const).map((module) => visitedModules.has(module) ? <div key={module} className={stageClass(module)} hidden={activeModule !== module}><DeferredModule<AdministrationModuleProps> load={loadAdministrationModule} moduleName={module[0].toUpperCase() + module.slice(1)} onReturnToDashboard={() => navigate("dashboard")} moduleProps={{ module, project: selectedProject, onNavigate: navigate, onAttentionChange: setAgentixAttention, onOpenApproval: () => openAgentix({ type: "decision", id: "approval" }) }} /></div> : null)}
 			</div>
 			{commandOpen ? <CommandMenu context={commandContext} onClose={closeCommand} onAfterClose={restoreCommandFocus} /> : null}
 		</div>
