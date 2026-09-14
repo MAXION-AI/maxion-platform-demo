@@ -21,7 +21,7 @@ describe("MaxionPlatformPrototypePage", () => {
 	it("opens on the canonical MAXION dashboard and exposes the complete platform shell", () => {
 		renderPrototype()
 
-		expect(screen.getByRole("heading", { name: "Good afternoon, Root Admin" })).toBeInTheDocument()
+		expect(screen.getByRole("heading", { name: "Work that moved. Decisions that wait." })).toBeInTheDocument()
 		expect(screen.getByRole("complementary", { name: "Main navigation" })).toBeInTheDocument()
 		expect(screen.getByRole("img", { name: "MAXION" })).toHaveAttribute("src", "/maxion-logo-lockup-white.svg")
 		const productDestinations = within(screen.getByRole("list", { name: "Product destinations" }))
@@ -37,10 +37,10 @@ describe("MaxionPlatformPrototypePage", () => {
 		expect(screen.getByRole("button", { name: "Expand navigation" })).toHaveAttribute("aria-pressed", "true")
 		expect(screen.getByRole("complementary", { name: "Main navigation" })).toHaveClass("is-collapsed")
 		fireEvent.click(screen.getByRole("button", { name: "Expand navigation" }))
-		const primaryActions = within(screen.getByRole("group", { name: "Primary workspace actions" }))
-		expect(primaryActions.getAllByRole("button")).toHaveLength(3)
-		expect(primaryActions.getByRole("button", { name: /Review .* waiting items/ })).toHaveClass("mxp-primary")
-		expect(primaryActions.getByRole("button", { name: "Start Discovery" })).toBeInTheDocument()
+		expect(screen.getByRole("button", { name: "Search or ask" })).toBeInTheDocument()
+		expect(screen.getByRole("button", { name: "Open Agentix" })).toBeInTheDocument()
+		expect(document.querySelectorAll(".mxp-needs-you article button")).toHaveLength(3)
+		expect(screen.queryByText("Quick navigation", { exact: true })).not.toBeInTheDocument()
 	})
 
 	it("contains mobile navigation focus, closes on Escape, and restores the opener", async () => {

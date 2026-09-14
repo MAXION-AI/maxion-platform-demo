@@ -106,7 +106,7 @@
 }
 
 .prototype button {
-	transition: color 120ms ease, background-color 120ms ease, border-color 120ms ease, transform 100ms ease;
+	transition: border-color 120ms ease, transform 100ms ease;
 }
 
 .prototype button:focus-visible,

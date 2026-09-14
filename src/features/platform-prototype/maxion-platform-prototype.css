@@ -43,7 +43,13 @@
 
 .mxp-root button { color: inherit; }
 
+.mxp-root :is(button, a[href], input, textarea, select, summary, [role="button"]) {
+	min-width: 24px;
+	min-height: 24px;
+}
+
 .mxp-root button:focus-visible,
+.mxp-root a[href]:focus-visible,
 .mxp-root textarea:focus-visible,
 .mxp-root input:focus-visible,
 .mxp-root summary:focus-visible {
@@ -51,63 +57,13 @@
 	outline-offset: 2px;
 }
 
-.mxp-platform-rail {
-	position: relative;
-	z-index: 40;
-	display: flex;
-	min-height: 0;
-	flex-direction: column;
-	align-items: center;
-	padding: 13px 9px 10px;
-	background: var(--mxp-black);
-	color: #d9d9d3;
+@media (max-width: 860px) {
+	.mxp-root :is(button, a[href], input, textarea, select, summary, [role="button"]) {
+		min-width: 44px;
+		min-height: 44px;
+	}
 }
 
-.mxp-brand-button,
-.mxp-platform-rail nav button,
-.mxp-platform-bottom button {
-	display: grid;
-	width: 42px;
-	height: 42px;
-	place-items: center;
-	border: 0;
-	border-radius: 9px;
-	background: transparent;
-	cursor: pointer;
-	transition: background 150ms ease, color 150ms ease, transform 150ms ease;
-}
-
-.mxp-brand-button { margin-bottom: 22px; }
-.mxp-brand-button:hover,
-.mxp-platform-rail nav button:hover,
-.mxp-platform-bottom button:hover { background: rgba(255, 255, 255, 0.09); color: #fff; }
-.mxp-platform-rail nav button:active,
-.mxp-platform-bottom button:active { transform: scale(0.95); }
-
-.mxp-platform-rail nav {
-	display: flex;
-	width: 100%;
-	flex: 1;
-	flex-direction: column;
-	align-items: center;
-	gap: 5px;
-}
-
-.mxp-platform-rail nav button { position: relative; color: #8f8e88; }
-.mxp-platform-rail nav button.is-active { background: #30302d; color: #fff; }
-.mxp-platform-rail nav button.is-active::before {
-	position: absolute;
-	left: -9px;
-	width: 3px;
-	height: 19px;
-	border-radius: 0 4px 4px 0;
-	background: var(--mxp-lime);
-	content: "";
-}
-
-.mxp-platform-bottom { display: flex; flex-direction: column; align-items: center; gap: 5px; }
-.mxp-platform-bottom button { color: #888781; }
-.mxp-platform-bottom > span,
 .mxp-user-avatar,
 .mxp-rail-user > span {
 	display: grid;
