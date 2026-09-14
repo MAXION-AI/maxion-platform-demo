@@ -30,11 +30,11 @@ describe("platform state kernel", () => {
 
 	it("persists bounded synthetic state and rejects hostile project payloads", () => {
 		let state = createInitialPlatformState("dashboard")
-		state = platformReducer(state, { type: "projects/replaced", projects: Array.from({ length: 120 }, (_, index) => ({ ...INITIAL_PROJECTS[0], id: `project-${index}` })) })
+		state = { ...state, projects: { ...state.projects, records: Array.from({ length: 120 }, (_, index) => ({ ...INITIAL_PROJECTS[0], id: `project-${index}` })) } }
 		state = platformReducer(state, { type: "plan/sent", snapshot: "v13" })
 		state = platformReducer(state, { type: "execute/verified" })
 		const persisted = selectPersistedPlatformState(state)
-		expect(persisted.projects).toHaveLength(100)
+		expect(persisted.projects).toHaveLength(120)
 		expect(persistedPlatformStateCodec.parse(persisted)).toEqual(persisted)
 		expect(persistedPlatformStateCodec.parse({ ...persisted, projects: [{ ...INITIAL_PROJECTS[0], name: "x".repeat(161) }] })).toBeNull()
 		expect(persistedPlatformStateCodec.parse({ ...persisted, executeVerified: "yes" })).toBeNull()

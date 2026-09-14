@@ -38,13 +38,23 @@ export type ExecuteJumpSignal = { tick: number; target: { kind: "workspace"; tas
 export type DiscoveryOpenSignal = { tick: number; recordId: string; jump: "resume" | "decision" | "package" }
 export type AgentixIntentSignal = { tick: number; intent: AgentixIntent }
 
+export type ProjectWorkspaceStatus = "ready" | "loading" | "error"
+
+export type ProjectWorkspaceState = {
+	records: PortalProject[]
+	selectedId: string | null
+	status: ProjectWorkspaceStatus
+	error: string | null
+	notice: string | null
+}
+
 export type PlatformState = {
 	navigation: {
 		active: MaxionModuleId
 		sidebarCollapsed: boolean
 		visited: ReadonlySet<MaxionModuleId>
 	}
-	projects: PortalProject[]
+	projects: ProjectWorkspaceState
 	handoffs: {
 		discovery: { ready: boolean; evidence: PlatformEvidence[]; decisions: PlatformDecision[]; progress: PlatformProgress }
 		plan: { sent: boolean; snapshot: string }
@@ -66,7 +76,15 @@ export type PlatformState = {
 export type PlatformEvent =
 	| { type: "navigation/opened"; module: MaxionModuleId }
 	| { type: "navigation/sidebar-collapsed"; collapsed: boolean }
-	| { type: "projects/replaced"; projects: PortalProject[] }
+	| { type: "projects/created"; requestId: string; name: string; description: string }
+	| { type: "projects/selected"; projectId: string | null }
+	| { type: "projects/archive-toggled"; projectId: string }
+	| { type: "projects/member-added"; projectId: string; name: string }
+	| { type: "projects/load-started" }
+	| { type: "projects/load-failed"; message?: string }
+	| { type: "projects/retry-requested" }
+	| { type: "projects/action-denied"; projectId: string; action: string }
+	| { type: "projects/notice-cleared" }
 	| { type: "discovery/ready" }
 	| { type: "discovery/setup-started" }
 	| { type: "discovery/record-opened"; recordId: string; jump: DiscoveryOpenSignal["jump"] }
