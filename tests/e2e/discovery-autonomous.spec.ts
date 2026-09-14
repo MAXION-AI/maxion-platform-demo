@@ -198,3 +198,19 @@ test("preserves readable contrast in dark mode", async ({ page }) => {
 	const accessibility = await new AxeBuilder({ page }).analyze()
 	expect(accessibility.violations.filter((violation) => violation.impact === "critical" || violation.impact === "serious")).toEqual([])
 })
+
+test("keeps every sampled theme-transition frame at AA contrast", async ({ page }) => {
+	await page.goto("/discovery-prototype")
+	const transitionProperties = await page.locator(".prototype, .prototype button").evaluateAll((elements) =>
+		elements.flatMap((element) => getComputedStyle(element).transitionProperty.split(",").map((property) => property.trim())),
+	)
+	expect(transitionProperties).not.toContain("color")
+	expect(transitionProperties).not.toContain("background-color")
+
+	await page.getByRole("button", { name: "Use dark theme" }).click()
+	for (let sample = 0; sample < 12; sample += 1) {
+		const result = await new AxeBuilder({ page }).include(".prototype").withRules(["color-contrast"]).analyze()
+		expect(result.violations, `Discovery contrast sample ${sample}`).toEqual([])
+		await page.waitForTimeout(20)
+	}
+})

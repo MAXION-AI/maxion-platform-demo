@@ -47,12 +47,12 @@ answer, never a fabricated citation.
 
 | Task | Serves | Exact files/symbols | Prerequisite | Focused verification |
 | --- | --- | --- | --- | --- |
-| 8.1 | RC-12 and RC-14 via ADR-3 | `src/features/platform-prototype/consultState.ts#ConsultState`; `src/features/platform-prototype/consultState.spec.ts#grounding` | Accepted Phase 7 M and AgentixRunResultRef | `pnpm test -- consultState.spec.ts` |
-| 8.2 | RC-04 and RC-12 via ADR-3 | `src/features/platform-prototype/MaxionPlatformPrototypePage.tsx#ConsultModule`; `src/features/platform-prototype/consultState.ts#selectConsultSources` | Task 8.1 continuity invariants | `pnpm test -- ConsultModule.spec.tsx` |
-| 8.3 | RC-12 and RC-15 via ADR-4 | `src/features/platform-prototype/MaxionPlatformPrototypePage.tsx#ConsultModule`; `src/features/platform-prototype/portal-replica.css#consult-workspace` | Task 8.2 typed source index | `pnpm exec playwright test tests/e2e/maxion-platform-shell.spec.ts -g Consult` |
-| 8.4 | RC-12 and RC-15 via ADR-2 | `src/features/platform-prototype/consultState.ts#consultCommand`; `tests/e2e/maxion-platform-shell.spec.ts#consult.empty` | Task 8.3 accepted frame | `pnpm exec playwright test tests/e2e/maxion-platform-shell.spec.ts -g consult-state` |
+| 8.1 | RC-12 and RC-14 via ADR-3 | `src/features/platform-prototype/consult/domain.ts#ConsultState`; `src/features/platform-prototype/consult/domain.spec.ts#grounding` | Accepted Phase 7 M and AgentixRunResultRef | `pnpm test -- consult/domain.spec.ts` |
+| 8.2 | RC-04 and RC-12 via ADR-3 | `src/features/platform-prototype/consult/ConsultModule.tsx#ConsultModule`; `src/features/platform-prototype/consult/selectors.ts#selectConsultSources` | Task 8.1 continuity invariants | `pnpm test -- consult/ConsultModule.spec.tsx` |
+| 8.3 | RC-12 and RC-15 via ADR-4 | `src/features/platform-prototype/consult/ConsultModule.tsx#ConsultModule`; `src/features/platform-prototype/consult/consult.css#consult-workspace` | Task 8.2 typed source index | `pnpm exec playwright test tests/e2e/maxion-platform-shell.spec.ts -g Consult` |
+| 8.4 | RC-12 and RC-15 via ADR-2 | `src/features/platform-prototype/consult/commands.ts#consultCommand`; `tests/e2e/maxion-platform-shell.spec.ts#consult.empty` | Task 8.3 accepted frame | `pnpm exec playwright test tests/e2e/maxion-platform-shell.spec.ts -g consult-state` |
 | 8.5 | RC-14 via ADR-5 | `tests/e2e/maxion-platform-shell.spec.ts#full-continuity`; `src/features/platform-prototype/contracts.ts#ObjectRef` | Task 8.4 all Consult states | `pnpm exec playwright test tests/e2e/maxion-platform-shell.spec.ts -g full-continuity` |
-| 8.6 | RC-15 and RC-18 via ADR-4 | `src/features/platform-prototype/consultState.spec.ts#isolation`; `tests/fixtures/consult-sources-10000.json#sources` | Task 8.5 end-to-end identity chain | `pnpm test -- consultState.spec.ts -t isolation` |
+| 8.6 | RC-15 and RC-18 via ADR-4 | `src/features/platform-prototype/consult/domain.spec.ts#isolation`; `tests/fixtures/consult-sources-10000.json#sources` | Task 8.5 end-to-end identity chain | `pnpm test -- consult/domain.spec.ts -t isolation` |
 | 8.7 | RC-15 and RC-16 via ADR-8 | `artifacts/ux-audits/phase-8/verification.md`; `docs/operations/phase-acceptance-protocol.md#Evidence-only-closure` | Tasks 8.1 through 8.6 green at C | `python3 scripts/check_phase_acceptance.py --candidate "$C" --evidence "$E" --phase 8` |
 
 ## Contracts and observability
@@ -87,7 +87,7 @@ remains readable if its schema version is valid; invalid records recover without
 
 | Kind | Exact files / outputs / commands | Passing evidence |
 | --- | --- | --- |
-| Production | Extract `ConsultModule` from `MaxionPlatformPrototypePage.tsx`; create `src/features/platform-prototype/consult/{domain,index,selectors,components}/**`; delete shell-local Consult state/styles | Read-only grounded owner with explicit route intents |
+| Production | Create `src/features/platform-prototype/consult/{ConsultModule.tsx,domain.ts,index.ts,selectors.ts,commands.ts,consult.css}` and `consult/components/**`; remove `ConsultModule` and Consult styles/state from shell files | Folder-owned read-only grounded owner with explicit route intents |
 | Tests/fixtures | Consult unit/browser specs; conflict/stale/denied/injection-shaped/10,000-source fixtures; full continuity fixture | Exact nine state IDs and canonical five-module trace |
 | Evidence/commands | `artifacts/ux-audits/phase-8/**`; Consult sheet; standard program/test/build/E2E/audit/diff plus focused/cross-module specs | State/viewport/Figma/axe/timing evidence and independent reports |
 | PR lifecycle | Verify prior M as B; create isolated phase branch/worktree; commit clean C; independent UX/QA audit C; commit required distinct evidence-only E; merge only as a true B+E two-parent M; rerun clean-M gates; append under lock to the external authority | PR URL, B/C/E/M, protected-object equality, exact target ref, merge/PR identity, post-merge results, successor pin |

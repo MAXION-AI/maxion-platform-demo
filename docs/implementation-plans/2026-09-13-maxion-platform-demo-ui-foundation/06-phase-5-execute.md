@@ -47,12 +47,12 @@ success or promotes `simulated` evidence to `production-verified`.
 
 | Task | Serves | Exact files/symbols | Prerequisite | Focused verification |
 | --- | --- | --- | --- | --- |
-| 5.1 | RC-09 and RC-14 via ADR-5 | `src/features/platform-prototype/executeState.ts#ExecutionState`; `src/features/platform-prototype/executeState.spec.ts#transitions` | Accepted Phase 4 M and approved PlanArtifactRef | `pnpm test -- executeState.spec.ts` |
-| 5.2 | RC-04 and RC-09 via ADR-3 | `src/features/platform-prototype/ExecuteDeliveryWorkspace.tsx#ExecuteDeliveryWorkspace`; `src/features/platform-prototype/executeState.ts#reduceExecution` | Task 5.1 state machine | `pnpm test -- ExecuteDeliveryWorkspace.spec.tsx` |
-| 5.3 | RC-09 and RC-15 via ADR-4 | `src/features/platform-prototype/ExecuteDeliveryWorkspace.tsx#ExecutionTimeline`; `src/features/platform-prototype/execute-agentic.css#execute-workspace` | Task 5.2 selector-driven ownership | `pnpm exec playwright test tests/e2e/execute-command-layer.spec.ts -g composition` |
-| 5.4 | RC-09 and RC-15 via ADR-5 | `src/features/platform-prototype/executeState.ts#executeCommand`; `tests/e2e/execute-command-layer.spec.ts#execute.paused` | Task 5.3 accepted composition | `pnpm exec playwright test tests/e2e/execute-command-layer.spec.ts -g recovery` |
-| 5.5 | RC-09 and RC-14 via ADR-5 | `src/features/platform-prototype/contracts.ts#ExecutionResultRef`; `src/features/platform-prototype/executeState.ts#selectExecutionEvidence` | Task 5.4 legal command transitions | `pnpm test -- executeHandoff.spec.ts` |
-| 5.6 | RC-15 and RC-18 via ADR-4 | `src/features/platform-prototype/executeState.spec.ts#load`; `tests/fixtures/execute-events-10000.json#events` | Task 5.5 result provenance | `pnpm test -- executeState.spec.ts -t load` |
+| 5.1 | RC-09 and RC-14 via ADR-5 | `src/features/platform-prototype/execute/machine.ts#ExecutionState`; `src/features/platform-prototype/execute/machine.spec.ts#transitions` | Accepted Phase 4 M and approved PlanArtifactRef | `pnpm test -- execute/machine.spec.ts` |
+| 5.2 | RC-04 and RC-09 via ADR-3 | `src/features/platform-prototype/execute/ExecuteWorkspace.tsx#ExecuteWorkspace`; `src/features/platform-prototype/execute/machine.ts#reduceExecution` | Task 5.1 state machine | `pnpm test -- execute/ExecuteWorkspace.spec.tsx` |
+| 5.3 | RC-09 and RC-15 via ADR-4 | `src/features/platform-prototype/execute/components/ExecutionTimeline.tsx#ExecutionTimeline`; `src/features/platform-prototype/execute/execute.css#execute-workspace` | Task 5.2 selector-driven ownership | `pnpm exec playwright test tests/e2e/execute-command-layer.spec.ts -g composition` |
+| 5.4 | RC-09 and RC-15 via ADR-5 | `src/features/platform-prototype/execute/commands.ts#executeCommand`; `tests/e2e/execute-command-layer.spec.ts#execute.paused` | Task 5.3 accepted composition | `pnpm exec playwright test tests/e2e/execute-command-layer.spec.ts -g recovery` |
+| 5.5 | RC-09 and RC-14 via ADR-5 | `src/features/platform-prototype/contracts.ts#ExecutionResultRef`; `src/features/platform-prototype/execute/selectors.ts#selectExecutionEvidence` | Task 5.4 legal command transitions | `pnpm test -- execute/handoff.spec.ts` |
+| 5.6 | RC-15 and RC-18 via ADR-4 | `src/features/platform-prototype/execute/machine.spec.ts#load`; `tests/fixtures/execute-events-10000.json#events` | Task 5.5 result provenance | `pnpm test -- execute/machine.spec.ts -t load` |
 | 5.7 | RC-15 and RC-16 via ADR-8 | `artifacts/ux-audits/phase-5/verification.md`; `docs/operations/phase-acceptance-protocol.md#Evidence-only-closure` | Tasks 5.1 through 5.6 green at C | `python3 scripts/check_phase_acceptance.py --candidate "$C" --evidence "$E" --phase 5` |
 
 ## Contracts and observability
@@ -86,7 +86,7 @@ history. There is no infrastructure rollback because this phase performs no depl
 
 | Kind | Exact files / outputs / commands | Passing evidence |
 | --- | --- | --- |
-| Production | Refactor `ExecuteDeliveryWorkspace.tsx` and `ExecuteHubModule`; create `src/features/platform-prototype/execute/{machine,selectors,commands,components}/**`; delete replaced timers/styles/owners | One Execute state machine and one owner per command |
+| Production | Create `src/features/platform-prototype/execute/{ExecuteWorkspace.tsx,machine.ts,selectors.ts,commands.ts,execute.css}` and `execute/components/**`; replace `ExecuteDeliveryWorkspace.tsx`/`ExecuteHubModule` with folder entry exports and delete replaced timers/styles/owners | One folder-owned Execute state machine and one owner per command |
 | Tests/fixtures | State-machine/command tests; Execute unit/browser specs; stale/race/failure/rollback/10,000-event fixtures | Exact seven state IDs; evidence-class safety; ≤200 events |
 | Evidence/commands | `artifacts/ux-audits/phase-5/**`; Execute sheet; standard program/test/build/E2E/audit/diff commands plus focused Execute specs | State/viewport/Figma/axe/timing evidence and independent reports |
 | PR lifecycle | Verify prior M as B; create isolated phase branch/worktree; commit clean C; independent UX/QA audit C; commit required distinct evidence-only E; merge only as a true B+E two-parent M; rerun clean-M gates; append under lock to the external authority | PR URL, B/C/E/M, protected-object equality, exact target ref, merge/PR identity, post-merge results, successor pin |

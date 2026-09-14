@@ -23,6 +23,13 @@ screen evidence is accepted as fresh proof. Hard floors remain: no target below 
 acknowledgement under 400 ms, no valid-input loss, no product-level complexity pushed to the user, and no
 failed flow without recovery.
 
+Phase 10's explicit `all-surfaces` acceptance scope requalifies exactly these 13 sheets at C and binds
+all 13 in both independent reports: `agentix-operations.md`, `agentix-run-canvas.md`,
+`approvals-workspace.md`, `consult-max-workspace.md`, `discover-workspace.md`,
+`execute-workspace.md`, `help-workspace.md`, `integrations-workspace.md`, `plan-workspace.md`,
+`platform-shell-dashboard.md`, `projects-workspace.md`, `settings-workspace.md`, and
+`usage-workspace.md`. Missing, extra, inherited-only, or partially sampled sheet coverage blocks E.
+
 ## Architecture, scale, security, and reliability
 
 No new product architecture is introduced. Test fixtures and instrumentation must be deterministic,
@@ -98,7 +105,7 @@ append-only so failed runs remain inspectable.
 
 ## Definition of Done
 
-- [ ] Every accepted sheet, Figma mapping, state, law, and primary/recovery journey has fresh evidence against one pinned SHA.
+- [ ] All 13 named sheets, Figma mappings, states, laws, and primary/recovery journeys have fresh evidence against one pinned SHA.
 - [ ] Accessibility, performance, bundle, responsive, browser, load-shaped, security/dependency, token, sheet, and program gates all pass.
 - [ ] The pinned route/import/export/dependency/style graph has one active owner per job and zero legacy,
   dead-code, or source-quality exemptions; browser traversal proves every retained route.

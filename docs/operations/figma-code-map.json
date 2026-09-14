@@ -2,8 +2,30 @@
   "schemaVersion": 2,
   "updatedAt": "2026-09-13",
   "authority": "docs/operations/ux-surface-inventory.md",
-  "implementationTree": {"sourceCommit": "28537faddc071a9fd9cc0bf36caa0888f1fd1f5b", "srcGitTreeSha1": "6bd4f0993062ee55f0b4f0b382a7b8368949b8a1"},
+  "implementationTree": {"sourceCommit": "73ba9201a63db6d89029d1928ea9ed52da960c80", "srcGitTreeSha1": "a3f62a27cbd490727982b7d5b591f5ec3218a49a"},
   "remoteFigmaAttestation": {"verifiedAt": "2026-09-13", "verifier": "roadmap_independent_hardening", "evidencePath": "docs/implementation-plans/2026-09-13-maxion-platform-demo-ui-foundation/HARDENING-LOG.md", "scope": "All 13 frame nodes reopened; component-node ownership was not independently enumerated."},
+  "acceptanceScopes": [
+    {
+      "phase": 10,
+      "kind": "all-surfaces",
+      "referenceSheets": [
+        "agentix-operations.md",
+        "agentix-run-canvas.md",
+        "approvals-workspace.md",
+        "consult-max-workspace.md",
+        "discover-workspace.md",
+        "execute-workspace.md",
+        "help-workspace.md",
+        "integrations-workspace.md",
+        "plan-workspace.md",
+        "platform-shell-dashboard.md",
+        "projects-workspace.md",
+        "settings-workspace.md",
+        "usage-workspace.md"
+      ]
+    },
+    {"phase": 11, "kind": "package", "referenceSheets": []}
+  ],
   "routes": [
     {"path": "/maxion-prototype", "classification": "canonical", "owner": "platform-shell-dashboard"},
     {"path": "/agentix-prototype", "classification": "compatibility-alias", "owner": "agentix-operations", "removeByPhase": 1, "reason": "Direct Agentix path selects Agentix but is not the final canonical address contract."},
@@ -45,7 +67,7 @@
       "addressing": {"mode":"url","canonicalUrl":"/maxion-prototype","sourceMarker":"path=\"/maxion-prototype\""},
       "referenceSheet": "platform-shell-dashboard.md",
       "acceptancePhase": 0,
-      "referenceSheetSha256": "4f886ce14e57da62250c7fcb60add636a9154b28eea6b801a506d839a24bfbc4",
+      "referenceSheetSha256": "6f15c6f2cb6a38dcdd08de43b3aec2f19684b8f5ee07d6f81c165750eb1d91fa",
       "phaseDocument": "03-phase-2-dashboard-projects.md",
       "requiredStateIds": ["shell.attention","shell.clear","shell.destination-error","shell.mobile-navigation"],
       "stateBinding": {"status":"scheduled","targetPhase":2,"stateIds":["shell.attention","shell.clear","shell.destination-error","shell.mobile-navigation"],"sourceOwner":"src/features/platform-prototype/MaxionPlatformPrototypePage.tsx#MaxionPlatformPrototypePage","fixturePattern":"tests/fixtures/ux-states/{stateId}.json","browserTestPattern":"tests/e2e/maxion-platform-shell.spec.ts#{stateId}","evidencePattern":"artifacts/ux-audits/phase-2/states/{stateId}.md"},

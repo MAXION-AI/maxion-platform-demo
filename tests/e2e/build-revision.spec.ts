@@ -4,9 +4,10 @@ import process from "node:process"
 
 import { expect, test } from "@playwright/test"
 
-test("serves the recorded checkout revision from the isolated acceptance server", async ({ page }) => {
+test("serves the recorded checkout revision from the isolated acceptance server", async ({ page }, testInfo) => {
 	const revision = execFileSync("git", ["rev-parse", "HEAD"], { encoding: "utf8" }).trim()
 	const sourceTreeDirty = Boolean(execFileSync("git", ["status", "--porcelain=v1"], { encoding: "utf8" }).trim())
+	const expectedPort = new URL(String(testInfo.project.use.baseURL)).port
 	await page.goto("/maxion-prototype")
 	await expect(page.locator("#root")).toHaveAttribute("data-build-revision", revision)
 	await expect.poll(() => {
@@ -25,7 +26,7 @@ test("serves the recorded checkout revision from the isolated acceptance server"
 		}
 	}).toEqual({
 		cwd: process.cwd(),
-		port: "4317",
+		port: expectedPort,
 		revision,
 		sourceTreeDirty,
 		pidRecorded: true,

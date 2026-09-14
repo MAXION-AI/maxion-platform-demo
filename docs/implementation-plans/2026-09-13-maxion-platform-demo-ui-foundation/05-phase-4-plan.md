@@ -47,12 +47,12 @@ and synthetic correlation ID; the client never grants authority.
 
 | Task | Serves | Exact files/symbols | Prerequisite | Focused verification |
 | --- | --- | --- | --- | --- |
-| 4.1 | RC-08 and RC-14 via ADR-3 | `src/features/platform-prototype/planState.ts#PlanArtifact`; `src/features/platform-prototype/planState.spec.ts#authority` | Accepted Phase 3 M and DiscoveryPackageRef | `pnpm test -- planState.spec.ts` |
-| 4.2 | RC-04 and RC-08 via ADR-3 | `src/features/platform-prototype/PlanAgenticModule.tsx#PlanModule`; `src/features/platform-prototype/planState.ts#reducePlan` | Task 4.1 authority invariants | `pnpm test -- PlanAgenticModule.spec.tsx` |
-| 4.3 | RC-08 and RC-15 via ADR-4 | `src/features/platform-prototype/PlanAgenticModule.tsx#ArtifactCanvas`; `src/features/platform-prototype/plan-agentic.css#plan-workspace` | Task 4.2 decomposed regions | `pnpm exec playwright test tests/e2e/maxion-platform-shell.spec.ts -g Plan` |
-| 4.4 | RC-08 and RC-15 via ADR-2 | `src/features/platform-prototype/PlanAgenticModule.tsx#PlanCommands`; `tests/e2e/maxion-platform-shell.spec.ts#plan.section-editing` | Task 4.3 accepted composition | `pnpm exec playwright test tests/e2e/maxion-platform-shell.spec.ts -g plan-state` |
-| 4.5 | RC-08 and RC-14 via ADR-5 | `src/features/platform-prototype/contracts.ts#PlanArtifactRef`; `src/features/platform-prototype/planState.ts#selectExecuteReadyPlan` | Task 4.4 operable states | `pnpm test -- planHandoff.spec.ts` |
-| 4.6 | RC-15 via ADR-3 | `src/features/platform-prototype/planState.spec.ts#recovery`; `tests/fixtures/plan-oversized.json#sections` | Task 4.5 immutable handoff | `pnpm test -- planState.spec.ts -t recovery` |
+| 4.1 | RC-08 and RC-14 via ADR-3 | `src/features/platform-prototype/plan/domain.ts#PlanArtifact`; `src/features/platform-prototype/plan/domain.spec.ts#authority` | Accepted Phase 3 M and DiscoveryPackageRef | `pnpm test -- plan/domain.spec.ts` |
+| 4.2 | RC-04 and RC-08 via ADR-3 | `src/features/platform-prototype/plan/PlanModule.tsx#PlanModule`; `src/features/platform-prototype/plan/domain.ts#reducePlan` | Task 4.1 authority invariants | `pnpm test -- plan/PlanModule.spec.tsx` |
+| 4.3 | RC-08 and RC-15 via ADR-4 | `src/features/platform-prototype/plan/components/ArtifactCanvas.tsx#ArtifactCanvas`; `src/features/platform-prototype/plan/plan.css#plan-workspace` | Task 4.2 decomposed regions | `pnpm exec playwright test tests/e2e/maxion-platform-shell.spec.ts -g Plan` |
+| 4.4 | RC-08 and RC-15 via ADR-2 | `src/features/platform-prototype/plan/commands.ts#applyPlanCommand`; `tests/e2e/maxion-platform-shell.spec.ts#plan.section-editing` | Task 4.3 accepted composition | `pnpm exec playwright test tests/e2e/maxion-platform-shell.spec.ts -g plan-state` |
+| 4.5 | RC-08 and RC-14 via ADR-5 | `src/features/platform-prototype/contracts.ts#PlanArtifactRef`; `src/features/platform-prototype/plan/selectors.ts#selectExecuteReadyPlan` | Task 4.4 operable states | `pnpm test -- plan/handoff.spec.ts` |
+| 4.6 | RC-15 via ADR-3 | `src/features/platform-prototype/plan/domain.spec.ts#recovery`; `tests/fixtures/plan-oversized.json#sections` | Task 4.5 immutable handoff | `pnpm test -- plan/domain.spec.ts -t recovery` |
 | 4.7 | RC-15 and RC-16 via ADR-8 | `artifacts/ux-audits/phase-4/verification.md`; `docs/operations/phase-acceptance-protocol.md#Evidence-only-closure` | Tasks 4.1 through 4.6 green at C | `python3 scripts/check_phase_acceptance.py --candidate "$C" --evidence "$E" --phase 4` |
 
 ## Contracts and observability
@@ -86,7 +86,7 @@ may be deleted by rollback.
 
 | Kind | Exact files / outputs / commands | Passing evidence |
 | --- | --- | --- |
-| Production | Refactor `PlanAgenticModule.tsx`; create `src/features/platform-prototype/plan/{domain,selectors,commands,components}/**`; delete replaced Plan state/styles/exports | One Plan owner; immutable approved artifact handoff |
+| Production | Create `src/features/platform-prototype/plan/{PlanModule,domain,selectors,commands}.ts{x,}`, `plan/components/**`, and `plan/plan.css`; replace `PlanAgenticModule.tsx` with the folder entry export and delete replaced Plan state/styles/exports | One folder-owned Plan owner; immutable approved artifact handoff |
 | Tests/fixtures | Co-located version/command tests; Plan browser spec; stale/failed/permission/1,000-section fixtures | Exact eight state IDs; no duplicate revision; ≤200 mounted sections |
 | Evidence/commands | `artifacts/ux-audits/phase-4/**`; Plan sheet; standard program/test/build/E2E/audit/diff commands plus focused Plan specs | State/viewport/Figma/axe/timing evidence and independent reports |
 | PR lifecycle | Verify prior M as B; create isolated phase branch/worktree; commit clean C; independent UX/QA audit C; commit required distinct evidence-only E; merge only as a true B+E two-parent M; rerun clean-M gates; append under lock to the external authority | PR URL, B/C/E/M, protected-object equality, exact target ref, merge/PR identity, post-merge results, successor pin |

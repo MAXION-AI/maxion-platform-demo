@@ -5,6 +5,7 @@ from __future__ import annotations
 import copy
 import hashlib
 import json
+import os
 import shutil
 import subprocess
 import sys
@@ -27,6 +28,13 @@ def canonical(value: object) -> bytes:
 
 class ProgramLedgerTests(unittest.TestCase):
     def setUp(self) -> None:
+        environment = mock.patch.dict(os.environ, {"MAXION_PROGRAM_PHASE": "0"})
+        environment.start()
+        self.addCleanup(environment.stop)
+        self.real_github_attestation = ledger._attest_github_pull_request
+        github = mock.patch.object(ledger, "_attest_github_pull_request", return_value=None)
+        self.github_attestation = github.start()
+        self.addCleanup(github.stop)
         self.tempdir = tempfile.TemporaryDirectory()
         self.addCleanup(self.tempdir.cleanup)
         root = Path(self.tempdir.name)
@@ -43,6 +51,9 @@ class ProgramLedgerTests(unittest.TestCase):
         self.write("playwright.config.ts", "export default {}\n")
         self.write("vite.config.ts", "export default {}\n")
         self.write(".github/workflows/gates.yml", "name: gates\n")
+        for path in ledger.PROTECTED_OBJECT_PATHS:
+            if path.startswith("docs/operations/") and path != "docs/operations/figma-code-map.json":
+                self.write(path, f"fixture for {path}\n")
         (self.repo / "scripts").mkdir(parents=True, exist_ok=True)
         shutil.copy(REPO / "scripts" / "program_ledger.py", self.repo / "scripts" / "program_ledger.py")
         shutil.copy(
@@ -118,7 +129,7 @@ pending
             },
         }
         return (
-            f"# Phase {phase}\n\n- **Status:** {status}\n\n## Hand-off\n\nImmutable.\n\n"
+            f"# Phase {phase}\n\n- **Closes:** RC-{phase:02d} | **Risk:** high | **Status:** {status}\n\n## Hand-off\n\nImmutable.\n\n"
             "### Structured acceptance hand-off\n\n```json\n"
             + json.dumps(handoff, indent=2)
             + "\n```\n"
@@ -154,12 +165,17 @@ pending
             if item["acceptancePhase"] == phase
         )
         prefix = f"artifacts/ux-audits/phase-{phase}"
+        review_evidence = f"{prefix}/review-checks.txt"
+        self.write(review_evidence, "independent review evidence\n")
+        browser_paths = [f"{prefix}/browser-run-{index}.json" for index in range(1, 4)]
+        for index, path in enumerate(browser_paths, 1):
+            self.write(path, canonical({"run": index, "status": "PASS"}))
         review_paths: dict[str, str] = {}
         for role in ("ux", "qa"):
             report_path = f"{prefix}/independent-{role}.json"
             review_paths[role] = report_path
-            self.write(report_path, canonical({
-                "schemaVersion": 1,
+            report = {
+                "schemaVersion": 2,
                 "program": ledger.PROGRAM,
                 "phase": phase,
                 "role": role,
@@ -167,17 +183,39 @@ pending
                 "builder": f"builder-{phase}",
                 "candidateSha": candidate,
                 "sourceTreeSha1": source_tree,
+                "sessionId": f"session-{role}-{phase}",
+                "worktree": str(self.repo / f"{role}-review-worktree"),
+                "cleanCheckout": True,
                 "referenceSheets": owned_sheets,
-                "checks": [f"independent-{role}-gate"],
+                "checks": [
+                    {"id": check_id, "status": "PASS", "evidence": [review_evidence]}
+                    for check_id in ledger.REVIEW_CHECKLISTS[role]
+                ],
                 "verdict": "PASS",
-            }))
+            }
+            if role == "qa":
+                report["browserRuns"] = [
+                    {
+                        "runId": f"phase-{phase}-run-{index}",
+                        "browser": "chromium",
+                        "browserVersion": "fixture",
+                        "viewport": {"width": 1280, "height": 900},
+                        "fixture": f"fixture-{index}",
+                        "status": "PASS",
+                        "exitCode": 0,
+                        "artifactPath": path,
+                        "artifactSha256": hashlib.sha256((self.repo / path).read_bytes()).hexdigest(),
+                    }
+                    for index, path in enumerate(browser_paths, 1)
+                ]
+            self.write(report_path, canonical(report))
         command_results: list[dict[str, object]] = []
         for command_id, command in sorted(ledger.CANONICAL_COMMANDS.items()):
             stdout_hash = hashlib.sha256(f"{command_id}:pass\n".encode()).hexdigest()
             stderr_hash = hashlib.sha256(b"").hexdigest()
             report_path = f"{prefix}/command-{command_id}.json"
             report = {
-                "schemaVersion": 1,
+                "schemaVersion": 2,
                 "program": ledger.PROGRAM,
                 "phase": phase,
                 "kind": "command-result",
@@ -192,6 +230,11 @@ pending
                 "stderr": "",
                 "stdoutSha256": stdout_hash,
                 "stderrSha256": stderr_hash,
+                "worktree": str(self.repo),
+                "cleanBefore": True,
+                "cleanAfter": True,
+                "startedAt": f"2026-09-13T11:00:{phase:02d}Z",
+                "finishedAt": f"2026-09-13T11:01:{phase:02d}Z",
             }
             report_bytes = canonical(report)
             self.write(report_path, report_bytes)
@@ -202,7 +245,10 @@ pending
                 "evidencePath": report_path,
                 "evidenceSha256": hashlib.sha256(report_bytes).hexdigest(),
             })
-        evidence_paths = [*review_paths.values(), *[str(item["evidencePath"]) for item in command_results]]
+        evidence_paths = [
+            *review_paths.values(), review_evidence, *browser_paths,
+            *[str(item["evidencePath"]) for item in command_results],
+        ]
         self.write(phase_doc, self.phase_doc(phase, "accepted", evidence_paths))
         self.git("add", ".")
         self.git("commit", "-qm", f"phase {phase} evidence")
@@ -283,13 +329,13 @@ pending
     def append(self, record: dict[str, object]) -> dict[str, object]:
         raw = copy.deepcopy(record)
         receipts = raw.pop("postMergeCommands")
-        return ledger.append_record(
-            self.path,
-            raw,
-            target_ref="refs/remotes/origin/main",
-            repo_root=self.repo,
-            command_runner=lambda _record, _repo: copy.deepcopy(receipts),
-        )
+        with mock.patch.object(ledger, "_run_canonical_commands", return_value=copy.deepcopy(receipts)):
+            return ledger.append_record(
+                self.path,
+                raw,
+                target_ref=ledger.TARGET_REF,
+                repo_root=self.repo,
+            )
 
     def test_canonical_runner_executes_fixed_commands_and_hashes_complete_output(self) -> None:
         record = self.accepted_record()
@@ -298,7 +344,7 @@ pending
             "run",
             return_value=SimpleNamespace(returncode=0, stdout=b"complete output\n", stderr=b""),
         ) as run:
-            receipts = ledger.run_canonical_commands(record, self.repo)
+            receipts = ledger._run_canonical_commands(record, self.repo)
         invoked = [call[0][0] for call in run.call_args_list]
         expected = [
             argv
@@ -312,6 +358,18 @@ pending
             item["stdout"] == "complete output\n" * len(ledger.CANONICAL_EXECUTION[item["id"]])
             for item in receipts
         ))
+
+    def test_canonical_runner_rejects_oversized_persisted_output(self) -> None:
+        record = self.accepted_record()
+        with mock.patch.object(
+            ledger.subprocess,
+            "run",
+            return_value=SimpleNamespace(
+                returncode=0, stdout=b"x" * (ledger.MAX_CAPTURE_BYTES + 1), stderr=b""
+            ),
+        ):
+            with self.assertRaisesRegex(ledger.LedgerError, "output exceeds"):
+                ledger._run_canonical_commands(record, self.repo)
 
     def test_append_creates_and_validates_hash_chain(self) -> None:
         first = self.append(self.accepted_record())
@@ -351,6 +409,12 @@ pending
             receipt["runSha"] = unmerged["prHeadSha"]
         with self.assertRaisesRegex(ledger.LedgerError, "merge commit|ancestry"):
             ledger.validate_record(unmerged, external=True, repo_root=self.repo)
+        with self.assertRaisesRegex(ledger.LedgerError, "exactly refs/remotes/origin/main"):
+            ledger.validate_external(
+                {"schemaVersion": 1, "program": ledger.PROGRAM, "repository": ledger.REPOSITORY, "records": []},
+                target_ref="refs/remotes/upstream/main",
+                repo_root=self.repo,
+            )
 
     def test_fake_pr_command_evidence_and_reviewer_reports_are_rejected(self) -> None:
         item = self.accepted_record()
@@ -370,6 +434,59 @@ pending
         item = self.accepted_record()
         item["reviewReports"]["qa"] = copy.deepcopy(item["reviewReports"]["ux"])
         self.assert_invalid(item, "distinct committed")
+        item = self.accepted_record()
+        item["targetRef"] = "refs/remotes/upstream/main"
+        self.assert_invalid(item, "exactly refs/remotes/origin/main")
+        item = self.accepted_record()
+        qa_path = item["reviewReports"]["qa"]["path"]
+        qa = json.loads(self.git("show", f"{item['evidenceCommitSha']}:{qa_path}"))
+        qa["browserRuns"].pop()
+        self.write(qa_path, canonical(qa))
+        # Schema validation is exercised directly because changing the committed fixture
+        # would intentionally invalidate the record's evidence object hash first.
+        with self.assertRaisesRegex(ledger.LedgerError, "exactly three browser runs"):
+            ledger._validate_review_report_shape(qa, record=item, role="qa", repo_root=self.repo)
+        qa = json.loads(self.git("show", f"{item['evidenceCommitSha']}:{qa_path}"))
+        qa["browserRuns"][1]["artifactPath"] = qa["browserRuns"][0]["artifactPath"]
+        qa["browserRuns"][1]["artifactSha256"] = qa["browserRuns"][0]["artifactSha256"]
+        with self.assertRaisesRegex(ledger.LedgerError, "three distinct artifacts"):
+            ledger._validate_review_report_shape(qa, record=item, role="qa", repo_root=self.repo)
+
+    def test_github_attestation_fails_closed(self) -> None:
+        record = self.accepted_record()
+        with mock.patch.object(
+            ledger.subprocess,
+            "run",
+            return_value=SimpleNamespace(returncode=1, stdout="", stderr="not authenticated"),
+        ):
+            with self.assertRaisesRegex(ledger.LedgerError, "GitHub PR attestation failed"):
+                self.real_github_attestation(record, self.repo)
+
+    def test_github_attestation_binds_exact_base_and_head_shas(self) -> None:
+        record = self.accepted_record()
+        payload = {
+            "html_url": record["prUrl"],
+            "state": "closed",
+            "merge_commit_sha": record["mergeSha"],
+            "merged_at": "2026-09-13T12:00:00Z",
+            "base": {"ref": "main", "sha": record["baseSha"]},
+            "head": {"sha": record["prHeadSha"]},
+        }
+        with mock.patch.object(
+            ledger.subprocess,
+            "run",
+            return_value=SimpleNamespace(returncode=0, stdout=json.dumps(payload), stderr=""),
+        ):
+            self.real_github_attestation(record, self.repo)
+
+        payload["base"]["sha"] = "0" * 40
+        with mock.patch.object(
+            ledger.subprocess,
+            "run",
+            return_value=SimpleNamespace(returncode=0, stdout=json.dumps(payload), stderr=""),
+        ):
+            with self.assertRaisesRegex(ledger.LedgerError, "base SHA"):
+                self.real_github_attestation(record, self.repo)
 
     def test_append_rejects_user_supplied_or_invalid_post_merge_receipts(self) -> None:
         with self.assertRaisesRegex(ledger.LedgerError, "coordinator-generated"):
@@ -381,14 +498,51 @@ pending
             )
         raw = self.accepted_record()
         raw.pop("postMergeCommands")
-        with self.assertRaisesRegex(ledger.LedgerError, "exact canonical command set"):
-            ledger.append_record(
-                self.path,
-                raw,
-                target_ref="refs/remotes/origin/main",
-                repo_root=self.repo,
-                command_runner=lambda _record, _repo: [],
-            )
+        with mock.patch.object(ledger, "_run_canonical_commands", return_value=[]):
+            with self.assertRaisesRegex(ledger.LedgerError, "exact canonical command set"):
+                ledger.append_record(
+                    self.path,
+                    raw,
+                    target_ref=ledger.TARGET_REF,
+                    repo_root=self.repo,
+                )
+
+    def test_append_rechecks_checkout_after_commands(self) -> None:
+        raw = self.accepted_record()
+        receipts = raw.pop("postMergeCommands")
+
+        def dirty_runner(_record: dict[str, object], _repo: Path) -> list[dict[str, object]]:
+            self.write("untracked-after-command.txt", "unexpected\n")
+            return copy.deepcopy(receipts)
+
+        with mock.patch.object(ledger, "_run_canonical_commands", side_effect=dirty_runner):
+            with self.assertRaisesRegex(ledger.LedgerError, "clean merge checkout"):
+                ledger.append_record(
+                    self.path, raw, target_ref=ledger.TARGET_REF, repo_root=self.repo
+                )
+        self.assertFalse(self.path.exists())
+
+    def test_merge_full_tree_must_equal_evidence_tree(self) -> None:
+        record = self.accepted_record()
+        self.write("merge-only-drift.txt", "must not be accepted\n")
+        self.git("add", "merge-only-drift.txt")
+        changed_tree = self.git("write-tree")
+        result = subprocess.run(
+            [
+                "git", "-C", str(self.repo), "commit-tree", changed_tree,
+                "-p", str(record["baseSha"]), "-p", str(record["prHeadSha"]),
+            ],
+            input=f"{record['mergeCommitSubject']}\n",
+            capture_output=True,
+            text=True,
+            check=True,
+        )
+        hostile_merge = result.stdout.strip()
+        record["mergeSha"] = hostile_merge
+        for receipt in record["postMergeCommands"]:
+            receipt["runSha"] = hostile_merge
+        with self.assertRaisesRegex(ledger.LedgerError, "full tree"):
+            ledger.validate_record(record, external=False, repo_root=self.repo)
 
     def test_command_report_must_be_listed_in_evidence_and_match_hash(self) -> None:
         item = self.accepted_record()

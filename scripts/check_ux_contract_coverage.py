@@ -264,6 +264,19 @@ def check_contract(
         findings.append(f"{manifest_path}: surface set does not match the 13 required surfaces")
     for duplicate in _duplicates(ids):
         findings.append(f"{manifest_path}: duplicate surfaceId {duplicate!r}")
+    acceptance_scopes = manifest.get("acceptanceScopes")
+    expected_all_sheets = sorted(
+        item.get("referenceSheet") for item in surfaces if isinstance(item.get("referenceSheet"), str)
+    )
+    expected_scopes = [
+        {"phase": 10, "kind": "all-surfaces", "referenceSheets": expected_all_sheets},
+        {"phase": 11, "kind": "package", "referenceSheets": []},
+    ]
+    if acceptance_scopes != expected_scopes:
+        findings.append(
+            f"{manifest_path}: acceptanceScopes must requalify all 13 sheets in Phase 10 "
+            "and declare a non-surface package scope in Phase 11"
+        )
     canonical_routes = {
         item.get("path") for item in routes
         if isinstance(item, dict) and item.get("classification") == "canonical"

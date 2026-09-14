@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import re
 import json
+import os
 import subprocess
 import sys
 import tempfile
@@ -35,6 +36,9 @@ def substitute(text: str, pattern: str, replacement: str, count: int = 1) -> str
 
 class ReferenceSheetGateTests(unittest.TestCase):
     def setUp(self) -> None:
+        environment = mock.patch.dict(os.environ, {"MAXION_PROGRAM_PHASE": "0"})
+        environment.start()
+        self.addCleanup(environment.stop)
         self.tempdir = tempfile.TemporaryDirectory()
         self.addCleanup(self.tempdir.cleanup)
         self.tmp = Path(self.tempdir.name)
@@ -201,6 +205,9 @@ class ReferenceSheetGateTests(unittest.TestCase):
 
 class TokenGateTests(unittest.TestCase):
     def setUp(self) -> None:
+        environment = mock.patch.dict(os.environ, {"MAXION_PROGRAM_PHASE": "0"})
+        environment.start()
+        self.addCleanup(environment.stop)
         self.tempdir = tempfile.TemporaryDirectory()
         self.addCleanup(self.tempdir.cleanup)
         self.tmp = Path(self.tempdir.name)
@@ -260,6 +267,9 @@ class TokenGateTests(unittest.TestCase):
 
 class ContractCoverageGateTests(unittest.TestCase):
     def setUp(self) -> None:
+        environment = mock.patch.dict(os.environ, {"MAXION_PROGRAM_PHASE": "0"})
+        environment.start()
+        self.addCleanup(environment.stop)
         self.tempdir = tempfile.TemporaryDirectory()
         self.addCleanup(self.tempdir.cleanup)
         self.tmp = Path(self.tempdir.name)
@@ -306,6 +316,14 @@ class ContractCoverageGateTests(unittest.TestCase):
             lambda value: value["surfaces"][0].update(acceptancePhase=9)
         )
         self.assertTrue(any("acceptancePhase is missing or incorrect" in finding for finding in findings), findings)
+
+    def test_phase_ten_and_eleven_acceptance_scopes_are_fixed(self) -> None:
+        findings = self.check_mutation(lambda value: value["acceptanceScopes"][0]["referenceSheets"].pop())
+        self.assertTrue(any("acceptanceScopes" in finding for finding in findings), findings)
+
+        self.manifest = json.loads(MANIFEST.read_text(encoding="utf-8"))
+        findings = self.check_mutation(lambda value: value["acceptanceScopes"][1].update(kind="all-surfaces"))
+        self.assertTrue(any("acceptanceScopes" in finding for finding in findings), findings)
 
     def test_compatibility_alias_can_never_be_a_canonical_surface_url(self) -> None:
         def mutate(value) -> None:

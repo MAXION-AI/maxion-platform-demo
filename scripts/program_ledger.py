@@ -15,7 +15,7 @@ import tempfile
 from datetime import datetime, timezone
 from contextlib import contextmanager
 from pathlib import Path, PurePosixPath
-from typing import Any, Callable, Iterator
+from typing import Any, Iterator
 
 ROOT = Path(__file__).resolve().parents[1]
 TRACKED_LEDGER = ROOT / "docs" / "operations" / "program-phase-ledger.json"
@@ -25,6 +25,9 @@ DEFAULT_EXTERNAL_LEDGER = Path(
 )
 PROGRAM = "maxion-platform-demo-ui-foundation"
 REPOSITORY = "https://github.com/MAXION-AI/maxion-platform-demo.git"
+TARGET_REF = "refs/remotes/origin/main"
+GITHUB_REPOSITORY = "MAXION-AI/maxion-platform-demo"
+MAX_CAPTURE_BYTES = 1_048_576
 PENDING_STATUS = "merged-awaiting-clean-sha-independent-acceptance"
 ACCEPTED_STATUS = "accepted"
 ALLOWED_STATUSES = {PENDING_STATUS, ACCEPTED_STATUS}
@@ -54,6 +57,12 @@ CANONICAL_EXECUTION = {
 PROTECTED_OBJECT_PATHS = {
     ".github/workflows", "src", "tests", "scripts", "package.json", "pnpm-lock.yaml",
     "playwright.config.ts", "vite.config.ts",
+    "docs/operations/figma-code-map.json",
+    "docs/operations/phase-acceptance-protocol.md",
+    "docs/operations/ux-reference-sheet.template.md",
+    "docs/operations/ux-laws-policy.md",
+    "docs/operations/mobbin-ai-north-star.md",
+    "docs/operations/ux-surface-inventory.md",
 }
 REFERENCE_SHEET_PATHS = {
     f"docs/operations/ux-reference-sheets/{name}.md"
@@ -69,6 +78,16 @@ SHA1_RE = re.compile(r"^[0-9a-f]{40}$")
 SHA256_RE = re.compile(r"^[0-9a-f]{64}$")
 TIMESTAMP_RE = re.compile(r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$")
 PR_URL_RE = re.compile(r"https://github\.com/MAXION-AI/maxion-platform-demo/pull/\d+")
+REVIEW_CHECKLISTS = {
+    "ux": (
+        "figma-context", "figma-screenshot", "mobbin-references", "laws-check",
+        "interactivity-floor", "token-gate", "accessibility", "responsive-viewports",
+    ),
+    "qa": (
+        "source-quality", "unit-integration", "browser-e2e", "failure-paths",
+        "security-boundaries", "phase-acceptance",
+    ),
+}
 COMMON_RECORD_FIELDS = {
     "phase", "status", "baseSha", "candidateSha", "prUrl", "prHeadSha", "mergeSha",
     "independentAcceptanceSha", "evidenceCommitSha", "sourceTreeSha1", "builder", "reviewers",
@@ -176,6 +195,13 @@ def _git_tree(repo_root: Path, commit: str, path: str) -> str:
         return str(_git(repo_root, "rev-parse", f"{commit}:{path}"))
     except LedgerError as exc:
         raise LedgerError(f"cannot resolve {path} tree at commit {commit}") from exc
+
+
+def _git_commit_tree(repo_root: Path, commit: str) -> str:
+    try:
+        return str(_git(repo_root, "rev-parse", f"{commit}^{{tree}}"))
+    except LedgerError as exc:
+        raise LedgerError(f"cannot resolve full tree at commit {commit}") from exc
 
 
 def _git_object(repo_root: Path, commit: str, path: str) -> str:
@@ -308,6 +334,8 @@ def _validate_post_merge_commands(record: dict[str, Any], *, required: bool) -> 
         for stream in ("stdout", "stderr"):
             if not isinstance(result.get(stream), str):
                 raise LedgerError(f"post-merge command {stream} must be a string")
+            if len(result[stream].encode("utf-8")) > MAX_CAPTURE_BYTES:
+                raise LedgerError(f"post-merge command {stream} exceeds the persisted output limit")
             expected_hash = hashlib.sha256(result[stream].encode("utf-8")).hexdigest()
             if result.get(f"{stream}Sha256") != expected_hash:
                 raise LedgerError(f"post-merge command {stream} content does not match its SHA-256")
@@ -324,12 +352,15 @@ def _validate_review_report_shape(
 ) -> None:
     expected = {
         "schemaVersion", "program", "phase", "role", "reviewer", "builder",
-        "candidateSha", "sourceTreeSha1", "referenceSheets", "checks", "verdict",
+        "candidateSha", "sourceTreeSha1", "sessionId", "worktree", "cleanCheckout",
+        "referenceSheets", "checks", "verdict",
     }
+    if role == "qa":
+        expected.add("browserRuns")
     if not isinstance(report, dict) or set(report) != expected:
         raise LedgerError(f"{role} review report has an invalid schema")
     expected_values = {
-        "schemaVersion": 1,
+        "schemaVersion": 2,
         "program": PROGRAM,
         "phase": record["phase"],
         "role": role,
@@ -345,23 +376,75 @@ def _validate_review_report_shape(
     expected_sheets = sorted(_phase_reference_sheets(record, repo_root))
     if report.get("referenceSheets") != expected_sheets:
         raise LedgerError(f"{role} review report does not bind the phase-owned reference sheets")
+    if not isinstance(report.get("sessionId"), str) or not report["sessionId"].strip():
+        raise LedgerError(f"{role} review report must bind a concrete sessionId")
+    if not isinstance(report.get("worktree"), str) or not Path(report["worktree"]).is_absolute():
+        raise LedgerError(f"{role} review report worktree must be an absolute path")
+    if report.get("cleanCheckout") is not True:
+        raise LedgerError(f"{role} review report must attest a clean checkout")
     checks = report.get("checks")
-    if not isinstance(checks, list) or not checks or any(
-        not isinstance(check, str) or not check.strip() for check in checks
-    ):
-        raise LedgerError(f"{role} review report must name its completed checks")
+    expected_ids = REVIEW_CHECKLISTS[role]
+    if not isinstance(checks, list) or [check.get("id") for check in checks if isinstance(check, dict)] != list(expected_ids):
+        raise LedgerError(f"{role} review report must contain the exact ordered checklist")
+    for check in checks:
+        if set(check) != {"id", "status", "evidence"} or check.get("status") != "PASS":
+            raise LedgerError(f"{role} review report checklist entry has an invalid schema or status")
+        evidence = check.get("evidence")
+        if not isinstance(evidence, list) or not evidence:
+            raise LedgerError(f"{role} review checklist entry must bind concrete evidence")
+        for path in evidence:
+            safe_path = _phase_artifact_path(path, f"{role} review checklist evidence", record["phase"])
+            _git_blob(repo_root, record["evidenceCommitSha"], safe_path)
+            if safe_path not in record["evidence"]:
+                raise LedgerError(f"{role} review checklist evidence must be listed in the accepted record")
+    if role == "qa":
+        runs = report.get("browserRuns")
+        if not isinstance(runs, list) or len(runs) != 3:
+            raise LedgerError("QA review report must bind exactly three browser runs")
+        run_ids: list[str] = []
+        artifact_paths: list[str] = []
+        run_fields = {
+            "runId", "browser", "browserVersion", "viewport", "fixture", "status",
+            "exitCode", "artifactPath", "artifactSha256",
+        }
+        for run in runs:
+            if not isinstance(run, dict) or set(run) != run_fields:
+                raise LedgerError("QA browser run has an invalid schema")
+            if run.get("status") != "PASS" or run.get("exitCode") != 0:
+                raise LedgerError("every QA browser run must PASS")
+            for field in ("runId", "browser", "browserVersion", "fixture"):
+                if not isinstance(run.get(field), str) or not run[field].strip():
+                    raise LedgerError(f"QA browser run {field} must be non-empty")
+            viewport = run.get("viewport")
+            if not isinstance(viewport, dict) or set(viewport) != {"width", "height"} or any(
+                not isinstance(viewport.get(axis), int) or viewport[axis] <= 0 for axis in ("width", "height")
+            ):
+                raise LedgerError("QA browser run viewport is invalid")
+            path = _phase_artifact_path(run.get("artifactPath"), "QA browser artifact", record["phase"])
+            blob = _git_blob(repo_root, record["evidenceCommitSha"], path)
+            if hashlib.sha256(blob).hexdigest() != run.get("artifactSha256"):
+                raise LedgerError("QA browser artifact SHA-256 does not match committed evidence")
+            if path not in record["evidence"]:
+                raise LedgerError("QA browser artifact must be listed in the accepted record")
+            run_ids.append(run["runId"])
+            artifact_paths.append(path)
+        if len(set(run_ids)) != 3:
+            raise LedgerError("QA browser run IDs must be distinct")
+        if len(set(artifact_paths)) != 3:
+            raise LedgerError("QA browser runs must bind three distinct artifacts")
 
 
 def _validate_command_report_shape(report: Any, *, record: dict[str, Any], result: dict[str, Any]) -> None:
     expected = {
         "schemaVersion", "program", "phase", "kind", "candidateSha", "sourceTreeSha1",
         "id", "command", "status", "exitCode", "runSha", "stdout", "stderr",
-        "stdoutSha256", "stderrSha256",
+        "stdoutSha256", "stderrSha256", "worktree", "cleanBefore", "cleanAfter",
+        "startedAt", "finishedAt",
     }
     if not isinstance(report, dict) or set(report) != expected:
         raise LedgerError(f"command report {result['id']!r} has an invalid schema")
     expected_values = {
-        "schemaVersion": 1,
+        "schemaVersion": 2,
         "program": PROGRAM,
         "phase": record["phase"],
         "kind": "command-result",
@@ -380,6 +463,17 @@ def _validate_command_report_shape(report: Any, *, record: dict[str, Any], resul
         actual_hash = hashlib.sha256(report[stream].encode("utf-8")).hexdigest()
         if actual_hash != result[f"{stream}Sha256"]:
             raise LedgerError(f"command report {result['id']!r} {stream} content does not match its SHA-256")
+        if len(report[stream].encode("utf-8")) > MAX_CAPTURE_BYTES:
+            raise LedgerError(f"command report {result['id']!r} {stream} exceeds the output limit")
+    if not isinstance(report.get("worktree"), str) or not Path(report["worktree"]).is_absolute():
+        raise LedgerError(f"command report {result['id']!r} worktree must be an absolute path")
+    if report.get("cleanBefore") is not True or report.get("cleanAfter") is not True:
+        raise LedgerError(f"command report {result['id']!r} must attest clean state before and after")
+    for field in ("startedAt", "finishedAt"):
+        if not isinstance(report.get(field), str) or not TIMESTAMP_RE.fullmatch(report[field]):
+            raise LedgerError(f"command report {result['id']!r} {field} must be a UTC timestamp")
+    if report["finishedAt"] < report["startedAt"]:
+        raise LedgerError(f"command report {result['id']!r} timestamps are out of order")
 
 
 def _phase_reference_sheets(record: dict[str, Any], repo_root: Path = ROOT) -> set[str]:
@@ -388,6 +482,30 @@ def _phase_reference_sheets(record: dict[str, Any], repo_root: Path = ROOT) -> s
     except (json.JSONDecodeError, UnicodeDecodeError) as exc:
         raise LedgerError("candidate Figma/code map is not valid JSON") from exc
     surfaces = manifest.get("surfaces", []) if isinstance(manifest, dict) else []
+    all_sheets = {
+        f"docs/operations/ux-reference-sheets/{item['referenceSheet']}"
+        for item in surfaces
+        if isinstance(item, dict) and isinstance(item.get("referenceSheet"), str)
+    }
+    scopes = manifest.get("acceptanceScopes", []) if isinstance(manifest, dict) else []
+    matching = [scope for scope in scopes if isinstance(scope, dict) and scope.get("phase") == record["phase"]]
+    if len(matching) > 1:
+        raise LedgerError("candidate manifest contains duplicate acceptance scopes for a phase")
+    if matching:
+        scope = matching[0]
+        if set(scope) != {"phase", "kind", "referenceSheets"}:
+            raise LedgerError("candidate manifest acceptance scope has an invalid schema")
+        paths = scope.get("referenceSheets")
+        if not isinstance(paths, list) or any(not isinstance(path, str) for path in paths):
+            raise LedgerError("candidate manifest acceptance scope referenceSheets is invalid")
+        scoped = {f"docs/operations/ux-reference-sheets/{path}" for path in paths}
+        if scope.get("kind") == "all-surfaces" and scoped != all_sheets:
+            raise LedgerError("all-surfaces acceptance scope must cover exactly all reference sheets")
+        if scope.get("kind") == "package" and scoped:
+            raise LedgerError("package acceptance scope may not name user-facing reference sheets")
+        if scope.get("kind") not in {"all-surfaces", "package"}:
+            raise LedgerError("candidate manifest acceptance scope kind is invalid")
+        return scoped
     return {
         f"docs/operations/ux-reference-sheets/{item['referenceSheet']}"
         for item in surfaces
@@ -477,8 +595,8 @@ def _validate_shape(record: Any, *, external: bool, require_post_merge: bool = T
             raise LedgerError("accepted record prNumber does not match prUrl")
         if not isinstance(record["mergeCommitSubject"], str) or not record["mergeCommitSubject"].strip():
             raise LedgerError("accepted record mergeCommitSubject must be non-empty")
-        if not isinstance(record["targetRef"], str) or not record["targetRef"].startswith("refs/remotes/"):
-            raise LedgerError("accepted record targetRef must be an explicit remote-tracking ref")
+        if record["targetRef"] != TARGET_REF:
+            raise LedgerError(f"accepted record targetRef must be exactly {TARGET_REF}")
     else:
         if record["independentAcceptanceSha"] is not None:
             raise LedgerError("pending record independentAcceptanceSha must be null")
@@ -505,6 +623,8 @@ def _validate_git_and_artifacts(record: dict[str, Any], repo_root: Path) -> None
     _require_ancestor(repo_root, record["prHeadSha"], record["mergeSha"], "E/PR head -> M")
     if record["evidenceCommitSha"] != record["prHeadSha"]:
         raise LedgerError("evidenceCommitSha must equal prHeadSha (C or evidence-only E)")
+    if _git_commit_tree(repo_root, record["mergeSha"]) != _git_commit_tree(repo_root, record["prHeadSha"]):
+        raise LedgerError("mergeSha full tree must equal the evidence/PR-head full tree")
 
     expected_tree = record["sourceTreeSha1"]
     for field in ("candidateSha", "prHeadSha", "mergeSha"):
@@ -548,6 +668,8 @@ def _validate_git_and_artifacts(record: dict[str, Any], repo_root: Path) -> None
             actual_hash = reference_sheet_contract_sha256(_git_blob(repo_root, accepted_commit, path))
             if actual_hash != expected_hash:
                 raise LedgerError(f"recorded immutable-contract SHA-256 does not match {path}")
+        review_sessions: list[str] = []
+        review_worktrees: list[str] = []
         for role, binding in record["reviewReports"].items():
             report_blob = _git_blob(repo_root, record["evidenceCommitSha"], binding["path"])
             if hashlib.sha256(report_blob).hexdigest() != binding["sha256"]:
@@ -557,8 +679,12 @@ def _validate_git_and_artifacts(record: dict[str, Any], repo_root: Path) -> None
             except json.JSONDecodeError as exc:
                 raise LedgerError(f"{role} review report is not valid JSON") from exc
             _validate_review_report_shape(report, record=record, role=role, repo_root=repo_root)
+            review_sessions.append(report["sessionId"])
+            review_worktrees.append(report["worktree"])
             if binding["path"] not in record["evidence"]:
                 raise LedgerError(f"{role} review report must be listed in evidence")
+        if len(set(review_sessions)) != 2 or len(set(review_worktrees)) != 2:
+            raise LedgerError("UX and QA reports must bind distinct sessions and worktrees")
         for path, expected_object in record["protectedObjectSha1"].items():
             for field in ("candidateSha", "prHeadSha", "mergeSha"):
                 if _git_object(repo_root, record[field], path) != expected_object:
@@ -603,6 +729,47 @@ def _validate_merge_identity(record: dict[str, Any], repo_root: Path) -> None:
         raise LedgerError("merge commit subject does not match prUrl")
     if subject != record["mergeCommitSubject"]:
         raise LedgerError("merge commit subject does not match recorded PR metadata")
+    _attest_github_pull_request(record, repo_root)
+
+
+def _attest_github_pull_request(record: dict[str, Any], repo_root: Path) -> None:
+    """Fail closed unless GitHub binds the recorded PR, head, base, URL, and merge SHA."""
+
+    try:
+        result = subprocess.run(
+            ["gh", "api", f"repos/{GITHUB_REPOSITORY}/pulls/{record['prNumber']}"],
+            cwd=repo_root,
+            capture_output=True,
+            text=True,
+            timeout=30,
+            check=False,
+        )
+    except (OSError, subprocess.SubprocessError) as exc:
+        raise LedgerError(f"GitHub PR attestation could not run: {exc}") from exc
+    if result.returncode != 0:
+        raise LedgerError(
+            "GitHub PR attestation failed: "
+            + (result.stderr.strip() or "gh api returned a non-zero status")
+        )
+    try:
+        value = json.loads(result.stdout)
+    except json.JSONDecodeError as exc:
+        raise LedgerError("GitHub PR attestation returned invalid JSON") from exc
+    expected = {
+        "html_url": record["prUrl"],
+        "state": "closed",
+        "merge_commit_sha": record["mergeSha"],
+    }
+    if not isinstance(value, dict) or any(value.get(field) != expected_value for field, expected_value in expected.items()):
+        raise LedgerError("GitHub PR identity/state/merge SHA does not match the accepted record")
+    if not value.get("merged_at"):
+        raise LedgerError("GitHub PR is not merged")
+    if not isinstance(value.get("base"), dict) or value["base"].get("ref") != "main":
+        raise LedgerError("GitHub PR base must be main")
+    if value["base"].get("sha") != record["baseSha"]:
+        raise LedgerError("GitHub PR base SHA does not match baseSha")
+    if not isinstance(value.get("head"), dict) or value["head"].get("sha") != record["prHeadSha"]:
+        raise LedgerError("GitHub PR head SHA does not match prHeadSha")
 
 
 def validate_record(
@@ -656,6 +823,8 @@ def _validate_external_chain(document: Any, *, repo_root: Path = ROOT) -> list[d
 
 
 def validate_external(document: Any, *, target_ref: str, repo_root: Path = ROOT) -> None:
+    if target_ref != TARGET_REF:
+        raise LedgerError(f"target ref must be exactly {TARGET_REF}")
     records = _validate_external_chain(document, repo_root=repo_root)
     if records:
         if records[-1]["targetRef"] != target_ref:
@@ -675,6 +844,8 @@ def bootstrap_external(
 ) -> str:
     """Authorize a successor only from the exact latest accepted merge."""
 
+    if target_ref != TARGET_REF:
+        raise LedgerError(f"target ref must be exactly {TARGET_REF}")
     validate_external(document, target_ref=target_ref, repo_root=repo_root)
     records = document["records"]
     if not records:
@@ -837,7 +1008,7 @@ def recover_external(path: Path, *, repo_root: Path = ROOT) -> tuple[Path, str]:
         return preserved, records[-1]["mergeSha"]
 
 
-def run_canonical_commands(record: dict[str, Any], repo_root: Path) -> list[dict[str, Any]]:
+def _run_canonical_commands(record: dict[str, Any], repo_root: Path) -> list[dict[str, Any]]:
     """Execute the fixed command set at clean M and return coordinator-generated receipts."""
 
     environment = os.environ.copy()
@@ -862,6 +1033,10 @@ def run_canonical_commands(record: dict[str, Any], repo_root: Path) -> list[dict
                 raise LedgerError(f"post-merge command {command_id!r} could not run: {exc}") from exc
             stdout.extend(result.stdout)
             stderr.extend(result.stderr)
+            if len(stdout) > MAX_CAPTURE_BYTES or len(stderr) > MAX_CAPTURE_BYTES:
+                raise LedgerError(
+                    f"post-merge command {command_id!r} output exceeds {MAX_CAPTURE_BYTES} bytes; ledger unchanged"
+                )
             exit_code = result.returncode
             if exit_code != 0:
                 break
@@ -885,14 +1060,30 @@ def run_canonical_commands(record: dict[str, Any], repo_root: Path) -> list[dict
     return receipts
 
 
+def _verify_append_checkout(record: dict[str, Any], target_ref: str, repo_root: Path) -> None:
+    if target_ref != TARGET_REF or record.get("targetRef") != TARGET_REF:
+        raise LedgerError(f"append target ref must be exactly {TARGET_REF}")
+    target_sha = str(_git(repo_root, "rev-parse", f"{TARGET_REF}^{{commit}}"))
+    if target_sha != record["mergeSha"]:
+        raise LedgerError("append target ref must resolve exactly to mergeSha")
+    head_sha = str(_git(repo_root, "rev-parse", "HEAD^{commit}"))
+    if head_sha != record["mergeSha"]:
+        raise LedgerError("append must run from HEAD exactly at mergeSha")
+    if _git_commit_tree(repo_root, head_sha) != _git_commit_tree(repo_root, record["evidenceCommitSha"]):
+        raise LedgerError("append HEAD full tree must equal the evidence full tree")
+    if str(_git(repo_root, "status", "--porcelain=v1")):
+        raise LedgerError("append must run from a clean merge checkout")
+
+
 def append_record(
     path: Path,
     raw_record: Any,
     *,
     target_ref: str,
     repo_root: Path = ROOT,
-    command_runner: Callable[[dict[str, Any], Path], list[dict[str, Any]]] = run_canonical_commands,
 ) -> dict[str, Any]:
+    if target_ref != TARGET_REF:
+        raise LedgerError(f"append target ref must be exactly {TARGET_REF}")
     if not isinstance(raw_record, dict) or raw_record.get("targetRef") != target_ref:
         raise LedgerError("record targetRef must equal the append --target-ref")
     if raw_record.get("status") != ACCEPTED_STATUS:
@@ -914,17 +1105,13 @@ def append_record(
             raise LedgerError(f"external ledger expected phase {expected_phase}, got {raw_record['phase']}")
         _validate_merge_identity(raw_record, repo_root)
         _validate_evidence_only(raw_record, repo_root)
-        target_sha = str(_git(repo_root, "rev-parse", f"{target_ref}^{{commit}}"))
-        if target_sha != raw_record["mergeSha"]:
-            raise LedgerError("append target ref must resolve exactly to mergeSha")
-        head_sha = str(_git(repo_root, "rev-parse", "HEAD^{commit}"))
-        if head_sha != raw_record["mergeSha"]:
-            raise LedgerError("append must run from clean HEAD exactly at mergeSha")
-        if str(_git(repo_root, "status", "--porcelain=v1")):
-            raise LedgerError("append must run from a clean merge checkout")
+        _verify_append_checkout(raw_record, target_ref, repo_root)
         previous = document["records"][-1]["recordSha256"] if document["records"] else "0" * 64
         record = dict(raw_record)
-        record["postMergeCommands"] = command_runner(record, repo_root)
+        record["postMergeCommands"] = _run_canonical_commands(record, repo_root)
+        # Commands can mutate the checkout, move HEAD, or race a target-ref update.
+        # Re-bind every append precondition after the last command and before bytes persist.
+        _verify_append_checkout(record, target_ref, repo_root)
         record["previousRecordSha256"] = previous
         record["recordSha256"] = record_sha256(record)
         document["records"].append(record)

@@ -3,11 +3,14 @@
 from __future__ import annotations
 
 import json
+import hashlib
+import os
 import subprocess
 import sys
 import tempfile
 import unittest
 from pathlib import Path
+from unittest import mock
 
 REPO = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(REPO / "scripts"))
@@ -55,6 +58,9 @@ immutable thresholds
 
 class PhaseAcceptanceTests(unittest.TestCase):
     def setUp(self) -> None:
+        environment = mock.patch.dict(os.environ, {"MAXION_PROGRAM_PHASE": "0"})
+        environment.start()
+        self.addCleanup(environment.stop)
         self.tempdir = tempfile.TemporaryDirectory()
         self.addCleanup(self.tempdir.cleanup)
         self.repo = Path(self.tempdir.name)
@@ -82,6 +88,7 @@ class PhaseAcceptanceTests(unittest.TestCase):
             "docs/implementation-plans/2026-09-13-maxion-platform-demo-ui-foundation/"
             "01-phase-0-fixture.md"
         )
+        self.phase = 0
         self.write(self.phase_doc, self.phase_text("pending", []))
         self.write("docs/operations/program-phase-ledger.json", "{}\n")
         self.git("add", ".")
@@ -98,11 +105,12 @@ class PhaseAcceptanceTests(unittest.TestCase):
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text(body, encoding="utf-8")
 
-    def phase_text(self, status: str, evidence: list[str]) -> str:
+    def phase_text(self, status: str, evidence: list[str], phase: int | None = None) -> str:
+        phase = self.phase if phase is None else phase
         handoff = {
             "schemaVersion": 1,
-            "phase": 0,
-            "nextPhase": 1,
+            "phase": phase,
+            "nextPhase": phase + 1 if phase < 11 else None,
             "status": status,
             "evidence": evidence,
             "reviewers": {"ux": "pending", "qa": "pending"} if status == "pending" else {
@@ -110,7 +118,7 @@ class PhaseAcceptanceTests(unittest.TestCase):
             },
         }
         return (
-            "# Phase 0\n\n- **Status:** " + status + "\n\n## Hand-off\n\nImmutable handoff.\n\n"
+            f"# Phase {phase}\n\n- **Closes:** phase-{phase} | **Risk:** high | **Status:** {status}\n\n## Hand-off\n\nImmutable handoff.\n\n"
             "### Structured acceptance hand-off\n\n```json\n"
             + json.dumps(handoff, indent=2)
             + "\n```\n"
@@ -118,23 +126,55 @@ class PhaseAcceptanceTests(unittest.TestCase):
 
     def add_acceptance_reports(self) -> list[str]:
         source_tree = self.git("rev-parse", f"{self.candidate}:src")
+        phase = self.phase
+        owned_sheets = sorted(program_ledger._phase_reference_sheets(
+            {"candidateSha": self.candidate, "phase": phase}, self.repo
+        ))
+        prefix = f"artifacts/ux-audits/phase-{phase}"
+        review_evidence = f"{prefix}/review-checks.txt"
+        self.write(review_evidence, "review evidence\n")
+        browser_paths = [f"{prefix}/browser-run-{index}.json" for index in range(1, 4)]
+        for index, path in enumerate(browser_paths, 1):
+            self.write(path, json.dumps({"run": index, "status": "PASS"}))
         paths = []
         for role in ("ux", "qa"):
-            path = f"artifacts/ux-audits/phase-0/independent-{role}.json"
+            path = f"{prefix}/independent-{role}.json"
             paths.append(path)
-            self.write(path, json.dumps({
-                "schemaVersion": 1,
+            report = {
+                "schemaVersion": 2,
                 "program": program_ledger.PROGRAM,
-                "phase": 0,
+                "phase": phase,
                 "role": role,
                 "reviewer": f"independent-{role}",
                 "builder": "builder",
                 "candidateSha": self.candidate,
                 "sourceTreeSha1": source_tree,
-                "referenceSheets": ["docs/operations/ux-reference-sheets/sample.md"],
-                "checks": [f"{role}-acceptance"],
+                "sessionId": f"session-{role}-{phase}",
+                "worktree": str(self.repo / f"{role}-review-worktree"),
+                "cleanCheckout": True,
+                "referenceSheets": owned_sheets,
+                "checks": [
+                    {"id": check_id, "status": "PASS", "evidence": [review_evidence]}
+                    for check_id in program_ledger.REVIEW_CHECKLISTS[role]
+                ],
                 "verdict": "PASS",
-            }))
+            }
+            if role == "qa":
+                report["browserRuns"] = [
+                    {
+                        "runId": f"phase-{phase}-browser-{index}",
+                        "browser": "chromium",
+                        "browserVersion": "fixture",
+                        "viewport": {"width": 1280, "height": 900},
+                        "fixture": f"fixture-{index}",
+                        "status": "PASS",
+                        "exitCode": 0,
+                        "artifactPath": browser_path,
+                        "artifactSha256": hashlib.sha256((self.repo / browser_path).read_bytes()).hexdigest(),
+                    }
+                    for index, browser_path in enumerate(browser_paths, 1)
+                ]
+            self.write(path, json.dumps(report))
         self.write(self.phase_doc, self.phase_text("accepted", paths))
         return paths
 
@@ -213,6 +253,32 @@ class PhaseAcceptanceTests(unittest.TestCase):
         evidence = self.commit(reports=False)
         self.assertTrue(any("immutable phase plan" in item for item in acceptance.check_acceptance(self.repo, self.candidate, evidence, 0)))
 
+    def test_inline_header_allows_only_the_exact_pending_to_accepted_status_transition(self) -> None:
+        paths = self.add_acceptance_reports()
+        accepted = self.phase_text("accepted", paths)
+        self.write(self.phase_doc, accepted.replace("**Risk:** high", "**Risk:** low"))
+        evidence = self.commit("changed inline header", reports=False)
+        findings = acceptance.check_acceptance(self.repo, self.candidate, evidence, 0)
+        self.assertTrue(any("immutable phase plan" in item for item in findings), findings)
+
+        self.git("reset", "--hard", self.candidate)
+        paths = self.add_acceptance_reports()
+        accepted = self.phase_text("accepted", paths).replace(
+            "**Status:** accepted", "**Status:** accepted-with-caveat"
+        )
+        self.write(self.phase_doc, accepted)
+        evidence = self.commit("ambiguous accepted status", reports=False)
+        findings = acceptance.check_acceptance(self.repo, self.candidate, evidence, 0)
+        self.assertTrue(any("visible phase status at E must be accepted" in item for item in findings), findings)
+
+    def test_duplicate_visible_status_markers_are_rejected(self) -> None:
+        paths = self.add_acceptance_reports()
+        accepted = self.phase_text("accepted", paths)
+        self.write(self.phase_doc, accepted.replace("## Hand-off", "**Status:** accepted\n\n## Hand-off"))
+        evidence = self.commit("duplicate visible status", reports=False)
+        findings = acceptance.check_acceptance(self.repo, self.candidate, evidence, 0)
+        self.assertTrue(any("exactly one visible status marker" in item for item in findings), findings)
+
     def test_missing_or_reused_review_report_is_rejected(self) -> None:
         paths = self.add_acceptance_reports()
         (self.repo / paths[1]).unlink()
@@ -238,6 +304,18 @@ class PhaseAcceptanceTests(unittest.TestCase):
         self.assertTrue(any("omits the independent qa report" in item for item in findings), findings)
         self.assertTrue(any("ux identity does not match" in item for item in findings), findings)
 
+    def test_independent_reports_require_distinct_sessions_and_worktrees(self) -> None:
+        paths = self.add_acceptance_reports()
+        ux = json.loads((self.repo / paths[0]).read_text(encoding="utf-8"))
+        qa = json.loads((self.repo / paths[1]).read_text(encoding="utf-8"))
+        qa["sessionId"] = ux["sessionId"]
+        qa["worktree"] = ux["worktree"]
+        self.write(paths[1], json.dumps(qa))
+        evidence = self.commit("shared verifier context", reports=False)
+        findings = acceptance.check_acceptance(self.repo, self.candidate, evidence, 0)
+        self.assertTrue(any("distinct session IDs" in item for item in findings), findings)
+        self.assertTrue(any("distinct verifier worktrees" in item for item in findings), findings)
+
     def test_exact_distinct_commits_and_ancestry_are_required(self) -> None:
         self.assertTrue(any("distinct" in item for item in acceptance.check_acceptance(self.repo, self.candidate, self.candidate, 0)))
         self.git("checkout", "-qb", "other", f"{self.candidate}^")
@@ -254,6 +332,52 @@ class PhaseAcceptanceTests(unittest.TestCase):
         later = self.git("rev-parse", "HEAD")
         findings = acceptance.check_acceptance(self.repo, self.candidate, later, 0)
         self.assertTrue(any("single direct child" in item for item in findings), findings)
+
+    def test_symlink_and_executable_evidence_are_rejected(self) -> None:
+        paths = self.add_acceptance_reports()
+        executable = self.repo / paths[0]
+        executable.chmod(0o755)
+        evidence = self.commit("executable report", reports=False)
+        findings = acceptance.check_acceptance(self.repo, self.candidate, evidence, 0)
+        self.assertTrue(any("mode 100644" in item for item in findings), findings)
+
+        self.git("reset", "--hard", self.candidate)
+        self.add_acceptance_reports()
+        target = self.repo / "regular-target.json"
+        target.write_text("{}\n", encoding="utf-8")
+        report = self.repo / "artifacts/ux-audits/phase-0/symlink.json"
+        report.symlink_to(target)
+        evidence = self.commit("symlink report", reports=False)
+        findings = acceptance.check_acceptance(self.repo, self.candidate, evidence, 0)
+        self.assertTrue(any("mode 100644" in item for item in findings), findings)
+
+    def test_phase_10_all_surfaces_and_phase_11_package_scopes_are_accepted(self) -> None:
+        for phase, kind, sheets in ((10, "all-surfaces", ["sample.md"]), (11, "package", [])):
+            with self.subTest(phase=phase):
+                self.git("reset", "--hard", self.candidate)
+                manifest_path = self.repo / "docs/operations/figma-code-map.json"
+                manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+                manifest["acceptanceScopes"] = [
+                    {"phase": phase, "kind": kind, "referenceSheets": sheets}
+                ]
+                self.write("docs/operations/figma-code-map.json", json.dumps(manifest))
+                self.phase = phase
+                self.phase_doc = (
+                    "docs/implementation-plans/2026-09-13-maxion-platform-demo-ui-foundation/"
+                    f"{phase + 1:02d}-phase-{phase}-fixture.md"
+                )
+                self.write(self.phase_doc, self.phase_text("pending", []))
+                self.git("add", ".")
+                self.git("commit", "-qm", f"phase {phase} candidate")
+                phase_candidate = self.git("rev-parse", "HEAD")
+                original_candidate = self.candidate
+                self.candidate = phase_candidate
+                evidence = self.commit(f"phase {phase} evidence")
+                self.assertEqual(
+                    acceptance.check_acceptance(self.repo, phase_candidate, evidence, phase), []
+                )
+                self.candidate = original_candidate
+                self.phase = 0
 
 
 if __name__ == "__main__":

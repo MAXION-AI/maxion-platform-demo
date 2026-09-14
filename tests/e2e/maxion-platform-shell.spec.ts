@@ -3,7 +3,7 @@ import { expect, test } from "@playwright/test"
 
 test("preserves text contrast throughout dashboard and sidebar entrance frames", async ({ page }) => {
 	await page.goto("/maxion-prototype", { waitUntil: "domcontentloaded" })
-	await page.getByRole("button", { name: "View all" }).waitFor({ state: "attached" })
+	await page.getByRole("heading", { name: "Work that moved. Decisions that wait." }).waitFor({ state: "attached" })
 
 	for (let frame = 0; frame < 12; frame += 1) {
 		const result = await new AxeBuilder({ page })
@@ -41,20 +41,49 @@ test("keeps product and administration geometry exact at every acceptance viewpo
 				.map((icon) => icon.getBoundingClientRect().width),
 			adminIcons: [...element.querySelectorAll<HTMLElement>('[data-navigation-tier="administration"] .mxp-portal-nav-icon')]
 				.map((icon) => icon.getBoundingClientRect().width),
+			productGap: Number.parseFloat(getComputedStyle(element.querySelector(".mxp-product-nav ul")!).rowGap),
+			adminGap: Number.parseFloat(getComputedStyle(element.querySelector(".mxp-administration-nav ul")!).rowGap),
+			sidebarWidth: element.closest(".mxp-portal-sidebar")!.getBoundingClientRect().width,
 		}))
 		expect(geometry.productRows, `${viewport.width}px product rows`).toEqual(Array(7).fill(44))
-		expect(geometry.adminRows, `${viewport.width}px administrative rows`).toEqual(Array(5).fill(36))
-		expect(geometry.productIcons, `${viewport.width}px product icons`).toEqual(Array(7).fill(20))
+		expect(geometry.adminRows, `${viewport.width}px administrative rows`).toEqual(Array(5).fill(viewport.width <= 860 ? 44 : 36))
+		expect(geometry.productIcons, `${viewport.width}px product icons`).toEqual(Array(7).fill(24))
 		expect(geometry.adminIcons, `${viewport.width}px administrative icons`).toEqual(Array(5).fill(16))
+		expect(geometry.productGap).toBe(4)
+		expect(geometry.adminGap).toBe(2)
+		expect(geometry.sidebarWidth).toBe(viewport.width <= 860 ? Math.min(286, viewport.width * 0.88) : 232)
+
+		const undersizedTargets = await page.locator(".mxp-root").evaluate((root, minimum) => {
+			const selector = 'button, a[href], input, textarea, select, summary, [role="button"]'
+			return [...root.querySelectorAll<HTMLElement>(selector)].flatMap((element) => {
+				const style = getComputedStyle(element)
+				const rect = element.getBoundingClientRect()
+				if (style.display === "none" || style.visibility === "hidden" || rect.width === 0 || rect.height === 0) return []
+				return rect.width + 0.01 < minimum || rect.height + 0.01 < minimum
+					? [{ label: element.getAttribute("aria-label") || element.textContent?.trim().slice(0, 50), width: rect.width, height: rect.height }]
+					: []
+			})
+		}, viewport.width <= 860 ? 44 : 24)
+		expect(undersizedTargets, `${viewport.width}px interactive target floor`).toEqual([])
 	}
 })
 
 test("keeps the shell choice, target, response, and accessibility floor measurable", async ({ page }) => {
 	await page.goto("/maxion-prototype")
 
-	const primaryActions = page.getByRole("group", { name: "Primary workspace actions" })
-	await expect(primaryActions.getByRole("button")).toHaveCount(3)
-	await expect(primaryActions.getByRole("button", { name: /Review .* waiting items/ })).toHaveClass(/mxp-primary/)
+	await expect(page.getByRole("button", { name: "Search or ask" })).toBeVisible()
+	await expect(page.getByRole("button", { name: "Open Agentix" })).toHaveClass(/mxp-primary/)
+	await expect(page.getByRole("heading", { name: "Needs you" })).toBeVisible()
+	await expect(page.getByRole("heading", { name: "Recent outcomes" })).toBeVisible()
+	await expect(page.getByText("Quick navigation", { exact: true })).toHaveCount(0)
+	await expect(page.locator(".mxp-needs-you article")).toHaveCount(3)
+	await expect(page.locator(".mxp-recent-outcomes button")).toHaveCount(4)
+	const dashboardComposition = await page.evaluate(() => ({
+		rail: document.querySelector<HTMLElement>(".mxp-portal-sidebar")?.getBoundingClientRect().width,
+		header: document.querySelector<HTMLElement>(".mxp-dashboard-module-header")?.getBoundingClientRect().height,
+		columns: getComputedStyle(document.querySelector<HTMLElement>(".mxp-dashboard-grid")!).gridTemplateColumns.split(" ").length,
+	}))
+	expect(dashboardComposition).toEqual({ rail: 232, header: 72, columns: 2 })
 
 	const navigation = page.getByRole("navigation", { name: "Portal sections" })
 	const targetHeights = await navigation.locator('[data-navigation-tier="product"]').evaluateAll((controls) =>
@@ -86,7 +115,7 @@ test("keeps the shell choice, target, response, and accessibility floor measurab
 	expect(navigationGeometry.productBottom).toBeLessThanOrEqual(navigationGeometry.administrationTop)
 	expect(navigationGeometry.administrationBottomGap).toBeLessThanOrEqual(16)
 	expect(navigationGeometry.administrationOffset).toBeGreaterThan(navigationGeometry.shellHeight / 2)
-	expect(navigationGeometry.productIcon).toBe(20)
+	expect(navigationGeometry.productIcon).toBe(24)
 	expect(navigationGeometry.administrationIcon).toBe(16)
 	expect(Math.min(...navigationGeometry.administrationTargets)).toBeGreaterThanOrEqual(24)
 	expect(Math.max(...navigationGeometry.administrationTargets)).toBeLessThan(44)
@@ -177,7 +206,7 @@ test("keeps the canonical MAXION shell functional across core modules", async ({
 	page.on("pageerror", (error) => runtimeErrors.push(error.message))
 
 	await page.goto("/maxion-prototype")
-	await expect(page.getByRole("heading", { name: "Good afternoon, Root Admin" })).toBeVisible()
+	await expect(page.getByRole("heading", { name: "Work that moved. Decisions that wait." })).toBeVisible()
 	await expect(page.getByRole("img", { name: "MAXION" })).toHaveAttribute("src", "/maxion-logo-lockup-white.svg")
 
 	const navigation = page.getByRole("navigation", { name: "Portal sections" })
@@ -189,6 +218,12 @@ test("keeps the canonical MAXION shell functional across core modules", async ({
 	await page.getByRole("button", { name: "Collapse navigation" }).click()
 	await expect(page.getByRole("button", { name: "Expand navigation" })).toHaveAttribute("aria-pressed", "true")
 	await expect(page.locator(".mxp-root")).toHaveClass(/mxp-root--sidebar-collapsed/)
+	const expandTarget = await page.getByRole("button", { name: "Expand navigation" }).evaluate((control) => {
+		const rect = control.getBoundingClientRect()
+		return { width: rect.width, height: rect.height }
+	})
+	expect(expandTarget.width).toBeGreaterThanOrEqual(24)
+	expect(expandTarget.height).toBeGreaterThanOrEqual(24)
 
 	await navigation.getByRole("button", { name: "Projects" }).click()
 	await expect(page.getByRole("heading", { name: "Projects" })).toBeVisible()
@@ -389,7 +424,7 @@ test("keeps a running pass in command of its surface and shows what applied stee
 test("keeps the full MAXION navigation usable on mobile", async ({ page }) => {
 	await page.setViewportSize({ width: 390, height: 844 })
 	await page.goto("/maxion-prototype")
-	await expect(page.getByRole("heading", { name: "Good afternoon, Root Admin" })).toBeVisible()
+	await expect(page.getByRole("heading", { name: "Work that moved. Decisions that wait." })).toBeVisible()
 	await page.getByRole("button", { name: "Open navigation" }).click()
 
 	const navigation = page.getByRole("navigation", { name: "Portal sections" })

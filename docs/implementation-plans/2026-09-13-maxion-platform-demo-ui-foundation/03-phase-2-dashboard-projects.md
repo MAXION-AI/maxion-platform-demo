@@ -34,7 +34,7 @@ acknowledgement under 400 ms, and all first value paths within three actions.
 
 ## Ordered tasks
 
-1. **Bind dashboard selectors (2.1).** Refactor `DashboardModule` in `PortalReplicaModules.tsx` to consume typed summaries/attention selectors, never independent booleans.
+1. **Bind dashboard selectors (2.1).** Move `DashboardModule` into the dashboard-owned folder and consume typed summaries/attention selectors, never independent booleans.
 2. **Match the accepted dashboard frame (2.2).** Implement hierarchy, responsive reflow, skeleton/empty/error states, and one primary attention action with shared primitives.
 3. **Extract the Projects state/view seam (2.3).** Move project events/selectors from `PortalReplicaModules.tsx` into the shared kernel; preserve create/search/open behavior.
 4. **Build the Projects frame and state matrix (2.4).** Implement list/grid density, filters, create/resume, permissions, loading/empty/error, keyboard, and mobile states from its sheet.
@@ -45,11 +45,11 @@ acknowledgement under 400 ms, and all first value paths within three actions.
 
 | Task | Serves | Exact files/symbols | Prerequisite | Focused verification |
 | --- | --- | --- | --- | --- |
-| 2.1 | RC-05 and RC-06 via ADR-3 | `src/features/platform-prototype/PortalReplicaModules.tsx#DashboardModule`; `src/features/platform-prototype/platformState.ts#selectDashboardSummary` | Accepted Phase 1 M and selector kernel | `pnpm test -- DashboardModule.spec.tsx` |
-| 2.2 | RC-06 and RC-15 via ADR-4 | `src/features/platform-prototype/PortalReplicaModules.tsx#DashboardModule`; `tests/e2e/maxion-platform-shell.spec.ts#shell.attention` | Task 2.1 bound selectors | `pnpm exec playwright test tests/e2e/maxion-platform-shell.spec.ts -g dashboard` |
-| 2.3 | RC-05 and RC-06 via ADR-3 | `src/features/platform-prototype/projectsState.ts#reduceProjectsState`; `src/features/platform-prototype/projectsState.ts#selectProjects` | Task 2.1 shared dashboard summary | `pnpm test -- projectsState.spec.ts` |
-| 2.4 | RC-06 and RC-15 via ADR-4 | `src/features/platform-prototype/PortalReplicaModules.tsx#ProjectsModule`; `tests/e2e/maxion-platform-shell.spec.ts#projects.ready` | Task 2.3 project state seam | `pnpm exec playwright test tests/e2e/maxion-platform-shell.spec.ts -g Projects` |
-| 2.5 | RC-06 and RC-14 via ADR-3 | `src/features/platform-prototype/platformState.ts#selectRecentProjects`; `tests/e2e/maxion-platform-shell.spec.ts#dashboard-project-continuity` | Tasks 2.2 and 2.4 accepted surfaces | `pnpm exec playwright test tests/e2e/maxion-platform-shell.spec.ts -g continuity` |
+| 2.1 | RC-05 and RC-06 via ADR-3 | `src/features/platform-prototype/dashboard/selectors.ts#selectDashboardSummary`; `src/features/platform-prototype/dashboard/DashboardModule.spec.tsx` | Accepted Phase 1 M and selector kernel | `pnpm test -- dashboard/DashboardModule.spec.tsx` |
+| 2.2 | RC-06 and RC-15 via ADR-4 | `src/features/platform-prototype/dashboard/DashboardModule.tsx#DashboardModule`; `tests/e2e/maxion-platform-shell.spec.ts#shell.attention` | Task 2.1 bound selectors | `pnpm exec playwright test tests/e2e/maxion-platform-shell.spec.ts -g dashboard` |
+| 2.3 | RC-05 and RC-06 via ADR-3 | `src/features/platform-prototype/projects/domain.ts#reduceProjectsState`; `src/features/platform-prototype/projects/selectors.ts#selectProjects` | Task 2.1 shared dashboard summary | `pnpm test -- projects/domain.spec.ts` |
+| 2.4 | RC-06 and RC-15 via ADR-4 | `src/features/platform-prototype/projects/ProjectsModule.tsx#ProjectsModule`; `tests/e2e/maxion-platform-shell.spec.ts#projects.ready` | Task 2.3 project state seam | `pnpm exec playwright test tests/e2e/maxion-platform-shell.spec.ts -g Projects` |
+| 2.5 | RC-06 and RC-14 via ADR-3 | `src/features/platform-prototype/dashboard/selectors.ts#selectRecentProjects`; `tests/e2e/maxion-platform-shell.spec.ts#dashboard-project-continuity` | Tasks 2.2 and 2.4 accepted surfaces | `pnpm exec playwright test tests/e2e/maxion-platform-shell.spec.ts -g continuity` |
 | 2.6 | RC-15 and RC-16 via ADR-8 | `artifacts/ux-audits/phase-2/verification.md`; `docs/operations/phase-acceptance-protocol.md#Evidence-only-closure` | Tasks 2.1 through 2.5 green at C | `python3 scripts/check_phase_acceptance.py --candidate "$C" --evidence "$E" --phase 2` |
 
 ## Data/contracts, tests, failures, rollback
@@ -71,7 +71,7 @@ Rollback reverts only Phase 2 while retaining Phase 1 contracts. No new dependen
 
 | Kind | Exact files / outputs / commands | Passing evidence |
 | --- | --- | --- |
-| Production | Modify `PortalReplicaModules.tsx#DashboardModule/#ProjectsModule`; create project domain/selectors under `src/features/platform-prototype/projects/`; delete superseded dashboard/project owners and selectors | One runtime owner per surface; manifest and sheet hashes updated |
+| Production | Create `dashboard/DashboardModule.tsx`, `dashboard/selectors.ts`, `projects/ProjectsModule.tsx`, and `projects/{domain,selectors,commands}.ts` under `src/features/platform-prototype/`; reduce `PortalReplicaModules.tsx` to imports and delete superseded dashboard/project owners/selectors | One folder-owned runtime owner per surface; manifest and sheet hashes updated |
 | Tests/fixtures | Co-located project/selector tests; platform shell unit spec; `tests/e2e/maxion-platform-shell.spec.ts`; deterministic 0/1/10,000 fixtures | Create→Dashboard→open, denial, empty, keyboard/mobile, ≤200 mounted rows |
 | Evidence/commands | `artifacts/ux-audits/phase-2/**`; both sheets §7/§8; `pnpm check:program && pnpm test && pnpm build && pnpm test:e2e && pnpm audit --audit-level high`; `git diff --check` | Exact exit codes, viewport/Figma diffs, timing/axe reports |
 | PR lifecycle | Verify prior M as B; create isolated phase branch/worktree; commit clean C; independent UX/QA audit C; commit required distinct evidence-only E; merge only as a true B+E two-parent M; rerun clean-M gates; append under lock to the external authority | PR URL, B/C/E/M, protected-object equality, exact target ref, merge/PR identity, post-merge results, successor pin |

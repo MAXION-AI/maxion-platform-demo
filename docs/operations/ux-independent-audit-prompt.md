@@ -2,7 +2,8 @@
 
 Use this to start a **separate session** (Codex, or a fresh Claude Code context) that audits a built
 screen against its reference sheet. The builder never runs this on their own work. Paste the prompt
-below, replacing the two paths.
+below, replacing every input. A report label or session ID does not authenticate a person; the
+coordinator remains responsible for actual separation from the builder.
 
 ---
 
@@ -12,6 +13,11 @@ where it does not.
 
 Inputs:
 
+- Phase: `<N>`
+- Candidate commit: `<exact 40-character C>`
+- Candidate source tree: `<exact C:src tree>`
+- Reviewer label: `<reviewer>`; builder label: `<builder>`
+- Verifier session ID: `<session-id>`; absolute detached worktree: `<absolute-path>`
 - Reference sheet: `docs/operations/ux-reference-sheets/<sheet>.md`
 - Running app: `<url or how to start the preview>` (this repository uses local preview only)
 - Canon: `docs/operations/ux-laws-policy.md` (laws, precedence, surface classes, interactivity floor)
@@ -50,7 +56,44 @@ End with:
 - The token-lint result and the accessibility result.
 - A single verdict: **GATE PASS** only if no blocker or major is open; otherwise **GATE FAIL** with
   the list of what must change.
-- Save the report to `artifacts/ux-audits/<sheet>-<date>.md` and put that path in §7 of the sheet.
+- Save detailed prose/screenshots under `artifacts/ux-audits/phase-<N>/`. Every checklist evidence
+  path below must name a committed regular artifact in that directory.
+- Emit exactly one machine-readable report at
+  `artifacts/ux-audits/phase-<N>/independent-ux.json`. Use schema version 2 and exactly these keys;
+  unknown keys fail the gate:
+
+```json
+{
+  "schemaVersion": 2,
+  "program": "maxion-platform-demo-ui-foundation",
+  "phase": 0,
+  "role": "ux",
+  "reviewer": "<reviewer>",
+  "builder": "<builder>",
+  "candidateSha": "<C>",
+  "sourceTreeSha1": "<C:src>",
+  "sessionId": "<session-id>",
+  "worktree": "<absolute-clean-detached-worktree>",
+  "cleanCheckout": true,
+  "referenceSheets": ["docs/operations/ux-reference-sheets/<sheet>.md"],
+  "checks": [
+    {"id": "figma-context", "status": "PASS", "evidence": ["artifacts/ux-audits/phase-0/figma-context.json"]},
+    {"id": "figma-screenshot", "status": "PASS", "evidence": ["artifacts/ux-audits/phase-0/figma-comparison.png"]},
+    {"id": "mobbin-references", "status": "PASS", "evidence": ["artifacts/ux-audits/phase-0/mobbin-decisions.md"]},
+    {"id": "laws-check", "status": "PASS", "evidence": ["artifacts/ux-audits/phase-0/laws-check.json"]},
+    {"id": "interactivity-floor", "status": "PASS", "evidence": ["artifacts/ux-audits/phase-0/interactivity.json"]},
+    {"id": "token-gate", "status": "PASS", "evidence": ["artifacts/ux-audits/phase-0/token-gate.json"]},
+    {"id": "accessibility", "status": "PASS", "evidence": ["artifacts/ux-audits/phase-0/accessibility.json"]},
+    {"id": "responsive-viewports", "status": "PASS", "evidence": ["artifacts/ux-audits/phase-0/responsive.json"]}
+  ],
+  "verdict": "PASS"
+}
+```
+
+Replace every example `0` with the input phase. `referenceSheets` must equal the acceptance scope from
+the candidate manifest: the phase-owned sheets normally, all 13 sheets in Phase 10, and `[]` for the
+Phase 11 package scope. If any checklist item fails, do not fabricate this PASS report; return GATE FAIL
+and leave the phase open.
 
 Do not accept "it looks close". The sheet defines "exactly like it"; anything not on the sheet is a
 finding, not a preference.

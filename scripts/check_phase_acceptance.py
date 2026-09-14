@@ -23,6 +23,8 @@ HANDOFF_RE = re.compile(
     re.M | re.S,
 )
 SHA_RE = re.compile(r"^[0-9a-f]{40}$")
+VISIBLE_STATUS_RE = re.compile(r"\*\*Status:\*\*\s*([^|\n]+)")
+REGULAR_BLOB_MODE = "100644"
 
 
 def _git(repo: Path, *args: str, binary: bool = False) -> bytes | str:
@@ -36,6 +38,29 @@ def _git(repo: Path, *args: str, binary: bool = False) -> bytes | str:
 
 def _blob(repo: Path, commit: str, path: str) -> bytes:
     return _git(repo, "show", f"{commit}:{path}", binary=True)  # type: ignore[return-value]
+
+
+def _tree_entry(repo: Path, commit: str, path: str) -> tuple[str, str, str]:
+    raw = _git(repo, "ls-tree", "-z", commit, "--", path, binary=True)
+    assert isinstance(raw, bytes)
+    entries = [entry for entry in raw.split(b"\0") if entry]
+    if len(entries) != 1:
+        raise ValueError(f"{path} must resolve to exactly one Git tree entry at {commit}")
+    try:
+        metadata, actual_path = entries[0].split(b"\t", 1)
+        mode, kind, _object_id = metadata.decode("ascii").split(" ")
+        decoded_path = actual_path.decode("utf-8")
+    except (ValueError, UnicodeDecodeError) as exc:
+        raise ValueError(f"cannot parse Git tree entry for {path} at {commit}") from exc
+    if decoded_path != path:
+        raise ValueError(f"Git tree entry path mismatch for {path} at {commit}")
+    return mode, kind, decoded_path
+
+
+def _require_regular_blob(repo: Path, commit: str, path: str) -> None:
+    mode, kind, _ = _tree_entry(repo, commit, path)
+    if mode != REGULAR_BLOB_MODE or kind != "blob":
+        raise ValueError(f"{path} at {commit} must be a non-executable regular blob (mode 100644)")
 
 
 def _phase_document(paths: list[str], phase: int) -> str | None:
@@ -54,21 +79,22 @@ def _phase_document_at(repo: Path, candidate: str, phase: int) -> str | None:
 
 
 def _phase_owned_sheets(repo: Path, candidate: str, phase: int) -> set[str]:
-    try:
-        manifest = json.loads(_blob(repo, candidate, MANIFEST_PATH))
-    except (ValueError, json.JSONDecodeError, UnicodeDecodeError):
-        return set()
-    surfaces = manifest.get("surfaces", []) if isinstance(manifest, dict) else []
-    return {
-        f"{SHEET_PREFIX}{item['referenceSheet']}"
-        for item in surfaces
-        if isinstance(item, dict)
-        and item.get("acceptancePhase") == phase
-        and isinstance(item.get("referenceSheet"), str)
-    }
+    return program_ledger._phase_reference_sheets(  # noqa: SLF001 - shared gate contract
+        {"candidateSha": candidate, "phase": phase}, repo
+    )
+
+
+def _phase_scope_kind(repo: Path, candidate: str, phase: int) -> str | None:
+    value = json.loads(_blob(repo, candidate, MANIFEST_PATH))
+    scopes = value.get("acceptanceScopes", []) if isinstance(value, dict) else []
+    matches = [scope for scope in scopes if isinstance(scope, dict) and scope.get("phase") == phase]
+    return matches[0].get("kind") if len(matches) == 1 else None
 
 
 def _handoff(text: str) -> tuple[str, dict[str, Any]]:
+    status_matches = list(VISIBLE_STATUS_RE.finditer(text))
+    if len(status_matches) != 1:
+        raise ValueError("phase document must contain exactly one visible status marker")
     match = HANDOFF_RE.search(text)
     if not match:
         raise ValueError("missing structured acceptance hand-off")
@@ -76,7 +102,7 @@ def _handoff(text: str) -> tuple[str, dict[str, Any]]:
     if not isinstance(value, dict):
         raise ValueError("structured acceptance hand-off must be an object")
     without = text[:match.start()] + "<structured-acceptance-hand-off>" + text[match.end():]
-    without = re.sub(r"^(- \*\*Status:\*\*).*$", r"\1 <mutable>", without, flags=re.MULTILINE)
+    without = VISIBLE_STATUS_RE.sub(r"**Status:** <mutable>", without, count=1)
     return without.strip(), value
 
 
@@ -89,6 +115,12 @@ def _check_phase_delta(candidate: bytes, evidence: bytes, phase: int) -> list[st
     except (UnicodeDecodeError, json.JSONDecodeError, ValueError) as exc:
         return [f"cannot validate structured phase hand-off: {exc}"]
     findings: list[str] = []
+    before_status = VISIBLE_STATUS_RE.search(before_text)
+    after_status = VISIBLE_STATUS_RE.search(after_text)
+    if not before_status or before_status.group(1).strip().casefold() != "pending":
+        findings.append("visible phase status at C must be pending")
+    if not after_status or after_status.group(1).strip().casefold() != "accepted":
+        findings.append("visible phase status at E must be accepted")
     if before_contract != after_contract:
         findings.append("immutable phase plan changed from C to E")
     expected_keys = {"schemaVersion", "phase", "nextPhase", "status", "evidence", "reviewers"}
@@ -168,39 +200,38 @@ def _check_review_reports(
         return findings + ["evidence E must add one machine-readable UX report and one QA report"], reports
     identities: list[str] = []
     builders: list[str] = []
+    sessions: list[str] = []
+    worktrees: list[str] = []
     for role, (_, report) in reports.items():
-        expected = {
-            "schemaVersion", "program", "phase", "role", "reviewer", "builder",
-            "candidateSha", "sourceTreeSha1", "referenceSheets", "checks", "verdict",
-        }
-        if set(report) != expected:
-            findings.append(f"independent {role} report has an invalid schema")
-            continue
-        exact = {
-            "schemaVersion": 1,
-            "program": program_ledger.PROGRAM,
-            "phase": phase,
-            "role": role,
-            "candidateSha": candidate,
-            "sourceTreeSha1": str(_git(repo, "rev-parse", f"{candidate}:src")),
-            "referenceSheets": sorted(owned_sheets),
-            "verdict": "PASS",
-        }
-        for field, expected_value in exact.items():
-            if report.get(field) != expected_value:
-                findings.append(f"independent {role} report field {field} does not match C/phase/sheets")
-        if (
-            not isinstance(report.get("checks"), list)
-            or not report["checks"]
-            or any(not isinstance(check, str) or not check.strip() for check in report["checks"])
-        ):
-            findings.append(f"independent {role} report has no completed checks")
         identities.append(str(report.get("reviewer", "")).strip().casefold())
         builders.append(str(report.get("builder", "")).strip().casefold())
+        sessions.append(str(report.get("sessionId", "")).strip())
+        worktrees.append(str(report.get("worktree", "")).strip())
     if not all(identities) or len(set(identities)) != 2:
         findings.append("independent UX and QA report identities must be non-empty and distinct")
     if len(set(builders)) != 1 or not builders[0] or builders[0] in identities:
         findings.append("independent reports must bind one distinct non-reviewer builder")
+    if not all(sessions) or len(set(sessions)) != 2:
+        findings.append("independent UX and QA reports must bind distinct session IDs")
+    if not all(worktrees) or len(set(worktrees)) != 2:
+        findings.append("independent UX and QA reports must bind distinct verifier worktrees")
+    if set(reports) == {"ux", "qa"} and len(set(builders)) == 1 and builders[0]:
+        record = {
+            "phase": phase,
+            "candidateSha": candidate,
+            "sourceTreeSha1": str(_git(repo, "rev-parse", f"{candidate}:src")),
+            "evidenceCommitSha": evidence,
+            "evidence": paths,
+            "builder": next(iter(reports.values()))[1].get("builder"),
+            "reviewers": {role: reports[role][1].get("reviewer") for role in ("ux", "qa")},
+        }
+        for role, (_, report) in reports.items():
+            try:
+                program_ledger._validate_review_report_shape(  # noqa: SLF001 - one schema authority
+                    report, record=record, role=role, repo_root=repo
+                )
+            except program_ledger.LedgerError as exc:
+                findings.append(f"independent {role} report failed schema validation: {exc}")
     return findings, reports
 
 
@@ -231,8 +262,14 @@ def check_acceptance(repo: Path, candidate: str, evidence: str, phase: int) -> l
     phase_doc = _phase_document_at(repo, candidate, phase)
     if phase_doc is None:
         findings.append("candidate C does not contain exactly one predetermined phase document")
-    owned_sheets = _phase_owned_sheets(repo, candidate, phase)
-    if not owned_sheets and phase != 1:
+    try:
+        owned_sheets = _phase_owned_sheets(repo, candidate, phase)
+        scope_kind = _phase_scope_kind(repo, candidate, phase)
+    except (ValueError, json.JSONDecodeError, UnicodeDecodeError, program_ledger.LedgerError) as exc:
+        findings.append(f"candidate manifest acceptance scope is invalid: {exc}")
+        owned_sheets = set()
+        scope_kind = None
+    if not owned_sheets and phase != 1 and scope_kind != "package":
         findings.append("candidate manifest does not assign any reference sheet to this phase")
     audit_prefix = f"artifacts/ux-audits/phase-{phase}/"
     added_audits: list[str] = []
@@ -240,9 +277,20 @@ def check_acceptance(repo: Path, candidate: str, evidence: str, phase: int) -> l
     for status, source, destination in entries:
         path = destination or source
         if status == "A" and path.startswith(audit_prefix):
+            try:
+                _require_regular_blob(repo, evidence, path)
+            except ValueError as exc:
+                findings.append(str(exc))
             added_audits.append(path)
             continue
         if status == "M" and (path in owned_sheets or path == phase_doc):
+            try:
+                before_mode = _tree_entry(repo, candidate, path)[:2]
+                after_mode = _tree_entry(repo, evidence, path)[:2]
+                if before_mode != (REGULAR_BLOB_MODE, "blob") or after_mode != before_mode:
+                    findings.append(f"mode/type change is forbidden from C to E: {path}")
+            except ValueError as exc:
+                findings.append(str(exc))
             modified_paths.add(path)
             continue
         if status.startswith(("R", "C")):

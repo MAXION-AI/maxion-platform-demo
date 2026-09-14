@@ -29,9 +29,11 @@
 
 | Element on screen | Maxion component | Tokens used | Reference decision it implements |
 | --- | --- | --- | --- |
-| Product navigation destinations | PortalChrome product tier | --mxp-surface-raised, --mxp-text-muted, --mxp-control-lg | Seven frequent product destinations in the upper region, with 44 px rows and 20 px icons. |
-| Administrative navigation | PortalChrome administration tier | --mxp-surface-raised, --mxp-text-muted, --mxp-control-md | Units and five compact administrative destinations are bottom-anchored, with 36 px rows and 16 px icons. |
-| Attention summary | AttentionCard | --mxp-status-warning, --mxp-border-subtle, --mxp-radius-md | Actionable state with owner, consequence, and next step. |
+| Product navigation destinations | PortalChrome product tier | --mxp-surface-raised, --mxp-text-muted, --mxp-control-lg | Seven frequent product destinations in the upper region of the 232 px rail, with 44 px rows, 24 px icons, and 4 px row gaps. |
+| Administrative navigation | PortalChrome administration tier | --mxp-surface-raised, --mxp-text-muted, --mxp-control-md | Units and five compact administrative destinations are bottom-anchored, with 36 px desktop rows, 44 px mobile hit areas, 16 px icons, and 2 px row gaps. |
+| Persistent dashboard header | DashboardModule header | --mxp-surface-raised, --mxp-border-subtle, --mxp-control-lg | 72 px operating header keeps greeting/decision count, Search or ask, and the single Open Agentix primary action visible. |
+| Attention summary | NeedsYou panel | --mxp-status-warning, --mxp-border-subtle, --mxp-radius-md | Three actionable, owner-specific decisions form the dominant left panel. |
+| Recent outcomes | RecentOutcomes panel | --mxp-surface-raised, --mxp-text-muted, --mxp-radius-md | Verified operational results replace duplicate module routing in the subordinate right panel. |
 | Cross-module command | CommandPalette | --mxp-focus-ring, --mxp-shadow-dialog, --mxp-space-4 | One searchable route into any important job. |
 
 - Raw colour, font, radius or shadow values are forbidden in components; `scripts/check_ux_tokens.py` enforces the ratchet while inherited values are removed.
@@ -41,22 +43,22 @@
 | Law | Requirement for this screen | Number / acceptance | Verified how |
 | --- | --- | --- | --- |
 | Hick's | Keep product work and administrative work in separate bounded regions. | 7 product destinations above; 5 administrative destinations below | Count named destinations at desktop and mobile widths |
-| Fitts's | Product targets carry stronger weight while compact administrative targets remain accessible. | Product rows 44 px with 20 px icons; administration rows 36 px with 16 px icons; no target under 24 px | Computed-style and pointer review |
+| Fitts's | Product targets carry stronger weight while compact administrative targets remain accessible. | Product rows 44 px with 24 px icons; administration rows 36 px desktop/44 px mobile with 16 px icons; every interactive target ≥24 px desktop and ≥44 px mobile | Computed-style scan of every interactive target at all four viewports |
 | Jakob's | Follow the familiar product patterns examined in Cursor, Microsoft Copilot, and v0. | 3 named references applied; no novel core control | Side-by-side interaction audit |
-| Proximity | Keep labels, state, and actions with the object they describe; separate product and administration by flexible space. | 4 px within each group; administration begins in the lower half of a 900 px frame | Screenshot measurement |
+| Proximity | Keep labels, state, and actions with the object they describe; separate product and administration by flexible space. | 4 px product-row gaps; 2 px administrative-row gaps; administration begins in the lower half of a 900 px frame | Screenshot measurement |
 | Miller's | Chunk the rail into product and administrative groups. | 7 product items and 5 administrative items; neither group exceeds 7 | DOM and screenshot count |
 | Doherty | Acknowledge every interaction immediately and show durable progress for longer work. | Visual response within 400 ms | Playwright timing assertion |
 | Von Restorff | Give one primary next action the strongest emphasis. | Exactly 1 primary action per decision state | Visual hierarchy audit |
 | Serial Position | Put identity and current state first; put the terminal action after its evidence. | Primary context in first viewport; terminal action last | Keyboard and reading-order audit |
 | Peak-End | End completed work with a result, evidence, and useful next action. | Completion receipt has all 3 elements | Completion-state test |
 | Zeigarnik | Keep incomplete work and its remaining step visible. | Step N of M or explicit remaining item | State-transition assertion |
-| Prägnanz | Preserve one dominant workspace with quiet supporting rails. | 1 dominant work region | Screenshot hierarchy review |
+| Prägnanz | Preserve one dominant workspace with quiet supporting rails. | 232 px rail; 72 px module header; 1 dominant Needs you panel and 1 subordinate Recent outcomes panel | Screenshot hierarchy review |
 | Similarity | Product destinations share one treatment; administrative destinations share a smaller subordinate treatment. | Exactly 2 role-specific treatments: product and administration | Component inventory review |
 | Uniform Connectedness | Enclose related state and actions; separate unrelated decisions. | Every action is inside or immediately adjacent to its object | DOM relationship audit |
 | Tesler's | Resolve system complexity before asking the user for a bounded decision. | At most 1 user decision per card | Decision-card review |
 | Postel's | Accept forgiving text input and preserve it on recoverable failure. | Trim outer whitespace; never lose valid input | Unit and E2E failure test |
 | Parkinson's | Keep the top jobs short and make long-running work autonomous. | Top job at most 3 actions before progress starts | Happy-path action count |
-| Occam's | Remove duplicate routes and controls that do the same thing. | No duplicate primary control in one viewport | Control inventory review |
+| Occam's | Remove duplicate routes and controls that do the same thing. | 0 dashboard quick-navigation/module duplicates; navigation lives only in the rail | Control inventory review |
 | Pareto | Put the top three jobs ahead of secondary metadata. | All 3 top jobs reachable in first viewport | Desktop and mobile screenshot audit |
 | Interactivity floor | Composer in context; every state actionable; live state; no dead ends. | Static-report test passes for 4 declared states | Walk the flow and act on each state |
 

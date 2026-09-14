@@ -19,6 +19,9 @@ import check_bundle_budget as bundle  # noqa: E402
 
 class BundleBudgetTests(unittest.TestCase):
     def setUp(self) -> None:
+        environment = patch.dict(os.environ, {"MAXION_PROGRAM_PHASE": "0"})
+        environment.start()
+        self.addCleanup(environment.stop)
         self.tempdir = tempfile.TemporaryDirectory()
         self.addCleanup(self.tempdir.cleanup)
         self.dist = Path(self.tempdir.name)

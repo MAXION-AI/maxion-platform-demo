@@ -16,11 +16,15 @@ exactly that implementation.
 - **M** — the verified merge SHA on the target branch.
 
 The independent UX verifier and engineering QA both inspect separate clean worktrees detached at C.
-Their committed JSON reports use distinct reviewer identities and one common builder identity, and bind
-the program, phase, C, `C:src` tree, exact phase-owned reference sheets, completed checks, and PASS
-verdict. The mandatory command reports bind the exact invocation, exit code, C, source tree, and
-SHA-256 of stdout and stderr. A report that names only a branch, a dirty tree, a pre-implementation
-base, an arbitrary prose file, or a reviewer string without its committed report is not evidence.
+Their committed schema-v2 JSON reports use distinct reviewer labels and one common builder label, and
+bind the program, phase, C, `C:src` tree, absolute verifier worktree, clean-checkout assertion, exact
+acceptance scope, exact checklist, concrete evidence, and PASS verdict. QA additionally binds exactly
+three independent browser runs. These labels and session IDs make reports internally consistent; they
+do not cryptographically authenticate a human. Separation of people/sessions, clean detached worktree
+creation, and custody of the report remain coordinator obligations outside what Git can prove. The
+mandatory command reports bind the exact invocation, timestamps, absolute worktree, clean state before
+and after, exit code, C, source tree, and bounded SHA-256-addressed stdout/stderr. A report that names
+only a branch, a dirty tree, a pre-implementation base, or an unbound identity string is not evidence.
 
 ## Evidence-only closure
 
@@ -33,10 +37,13 @@ paths in this allowlist:
 - the one predetermined `NN-phase-N-*.md` document's status and structured hand-off fields
 
 No tracked-ledger or hardening-log update belongs in E. Plan-gate hardening is candidate work at C.
-E may not add/delete/rename/copy a plan or sheet, and may not touch `src/`, tests, scripts, workflows,
-package manifests/locks, build configuration, Figma mappings, state IDs, laws, reference decisions,
-or acceptance thresholds. Before review and again at E, protected object identities for workflows,
-source, tests, scripts, manifests/locks, and build configuration must match. If anything outside the
+E may not add/delete/rename/copy a plan or sheet. Every added artifact and every permitted modified
+file must be a non-executable regular Git blob (`100644`); symlinks, executable bits, submodules, and
+any Git mode/type change fail closed. E may not touch `src/`, tests, scripts, workflows, package
+manifests/locks, build configuration, Figma mapping/acceptance scopes, state IDs, laws, reference
+decisions, or acceptance thresholds. Before review and again at E, protected object identities for
+workflows, source, tests, scripts, manifests/locks, build configuration, UX policy/north-star/inventory,
+the reference-sheet template, the Figma map, and this protocol must match. If anything outside the
 allowlist changes, the commit is a new C and both independent reviews restart.
 
 `python3 scripts/check_phase_acceptance.py --candidate "$C" --evidence "$E" --phase N` is the
@@ -54,8 +61,9 @@ All keys are mandatory and unknown keys are rejected.
 
 | Artifact | Exact keys | Binding rule |
 | --- | --- | --- |
-| Independent UX/QA report | `schemaVersion`, `program`, `phase`, `role`, `reviewer`, `builder`, `candidateSha`, `sourceTreeSha1`, `referenceSheets`, `checks`, `verdict` | role/path are unique; reviewer identities differ from each other and builder; candidate/source/phase-owned sheets are exact; checks are non-empty strings; verdict is PASS |
-| Clean-C command report | `schemaVersion`, `program`, `phase`, `kind`, `candidateSha`, `sourceTreeSha1`, `id`, `command`, `status`, `exitCode`, `runSha`, `stdout`, `stderr`, `stdoutSha256`, `stderrSha256` | id-to-command is canonical; run SHA is C; PASS agrees with zero; stream contents match hashes; blob hash and path are in the ledger evidence set |
+| Independent UX report | `schemaVersion`, `program`, `phase`, `role`, `reviewer`, `builder`, `candidateSha`, `sourceTreeSha1`, `sessionId`, `worktree`, `cleanCheckout`, `referenceSheets`, `checks`, `verdict` | schemaVersion is 2; role/path are unique; reviewer labels differ from QA and builder; candidate/source/scope are exact; worktree is absolute and cleanCheckout is true; checks are the exact ordered UX checklist with PASS and phase-scoped evidence; verdict is PASS |
+| Independent QA report | all UX-report keys plus `browserRuns` | checks are the exact ordered QA checklist; `browserRuns` has exactly three distinct PASS records, each binding run ID, browser/version, viewport, fixture, zero exit, artifact path, and committed artifact SHA-256 |
+| Clean-C command report | `schemaVersion`, `program`, `phase`, `kind`, `candidateSha`, `sourceTreeSha1`, `id`, `command`, `status`, `exitCode`, `runSha`, `stdout`, `stderr`, `stdoutSha256`, `stderrSha256`, `worktree`, `cleanBefore`, `cleanAfter`, `startedAt`, `finishedAt` | schemaVersion is 2; id-to-command is canonical; run SHA is C; worktree is absolute; checkout is clean before and after; PASS agrees with zero; bounded stream contents match hashes; blob hash/path are in ledger evidence |
 | Gated sheet check | `schemaVersion`, `kind`, `phase`, `sheetId`, `check`, `candidateSha`, `verdict` | path is under matching `phase-N`; sheet belongs to N in C's manifest; blob is newly added at the single direct E child of C; check/sheet/verdict are exact, preventing reuse |
 | Clean-M append receipt | `id`, `command`, `status`, `exitCode`, `runSha`, `stdout`, `stderr`, `stdoutSha256`, `stderrSha256` | generated only by append after executing the canonical command at clean M; complete stream contents match their hashes; input JSON may not provide it |
 
@@ -66,31 +74,36 @@ C and present at HEAD, and then binding that exact blob hash/path and E in the e
 ## PR and merge lifecycle
 
 1. Verify B is the target branch tip and create one isolated `phase-N/<slug>` branch/worktree from B.
-2. Implement and run the phase's exact gates. Commit the clean implementation as C and push the branch.
+2. Implement and run focused development checks. Commit the complete implementation, tests, and
+   acceptance contracts as clean C and push the branch.
 3. Open one PR with B, C, source-tree/lock/manifest/full-sheet/immutable-sheet hashes, evidence paths, rollback command, and
    the phase's RC/ADR/state coverage.
-4. Independent UX and engineering reviewers audit detached clean worktrees at C. No builder self-signoff.
-5. Add E only under the evidence-only rule. Its commit message carries the exact trailer
+4. From a clean detached worktree at exact C, run
+   `python3 scripts/collect_phase_evidence.py --candidate "$C" --phase N`. The collector alone runs
+   the fixed five command groups, bounds captured output, rechecks exact HEAD/`C:src`/clean status after
+   the last command, and only then writes phase-scoped command JSON. Run the full strict-preview browser
+   suite three independent times at C with a fresh server/context each time; QA records all three run
+   bindings and their committed artifacts. An interrupted, filtered, retried-in-place, or pipe-masked
+   run does not count.
+5. Independent UX and engineering reviewers audit separate detached clean worktrees at C. No builder
+   self-signoff. Their exact checklists and browser bindings become the phase-scoped schema-v2 reports.
+6. Add E only under the evidence-only rule. Its commit message carries the exact trailer
    `Phase-Candidate: <C>`. Run `check_phase_acceptance.py`; the hosted PR-head workflow detects the
-   new phase artifacts, requires that trailer, checks out `github.event.pull_request.head.sha`, asserts
-   exact HEAD identity, and runs the same C→E semantic gate before the general gates.
-6. Merge with a two-parent merge commit. M's first parent is exactly B and second parent is exactly E;
+   distinct E/trailer, checks out `github.event.pull_request.head.sha`, asserts exact HEAD identity,
+   runs qualification against that head, and refuses merge-readiness unless C→E passes.
+7. Merge with a two-parent merge commit. M's first parent is exactly B and second parent is exactly E;
    its subject includes the recorded PR number. Fetch the explicit remote-tracking target ref and require
-   it to resolve exactly to M. Squash, rebase, octopus, synthetic test-merge, or an unmerged feature SHA
-   cannot be recorded as M.
-7. In a fresh clean worktree at C, run the exact mandatory command set—no omissions or extras:
-   `check-program` = `pnpm check:program`, `build` = `pnpm build`, `audit-high` =
-   `pnpm audit --audit-level high`, `phase-tests` = `pnpm test && pnpm test:e2e`, and `diff-check` =
-   `git diff --check`. Store each structured JSON report in `artifacts/ux-audits/phase-N/` and commit it
-   at E. The full strict-preview browser suite must complete cleanly three independent times at C; all
-   three run IDs, exit results, browser/version, viewport, fixture, and artifact hashes are recorded in
-   the QA report. An interrupted, filtered, retried-in-place, or pipe-masked run does not count.
+   `refs/remotes/origin/main` to resolve exactly to M. GitHub API attestation must independently report
+   the exact URL, closed+merged state, base `main` at B, head E, and merge SHA M. Squash, rebase, octopus,
+   synthetic test-merge, or an unmerged feature SHA cannot be recorded as M. M's full tree must equal E's.
 8. In a fresh clean worktree pinned to fetched M, invoke `append`; under the ledger lock it verifies
-   clean HEAD and the target ref at exact M, reruns the five canonical commands itself, and writes the
+   clean HEAD, full tree, and exact target ref both before and after rerunning the five canonical commands,
+   then writes the
    resulting M-bound exit codes and stdout/stderr hashes as coordinator-generated `postMergeCommands`.
-   Input JSON may not supply that field. Run the three-run strict-preview browser check before append as
-   additional QA evidence. Post-merge receipts live truthfully in the external record rather than as
-   fictional Git evidence inside M. Only after atomic append may M become the successor's B.
+   Input JSON cannot supply that field or inject a command runner. The independent reviewer obligations
+   and three browser runs are C-bound evidence at E; clean-M is a separate coordinator qualification and
+   does not retroactively rewrite reviewer reports. Post-merge receipts live in the external record.
+   Only after atomic append may M become the successor's B.
 
 Failed checks, missing reviews, a mismatched source tree, an unclean verifier checkout, or an
 unrecorded M leave the phase open.
@@ -113,14 +126,14 @@ contain its own eventual merge SHA, the sole current-phase operational authority
 
 The coordinator is the only writer. It takes an advisory lock, writes a complete next document to a
 same-directory temporary file, `fsync`s the file and directory, then atomically renames it. Each
-record contains program/repository, phase, B/C/E/M, exact target ref, locally verified PR number/merge
+record contains program/repository, phase, B/C/E/M, exact target ref, locally and GitHub-verified PR number/merge
 subject, protected-object/source-tree/lock/manifest/sheet hashes, reviewer-report bindings, phase-scoped
 evidence, the exact canonical clean-C command set, coordinator-generated clean-M command receipts,
 timestamp, and SHA-256 of the preceding record.
 The external ledger contains exactly one accepted record per phase in strict `0..N` order; it never
 contains pending records. Each record's B must equal the prior record's M. The new worktree fetches the
 target branch, checks out M, and runs
-`python3 scripts/program_ledger.py bootstrap --expected-phase N --target-ref origin/main`. Bootstrap
+`python3 scripts/program_ledger.py bootstrap --expected-phase N --target-ref refs/remotes/origin/main`. Bootstrap
 checks the complete hash chain and acceptance semantics, requires the target ref and checkout HEAD to
 equal M, and rejects a dirty checkout. It then copies no mutable state from the predecessor. Recovery
 chooses the last checksum-valid record and reconstructs from its M; a duplicate/skipped phase,

@@ -3,7 +3,7 @@
 - **Source:** `docs/operations/program-phase-ledger.json`, `docs/operations/phase-acceptance-protocol.md`, `docs/operations/ux-surface-inventory.md`, all UX reference sheets, editable Figma file `UhLxGyXphdHHNLGMomBq6n` including Agentix run node `46:933`, and the inspected demo/production portal source trees
 - **Date:** 2026-09-13
 - **Author:** Codex planning session 2026-09-13
-- **Status:** PLAN GATE remediation in progress — Phase 0 PR merged, clean-SHA independent acceptance pending
+- **Status:** Plan hardened; Phase 0 acceptance pending at clean C/E/M
 - **Plan directory:** `docs/implementation-plans/2026-09-13-maxion-platform-demo-ui-foundation/`
 - **Execution handoff:** `implementation-cadence`; every phase uses its own isolated implementation
   session and worktree, independent UX and engineering gates pinned to the candidate SHA, and one
@@ -27,9 +27,7 @@ records exact production mapping decisions and open gaps without changing or qua
 
 | Claim | Status | Evidence |
 | --- | --- | --- |
-| The isolated implementation worktree and branch existed for Phase 0 and preserved the owner checkout | Verified | `docs/operations/program-phase-ledger.json`; Phase 0 PR #2 history |
-| Phase 0 PR #2 merged as `beae208b30ad31202c4ff92abbfbd6c1ef51af18` | Verified historical runtime contract, not acceptance base | `docs/operations/program-phase-ledger.json` |
-| Existing Phase 0 UX/QA reports bind to the superseding hardening implementation SHA | False | The hardening PR must produce clean C/E/M identities and fresh detached-C and clean-M reviews; `beae208` cannot become Phase 1 B after its contract/gates are superseded |
+| Phase 0 has an accepted external-ledger M that can become Phase 1 B | False | The current branch must produce clean C, required distinct E, verified M, detached-C reviews, and coordinator clean-M receipts |
 | Thirteen editable 1440 × 900 product and administration frames exist | Verified | `docs/operations/figma-ux-reference-program-2026-09-13.md`; `figma-code-map.json` |
 | Projects and the five administrative destinations have standalone contract-stage sheets and exact Figma frames | Verified | `docs/operations/ux-surface-inventory.md`; `docs/operations/ux-reference-sheets/` |
 | The demo shell uses lifted booleans while Discover and Agentix also persist separate local state | Verified | `MaxionPlatformPrototypePage.tsx`, `DiscoveryAutonomousPrototypePage.tsx`, `operationsState.ts` |
@@ -50,7 +48,7 @@ records exact production mapping decisions and open gaps without changing or qua
 
 | ID | Severity | What is needed and why | Evidence | Type | Status |
 | --- | --- | --- | --- | --- | --- |
-| RC-01 | Blocker | Candidate foundation and shell work requires independent clean-SHA acceptance plus a verified merged immutable SHA before later phases can inherit it | `program-phase-ledger.json`; Phase 0 reports | governance | Open — PR #2 is historical lineage; the superseding hardening PR's final M must be independently accepted and become Phase 1 B |
+| RC-01 | Blocker | Candidate foundation and shell work requires independent clean-SHA acceptance plus a verified merged immutable SHA before later phases can inherit it | `program-phase-ledger.json`; Phase 0 reports | governance | Open — current C/E/M must be accepted and final M must become Phase 1 B |
 | RC-02 | Blocker | Projects, Settings, Integrations, My approvals, Usage, and Help are user-facing but lack standalone sheets and Figma frames | `ux-surface-inventory.md` | missing capability | Closed in Phase 0 candidate |
 | RC-03 | Major | Shared visual primitives are not yet a portable contract; 1,357 raw colour literals remain under a ratchet | token baseline and large CSS surfaces | technical debt | Open |
 | RC-04 | Major | Multi-thousand-line components and styles couple layout, state, copy, and scenarios, making reuse and review unsafe | module line counts and symbol inventory | architecture | Open |
@@ -291,9 +289,10 @@ The execution session records command, exit code, duration, B/C/E/M identities, 
 path under `docs/operations/phase-acceptance-protocol.md`. `.impl-cadence/` is disposable local
 scratch, not cross-worktree authority. A successor begins only from the checksum-verified external
 ledger record whose M is the fetched target-branch ancestor.
-Three complete independent strict-preview runs of the Playwright suite execute on C and again on clean M.
-Every run starts a fresh server/browser context and records its own unfiltered result; an interrupted,
-filtered, retried-in-place, or pipe-masked run is not one of the three.
+Three complete independent strict-preview runs of the Playwright suite execute on C. Every run starts
+a fresh server/browser context and records its own unfiltered result in the QA report; an interrupted,
+filtered, retried-in-place, or pipe-masked run is not one of the three. Clean M separately runs the
+canonical phase-tests group during the coordinator-owned append and records its M-bound receipt.
 Phase 10 also records browser/version, CPU/network profile, viewport, fixture, Figma node, and sheet
 hash for every visual or performance result.
 

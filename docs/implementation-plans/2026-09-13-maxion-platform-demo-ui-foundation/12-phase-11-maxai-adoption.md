@@ -24,6 +24,11 @@ The reference sheet for each surface is the sole Mobbin authority. Figma frame a
 comes only from the schema-v2 manifest and its remote attestation; this phase may not guess missing
 component IDs.
 
+Phase 11 has the manifest's explicit `package` acceptance scope. It owns no user-facing surface and
+therefore both review reports use `referenceSheets: []`; acceptance evaluates package completeness,
+integrity, proof-boundary language, and bootstrap safety. Phase 10 is the sole whole-surface
+requalification and Phase 11 may not reopen or silently weaken a sheet contract.
+
 ## Architecture, scale, security, and reliability
 
 Create a versioned adoption-package directory containing machine-readable and human-readable contracts.

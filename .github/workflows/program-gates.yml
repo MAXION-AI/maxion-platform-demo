@@ -32,20 +32,6 @@ jobs:
           phase="$(python3 -c 'import json; print(json.load(open("docs/operations/program-phase-ledger.json", encoding="utf-8"))["candidatePhase"])')"
           test "$phase" -ge 0
           echo "MAXION_PROGRAM_PHASE=$phase" >> "$GITHUB_ENV"
-      - name: Prove evidence-only PR-head lineage
-        if: github.event_name == 'pull_request'
-        env:
-          PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}
-        run: |
-          evidence_pattern="^artifacts/ux-audits/phase-${MAXION_PROGRAM_PHASE}/"
-          if git diff --diff-filter=A --name-only "$PR_BASE_SHA" HEAD | grep -Eq "$evidence_pattern"; then
-            candidate="$(git show -s --format='%(trailers:key=Phase-Candidate,valueonly)' HEAD | tr -d '[:space:]')"
-            test "${#candidate}" -eq 40
-            python3 scripts/check_phase_acceptance.py \
-              --candidate "$candidate" \
-              --evidence "$(git rev-parse HEAD)" \
-              --phase "$MAXION_PROGRAM_PHASE"
-          fi
       - name: Activate pinned Node runtime
         uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
         with:
@@ -57,7 +43,7 @@ jobs:
       - name: Install pinned dependencies
         run: pnpm install --frozen-lockfile
       - name: Install pinned browser runtimes
-        run: pnpm exec playwright install --with-deps chromium
+        run: pnpm exec playwright install --with-deps chromium webkit
       - name: Program and source gates
         run: pnpm check:program
       - name: Production build and bundle metadata gate
@@ -70,6 +56,18 @@ jobs:
         run: pnpm test:e2e
       - name: Dependency audit
         run: pnpm audit --audit-level high
+      # Run the complete qualification first, then make merge-readiness fail closed unless
+      # the exact PR head is a distinct evidence commit over its declared candidate C.
+      - name: Require evidence-only PR head for merge readiness
+        if: github.event_name == 'pull_request'
+        run: |
+          candidate="$(git show -s --format='%(trailers:key=Phase-Candidate,valueonly)' HEAD | tr -d '[:space:]')"
+          test "${#candidate}" -eq 40
+          test "$candidate" != "$(git rev-parse HEAD)"
+          python3 scripts/check_phase_acceptance.py \
+            --candidate "$candidate" \
+            --evidence "$(git rev-parse HEAD)" \
+            --phase "$MAXION_PROGRAM_PHASE"
       - name: Preserve failure evidence
         if: failure()
         uses: actions/upload-artifact@65c4c4a1ddee5b72f698fdd19549f0f0fb45cf08

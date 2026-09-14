@@ -1,7 +1,7 @@
 # Phase 0: Contract acceptance and missing-surface closure
 
 - **Parent:** [00-parent-roadmap.md](./00-parent-roadmap.md)
-- **Closes:** RC-02; advances RC-01 and RC-19 | **Risk:** high × medium | **Status:** PR #2 historical; superseding hardening candidate and clean-SHA acceptance pending
+- **Closes:** RC-02; advances RC-01 and RC-19 | **Risk:** high × medium | **Status:** pending
 - **Depends on:** none
 
 ## Objective and scope
@@ -14,9 +14,9 @@ development dependencies are permitted foundation work.
 
 ## Entry criteria
 
-- [x] Worktree is exactly `/Users/abhinavshankar/GitHub_Repos/maxion-platform-demo-ux-system-20260913` on `codex/maxion-demo-ux-system-20260913`.
-- [x] Owner checkout and `max-ai-platform` dirty paths are recorded and untouched.
-- [x] `pnpm check:program`, `pnpm build`, the full unit suite, and the current E2E suite pass or failures are recorded before review; the planning-time Vitest non-completion was rerun in isolation and diagnosed rather than counted as a pass.
+- [ ] The executor records its exact clean worktree, branch, B, and C before review; no saved path or branch name in this plan is authority.
+- [ ] Owner checkouts and `max-ai-platform` paths are inventoried read-only and remain untouched.
+- [ ] `pnpm check:program`, `pnpm build`, the full unit suite, and the current E2E suite pass at exact clean C or failures remain recorded and the phase stays open.
 
 ## Architecture and non-functional impact
 
@@ -26,13 +26,11 @@ development dependencies are permitted foundation work.
 
 ## Immutable acceptance rerun required
 
-PR #2 head `dfc0347c876b36dc9932808b786d219c2cb8c949` merged as
-`beae208b30ad31202c4ff92abbfbd6c1ef51af18`; it is historical runtime-contract lineage only. The
-existing UX and QA reports audited a dirty tree based on `c381e7e`, and this hardening changes the
-binding contracts and gates. The superseding hardening PR therefore creates a new clean C, optional
-evidence-only E, and final M. Fresh independent UX and engineering sessions audit detached C and
-clean M under `docs/operations/phase-acceptance-protocol.md`. Phase 1 uses only that accepted final M
-as B; it must never use `beae208` as the acceptance base. Until then RC-01 and Phase 0 remain open.
+Earlier merged runtime-contract lineage and dirty-tree reports are historical only and cannot authorize
+Phase 1. The current Phase 0 implementation must create a new clean C, required distinct evidence-only
+E, and final M. Fresh independent UX and engineering sessions audit detached C under
+`docs/operations/phase-acceptance-protocol.md`; the coordinator separately qualifies clean M during
+append. Phase 1 uses only the externally accepted final M as B. Until then RC-01 and Phase 0 remain open.
 - **Source integrity:** critical/high dependency findings, unused TypeScript symbols, and the lack of a
   repeatable dead-code gate block the visual phases. Static findings are leads until route/import/runtime/
   test ownership confirms deletion.
@@ -60,8 +58,8 @@ as B; it must never use `beae208` as the acceptance base. Until then RC-01 and P
 
 | Task | Serves | Exact files/symbols | Prerequisite | Focused verification |
 | --- | --- | --- | --- | --- |
-| 0.1 | RC-01 via ADR-8 | `docs/operations/program-phase-ledger.json#candidatePhase`; `docs/operations/phase-acceptance-protocol.md#Identities` | PR 2 historical B/C/M identities | `python3 scripts/program_ledger.py validate-tracked` |
-| 0.2 | RC-01 and RC-15 via ADR-2 | `tests/e2e/maxion-platform-shell.spec.ts#accepted-shell`; `artifacts/ux-audits/phase-0-foundation-independent-qa-2026-09-13.md` | Task 0.1 candidate identity | `pnpm exec playwright test tests/e2e/maxion-platform-shell.spec.ts` |
+| 0.1 | RC-01 via ADR-8 | `docs/operations/program-phase-ledger.json#candidatePhase`; `docs/operations/phase-acceptance-protocol.md#Identities` | Read-only target-ref and ledger verification | `python3 scripts/program_ledger.py validate-tracked` |
+| 0.2 | RC-01 and RC-15 via ADR-2 | `tests/e2e/maxion-platform-shell.spec.ts#accepted-shell`; `artifacts/ux-audits/phase-0/independent-qa.json` | Task 0.1 candidate identity | `pnpm exec playwright test tests/e2e/maxion-platform-shell.spec.ts` |
 | 0.3 | RC-02 and RC-16 via ADR-2 | `docs/operations/ux-surface-inventory.md#Route-and-address-ownership-at-Phase-0`; `docs/operations/figma-code-map.json#surfaces` | Task 0.2 audit findings | `python3 scripts/check_ux_contract_coverage.py` |
 | 0.4 | RC-02 via ADR-2 | `docs/operations/ux-reference-sheets/settings-workspace.md#5.1`; `docs/operations/ux-reference-sheets/help-workspace.md#5.1` | Task 0.3 complete inventory | `python3 scripts/check_ux_reference_sheet.py docs/operations/ux-reference-sheets` |
 | 0.5 | RC-02 and RC-16 via ADR-2 | `docs/operations/figma-code-map.json#schemaVersion`; `scripts/check_ux_contract_coverage.py#check_contract` | Task 0.4 complete sheets and approved Figma frames | `python3 -m unittest scripts.tests.test_ux_gates.ContractCoverageGateTests` |
@@ -100,14 +98,14 @@ together; it never resets or mutates the owner's dirty checkout.
 
 | Kind | Exact files / outputs / commands | Passing evidence |
 | --- | --- | --- |
-| Historical lineage | PR #2 head `dfc0347c876b36dc9932808b786d219c2cb8c949`; merge `beae208b30ad31202c4ff92abbfbd6c1ef51af18` | Runtime provenance only; never Phase 1 B |
-| Superseding candidate | Hardening PR clean C, required distinct evidence-only E, and final M | C/E/M ancestry, semantic evidence-only gate, hosted PR-head checks, clean-M rerun |
+| Historical lineage | Prior merged/runtime reports | Context only; never Phase 1 B or current acceptance evidence |
+| Current candidate | Clean C, required distinct evidence-only E, and final M | C/E/M ancestry, semantic evidence-only gate, hosted PR-head checks, clean-M rerun |
 | Evidence-only closure | Phase-scoped UX/QA/command JSON reports, owned-sheet evidence/sign-off cells, and the Phase 0 structured hand-off only; no ledger/source/test/script/contract change | C→E protected objects unchanged and exact allowlist diff passes |
-| PR lifecycle | Existing PR URL/head/M recorded; if rerun exposes a defect, create a remediation PR from M and restart clean-C review | Verified final M and atomic external-ledger successor pin |
+| PR lifecycle | Open the current PR from B through E; if review exposes a defect, create a new C on that branch and restart clean-C review | Verified final M and atomic external-ledger successor pin |
 
 ## Definition of Done
 
-- [ ] Independent UX and engineering reports accept the superseding hardening PR's clean C and final M.
+- [ ] Independent UX and engineering reports accept exact clean C; coordinator qualification accepts final clean M.
 - [x] Inventory contains every user-facing route, including Projects and five administrative surfaces.
 - [x] Every inventory row resolves to a valid sheet and exact accessible Figma node.
 - [x] The coverage gate fails for a missing/duplicate route, sheet, or Figma node and is registered in `pnpm check:program`.
@@ -120,7 +118,7 @@ together; it never resets or mutates the owner's dirty checkout.
 
 ## Hand-off
 
-Phase 1 starts only from the superseding hardening PR's accepted final M and re-runs this Definition of Done. No runtime
+Phase 1 starts only from Phase 0's externally accepted final M and re-runs this Definition of Done. No runtime
 implementation is authorized by a candidate-only frame.
 
 ### Structured acceptance hand-off

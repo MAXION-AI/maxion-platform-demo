@@ -22,7 +22,7 @@ test("the global command menu filters, arrow-navigates, and runs the active item
 	page.on("pageerror", (error) => runtimeErrors.push(error.message))
 
 	await page.goto("/maxion-prototype")
-	await expect(page.getByRole("heading", { name: "Good afternoon, Root Admin" })).toBeVisible()
+	await expect(page.getByRole("heading", { name: "Work that moved. Decisions that wait." })).toBeVisible()
 
 	await page.keyboard.press("ControlOrMeta+k")
 	const menu = shellMenu(page)
@@ -114,7 +114,7 @@ test("gives the newly visible stage its own entrance and clears the Execute scri
 	await page.goto("/maxion-prototype")
 	const entering = page.locator(".mxp-stage-view.is-entering")
 	await expect(entering).toHaveCount(1)
-	await expect(entering).toContainText("Good afternoon, Root Admin")
+	await expect(entering).toContainText("Work that moved. Decisions that wait.")
 
 	const navigation = page.getByRole("navigation", { name: "Portal sections" })
 	await navigation.getByRole("button", { name: "Projects" }).click()
@@ -151,7 +151,7 @@ test("reports live Agentix attention to the shell badge and the jump registry", 
 
 test("keeps the global command menu accessible", async ({ page }) => {
 	await page.goto("/maxion-prototype")
-	await expect(page.getByRole("heading", { name: "Good afternoon, Root Admin" })).toBeVisible()
+	await expect(page.getByRole("heading", { name: "Work that moved. Decisions that wait." })).toBeVisible()
 	await page.keyboard.press("ControlOrMeta+k")
 	await expect(shellMenu(page)).toBeVisible()
 	// Contrast is measured on the settled surface, not mid-entrance.
