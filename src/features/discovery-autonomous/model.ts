@@ -1,3 +1,8 @@
+import { DELIVERABLES } from "./deliverables"
+
+export { DELIVERABLES, DELIVERABLE_CONTENT } from "./deliverables"
+export type { DeliverableBody, DeliverableSection, Exhibit } from "./deliverables"
+
 export type ScenarioKey = "tprm" | "diligence" | "enterprise"
 
 export type Person = {
@@ -243,4 +248,51 @@ export function scenarioForBrief(brief: string, fallback: ScenarioKey = "tprm"):
 		}
 	}
 	return best
+}
+
+export const OPERATIONS = [
+	{ label: "Frame mission", detail: "Objective, done condition, authority, and decision horizon established" },
+	{ label: "Read connected sources", detail: "Inquiry-scoped evidence indexed with access controls and provenance" },
+	{ label: "Map the right people", detail: "Required roles identified and outreach prepared within policy" },
+	{ label: "Run the inquiry program", detail: "Text, voice, and workshop interviews adapt to evidence gaps" },
+	{ label: "Resolve material conflicts", detail: "Contradictions become owned, auditable resolution cases" },
+	{ label: "Decide readiness", detail: "One canonical readiness snapshot freezes the evidence set" },
+	{ label: "Build the package", detail: "Synthesis and deliverables generate from one versioned manifest" },
+	{ label: "Distribute and hand off", detail: "Approvers receive the package and downstream work is created" },
+] as const
+
+// Operation labels are imperatives; sentences about a running operation need the
+// gerund instead ("MAX is running the inquiry program", not "handling run the…").
+export const OPERATION_ACTIVITY = [
+	"framing the mission",
+	"reading the connected sources",
+	"mapping the right people",
+	"running the inquiry program",
+	"resolving material conflicts",
+	"deciding readiness",
+	"building the decision package",
+	"distributing the package and handing off",
+] as const
+
+// Minutes elapsed from the run's real start for each completed operation. The
+// autonomy ledger derives clock times from these instead of hardcoded stamps.
+export const OPERATION_ELAPSED_MINUTES = [0, 3, 7, 14, 22, 27, 32, 36] as const
+
+// The rotating "now" line under Now handling: two or three concrete micro-actions
+// per operation, built from the scenario's own sources, people, and inquiries.
+export function nowActions(scenario: Scenario, phase: number, people: Person[]): string[] {
+	const roster = people.length ? people : scenario.people
+	const [first, second, third] = scenario.sources
+	const records = scenario.sources.reduce((total, source) => total + Number(source.records.replace(/[^0-9]/g, "")), 0)
+	const byPhase: string[][] = [
+		[`Bounding the objective and completion condition`, `Setting the interruption boundary with the ${scenario.interviewer.toLowerCase()}`, `Locking the decision horizon · ${scenario.deadline}`],
+		[`Reading ${first.name} · ${first.records}`, `Indexing ${second.name} · ${second.records}`, `Retaining record-level provenance on ${third.name}`],
+		[`Matching ${scenario.inquiries[0].toLowerCase()} to an accountable owner`, `Preparing ${roster[0]?.channel.toLowerCase() ?? "text"} outreach for ${roster[0]?.name ?? "the control owner"}`, `Checking recipient policy for ${roster.length} stakeholders`],
+		[`Interviewing ${roster[0]?.name ?? "the first owner"} · ${scenario.inquiries[0].toLowerCase()}`, `Follow-up queued for ${roster[1]?.name ?? "the second owner"}`, `Skipping questions already answered by ${second.name}`],
+		[`Comparing ${scenario.inquiries[0].toLowerCase()} against ${first.name}`, `Reconciling ${roster[1]?.name ?? "Security"} and ${roster[2]?.name ?? "Legal"} on ${scenario.inquiries[3].toLowerCase()}`, `Isolating the exception before it reaches you`],
+		[`Binding every claim to readiness snapshot v7`, `Confirming accountable owners for ${scenario.inquiries[4].toLowerCase()}`, `Freezing the evidence set · ${records.toLocaleString()} records`],
+		[`Generating ${DELIVERABLES.length} linked deliverables from manifest v4`, `Binding citations back to ${first.system} and ${second.system}`, `Checking that every recommendation carries a source`],
+		[`Routing each artifact to its approved recipient`, `Creating the downstream implementation work`, `Recording the handoff in the audit trail`],
+	]
+	return byPhase[Math.max(0, Math.min(phase, byPhase.length - 1))]
 }

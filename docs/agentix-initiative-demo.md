@@ -1,35 +1,34 @@
-# Agentix deployed-operations walkthrough
-Updated 2026-09-11. All data, effects, certifications and costs are simulated.
+# Agentix demo walkthrough
 
-## Start here
-Open /agentix-prototype. The landing view is deployed agents, not a blank chat. Three agents are deployed; onboarding is a setup draft. The fleet shows open cases, attention and verified outcomes. Open an agent to inspect its independent workload.
+Updated 2026-09-11. The screen-by-screen “sample case” experience has been replaced by the [persistent Agentix workspace](agentix-workspace-ux.md).
 
-## Invoice operations — coordinated team
-Open Invoice operations agent. Several invoice cases progress independently. INV-20841 waits for its exact $240 approval while others continue; INV-20844 begins with a change applied and verification pending. Open any case for its outcome contract, authority boundary, decision and collapsible activity/evidence.
+Open `/agentix-prototype`. The same Agentix module is available from the MAXION sidebar. The default workspace contains an already-authorized invoice case: two analysts investigate while one coordinator owns the result. The list at left keeps all four initiatives accessible; conversation, activity, decisions and outcomes share one central stream. The composer stays reachable. Team status and outcome checks are visible at the right, or behind the labeled agent-context control on smaller screens.
 
-Message agent opens a secondary drawer. “Pause intake” stops new case admission; admitted cases continue. Open a case and choose Message about this case for “Pause this case” or “Prioritize this case.” Agent and case scope are explicit. “Continue” cannot approve an invoice.
+## Four journeys
 
-From About this demo, simulate connection expiry. Pending notification obligations become partial outcomes. Reconnect the notification account; a recheck precedes recovery, and the original record write is not repeated. History and derived outcome measurements remain visible under the same agent.
+| Initiative | Team | What to try |
+|---|---|---|
+| Incident triage | One agent | Select it, choose “Triage this incident,” inspect the steps and verify that the incident was assigned but not closed. |
+| Invoice exception resolution | Coordinator + invoice and receipt analysts | Inspect the parallel checks. Approve or decline the exact $240 variance. No payment is released. |
+| Employee onboarding | Coordinator + HR and IT specialists | Review the proposed scope, activate it, and supply a payroll-owner fulfillment reference when requested. |
+| Inventory replenishment | Coordinator + demand and supply analysts | Start the stock review. Observe automatic reconciliation of an uncertain ERP response and one requisition, not a duplicate write. |
 
-## Incident triage — one agent
-The service desk agent watches ServiceNow events, classifies and assigns incidents, and notifies the approved on-call audience. Verified means assignment/context/handoff were checked; the incident remains open. It does not imply technical remediation or incident resolution.
+## Steer, don't navigate a wizard
 
-## Employee onboarding — readiness and human fulfillment
-Open the onboarding draft or send its completed process design from Discovery. Confirm the approved London access mapping, recheck, then deploy the reviewed scope. The first new-hire case arrives automatically in the simulation.
+Type “pause,” “resume,” “make this high priority,” or “hold notifications.” These instructions change the simulation. A held notification remains an outstanding obligation until released; typing “continue” cannot approve a financial exception. Ask why a team was chosen, what needs you, what it can access, or what sources it used. Unsupported instructions are explicitly not applied.
 
-Under Operation checks, ask what happens if payroll must be fully automated. The unsupported operation blocks deployment. Requesting the capability does not unblock it. Explicitly retain payroll with its human owner, recheck and deploy. HR/IT work is preserved while a fulfillment reference is required. Attaching it permits verification; it is not immediate business completion.
+Click the status in the workspace header to return to the current request or completed outcome after a long conversation. Expand individual activity steps, an agent's responsibility, Discovery sources, permissions or the decision record for detail.
 
-## Inventory — repeated cycles
-Open Inventory operations agent. The active cycle reconciles an uncertain original ERP submission rather than creating another requisition. Cycle history contains independently verified cycles and a missed cycle with its reason. About this demo → Advance to next scheduled cycle creates a distinct occurrence and updates the next weekday schedule. It does not reset prior cycles.
+“New work” accepts a brief or an approved Discovery design. Both prepare a scope in the same workspace, without a workflow-versus-persona category or model/effort settings. Reopening already-active work preserves it rather than silently creating a duplicate.
 
-## Discovery and natural language
-Discovery keeps its saved-work landing, interview and artifact reader. Process designs ready for Agentix remains a secondary disclosure below existing discoveries. Review a design and Send to Agentix; this transfers design/evidence, not permission to execute.
+## Discovery handoff
 
-New agent accepts a responsibility description and maps the four supported demo patterns into the same proposal. Existing deployed responsibilities are reused without duplicate agents. Unsupported input is preserved and clearly marked as not implemented; no live language model is connected.
+Discovery's saved work, interviews, evidence workspaces and nine-document readers remain unchanged. On its landing page, expand “Process designs ready for Agentix” below the existing discoveries, open a design and choose “Send to Agentix.” This carries the evidence, target process, owner, limits and success checks into the proposed operating plan. Activation remains explicit. No existing Discovery is relabeled as a different use case.
 
-## What to verify
-The UX should answer: what is deployed; what is working now; which case needs me; what changes were applied; what remains unverified; and what verified business result was produced? Users should not need to manage specialist counts, model settings, infrastructure or a workflow canvas.
+## Honest demo boundary
 
-The frontend clock advances while MAXION is open, not after the browser closes. Service and invoice events arrive periodically. The 200-record cap preserves existing evidence and stops intake. Demo reset changes only Agentix version-3 state, with confirmation. No real email, ERP, HR, Teams, Merge or Azure action occurs.
+All agents, source records, approvals and provider effects are simulated. Chat uses scripted responses, not a language model. No external API, ERP, HRIS, email or Teams action is performed. Merge Agent Handler is the intended integration boundary; this frontend does not prove provider coverage or production permissions.
 
-See agentix-workspace-ux.md for controls, limits, acceptance criteria and rollback. Run pnpm check-types, pnpm test src/features/agentix/prototype/__tests__, and pnpm test:e2e tests/e2e/agentix-operations.spec.ts for the local checks.
+Version2 browser state uses `maxion-agentix-workspace-v2`. It preserves selected work, progress, decisions, steering and composer drafts. The previous v1 key and existing Discovery storage are not deleted or migrated. Timers run only while the page is open; a recurring schedule is illustrated, not a backend scheduler.
+
+See [the UX contract and validation matrix](agentix-workspace-ux.md) for the design rationale, test boundaries and rollback.

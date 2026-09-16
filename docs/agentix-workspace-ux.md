@@ -1,78 +1,62 @@
-# Agentix — deployed agents, independent work
-Updated 2026-09-11. This replaces the chat-first workspace design. It is a frontend demo contract, not a production runtime sign-off.
+# Agentix — one place to work
 
-## Primary experience
-The landing page shows deployed agents and a clearly marked setup draft. Each agent owns an ongoing responsibility. Its overview shows deployment health, event/schedule intake, concurrent cases, exceptions, cycle history and verified outcomes. A blocked case does not block the entire agent.
+Updated 2026-09-11. Product surface. This supersedes the screen-by-screen UX described in `agentix-initiative-demo.md`; it does not change production implementation status.
 
-Conversation is a secondary steering drawer. The same drawer displays case decisions, activity/evidence or team/scope, one at a time. There is no second chat workspace, workflow-versus-role selector, canvas, model selector or agent-count setting. The existing MAXION sidebar and Discovery landing hierarchy remain unchanged.
+## The three jobs
 
-Three questions define the hierarchy: what is operating, what needs me, and what outcome was achieved? Case details disclose the business outcome and exact boundary. A waiting invoice approval cannot imply every invoice is stopped; an applied record update cannot imply verification succeeded.
+1. Know what the agent is doing and whether anything needs me.
+2. Steer the work without losing its context, progress or conversation.
+3. Inspect the outcome and evidence without confusing a finished agent turn with a finished business task.
 
-## Completed gaps
-| Gap | Demonstrated journey |
-|---|---|
-| Deployed, ongoing agents | Three seeded deployments, one draft, independent case progression, periodic incoming events, separate intake/case pause |
-| Operation readiness | Onboarding supported operations, missing mapping, recheck in progress, ready to deploy |
-| Unsupported operation | Request automatic payroll provisioning; deployment blocks; a support request does not certify it |
-| Guided configuration repair | Diagnose London mapping ambiguity → choose approved package → read-only recheck → deploy |
-| Explicit scope alternative | Owner chooses human payroll fulfillment; required obligation is retained, not silently omitted |
-| Runtime repair | Expire notification connection → partial outcome → reconnect/recheck → resume outstanding obligation without repeating record write |
-| Recurring work | Separate inventory cycles, occurrence identities, missed-cycle result, next scheduled occurrence and cycle history |
-| Verification | Applied-but-verifying, partial, human-dependent, declined/not-completed and verified outcomes remain distinct |
-| Business usefulness | Derived verified/total results, eligible autonomous completion, median cycle time, illustrative cost; no invented ROI or savings baseline |
+The previous experience violated Tesler's Law by making the viewer import, configure, activate and then manually start a “sample case” across separate screens. It violated Zeigarnik and Pareto by hiding the team and putting the conversation below long-form configuration. The Discovery promotion displaced the actual Discovery work list (Serial Position and Proximity).
 
-## Controls and responsibility
-Pause intake prevents admission of queued cases; already-admitted work continues. Pause case stops its next simulated action. Neither recalls effects. High priority influences queued admission, not authorization. An agent-wide notification release does not override an explicit case-specific hold.
+## Implemented interaction model
 
-An exact $240 invoice approval remains attached to INV-20841 v2. General chat such as “continue” cannot approve it. Human payroll fulfillment requires a named reference and subsequent verification. Unsupported and negated instructions are not silently applied. Agent-level and case-level conversations and drafts are scoped separately.
+One persistent workspace has a work list, a conversation/activity stream, a pinned composer and a context column. The existing MAXION navigation stays intact. On narrower screens the work list and context are explicit, closeable secondary views; neither becomes a new product step.
 
-Discovery and natural-language entry converge on one readiness proposal. Importing an already-deployed responsibility preserves its deployment, cases and history; it does not create another agent or restart existing work. The four fixtures are incident triage (one agent), invoice exceptions, onboarding and inventory (one accountable coordinator plus two scoped specialists).
+The demo opens on an already-authorized invoice case. Its analysts work independently, then the coordinator asks for the precise $240 decision inline. This is seeded demonstration work, not fabricated live customer activity. All four initiatives remain available: incident triage (one agent), invoice exceptions, onboarding and inventory (three agents each).
+
+Discovery and natural-language entry converge on the same proposed scope inside this workspace. Activation starts the work; there is no operating-model/work/discovery tab tour. Reopening an existing running initiative does not restart it. The Discovery landing keeps its existing saved work, interview flow and nine-document deliverable reader. Completed operational designs sit in a secondary disclosure after that work, not in a promotional panel before it.
+
+Working chat interactions: pause, resume, high priority and hold notifications. Questions explain sources, team choice, status and permission boundaries. Unknown instructions are retained in the conversation with an explicit “not applied” response; the frontend is not connected to a language model. Drafts, selected work, decisions, instructions and progress persist in versioned browser storage. No credentials or external systems are used.
+
+ERP unknown-outcome recovery is autonomous in the simulation. It preserves the original request reference and demonstrates one create, not a retry button masquerading as autonomy. Financial approval cannot be bypassed by typing “continue.” Payroll fulfillment requires a reference. Held notification obligations remain incomplete until explicitly released. Reduced-motion preferences alter motion, never execution timing.
 
 ## UX laws acceptance matrix
-| Law | Applied decision | Acceptance |
-|---|---|---|
-| Hick’s | Stable fleet → overview → one contextual drawer | No competing operating modes; only relevant actions |
-| Fitts’s | 44px controls; 8px minimum action gap | Keyboard and touch access at 320–1440px |
-| Jakob’s | Familiar fleet/work list and side panel | Escape closes, focus returns, Enter sends and Shift-Enter adds a line |
-| Proximity | Status, current action and outcome belong to a case | Approvals and supporting facts stay together |
-| Miller’s | Four responsibility examples; five disclosed execution stages | Default view is scannable; history starts with 20 records |
-| Doherty | Local immediate feedback; explicit checking state | No blocking animation; no production-latency claim |
-| Von Restorff | Readiness repair or exact approval is the local primary action | Brand accent does not compete with decorative graphics |
-| Serial Position | Agent state and current workload precede metrics | Discovery saved work precedes operational handoff packages |
-| Peak-End | Durable verified or not-completed record | Completion shows the business boundary, not merely a success toast |
-| Zeigarnik | Independent progress and remaining obligations | Progress survives navigation/refresh; pending work stays visible |
-| Prägnanz | Platform navigation, overview and one optional drawer | No simultaneous chat/cockpit/canvas panels |
-| Similarity | Shared status/button vocabulary | Same states across fleet, case list and details |
-| Uniform connectedness | One container represents one object | Agent deployment is not confused with its case execution |
-| Tesler’s | Readiness infers known context; recovery is automatic | User supplies only unresolved mapping/decision, not technical orchestration |
-| Postel’s | Preserve incomplete/unsupported input | No unknown instruction becomes a successful action |
-| Parkinson’s | Open existing work immediately | New responsibilities require only their unresolved setup and activation |
-| Occam’s | Retire prior chat-first state and components | One active state model; no redundant “sample run” flow |
-| Pareto | Prioritize ongoing status, exceptions and outcomes | Team mechanics, evidence and controls progressively disclosed |
 
-## Engineering and limits
-operationsState.ts owns transitions and the Agentix persistence codec; OperationsViews.tsx owns reusable views; DeployedAgentsPage.tsx owns composition and shell contracts. DemoStateRepository.ts is the only browser-storage adapter and owns tenant-scoped envelopes plus one-time stored-state migration. Shared scenario evidence stays in initiatives.ts. Superseded workspaceState.ts and chat-first components were removed.
+| Law | Requirement | Acceptance | Verification |
+|---|---|---|---|
+| Hick's | Work, conversation and context, without mode selection | One primary business action in the active decision/proposal | Desktop and mobile walkthrough |
+| Fitts's | Controls near their content; mobile actions comfortably tappable | Primary controls ≥44px; no target under24px; adjacent actions ≥8px gap | Browser geometry and keyboard test |
+| Jakob's | Familiar left navigation, message input, Enter/Shift-Enter and Escape | Global Cmd/Ctrl-K remains the platform menu | E2E keyboard test |
+| Proximity | Group each request with evidence and its action | 4–8px within groups, 16–32px between groups | CSS and screenshot review |
+| Miller's | Small stable work list and scannable activity | 4 initiatives, 4–5 steps per process, 3 context sections | Fixture and screenshot checks |
+| Doherty | Input and steering acknowledge immediately | <400ms feedback target; no blocking animation; long work has visible steps | Local browser walkthrough; no production latency claim |
+| Von Restorff | Approval or activation is the dominant action | One filled brand action per business request; chat send uses neutral styling | Screenshot review |
+| Serial Position | Current work first, steering always reachable | Invoice work opens directly; composer pinned; Discovery promotion follows existing work | Landing and viewport tests |
+| Peak-End | A business result, not a toast | Durable outcome summary plus 3 inspectable record receipts | All four outcome journeys |
+| Zeigarnik | Preserve and show progress | Fixed N-of-M step count; selected work and drafts survive refresh | Pause/reload E2E and state tests |
+| Prägnanz | Four top-level visual regions including platform navigation | Platform nav, work list, conversation, context; compact views disclose secondary regions | 320/375/768/1280/1440px review |
+| Similarity | One vocabulary for state and action | Shared status component and shared button variants | Component and screenshot review |
+| Uniform connectedness | Each container represents one object | Approval facts/actions together; connectors only between process steps | Visual inspection |
+| Tesler's | Agent chooses internal execution and handles recovery | No model, effort, agent-count or workflow/persona picker; no manual ERP reconciliation step | UI assertions and inventory journey |
+| Postel's | Preserve imperfect input without silently applying it | Whitespace accepted; unsupported brief retained; no generic resume bypass | State and input tests |
+| Parkinson's | Reach work without setup overhead | Existing work visible on entry; draft activation in one action | E2E entry and handoff tests |
+| Occam's | Remove redundant product surfaces | No sample-run launcher, operating-model tabs or hidden-team requirement | UI assertions |
+| Pareto | Spend attention on work, steering and verified results | These 3 jobs visible in common workspace; detailed policies/sources collapsed | Primary journey walkthrough |
 
-The demo uses existing React/Vite, CSS, Phosphor and MAXION branding. No new dependency or infrastructure. It makes no external provider calls and contains no credentials. React renders messages as text. Storage validates shape, bounds text/history and rejects malformed references. It is not an authorization or tenant-isolation layer.
+## Boundaries and implementation choices
 
-Current Agentix state uses the `maxion-demo:maxion-demo:agentix-operations:v1` tenant/version envelope. Valid raw JSON from `maxion-agentix-operations-v3` migrates once; the legacy key is removed only after the envelope is saved. Invalid legacy values are ignored, and unrelated older keys such as the version-2 workspace remain untouched. At most three cases are admitted per agent; the demo stops intake at 200 retained records rather than deleting evidence. This bounded frontend is not a demonstration of 10,000-user runtime capacity. A production implementation needs durable tenant-scoped workers, scheduler, authorization, audit/effect ledger and provider verification from the implementation plan.
+- This is a frontend simulation, not proof of OpenAI Agents SDK, Merge or Azure execution. A 3-agent screen does not prove runtime parallelism. No performance or cost savings are represented as measured business results.
+- Reuse the existing React/Vite, Phosphor icons, MAXION spiral, typography and CSS token family. No new component framework, infrastructure, generated images or service dependency.
+- `workspaceState.ts` owns bounded transitions and supported steering. `WorkspaceParts.tsx` owns common activity/team/decision/outcome views. `AgentixInitiativesPage.tsx` owns composition and persistence. The existing scenario evidence stays in `initiatives.ts`.
+- State is version2 under a new browser-storage key. Version1 demo data is left untouched. A browser reload restores a checkpoint; no work executes while the browser is closed, and a scheduled trigger is illustrated rather than connected to a scheduler.
+- User/provider text renders as React text, not raw HTML. Storage reads validate shape and bound histories. A storage failure remains usable in-memory and explicitly warns that refresh persistence is unavailable.
+- Production scale, auth, tenant isolation, durable execution and provider receipts are intentionally out of this demo. The product-strength plan remains their authority. No new infrastructure is provisioned.
+- Rollback: revert this UX change set. It has no migration, provider effects or cross-repository dependency; the old browser-storage key remains available.
 
-Cases advance only while Agentix is the active platform module. Hiding Agentix pauses its timer without discarding state; returning resumes from that point. Closing the browser stops the simulation. “Deploy” means a simulated deployment record, not an Azure deployment. Scheduled progression uses an explicit demo-clock control; production scheduling is not connected.
+## Verification record
 
-## Failure, verification and rollback
-Readiness failure blocks deployment. Unsupported operations remain blocked after a support request. Connection expiry preserves applied work. Notification holds remain incomplete. Malformed storage falls back safely; storage-write failure warns that refresh persistence is unavailable. Declined and missed cases never become verified.
+See the updated unit and Playwright suites for executable coverage. Manual review covers desktop hierarchy, mobile navigation, the pinned input, actual steering and Discovery landing order. Automated checks include all four workflows, authority boundaries, partial outcomes, pause/reload, malformed storage, source handoff, keyboard behavior, responsive overflow and axe serious/critical violations. Passing a deterministic demo test is not production qualification.
 
-Verification covers state transitions, concurrent cases, readiness repair, unsupported scope, explicit human dependencies, exact approvals, history/idempotency, scoped steering, DOM interactions, focus handling, 320/375/768/1280/1440px layouts, dark/reduced-motion and axe serious/critical checks. Tests are deterministic frontend evidence, not provider qualification.
-
-Rollback is the preceding source revision, c381e7e. No migration or external effect needs reversal. The original version-2 storage remains available. This revision is local until explicitly published.
-
-## Verification record — 2026-09-11
-
-- TypeScript and production build passed. The existing single-bundle warning remains: approximately 1.35 MB JavaScript, 380 kB gzip. Platform-wide cold-load optimization is not claimed by this change.
-- 31 Agentix unit/component checks passed: 25 deployed-operations checks and six retained legacy-component regressions.
-- The targeted platform integration test for Agentix and Consult MAX passed; nine unrelated platform unit tests were not rerun in that invocation.
-- All 24 browser tests passed together: 15 Agentix journeys, five global-command tests and four platform-shell tests. Includes real UI interaction, module-background progression, mobile 320–1440px, dark/reduced-motion, scoped steering, focus containment/return and axe serious/critical checks.
-- Desktop fleet/overview/decision drawer and a 375px decision drawer were visually inspected in the local app browser. No new production/provider qualification is implied.
-- Review corrections included case-specific holds surviving agent-wide release, separate message drafts per scope, bounded recovery/approval admission, keyboard focus containment, and preventing a second command overlay above a native agent drawer.
-
-Changes are local on codex/agentix-deployed-agents-20260911 in maxion-platform-demo. No production repository, implementation-plan worktree, cloud resource or GitHub Pages deployment was changed.
+Recorded checks: 18 Agentix unit tests (12 workspace and 6 legacy component regressions), 10 platform unit/integration tests, and 23 browser tests passed. Browser coverage includes 320, 375, 768, 1280 and 1440px widths, dark mode and reduced motion. A production-preview check at 125 kB/s with 150 ms latency reached the workspace in 5.48 s; opening New work after load took 90 ms in that observation. These are local observations, not production SLOs. The existing single-bundle size warning remains a cold-load limitation; this work does not claim to have solved platform-wide code splitting.

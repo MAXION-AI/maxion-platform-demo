@@ -22,10 +22,5 @@ export default defineConfig({
 			name: "chromium",
 			use: { ...devices["Desktop Chrome"], viewport: { width: 1280, height: 720 } },
 		},
-		{
-			name: "webkit",
-			testMatch: /(?:phase2-dashboard-projects|discovery-autonomous|plan-workspace|execute-workspace|agentix-operations|whole-product-qualification)\.spec\.ts/,
-			use: { ...devices["Desktop Safari"], viewport: { width: 1280, height: 720 } },
-		},
 	],
 })

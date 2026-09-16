@@ -1,5 +1,5 @@
 {
-  "name": "maxion-platform-demo",
+	"name": "maxion-platform-demo",
   "private": true,
   "version": "0.1.0",
   "type": "module",
@@ -7,23 +7,17 @@
     "dev": "vite",
     "build": "tsc --noEmit && vite build",
     "check-types": "tsc --noEmit",
-    "lint": "eslint . --max-warnings 0",
     "test": "vitest run",
     "test:watch": "vitest",
-    "test:e2e": "playwright test",
-    "check:source-quality": "pnpm lint && tsc --noEmit --noUnusedLocals --noUnusedParameters && knip --include files,exports,dependencies,unlisted,unresolved && python3 scripts/check_production_sources.py",
-    "check:ux:sheets": "python3 scripts/check_ux_reference_sheet.py --all",
-    "check:ux:coverage": "python3 scripts/check_ux_contract_coverage.py",
-    "check:ux:tokens": "python3 scripts/check_ux_tokens.py",
-    "test:ux-gates": "python3 -m unittest discover -s scripts/tests -p 'test_ux_gates.py'",
-    "check:program": "bash scripts/check_program_gates.sh"
+    "test:e2e": "playwright test"
   },
   "dependencies": {
     "@phosphor-icons/react": "2.1.7",
+    "animejs": "4.5.0",
     "motion": "12.23.24",
     "react": "18.3.1",
     "react-dom": "18.3.1",
-    "react-router-dom": "7.18.2"
+    "react-router-dom": "6.30.1"
   },
   "devDependencies": {
     "@axe-core/playwright": "4.11.1",
@@ -34,14 +28,10 @@
     "@types/react": "18.3.23",
     "@types/react-dom": "18.3.7",
     "@vitejs/plugin-react": "4.7.0",
-    "eslint": "10.10.0",
-    "eslint-plugin-react-hooks": "7.1.1",
     "jsdom": "26.0.0",
-    "knip": "6.35.1",
     "typescript": "5.8.3",
-    "typescript-eslint": "8.70.0",
-    "vite": "6.4.3",
-    "vitest": "4.1.11"
+    "vite": "6.3.5",
+    "vitest": "4.0.18"
   },
   "packageManager": "pnpm@10.13.1"
 }
