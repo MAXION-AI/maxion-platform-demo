@@ -1,8 +1,12 @@
 {
-  "sourceCommit": "d85b082b9c9207fa9423d27523cdf9182093d828",
+  "sourceCommit": "76018f6ce9c39df8f65381ca85d4fff07baa9388",
   "sourceBranch": "main",
   "builtLocally": true,
-  "javascript": "assets/index-D31aCEmp.js",
-  "stylesheet": "assets/index-Cn1Ld9uj.css",
-  "previousSourceCommit": "c381e7e50b6cc7e71138fbf4b9c348efc2194df9"
+  "javascript": "assets/index-6nEgZh6d.js",
+  "stylesheet": "assets/index-D9BG62WO.css",
+  "previousSourceCommit": "d85b082b9c9207fa9423d27523cdf9182093d828",
+  "buildSourceCommit": "c381e7e50b6cc7e71138fbf4b9c348efc2194df9",
+  "rollbackOfPagesCommit": "0c70f271f983db07640be44a8525739fbb444924",
+  "restoredPagesCommit": "971dd239e79e2ca4630c26e7042aee080c00e154",
+  "deploymentMethod": "locally reproduced and byte-verified September 11 artifacts; forward rollback commit"
 }
