@@ -1,16 +1,17 @@
 {
-  "sourceCommit": "f7745fc4a1b7351d57ba64db2573a3bcf0e59f42",
+  "sourceCommit": "1b22e1715dda11f518c45d7739285810b15db79a",
   "sourceBranch": "codex/agentix-deployed-agents-20260911",
   "builtLocally": true,
-  "javascript": "assets/index-Cs_oXTKb.js",
+  "javascript": "assets/index-BFpQnZG8.js",
   "stylesheet": "assets/index-6N31yp4R.css",
-  "previousSourceCommit": "384b88088a401b30565f8492aa707558d118fad8",
-  "previousPagesCommit": "56b924ad731ed1997480c79b7ab612aa844a1c70",
+  "previousSourceCommit": "f7745fc4a1b7351d57ba64db2573a3bcf0e59f42",
+  "previousPagesCommit": "11fc2ad",
   "deploymentMethod": "locally built with GITHUB_PAGES=true; the preceding release's hashed assets retained for CDN propagation",
   "contains": [
     "revenue",
     "servicenow",
     "salesforce-sap",
+    "s4hana",
     "stakeholder-interview"
   ]
 }
