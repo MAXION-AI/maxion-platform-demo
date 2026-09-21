@@ -941,6 +941,9 @@
 .prototype .create-template-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--ds-space-2); }
 .prototype .create-template-grid button { display: grid; grid-template-columns: auto minmax(0, 1fr); grid-template-areas: "mark name" "detail detail"; align-items: center; gap: var(--ds-space-1) var(--ds-space-2); padding: var(--ds-space-3); border: 1px solid var(--ds-border); border-radius: var(--ds-radius-lg); background: var(--ds-bg); color: var(--ds-fg); font: inherit; text-align: left; cursor: pointer; transition: border-color var(--ds-duration) var(--ds-ease), transform var(--ds-duration) var(--ds-ease); }
 .prototype .create-template-grid button:hover { border-color: var(--ds-border-strong); transform: translateY(-1px); }
+/* The brief filling is the real acknowledgement, but the card the presenter clicked has to look
+   chosen too, or four identical tiles leave them unsure the click landed. */
+.prototype .create-template-grid button[aria-pressed="true"] { border-color: var(--ds-fg); background: var(--ds-bg-inset); }
 .prototype .create-template-grid .ds-mark { grid-area: mark; }
 .prototype .template-name { grid-area: name; font-size: var(--ds-text-sm); line-height: var(--ds-lh-sm); font-weight: var(--ds-weight-medium); }
 .prototype .template-detail { grid-area: detail; color: var(--ds-fg-subtle); font-size: var(--ds-text-sm); line-height: var(--ds-lh-sm); }
@@ -964,6 +967,7 @@
 .prototype .create-actions > .ds-button:only-child { margin-left: auto; }
 /* The customer demo says what creating a revenue Discovery restarts, in the pinned row beside the button that does it. */
 .prototype .create-demo-note { flex: 1 1 0; min-width: 0; margin: 0; color: var(--ds-fg-subtle); font-size: var(--ds-text-xs); line-height: var(--ds-lh-xs); text-align: right; }
+.prototype .create-blocker { margin: 0; color: var(--ds-fg-subtle); font-size: var(--ds-text-xs); line-height: var(--ds-lh-xs); }
 .prototype .create-hint { display: inline-flex; align-items: center; gap: var(--ds-space-1); color: var(--ds-fg-subtle); font-size: var(--ds-text-xs); line-height: var(--ds-lh-xs); }
 
 .prototype .create-question { display: flex; align-items: flex-start; gap: var(--ds-space-3); padding: var(--ds-space-4); border: 1px solid var(--ds-border); border-radius: var(--ds-radius-xl); }

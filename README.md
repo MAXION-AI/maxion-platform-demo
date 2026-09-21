@@ -9,13 +9,11 @@ The prototype mirrors the current MAXION portal shell and connects the product m
 - Dashboard — workspace activity, project status, quick actions, and connected-system context
 - Projects — searchable project library, creation, details, membership, and archive states
 - Discovery — autonomous inquiry, interviews, evidence, exceptions, and verified packages
-- Plan — evidence-linked delivery planning and architecture
-- Execute — development-only engagements, approvals, implementation, testing, and verification
 - Agentix — deployed agents with ongoing intake, concurrent cases, scoped steering, readiness/repair and verified outcomes
 - Consult MAX — cross-platform explanation and routing
 - Integrations — Nango, Merge Unified API, and native connection management with scopes and access history
 
-The sidebar, account surfaces, responsive drawer, MAXION lockup, and spiral geometry use the current portal patterns and brand assets. Operational work is intentionally absent from Execute; it belongs in Agentix.
+The sidebar, account surfaces, responsive drawer, MAXION lockup, and spiral geometry use the current portal patterns and brand assets. A Discovery's package goes straight to Agentix, which builds, releases and runs the work; Plan and Execute are disabled and unreachable, and their code stays only so restoring their navigation entries would bring them back.
 
 ## Run locally
 

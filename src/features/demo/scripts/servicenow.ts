@@ -71,7 +71,7 @@ export const SERVICENOW_SCRIPT: DemoScript = {
 		},
 		pipeline: {
 			title: "Watch a check fail and the repair",
-			does: "Open MS-2. Its first version fails two checks, tolerance and discount capture; open that version to show the 240 cases. The triage specialist repairs the lookup and the checks pass. Use Demo, then Skip, to move faster.",
+			does: "Open MS-2. Its first version fails two checks, tolerance and discount capture; open that version to show the 240 cases. The triage specialist repairs the lookup and the checks pass. Use Controls, then Skip, to move faster.",
 			says: "This is the Discovery decision paying off: the negotiated tolerance became a test, and the test caught the pipeline clearing against the purchase order before anything reached production.",
 		},
 		release: {
@@ -81,12 +81,12 @@ export const SERVICENOW_SCRIPT: DemoScript = {
 		},
 		dashboard: {
 			title: "Open the verified dashboard",
-			does: "MS-3 publishes under policy FIN-AP-7. Open Results, then the AP exception dashboard. When you are ready for the daily operation, open Demo and choose Run the next scheduled cycle now.",
+			does: "MS-3 publishes under policy FIN-AP-7. Open Results, then the AP exception dashboard. When you are ready for the daily operation, open Controls and choose Run the next scheduled cycle now.",
 			says: "Finance gets the queue by class and age, with what cleared, what is waiting and on whom, and the time of the last sweep on the dashboard.",
 		},
 		cycle: {
 			title: "Run tomorrow morning",
-			does: "The morning sweep is running: classify, test against contract terms, route what needs a person and refresh the dashboard. Use Demo, then Skip, until it is verified.",
+			does: "The morning sweep is running: classify, test against contract terms, route what needs a person and refresh the dashboard. Use Controls, then Skip, until it is verified.",
 			says: "From here it’s operations: sweep at 06:00, clear by 07:00, dashboard by 08:00, and a person only for what genuinely needs one.",
 		},
 		close: {

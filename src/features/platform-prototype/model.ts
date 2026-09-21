@@ -733,8 +733,6 @@ export const EXECUTE_FLAGSHIP_ENGAGEMENT: ExecuteLaunchIntent = {
 // fastest way to lose a viewer's trust in everything else on the surface.
 export const WORKSPACE_USAGE_ROWS = [
 	{ module: "Discovery", units: 12_480 },
-	{ module: "Plan", units: 8_140 },
-	{ module: "Execute", units: 14_620 },
 	{ module: "Agentix", units: 6_320 },
 ] as const
 

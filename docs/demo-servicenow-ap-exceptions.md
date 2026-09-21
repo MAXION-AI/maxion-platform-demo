@@ -27,7 +27,7 @@ The demo behaves exactly like the revenue demo, because both run on the same har
 
 - **Full demo:** about 20 minutes, 10 of them in Discovery.
 - **From the package:** about 10 minutes.
-- **Agentix** moves one demo minute every 4 seconds while it is on screen, and pauses while you are in another module. Use **Demo → Skip five minutes**, and **Demo → Run the next scheduled cycle now** for the morning sweep.
+- **Agentix** moves one demo minute every 4 seconds while it is on screen, and pauses while you are in another module. Use **Controls → Skip five minutes**, and **Controls → Run the next scheduled cycle now** for the morning sweep.
 
 ## The story
 
@@ -60,9 +60,9 @@ The number on each heading matches the sidebar count.
 
 **9 · Approve the production release.** Review the target, checks and recovery limits, then choose **Approve release**. The adapter’s acknowledgement is lost on purpose; the coordinator reads the update set back instead of resubmitting it.
 
-**10 · Open the verified dashboard.** MS-3 publishes under policy FIN-AP-7. Open **Results → AP exception dashboard**. When you're ready, choose **Demo → Run the next scheduled cycle now**.
+**10 · Open the verified dashboard.** MS-3 publishes under policy FIN-AP-7. Open **Results → AP exception dashboard**. When you're ready, choose **Controls → Run the next scheduled cycle now**.
 
-**11 · Run tomorrow morning.** The morning sweep classifies, tests against contract terms, routes what needs a person and refreshes the dashboard. Use **Demo → Skip** until it is verified.
+**11 · Run tomorrow morning.** The morning sweep classifies, tests against contract terms, routes what needs a person and refreshes the dashboard. Use **Controls → Skip** until it is verified.
 
 **12 · Close the story.** Open **Activity** to show the verified sweep and its evidence.
 *Say:* One Discovery, one package, and an agent team that went from nothing to running the work. Finance made six decisions; everything else ran on its own and was verified.

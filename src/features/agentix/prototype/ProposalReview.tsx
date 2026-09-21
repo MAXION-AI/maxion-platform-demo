@@ -38,12 +38,12 @@ export function ProposalReview({ state, engagement, onAnswer, onEdit, onAction, 
 	const systems = scenario.systems.filter(system => !system.package || system.package === pkg?.id || engagement.packages.includes(system.package))
 	const onboarding = engagement.workflowId === "onboarding"
 	/*
-	 * The read-only check is the one thing between a reviewed proposal and activation, and its
-	 * button sits mid-page below the readiness rows. When it is all that is left, offer it in the
-	 * action bar too, beside the disabled Activate, so the next step is where the eye already is.
+	 * The read-only check is the last thing between a reviewed proposal and activation, and its
+	 * button sat mid-page below the readiness rows. Offer it in the action bar, beside the disabled
+	 * Activate, once it is the NEXT blocker -- while a question is still unanswered the bar names
+	 * that instead, so it never advertises a step the owner cannot usefully take yet.
 	 */
-	const needsCheck = !expansion && !engagement.checking && !engagement.checked
-		&& !engagement.automaticPayroll && !(onboarding && !engagement.mapping)
+	const needsCheck = !expansion && !engagement.checking && blockers[0] === "Run the readiness check."
 	// A package handed over by a Discovery names that Discovery and its packet, and leads back to it.
 	const handedOver = proposal?.origin === "discovery" ? proposal.discovery : undefined
 	const source = handedOver

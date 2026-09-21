@@ -56,7 +56,7 @@ export function PresenterGuidePage() {
 				<header className="mxd-guide-head">
 					<p className="mxd-kicker">Presenter guide · keep this window off the shared screen</p>
 					<h1>{script.name}, Discovery to Agentix</h1>
-					<p>Follows the demo tab as you go. Everything shown to the customer is simulated: no real ledger, AWS, ERP or Teams action happens.</p>
+					<p>Follows the demo tab as you go. Everything shown to the customer is simulated: no system is actually read from or written to.</p>
 					{tracking ? null : <p className="mxd-detail">This browser blocks storage, so the guide can’t follow the demo’s steps. Fill and Restart still reach the demo tab.</p>}
 					<p className="mxd-guide-status" role="status">{presence === "owner" ? "Connected to the demo tab." : presence === "other" ? "A demo tab is open but has handed the demo to another tab. Use Continue here in it to carry on." : presence === "none" ? (saved ? "No demo tab is open. Showing where the last demo in this browser stopped." : "No demo tab is open.") : "Looking for the demo tab…"}{notice ? ` ${notice}` : ""}</p>
 				</header>

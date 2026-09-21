@@ -111,7 +111,7 @@ test("keeps page shortcuts and the menu behind an open dialog or sheet", async (
 	await packageTab.click()
 	await expect(packageTab).toHaveClass(/active/)
 
-	await page.getByRole("button", { name: "Review handoff" }).click()
+	await page.locator(".workspace-header").getByRole("button", { name: "Continue to Agentix" }).click()
 	const dialog = page.getByRole("dialog", { name: "Continue to Agentix" })
 	const cancel = dialog.getByRole("button", { name: "Cancel" })
 	await cancel.focus()
@@ -155,7 +155,7 @@ test("routes the header to the composer, out of the menu, and on to Agentix afte
 	await page.getByRole("button", { name: "Resume NorthBridge acquisition diligence, Completed" }).click()
 	await expect(page.getByRole("button", { name: "Package", exact: true })).toHaveAccessibleDescription("Ready to hand off")
 	await page.getByRole("button", { name: "Package", exact: true }).click()
-	await page.getByRole("button", { name: "Review handoff" }).click()
+	await page.locator(".workspace-header").getByRole("button", { name: "Continue to Agentix" }).click()
 	await page.getByRole("dialog", { name: "Continue to Agentix" }).getByRole("button", { name: "Continue to Agentix" }).click()
 	// NorthBridge has no prebuilt operating design, so its packet opens engagement setup in Agentix.
 	const agentixSetup = page.getByRole("heading", { name: "What should an agent take on?" })

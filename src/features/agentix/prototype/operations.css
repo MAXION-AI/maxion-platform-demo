@@ -512,6 +512,9 @@ button.aop-list-row:hover .aop-row-action { color: var(--ds-fg); }
 
 /* ---- Toast: the publish confirmation ------------------------------------------ */
 .aop-toast-region { position: fixed; right: var(--ds-space-4); bottom: var(--ds-space-4); z-index: 60; pointer-events: none; }
+/* A pinned action bar owns the bottom of the page. A toast landing on it would cover the only
+ * two controls that move a handed-over package forward, so lift the toast clear of the bar. */
+.aop-root:has(.aop-setup-bar) .aop-toast-region { bottom: calc(var(--ds-space-12) * 2 + var(--ds-space-4)); }
 .aop-toast { display: flex; align-items: center; gap: var(--ds-space-2); max-width: min(calc(var(--ds-panel-w) + var(--ds-space-8)), calc(100vw - var(--ds-space-8))); margin: 0; padding: var(--ds-space-3) var(--ds-space-4); border-radius: var(--ds-radius-lg); background: var(--ds-primary); color: var(--ds-fg-on-primary); font-size: var(--ds-text-sm); line-height: var(--ds-lh-sm); }
 
 /* ---- Narrow screens ------------------------------------------------------------ */

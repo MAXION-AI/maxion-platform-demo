@@ -461,7 +461,7 @@ const revenue: Scenario = {
 			facts: [], artifact: "pipeline",
 			options: [
 				{ id: "approve", label: "Approve release", primary: true, consequence: "Released now through the release adapter.", outcome: "release" },
-				{ id: "window", label: "Approve for Saturday 02:00", consequence: "Released in the agreed window.", outcome: "release-window" },
+				{ id: "window", label: "Release in the Saturday 02:00 window", consequence: "Released in the agreed window.", outcome: "release-window" },
 				{ id: "keep", label: "Keep in test", consequence: "Nothing is released. The tested version stays ready.", outcome: "keep-in-test" },
 			],
 		},
@@ -832,7 +832,7 @@ const payables: Scenario = {
 			facts: [], artifact: "pipeline",
 			options: [
 				{ id: "approve", label: "Approve release", primary: true, consequence: "Released now through the release adapter.", outcome: "release" },
-				{ id: "window", label: "Approve for Wednesday 22:00", consequence: "Released in the agreed change window.", outcome: "release-window" },
+				{ id: "window", label: "Release in the Wednesday 22:00 window", consequence: "Released in the agreed change window.", outcome: "release-window" },
 				{ id: "keep", label: "Keep in test", consequence: "Nothing is released. The tested version stays ready.", outcome: "keep-in-test" },
 			],
 		},
@@ -1192,7 +1192,7 @@ const orders: Scenario = {
 			facts: [], artifact: "pipeline",
 			options: [
 				{ id: "approve", label: "Approve release", primary: true, consequence: "Released now through the release adapter.", outcome: "release" },
-				{ id: "window", label: "Approve for Thursday 21:00", consequence: "Released in the agreed change window.", outcome: "release-window" },
+				{ id: "window", label: "Release in the Thursday 21:00 window", consequence: "Released in the agreed change window.", outcome: "release-window" },
 				{ id: "keep", label: "Keep in test", consequence: "Nothing is released. The tested version stays ready.", outcome: "keep-in-test" },
 			],
 		},

@@ -147,7 +147,7 @@ describe("releases", () => {
 		const release = state.releases.find(r => r.workItemId === item(state, "MS-2").id)!
 		expect(release.ownerHold).toBeFalsy()
 		expect(state.messages.filter(m => m.role === "owner").at(-1)!.instruction?.status).toBe("declined")
-		expect(state.messages.at(-1)!.text).toMatch(/Approve for Saturday 02:00/)
+		expect(state.messages.at(-1)!.text).toMatch(/Release in the Saturday 02:00 window/)
 		state = decide(state, openDecision(state, item(state, "MS-2").id)!.id, "window")
 		state = tick(tick(state))
 		expect(state.releases.find(r => r.id === release.id)!.status).toBe("held")

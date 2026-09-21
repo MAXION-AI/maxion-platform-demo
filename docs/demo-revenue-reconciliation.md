@@ -35,7 +35,7 @@ The **Revenue demo** row in the sidebar shows the current step, for example `3/1
 - **Full demo:** about 20 minutes, 10 of them in Discovery.
 - **From the package:** about 10 minutes.
 - **Discovery:** runs on its own after the interview. Each stage takes under two seconds: the decision arrives about 5 seconds after the last answer, and the package about 6 seconds after you decide.
-- **Agentix:** moves one demo minute every 4 seconds while it is on screen, and pauses while you are in another module, so nothing moves on without you. To move faster, use **Demo → Skip five minutes**. For the morning cycle, use **Demo → Run the next scheduled cycle now**.
+- **Agentix:** moves one demo minute every 4 seconds while it is on screen, and pauses while you are in another module, so nothing moves on without you. To move faster, use **Controls → Skip five minutes**. For the morning cycle, use **Controls → Run the next scheduled cycle now**.
 
 ## The story
 
@@ -65,14 +65,14 @@ The number on each heading matches the sidebar count. A step stays current until
 **7 · Decide the missing-region rule.** MS-1 asks about the 212 invoices without a region. Choose **Show them as Unassigned**.
 *Say:* The agent found what Discovery flagged. It's a business rule, so the specialist asks instead of choosing.
 
-**8 · Watch a check fail and the repair.** In MS-2, pipeline v1 converts at invoice-date rates, so two of its nine checks fail: currency conversion and totals by region. Open v1 to show the 14 rows, $126.24 apart. The data specialist repairs the join, and v2 passes all nine checks. Use **Demo → Skip** to move faster.
+**8 · Watch a check fail and the repair.** In MS-2, pipeline v1 converts at invoice-date rates, so two of its nine checks fail: currency conversion and totals by region. Open v1 to show the 14 rows, $126.24 apart. The data specialist repairs the join, and v2 passes all nine checks. Use **Controls → Skip** to move faster.
 *Say:* The Discovery decision became a test, and the test caught the mistake before anything reached production.
 
 **9 · Approve the production release.** Review the target, checks and recovery limits, then choose **Approve release**. The adapter's acknowledgement is lost on purpose. The coordinator reads the target back instead of sending the change twice.
 
-**10 · Open the verified dashboard.** MS-3 publishes under policy FIN-DASH-2. Open **Results → Revenue dashboard**: $1,284,310.42 by region, $0.00 variance, and the time of the last load. Delivery is verified and the engagement now runs daily at 06:00 London. When you're ready, choose **Demo → Run the next scheduled cycle now**.
+**10 · Open the verified dashboard.** MS-3 publishes under policy FIN-DASH-2. Open **Results → Revenue dashboard**: $1,284,310.42 by region, $0.00 variance, and the time of the last load. Delivery is verified and the engagement now runs daily at 06:00 London. When you're ready, choose **Controls → Run the next scheduled cycle now**.
 
-**11 · Run tomorrow morning.** The morning cycle loads, reconciles by region, refreshes the dashboard and posts the summary. Use **Demo → Skip** until it is verified.
+**11 · Run tomorrow morning.** The morning cycle loads, reconciles by region, refreshes the dashboard and posts the summary. Use **Controls → Skip** until it is verified.
 
 **12 · Close the story.** Open **Activity** to show the verified morning and its evidence.
 *Say:* One Discovery, one package, and an agent team that went from nothing to running the work: built, tested, released and verified every morning. Finance made six decisions: the currency standard, the charter, the release policy, the test data, the region rule and the release. Everything else ran on its own and was verified.
@@ -93,9 +93,9 @@ You can type your own answers instead. An answer that starts with "not sure" mak
 
 ## If something goes off script
 
-- **Start again for the next customer.** Open a new tab, or use **Restart…** in the sidebar, the presenter window, or **Agentix → Demo**. You can restart from the beginning or from the finished package. The presenter window tells you if no demo tab answered.
+- **Start again for the next customer.** Open a new tab, or use **Restart…** in the sidebar, the presenter window, or **Agentix → Controls**. You can restart from the beginning or from the finished package. The presenter window tells you if no demo tab answered.
 - **Show the process again in the same tab.** Create a new revenue Discovery from **Discover → New Discovery**. It replaces the earlier revenue Discovery and Agentix starts again from zero. The sidebar row goes back to step 2.
-- **Agentix seems slow.** Use **Demo → Skip five minutes**. Nothing is lost by skipping.
+- **Agentix seems slow.** Use **Controls → Skip five minutes**. Nothing is lost by skipping.
 - **You left a step.** The sidebar row's button goes back to where the story is: the Discovery, its decision, its package, the proposal or the engagement.
 - **Refreshing is safe.** The same tab reopens in Discover, or at the package for the short demo, with all progress kept. The sidebar row takes you back. If you refreshed straight after sending an answer, open the Discovery from the row and MAX replies to it.
 - **Restart can't be undone by Back.** A restart replaces the page in the browser's history, so Back leaves the demo instead of landing on the run you cleared.

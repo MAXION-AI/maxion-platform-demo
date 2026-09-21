@@ -329,7 +329,7 @@ export function DeployedAgentsPage({ intentSignal, onAttentionChange, onOpenDisc
 					onWindow={() => update(advanceToWindow)} onSchedule={id => update(current => advanceSchedule(current, id))} onIncoming={id => update(current => addIncoming(current, id))}
 					onExpire={id => update(current => actOnEngagement(current, id, "expire"))} onLosePermission={id => update(current => actOnEngagement(current, id, "lose-permission"))} onAckLoss={() => update(current => armFailure(current, "ackLoss"))}
 					onReset={() => { setState(initialState()); setSheet(null); setToast("The Agentix demo was reset. Discovery work and earlier demo versions are untouched.") }}
-					onRestartCustomerDemo={demoActive() ? start => restartDemo(start) : undefined} /> : null}
+					onRestartCustomerDemo={demoActive() ? start => restartDemo(start) : undefined} demoName={demoSession() ? demoScript(demoSession()!.id).name.toLowerCase() : undefined} /> : null}
 				</ViewBoundary>
 			</dialog>
 			<div className="aop-toast-region" aria-live="polite" role={toast ? "status" : undefined}>

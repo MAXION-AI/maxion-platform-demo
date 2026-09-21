@@ -500,8 +500,8 @@ export type JourneyContext = {
 // cockpit hero shows while the stage is current.
 export const JOURNEY_STAGES: Array<{ id: JourneyStageId; label: string; purpose: string; nextAction: string; operations: readonly number[] }> = [
 	{ id: "frame", label: "Frame", purpose: "Turns the brief and your interview into an objective, a done condition and an authority boundary.", nextAction: "MAX is establishing the mission, its authority and its decision horizon.", operations: [0] },
-	{ id: "interview", label: "Interview", purpose: "Maps the accountable people and runs text, voice and workshop interviews around the evidence gaps.", nextAction: "MAX is conducting and reconciling stakeholder interviews.", operations: [2, 3] },
 	{ id: "evidence", label: "Evidence", purpose: "Binds the governed sources and keeps record-level provenance for every claim.", nextAction: "MAX is binding and reading the governed sources.", operations: [1] },
+	{ id: "interview", label: "Interview", purpose: "Maps the accountable people and runs text, voice and workshop interviews around the evidence gaps.", nextAction: "MAX is conducting and reconciling stakeholder interviews.", operations: [2, 3] },
 	{ id: "synthesis", label: "Synthesis", purpose: "Turns contradictions into owned cases and freezes one readiness snapshot.", nextAction: "MAX is resolving conflicts and freezing the readiness snapshot.", operations: [4, 5] },
 	{ id: "deliverables", label: "Deliverables", purpose: "Generates every selected document from one versioned manifest.", nextAction: "MAX is generating the selected deliverables.", operations: [6] },
 	{ id: "handoff", label: "Handoff", purpose: "Routes the package to its approvers and prepares the handoff packet for the next module.", nextAction: "MAX is routing the package to its approvers.", operations: [7] },
@@ -518,10 +518,10 @@ export function currentJourneyStage(phase: number, context: JourneyContext = {})
 	return stage?.id ?? "handoff"
 }
 
-/* The prototype binds sources before it interviews, so Evidence completes before
- * Interview does. Progress is therefore read per stage from its own operations
- * rather than from the stage's position in the list. A finished run is finished
- * everywhere: no stage keeps working once the last operation has run. */
+/* Progress is read per stage from its own operations rather than from the stage's
+ * position in the list, so the rail can be reordered without changing what is done.
+ * A finished run is finished everywhere: no stage keeps working once the last
+ * operation has run. */
 export function journeyStageStatus(stageId: JourneyStageId, phase: number, context: JourneyContext = {}): JourneyStageStatus {
 	const stage = JOURNEY_STAGES.find(item => item.id === stageId)
 	if (!stage) return "pending"

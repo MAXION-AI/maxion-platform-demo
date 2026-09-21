@@ -200,7 +200,7 @@ function interpret(state: AgentixState, engagementId: string, scope: ScopeRef, i
 		const updated = next.releases.find(entry => entry.id === release.id)!
 		const links: ObjectRef[] = [{ kind: "release", id: release.id }]
 		if (next === state) {
-			const why = release.status === "awaiting_approval" ? `${release.reference} still needs your approval, and chat can't give it. ${stop ? "To stop it, choose “Keep in test” on its card." : `To release it in the ${releaseWindowOf(state, release.engagementId).label} window, choose “Approve for ${releaseWindowOf(state, release.engagementId).label}” on its card.`}`
+			const why = release.status === "awaiting_approval" ? `${release.reference} still needs your approval, and chat can't give it. ${stop ? "To stop it, choose “Keep in test” on its card." : `To release it in the ${releaseWindowOf(state, release.engagementId).label} window, choose “Release in the ${releaseWindowOf(state, release.engagementId).label} window” on its card.`}`
 				: release.status === "stopped" || release.status === "declined" ? `${release.reference} was ${release.status === "stopped" ? "stopped" : "kept in test"}. ${stop ? "It's already not releasing." : `To release it, use “${release.authority === "approval" || release.status === "declined" ? "Request release again" : "Resume release"}” on its card; ${release.authority === "approval" ? "that asks for your approval again" : "it follows your release policy again"}.`}`
 				: release.status === "blocked" && !stop ? `${release.reference} is blocked: release permission was lost. Restore permission first.`
 				: release.status === "held" ? `${release.reference} is already held until ${releaseSentence(state, release).replace(/^Held (by you|by policy) until /, "")}.`

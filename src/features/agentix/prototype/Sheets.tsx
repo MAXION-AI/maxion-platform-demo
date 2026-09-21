@@ -142,11 +142,13 @@ export function DetailsSheet({ state, engagementId, section, titleId, onSection,
  * The presenter's controls, kept apart from the product and labelled as such.
  * Nothing here is a customer action.
  */
-export function DemoControls({ state, titleId, focusId, onClose, onTick, onSkip, onWindow, onSchedule, onIncoming, onExpire, onLosePermission, onAckLoss, onReset, onRestartCustomerDemo }: {
+export function DemoControls({ state, titleId, focusId, onClose, onTick, onSkip, onWindow, onSchedule, onIncoming, onExpire, onLosePermission, onAckLoss, onReset, onRestartCustomerDemo, demoName }: {
 	state: AgentixState; titleId: string; focusId?: string; onClose: () => void; onTick: () => void; onSkip: () => void; onWindow: () => void
 	onSchedule: (id: string) => void; onIncoming: (id: string) => void; onExpire: (id: string) => void; onLosePermission: (id: string) => void; onAckLoss: () => void; onReset: () => void
 	/* In the customer demo a reset restarts the whole story, Discovery included, instead of Agentix alone. */
 	onRestartCustomerDemo?: (start: "discovery" | "package") => void
+	/* The running demo's own name: three demos share this sheet, so it must never name another one. */
+	demoName?: string
 }) {
 	const [chosen, setChosen] = useState(focusId && state.engagements[focusId]?.status !== "draft" ? focusId : "invoice")
 	const [confirm, setConfirm] = useState(false)
@@ -192,7 +194,7 @@ export function DemoControls({ state, titleId, focusId, onClose, onTick, onSkip,
 				<section className="aop-sheet-section" aria-label="Reset">
 					{onRestartCustomerDemo ? (confirm ? (
 						<div className="aop-sheet-card">
-							<p>Start the revenue reconciliation demo again? Its Discovery and Agentix work are cleared. The everyday prototype's data is untouched.</p>
+							<p>Start the {demoName ?? "customer"} demo again? Its Discovery and Agentix work are cleared. The everyday prototype's data is untouched.</p>
 							<div className="aop-actions"><DsButton onClick={() => setConfirm(false)}>Keep current state</DsButton><DsButton onClick={() => onRestartCustomerDemo("package")}>From the finished package</DsButton><DsButton variant="primary" onClick={() => onRestartCustomerDemo("discovery")}>From the beginning</DsButton></div>
 						</div>
 					) : <TextButton onClick={() => setConfirm(true)}>Restart the customer demo…</TextButton>) : confirm ? (

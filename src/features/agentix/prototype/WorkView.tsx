@@ -176,7 +176,9 @@ export function WorkView({ state, engagementId, callbacks, showHistory, onHistor
 						{operating ? <div><dt>Next cycle</dt><dd>{shortTime(Date.parse(engagement.nextOccurrence))}</dd></div> : null}
 						{figures.lastCycle ? <div><dt>Data freshness</dt><dd className={stale ? "is-stale" : undefined}>{stale ? "Stale · " : ""}{SCENARIOS[engagement.workflowId].delivery ? `Dashboard refreshed ${shortTime(lastVerified!)}` : `Last review ${shortTime(lastVerified!)}`}</dd></div> : null}
 						<div><dt>Service health</dt><dd>{engagement.connection === "expired" ? "Notification connection expired" : engagement.permission === "lost" ? "Release permission lost" : engagement.checking ? "Rechecking the notification connection" : "All connections checked"}</dd></div>
-						<div><dt>Verified results</dt><dd>{figures.total ? `${figures.verified} of ${figures.total} finished` : "None finished yet"}</dd></div>
+						{/* This counts cycles and cases, never milestones, so it must not be called "results": the
+						    Results tab counts the delivered artifacts and the two numbers would contradict. */}
+						<div><dt>Verified runs</dt><dd>{figures.total ? `${figures.verified} of ${figures.total} finished` : "None run yet"}</dd></div>
 						<div><dt>Median time to verify</dt><dd>{figures.medianMinutes === null ? "—" : `${figures.medianMinutes} min`}</dd></div>
 					</dl>
 					<p className="aop-footnote">Derived from this engagement's records. No savings or ROI is claimed without a measured baseline.</p>

@@ -71,7 +71,7 @@ export const SALESFORCE_SAP_SCRIPT: DemoScript = {
 		},
 		pipeline: {
 			title: "Watch a check fail and the repair",
-			does: "Open MS-2. Its first version resolves customers from Salesforce, so two of its twelve checks fail, tax determination and pricing; open that version to show the 187 accounts. The integration specialist repairs the resolution and the checks pass. Use Demo, then Skip, to move faster.",
+			does: "Open MS-2. Its first version resolves customers from Salesforce, so two of its twelve checks fail, tax determination and pricing; open that version to show the 187 accounts. The integration specialist repairs the resolution and the checks pass. Use Controls, then Skip, to move faster.",
 			says: "This is the Discovery decision paying off: the customer master became a test, and the test caught the pipeline taxing against the wrong address before anything reached production SAP.",
 		},
 		release: {
@@ -81,12 +81,12 @@ export const SALESFORCE_SAP_SCRIPT: DemoScript = {
 		},
 		dashboard: {
 			title: "Open the verified cockpit",
-			does: "MS-3 publishes under policy ITGC-SOX-4. Open Results, then the order exception cockpit. When you are ready for the daily operation, open Demo and choose Run the next scheduled cycle now.",
+			does: "MS-3 publishes under policy ITGC-SOX-4. Open Results, then the order exception cockpit. When you are ready for the daily operation, open Controls and choose Run the next scheduled cycle now.",
 			says: "Revenue operations get what posted, what is blocked and on whom, and what is at risk for the quarter, with the time of the last sync on the cockpit.",
 		},
 		cycle: {
 			title: "Run tomorrow morning",
-			does: "The morning sync is running: read the booked orders, resolve each one, post under its key and refresh the cockpit. Use Demo, then Skip, until it is verified.",
+			does: "The morning sync is running: read the booked orders, resolve each one, post under its key and refresh the cockpit. Use Controls, then Skip, until it is verified.",
 			says: "From here it’s operations: sync at 06:00, order numbers back in Salesforce by 07:00, cockpit by 08:00, and a person only for what genuinely needs one.",
 		},
 		close: {

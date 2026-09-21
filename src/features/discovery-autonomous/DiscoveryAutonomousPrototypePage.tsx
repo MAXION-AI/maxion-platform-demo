@@ -455,7 +455,11 @@ function firstSentence(text: string) {
  * anything still too long is cut at a connector or a word, never mid-word and
  * never on a dangling "of" or "the".
  */
-const MISSION_NAME_LIMIT = 50
+/* What MAX aims for when it drafts a name from a brief. */
+const MISSION_NAME_TARGET = 50
+/* What the field accepts. A template names its own mission, and some read longer than MAX would
+ * draft; the field has to hold them, or its counter reads over its own limit on the first screen. */
+const MISSION_NAME_LIMIT = 70
 const TITLE_LEAD = /^(?:please\s+)?(?:help (?:us|me)\s+)?(?:decide|determine|assess|evaluate|confirm|work out|figure out|understand)\s+(?:whether|if|how)\s+(?:to\s+|(?:we|it|(?:our|the)(?:\s+[\w-]+){1,4})\s+(?:can|could|should|must|will)\s+)/i
 const TITLE_CLAUSE = /\s+(?:so that|so|without|because|while|in order to|which|that will)\s+|\s*[,;:(—–]\s*|\s+-\s+/
 const TITLE_CONNECTOR = /\s+(?:and|with|for|across|using|by|through|from|into|against|within)\s+/g
@@ -473,12 +477,12 @@ function missionTitle(brief: string) {
 	const lead = sentence.replace(TITLE_LEAD, "")
 	let title = lead.split(TITLE_CLAUSE)[0]
 	if (title.split(" ").length < 2) title = lead
-	if (title.length > MISSION_NAME_LIMIT) {
-		const breaks = [...title.matchAll(TITLE_CONNECTOR)].map(match => match.index ?? 0).filter(index => index <= MISSION_NAME_LIMIT && index >= MISSION_NAME_LIMIT * 0.6)
+	if (title.length > MISSION_NAME_TARGET) {
+		const breaks = [...title.matchAll(TITLE_CONNECTOR)].map(match => match.index ?? 0).filter(index => index <= MISSION_NAME_TARGET && index >= MISSION_NAME_TARGET * 0.6)
 		if (breaks.length) title = title.slice(0, breaks.at(-1))
 	}
-	if (title.length > MISSION_NAME_LIMIT) {
-		title = title.slice(0, MISSION_NAME_LIMIT + 1).replace(/\s+\S*$/, "")
+	if (title.length > MISSION_NAME_TARGET) {
+		title = title.slice(0, MISSION_NAME_TARGET + 1).replace(/\s+\S*$/, "")
 		while (TITLE_TAIL.test(title)) title = title.replace(TITLE_TAIL, "")
 	}
 	title = title.trim()
@@ -2026,7 +2030,9 @@ export function DiscoveryAutonomousPrototypePage({ embedded = false, active = tr
 							onOpenSources={() => openDrawer("sources")}
 							onOpenPackage={() => setView("package")}
 							onOpenAutonomy={() => setView("autonomy")}
+							onOpenHandoff={() => setHandoffOpen(true)}
 							handoff={handoff}
+							charterApproved={!!charterApproval}
 							includedCount={includedOutputs(excludedOutputs).length}
 							onOpenPlan={openPlan}
 							toast={pageToast}
@@ -2719,7 +2725,7 @@ function SetupScreen({
 								</div>
 								<div className="create-template-grid">
 									{templates().slice(0, 4).map((template) => (
-										<button type="button" key={template.name} aria-label={template.name} aria-describedby={`template-${template.name.replace(/\W+/g, "-")}`} onClick={() => { onMissionBriefChange(template.brief); briefRef.current?.focus() }}>
+										<button type="button" key={template.name} aria-label={template.name} aria-pressed={missionBrief === template.brief} aria-describedby={`template-${template.name.replace(/\W+/g, "-")}`} onClick={() => { onMissionBriefChange(template.brief); briefRef.current?.focus() }}>
 											<Mark seed={template.name} size="xs" />
 											<span className="template-name">{template.name}</span>
 											<span className="template-detail" id={`template-${template.name.replace(/\W+/g, "-")}`}>{template.detail}</span>
@@ -2818,6 +2824,9 @@ function SetupScreen({
 							<div className="create-actions">
 								<DsButton onClick={backToBrief} disabled={intake === "committing"}><CaretLeft size={14} />Back</DsButton>
 								{restartsAgentix && demo ? <p id={demoNoteId} className="create-demo-note" role="note">Customer demo: creating this replaces the earlier {demoScript(demo.id).replacesLabel} Discovery and starts Agentix again from zero.</p> : null}
+								{/* This row is pinned; in a short window the tick that unlocks Create scrolls out of sight, so
+								    the button has to say what it is waiting for rather than just sit there greyed out. */}
+								{!reviewed && draft.title.trim() && draft.decision.trim() ? <p className="create-blocker">Tick the authority review above</p> : null}
 								<DsButton variant="primary" aria-describedby={restartsAgentix ? demoNoteId : undefined} disabled={!reviewed || !draft.title.trim() || !draft.decision.trim() || intake === "committing"} onClick={() => setIntake("committing")}>
 									{intake === "committing" ? <><CircleNotch size={14} className="spin" />Creating</> : "Create Discovery"}
 								</DsButton>
@@ -3898,6 +3907,7 @@ function Thread({
 	commandText,
 	composerFocusTick,
 	handoff,
+	charterApproved,
 	includedCount,
 	toast,
 	onCommandTextChange,
@@ -3909,6 +3919,7 @@ function Thread({
 	onOpenSources,
 	onOpenPackage,
 	onOpenAutonomy,
+	onOpenHandoff,
 	onOpenPlan,
 	active = true,
 }: {
@@ -3926,6 +3937,7 @@ function Thread({
 	commandText: string
 	composerFocusTick: number
 	handoff: HandoffPacket | null
+	charterApproved: boolean
 	/* Outputs the package keeps after the owner's manifest edits. */
 	includedCount: number
 	toast: ToastNote | null
@@ -3938,6 +3950,7 @@ function Thread({
 	onOpenSources: () => void
 	onOpenPackage: () => void
 	onOpenAutonomy: () => void
+	onOpenHandoff: () => void
 	/* Only a Discovery embedded beside Plan can open it. */
 	onOpenPlan?: () => void
 	active?: boolean
@@ -4143,7 +4156,7 @@ function Thread({
 	const suggestions = interviewing ? [`Check ${scenario.sources[0].system} and verify this`, "Add a stakeholder", "End the owner interview"]
 		: handoff ? ["Summarise the decision package", "Who are the stakeholders?"]
 		: ["Add a stakeholder", "Send the sponsor a status update"]
-	const needsYou = needsYouItems({ scenarioKey, phase, decision, interviewClosed, interviewIndex, onJumpToDecision, onOpenThread: () => composerRef.current?.focus() })
+	const needsYou = needsYouItems({ scenarioKey, phase, decision, interviewClosed, interviewIndex, charterPending: packageReady && !charterApproved && !handoff, onJumpToDecision, onOpenThread: () => composerRef.current?.focus(), onOpenHandoff })
 	const journey = runJourney({ scenarioKey, phase, paused, decision, interviewClosed, handoffId: handoff?.id ?? null })
 	const digest = packageReady ? { key: "done", icon: <CheckCircle size={13} weight="fill" className="band-check" />, text: <>Discovery completed and routed for approval</> }
 		: phase === 6 ? { key: "synthesis", icon: <CheckCircle size={13} weight="fill" className="band-check" />, text: <>Synthesis ready · building the package</> }
@@ -5225,8 +5238,6 @@ function Deliverables({ scenarioKey, phase, paused, written, decision, interview
 					<div className="package-actions">
 						<DsBadge tone={ready ? "positive" : "neutral"} dot={!ready}>{ready ? <CheckCircle size={12} weight="bold" aria-hidden="true" /> : null}{status}</DsBadge>
 						<DsButton size="sm" disabled={!ready} title={ready ? undefined : "Available once the package is verified"} onClick={exportAll}><DownloadSimple size={14} />Export all</DsButton>
-						{/* The bar's Continue to Plan is the page's main action; this is its second way in. */}
-						{ready && !handoff ? <DsButton size="sm" onClick={onContinueToAgentix}>Review handoff</DsButton> : null}
 						{handoff && onOpenPlan ? <DsButton size="sm" variant="primary" onClick={onOpenPlan}><ArrowUpRight size={14} />Open in {destination}</DsButton> : null}
 					</div>
 				</header>
@@ -5965,20 +5976,27 @@ function WorkshopTurn({ turn, tint, agreed, stream }: { turn: WorkshopTurnData; 
 
 type NeedsYouItem = { id: string; kind: "Approval" | "Authority" | "Decision" | "Interview" | "Recovery"; title: string; detail: string; onOpen: () => void }
 
-function needsYouItems({ scenarioKey, phase, decision, interviewClosed, interviewIndex, onJumpToDecision, onOpenThread }: {
+function needsYouItems({ scenarioKey, phase, decision, interviewClosed, interviewIndex, charterPending, onJumpToDecision, onOpenThread, onOpenHandoff }: {
 	scenarioKey: ScenarioKey
 	phase: number
 	decision: DecisionState
 	interviewClosed: boolean
 	interviewIndex: number
+	/* The package is ready, the charter is not approved, and nothing has gone to Agentix yet. */
+	charterPending?: boolean
 	onJumpToDecision: () => void
 	onOpenThread: () => void
+	onOpenHandoff?: () => void
 }): NeedsYouItem[] {
 	const scenario = SCENARIOS[scenarioKey]
 	const items: NeedsYouItem[] = []
 	const prompt = scenario.ownerInterview[Math.min(interviewIndex, scenario.ownerInterview.length - 1)]
 	if (!interviewClosed && !journeyComplete(phase)) items.push({ id: "owner-interview", kind: "Interview", title: "Answer MAX’s interview question", detail: prompt?.topic ?? "Owner interview", onOpen: onOpenThread })
 	if (interviewClosed && phase === 4 && decision === "pending") items.push({ id: "authority", kind: "Authority", title: scenario.exception.title, detail: scenario.exception.trigger, onOpen: onJumpToDecision })
+	// The charter is the one thing between a finished package and the handoff, so the rail must
+	// name it. Saying nothing is waiting while the owner's approval is the only thing left is worse
+	// than saying nothing at all.
+	if (charterPending && onOpenHandoff) items.push({ id: "charter", kind: "Approval", title: "Approve the project charter", detail: "It travels with the handoff packet", onOpen: onOpenHandoff })
 	return items
 }
 

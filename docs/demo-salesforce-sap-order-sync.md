@@ -20,7 +20,7 @@ The demo behaves exactly like the other two, because all three run on the same h
 
 - **Full demo:** about 20 minutes, 10 of them in Discovery.
 - **From the package:** about 10 minutes.
-- **Agentix** moves one demo minute every 4 seconds while it is on screen. Use **Demo → Skip five minutes**, and **Demo → Run the next scheduled cycle now** for the morning sync.
+- **Agentix** moves one demo minute every 4 seconds while it is on screen. Use **Controls → Skip five minutes**, and **Controls → Run the next scheduled cycle now** for the morning sync.
 
 ## The story
 
@@ -50,9 +50,9 @@ The number on each heading matches the sidebar count.
 
 **9 · Approve the production release.** Review the target, checks and recovery limits, then choose **Approve release**. The adapter times out *after* posting on purpose; the coordinator checks the idempotency key rather than creating a second sales order.
 
-**10 · Open the verified cockpit.** MS-3 publishes under policy ITGC-SOX-4. Open **Results → Order exception cockpit**. When you're ready, choose **Demo → Run the next scheduled cycle now**.
+**10 · Open the verified cockpit.** MS-3 publishes under policy ITGC-SOX-4. Open **Results → Order exception cockpit**. When you're ready, choose **Controls → Run the next scheduled cycle now**.
 
-**11 · Run tomorrow morning.** The morning sync reads the booked orders, resolves each one, posts under its key and refreshes the cockpit. Use **Demo → Skip** until it is verified.
+**11 · Run tomorrow morning.** The morning sync reads the booked orders, resolves each one, posts under its key and refreshes the cockpit. Use **Controls → Skip** until it is verified.
 
 **12 · Close the story.** Open **Activity** to show the verified sync and its evidence.
 
