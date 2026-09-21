@@ -81,6 +81,8 @@ async function createEngagement(page: Page) {
 	await expect(page.getByText("Read-only check passed. Nothing was written.")).toBeVisible({ timeout: 10_000 })
 	await page.getByRole("button", { name: /Activate engagement/ }).click()
 	await expect(page.locator('[data-work="MS-1"]').first()).toBeVisible()
+	// The header must agree with the activation: three milestones are queued, so it is Active.
+	await expect(page.locator(".aop-eng-head")).toContainText("Active")
 }
 
 test.beforeEach(async ({ page }) => {
@@ -96,6 +98,8 @@ test("the revenue demo runs from a new Discovery to a verified morning in Agenti
 	await page.goto(DEMO)
 	await expect(page.getByRole("heading", { name: "Continue where MAX left off." })).toBeVisible()
 	await expect(dockRow(page)).toContainText("1/12")
+	// Agentix starts from zero: no design, this demo's or another's, is queued to send.
+	await expect(page.getByText(/ready to send/)).toHaveCount(0)
 	// The first revenue Discovery replaces nothing, so the setup doesn't say it will.
 	await startRevenueDiscovery(page, () => expect(replaceNote(page)).toHaveCount(0))
 	await expect(page.locator(".workspace-header")).toContainText("Revenue reconciliation: SQL Server to AWS")

@@ -172,7 +172,9 @@ export function demoInitialState(base: number, engagementId: WorkflowId = "invoi
 	state.decisions = others(state.decisions)
 	state.events = others(state.events)
 	state.messages = others(state.messages)
-	// Every design this engagement could run is held back until its own Discovery sends it.
-	state.demo = { ...state.demo, quiet: true, gated: SCENARIOS[engagementId].packages.map(pkg => pkg.id) }
+	// Every design this engagement could run is held back until its own Discovery sends it -- and so
+	// is every other demo's, or the opening screen offers to send another company's design to Agentix
+	// while the presenter is saying nothing has happened yet.
+	state.demo = { ...state.demo, quiet: true, gated: [engagementId, ...DEMO_SUBJECTS.filter(other => other !== engagementId)].flatMap(id => SCENARIOS[id].packages.map(pkg => pkg.id)) }
 	return state
 }

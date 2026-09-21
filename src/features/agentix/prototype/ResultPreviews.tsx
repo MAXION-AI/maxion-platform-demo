@@ -182,6 +182,9 @@ export function DashboardPreview({ state, artifact, version }: { state: AgentixS
 				<div className="aop-dash-tiles">
 					{spec.tiles({ exceptions, loaded }).map(tile => <div key={tile.label}><span>{tile.label}</span><strong>{tile.value}</strong><small>{tile.note}</small></div>)}
 				</div>
+				{/* The chart had its name only in the aria-label, so a sighted viewer met a stack of bars
+				    with nothing saying what they counted. */}
+				<p className="aop-dash-chart-label">{spec.chartLabel}</p>
 				<div className="aop-dash-chart" role="list" aria-label={spec.chartLabel}>
 					{spec.rows.map(entry => (
 						<div key={entry.name} role="listitem" className="aop-dash-bar-row">

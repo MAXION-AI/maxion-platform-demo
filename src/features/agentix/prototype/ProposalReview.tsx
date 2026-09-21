@@ -180,7 +180,9 @@ export function ProposalReview({ state, engagement, onAnswer, onEdit, onAction, 
 						<div className="aop-deploy-text" id={`${id}-activation`}>
 							<strong>{ready ? (expansion ? `Ready to activate v${engagement.version + 1}` : "Ready for your activation") : "Before activation"}</strong>
 							{/* Telling someone to press the button beside the words wastes the line; say what the check does instead. */}
-							<span>{ready ? readiness.summary : needsCheck ? "Reads one record back. Nothing is written." : blockers[0]}</span>
+							{/* Ready needs no sentence here: readiness.summary is already printed in full a few rows
+							    up, and repeating it word for word crowds the one button that is left. */}
+							<span>{ready ? "Nothing else is waiting." : needsCheck ? "Reads one record back. Nothing is written." : blockers[0]}</span>
 						</div>
 						{needsCheck ? <DsButton onClick={() => onAction("recheck")}>Run the read-only check</DsButton> : null}
 						<DsButton variant="primary" disabled={!ready} aria-describedby={`${id}-activation`} onClick={onActivate}>{expansion ? "Activate expansion" : "Activate engagement"}<ArrowRight size={14} /></DsButton>

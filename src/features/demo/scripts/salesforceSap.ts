@@ -25,7 +25,7 @@ export const SALESFORCE_SAP_SCRIPT: DemoScript = {
 	replacesLabel: "Salesforce–SAP order sync",
 	answers: [
 		"The bookings sitting unbilled. Two million dollars of signed business missed its billing run last quarter because a post failed, and we found out at quarter end.",
-		"Anything where the data is simply wrong in one system, they fix without asking. Anything where a SKU doesn’t exist in SAP, or the price doesn’t match the quote, always needs someone to decide.",
+		"Anything where the data is simply wrong in one system, they fix without asking. Anything where a SKU doesn’t exist in SAP, or the price doesn’t match the quote, always needs someone to decide. Check the Salesforce order records; I suspect the customer master is behind most of it.",
 		"SAP wins. The business partner is what we bill and pay tax against, so if Salesforce disagrees, Salesforce is the one that’s wrong.",
 		"We must never create a second sales order. Cancelling a duplicate leaves a trail we have to explain at audit, so if a post times out, check before you post again.",
 		"Nobody owns production SAP changes today, so treat that as open. Cockpit publishing to the finance group is already covered by policy ITGC-SOX-4.",

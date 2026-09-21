@@ -25,7 +25,7 @@ export const SERVICENOW_SCRIPT: DemoScript = {
 	replacesLabel: "AP invoice exceptions",
 	answers: [
 		"The days it sits. An exception takes twenty minutes of work and a week of calendar, and we lose the early-payment discount while it waits.",
-		"Price inside a tolerance band, quantity rounding, freight coding and a wrong tax jurisdiction never need a question. Anything with no contract, or a supplier in dispute, always does.",
+		"Price inside a tolerance band, quantity rounding, freight coding and a wrong tax jurisdiction never need a question. Anything with no contract, or a supplier in dispute, always does. Check the invoice exception queue; I suspect most of them are arithmetic.",
 		"The contract wins. If procurement negotiated ±1.5% then ±1.5% is the number, whatever the purchase order was set up with.",
 		"Anything above $5,000 comes to a named approver, and honestly we don’t know they still hold it. The authority matrix hasn’t been re-attested in two years.",
 		"Nobody owns production ServiceNow changes today, so treat that as open. Dashboard publishing to the finance group is already covered by policy FIN-AP-7.",

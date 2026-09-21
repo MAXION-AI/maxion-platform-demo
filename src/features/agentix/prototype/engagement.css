@@ -194,6 +194,7 @@
 .aop-dash-tiles span, .aop-dash-tiles small { color: var(--ds-fg-subtle); font-size: var(--ds-text-xs); line-height: var(--ds-lh-xs); }
 .aop-dash-tiles strong { font-size: var(--ds-text-title); line-height: var(--ds-lh-title); font-weight: var(--ds-weight-medium); font-variant-numeric: tabular-nums; }
 .aop-dash-chart { display: grid; gap: var(--ds-space-2); }
+.aop-dash-chart-label { margin: 0; color: var(--ds-fg-subtle); font-size: var(--ds-text-xs); line-height: var(--ds-lh-xs); }
 .aop-dash-bar-row { display: grid; grid-template-columns: calc(var(--ds-space-12) * 2) minmax(0, 1fr) calc(var(--ds-space-12) * 2.2); align-items: center; gap: var(--ds-space-3); font-size: var(--ds-text-sm); line-height: var(--ds-lh-sm); }
 .aop-dash-bar-row.is-muted { color: var(--ds-fg-subtle); }
 .aop-dash-region { display: inline-flex; align-items: center; gap: var(--ds-space-1); min-height: var(--ds-control-h-sm); padding: 0; border: 0; background: none; color: inherit; font: inherit; font-weight: var(--ds-weight-medium); text-align: left; }

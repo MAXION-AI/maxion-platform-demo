@@ -205,7 +205,9 @@ export function health(state: AgentixState, engagement: Engagement): { label: st
 	if (engagement.checking) return { label: "Rechecking", tone: "live" }
 	if (needsYou(state, engagement.id).length) return { label: "Needs you", tone: "attention" }
 	if (engagement.holdNotifications) return { label: "Notifications held", tone: "attention" }
-	const open = state.work.some(item => item.engagementId === engagement.id && (item.status === "working" || item.status === "verifying"))
+	// Queued counts as open. An engagement activated a second ago has three milestones waiting to
+	// start and nothing running yet; reading "Watching" there contradicts the activation itself.
+	const open = state.work.some(item => item.engagementId === engagement.id && (item.status === "queued" || item.status === "working" || item.status === "verifying"))
 	return open ? { label: "Active", tone: "live" } : { label: "Watching", tone: "positive" }
 }
 
