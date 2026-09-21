@@ -46,7 +46,8 @@ export function MappingPreview({ state, artifact, version, compact = false }: { 
 			<div className="aop-grid-table" role="table" aria-label="Source-to-target mapping">
 				<div className="aop-grid-head" role="row"><span role="columnheader">{spec.sourceHeader}</span><span role="columnheader">{spec.targetHeader}</span><span role="columnheader">Rule</span></div>
 				{shown.map(row => (
-					<div key={row.target} role="row" className={`aop-grid-row${row.target === spec.decisionTarget && undecided ? " is-attention" : ""}${row.approved ? "" : " is-muted"}`}>
+					// Keyed on the source: a mapping may send several sources to one target.
+					<div key={row.source} role="row" className={`aop-grid-row${row.target === spec.decisionTarget && undecided ? " is-attention" : ""}${row.approved ? "" : " is-muted"}`}>
 						<span role="cell" className="aop-code">{row.source}</span>
 						<span role="cell" className="aop-code">{row.target}</span>
 						<span role="cell">{row.rule(version.variant)}{row.approved ? null : <span className="aop-chip is-outline">Not on approved list</span>}</span>

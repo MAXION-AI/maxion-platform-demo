@@ -2542,6 +2542,7 @@ type DiscoveryTemplate = { name: string; category: TemplateCategory; detail: str
 const REVENUE_TEMPLATE: DiscoveryTemplate = { name: "Revenue reconciliation", category: "Finance & IT", detail: "SQL Server ledger to AWS, reconciled every morning", brief: SCENARIOS.revenue.brief }
 const SERVICENOW_TEMPLATE: DiscoveryTemplate = { name: "AP invoice exceptions", category: "Finance & IT", detail: "ServiceNow triage and approval authority", brief: SCENARIOS.servicenow.brief }
 const ORDERSYNC_TEMPLATE: DiscoveryTemplate = { name: "Salesforce–SAP order sync", category: "Finance & IT", detail: "Customer master and posting integrity", brief: SCENARIOS.ordersync.brief }
+const S4HANA_TEMPLATE: DiscoveryTemplate = { name: "S/4HANA conversion", category: "Finance & IT", detail: "Custom code disposition and readiness", brief: SCENARIOS.s4hana.brief }
 // The first four are the ones Create features and the first three fill the hub tray; the browser shows all.
 // The customer demo leads with its own template; everywhere else it sits with the other Finance & IT missions.
 const EVERYDAY_TEMPLATES: ReadonlyArray<DiscoveryTemplate> = [
@@ -2556,6 +2557,7 @@ const EVERYDAY_TEMPLATES: ReadonlyArray<DiscoveryTemplate> = [
 	REVENUE_TEMPLATE,
 	SERVICENOW_TEMPLATE,
 	ORDERSYNC_TEMPLATE,
+	S4HANA_TEMPLATE,
 ]
 /* A customer demo leads with its own template; everywhere else the order is the everyday one. */
 const templates = () => {
@@ -3141,6 +3143,14 @@ const DECISION_COPY: Record<ScenarioKey, { scope: string; detail: string; why: s
 		allow: "Finance and the deal team meet before the committee package is frozen.",
 		keep: "The discrepancy is disclosed as a pricing and diligence risk.",
 		limitation: "The revenue classification conflict is disclosed as a pricing and diligence risk.",
+	},
+	s4hana: {
+		scope: "MAX won’t change how the business works",
+		detail: "For 374 of the 412 objects standard behaves identically, so MAX dispositioned those. The remaining 38 change what the business sees, so it stopped at this branch.",
+		why: "The custom credit-exposure check counts open orders from quotation stage; standard counts them from order entry. €2,412,880.40 of orders a month would block differently.",
+		allow: "All 412 objects go to standard, the 38 exceptions change behaviour at go-live, and 980 person-days come out of the remediation estimate.",
+		keep: "The 38 are remediated and carried into S/4HANA with today’s behaviour; the other 374 still go to standard.",
+		limitation: "The 38 behaviour exceptions stay custom, and the remediation estimate keeps the 980 person-days they cost.",
 	},
 	ordersync: {
 		scope: "MAX won’t choose the system of record",

@@ -64,6 +64,16 @@ Arcline Technologies' quote-to-cash: 1,340 order sync failures in twelve months,
 
 Agentix has no order sync engagement until the Discovery hands its package over, and each new order sync Discovery starts it again from zero. The talk track, scripted answers and figures are in the [presenter runbook](docs/demo-salesforce-sap-order-sync.md).
 
+### S/4HANA conversion
+
+Halden Group's ECC to S/4HANA conversion, and the one a system integrator recognises fastest: 11,842 custom objects, 3,610 of them executed in a year, a 6,140 person-day remediation estimate priced off findings rather than use, and 38 objects that do something SAP standard does not.
+
+- Full demo: [http://127.0.0.1:4317/maxion-prototype?demo=s4hana](http://127.0.0.1:4317/maxion-prototype?demo=s4hana)
+- From the finished Discovery package: [http://127.0.0.1:4317/maxion-prototype?demo=s4hana&start=package](http://127.0.0.1:4317/maxion-prototype?demo=s4hana&start=package)
+- Presenter guide for a second screen: [http://127.0.0.1:4317/demo-guide?demo=s4hana](http://127.0.0.1:4317/demo-guide?demo=s4hana)
+
+Agentix has no conversion engagement until the Discovery hands its package over, and each new conversion Discovery starts it again from zero. The talk track, scripted answers and figures are in the [presenter runbook](docs/demo-s4hana-conversion.md).
+
 ## Deploy
 
 Build and publish locally; pushing source code to `main` does not deploy the site.

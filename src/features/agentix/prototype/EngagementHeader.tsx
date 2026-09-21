@@ -1,6 +1,6 @@
 import { Clock, GitBranch, Lightning, Pause, Play, Plus, RocketLaunch, UserCircle, UsersThree } from "@phosphor-icons/react"
 import { Button as DsButton, Mark } from "@/design/primitives"
-import { packageFor } from "./engine/scenarios"
+import { packageFor, scheduleLabel } from "./engine/scenarios"
 import { health, teamOf } from "./engine/selectors"
 import type { AgentixState, Engagement } from "./engine/types"
 import { Status } from "./OperationsViews"
@@ -46,7 +46,7 @@ export function EngagementHeader({ state, engagement, onToggleIntake, onDetails,
 			<ul className="aop-pill-row aop-engagement-pills" aria-label="Engagement summary">
 				<li><Status label={status.label} tone={status.tone} live={status.tone === "live"} /></li>
 				<li className="aop-pill is-optional"><UserCircle size={12} />{engagement.owner || "No owner yet"}</li>
-				<li className="aop-pill is-optional">{engagement.cycles !== "off" ? <Clock size={12} /> : <Lightning size={12} />}{engagement.cycles === "daily" ? "Daily 06:00 London" : engagement.cycles === "weekdays" ? "Weekdays 06:00 London" : engagement.trigger === "Assignment" ? "Assigned work" : "Incoming events"}</li>
+				<li className="aop-pill is-optional">{engagement.cycles !== "off" ? <Clock size={12} /> : <Lightning size={12} />}{engagement.cycles !== "off" ? scheduleLabel(engagement.workflowId, engagement.cycles) : engagement.trigger === "Assignment" ? "Assigned work" : "Incoming events"}</li>
 				<li className="aop-pill is-optional"><UsersThree size={12} />{team.length === 1 ? "One agent" : `Team of ${team.length}`}</li>
 				<li className="aop-pill"><RocketLaunch size={12} />{draft ? "Draft" : `Deployment v${engagement.version}`}</li>
 				{engagement.packages.length > 1 ? <li className="aop-pill is-optional"><GitBranch size={12} />{engagement.packages.length} packages</li> : null}

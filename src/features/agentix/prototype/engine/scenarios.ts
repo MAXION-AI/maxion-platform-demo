@@ -115,8 +115,8 @@ export interface DeliverySpec {
 	}
 	/* How the runbook names the thing it follows: "revenue dashboard v3". */
 	dashboardNoun: string
-	/* The daily operation, and the London hour it runs at. */
-	cycle: { noun: string; hour: number }
+	/* The recurring operation, the hour it runs at, and the zone that hour is stated in. */
+	cycle: { noun: string; hour: number; zone?: string }
 	/* What a read-back finds after an uncertain pipeline release, in this engagement's own terms. */
 	releaseReadBack: { reference: string; found: string }
 }
@@ -1337,6 +1337,370 @@ const orders: Scenario = {
 	examples: { brief: "Post our booked Salesforce orders into SAP the same day from one customer master, and never create a duplicate sales order. Ask me before production changes.", detail: "Mapping, posting & exception cockpit", assignment: "Review the cancelled duplicate orders" },
 }
 
+/* ---- ECC to S/4HANA conversion (the fourth customer demo) ---- */
+/* Synthetic figures that add up: the dispositions total the repository count. */
+export const S4_FIGURES = {
+	/* The synthetic sample the isolated tests replay: one sandbox copy of the repository. */
+	day: "Sandbox copy 12",
+	objects: 11842,
+	used: 3610,
+	archived: 9352,
+	/* The standard equivalents Discovery decided on: 412 objects, 38 of which behave differently. */
+	standardEquivalents: 412,
+	exceptions: 38,
+	exposure: 2412880.4,
+	/* Objects in use that no owner claims. */
+	ownerless: 212,
+	blockingFindings: 1180,
+	sweepMinutes: 40,
+}
+
+const conversion: Scenario = {
+	id: "conversion",
+	name: "S/4HANA conversion",
+	title: "Custom code disposition & readiness",
+	category: "Enterprise IT · SAP programme",
+	description: "Disposition all 11,842 custom objects on evidence of use, remediate what carries forward, and keep the estate conversion-clean every night.",
+	outcome: "Every custom object dispositioned against the agreed rules, the 604 conversion blockers remediated first, and the programme board seeing a verified readiness dashboard by 07:00 CET.",
+	owner: "SAP programme owner",
+	trigger: "Nightly 22:00 CET readiness sweep · plus transport events",
+	boundary: "May read the repository, the usage statistics and the readiness findings, build and test remediation in an isolated S/4HANA sandbox, release tested transports under policy, and block a transport that reintroduces a removed pattern. Anything that changes a disposition, adopts standard where behaviour differs, or reaches production without a release is held for a named owner. No business data change, no authorisation change, and no cutover decision.",
+	teamReason: "Classifying an object, remediating it and moving a transport to production need different permissions. The coordinator owns decisions and the only production change, so no specialist can reach production S/4HANA on its own.",
+	team: [
+		{ id: "coordinator", name: "Conversion coordinator", accountable: true, duty: "Owns each outcome, the decisions, production releases and the single transport call.", tools: "CTS release adapter · Teams programme channel", scope: "Cannot edit code or change a disposition." },
+		{ id: "analyst", name: "Custom code analyst", duty: "Reads the repository, usage and findings, and prepares the disposition of each object.", tools: "ECC repository · usage statistics · ATC findings · read only", scope: "Read only. Prepares dispositions; never transports them." },
+		{ id: "data", name: "Remediation specialist", package: "pkg_s4_conversion_v2", duty: "Builds and tests remediation against the disposition map in an isolated sandbox.", tools: "ECC repository · read only · isolated S/4HANA sandbox · private transport", scope: "No production credentials. Test data is a sandbox copy of the repository." },
+		{ id: "dashboard", name: "Readiness dashboard specialist", package: "pkg_s4_conversion_v2", duty: "Builds and validates the conversion readiness dashboard on the sweep results.", tools: "Dashboard authoring · sweep results read only", scope: "Publishes only through the coordinator's release." },
+	],
+	systems: [
+		{ id: "ecc", name: "SAP ECC repository", capability: "read", access: "Read only · analysis user", detail: "11,842 custom objects and twelve months of usage statistics", package: "pkg_s4_conversion_v2" },
+		{ id: "atc", name: "SAP ATC readiness findings", capability: "read", access: "Read only · analysis user", detail: "27,415 findings across 4,102 objects", package: "pkg_s4_conversion_v2" },
+		{ id: "sandbox", name: "SAP S/4HANA sandbox", capability: "build", access: "Build and test · isolated", detail: "Disposable transports, a sandbox copy of the repository, no production credentials", package: "pkg_s4_conversion_v2" },
+		{ id: "prod", name: "SAP S/4HANA production", capability: "production", access: "Release adapter · per release policy", detail: "Production target; transports land in the Thursday window", package: "pkg_s4_conversion_v2" },
+		{ id: "board", name: "Programme workspace dashboards", capability: "production", access: "Publish · preauthorized for the programme board", detail: "Policy ITGC-SAP-3", package: "pkg_s4_conversion_v2" },
+		{ id: "cts", name: "SAP CTS transport queue", capability: "update", access: "One governed block per transport", detail: "A refusal, and the reason on the transport" },
+		{ id: "teams", name: "Microsoft Teams", capability: "notify", access: "Notification only", detail: "Programme channel and the object owner" },
+	],
+	templates: {
+		exception: {
+			id: "exception", kind: "case",
+			obligations: [
+				{ id: "decision", label: "Decision bound to this transport version", evidence: "Decision record" },
+				{ id: "recorded", label: "Outcome recorded on the transport", evidence: "CTS read-back" },
+				{ id: "notified", label: "Developer notified", evidence: "Teams acceptance receipt" },
+			],
+			steps: [
+				{ id: "open", title: "Open the blocked transport", owner: "coordinator", kind: "read", doing: "Opening the transport with its objects and findings", done: "Bound transport HLD-9117 and its 4 objects", system: "SAP CTS", tools: ["CTS · read transport and objects", "ATC findings · read only"] },
+				{ id: "investigate", title: "Investigate the reintroduced pattern", owner: "analyst", kind: "analyze", ticks: 2, doing: "Checking each object against the readiness variant", done: "One object reintroduces a removed pattern; three are clean", system: "SAP ATC", tools: ["ATC readiness variant · read only", "Repository · read only"] },
+				{ id: "decide", title: "Obtain the exact approval", owner: "owner", kind: "decision", decision: "variance", doing: "Waiting for the programme's decision", done: "Decision recorded", obligation: "decision" },
+				{ id: "record", title: "Record the outcome on the transport", owner: "coordinator", kind: "write", doing: "Recording the decision and its evidence on the transport", done: "Outcome recorded; one write", system: "SAP CTS", obligation: "recorded", tools: ["CTS · record the outcome (one governed write)"] },
+				{ id: "verify", title: "Read back the transport", owner: "coordinator", kind: "verify", ticks: 2, doing: "Reading back the transport state and evidence", done: "Transport read-back matches the decision", system: "SAP CTS", tools: ["CTS · read back transport"] },
+				notify("coordinator", "Sending the decision packet to the developer", "Developer notified; acceptance receipt kept"),
+			],
+		},
+		mapping: {
+			id: "mapping", kind: "milestone",
+			obligations: [
+				{ id: "mapped", label: "Every object resolves to exactly one disposition", evidence: "Map version" },
+				{ id: "tested", label: "Disposition rules pass isolated checks", evidence: "Check results" },
+			],
+			steps: [
+				{ id: "catalog", title: "Read the repository and its usage", owner: "data", kind: "read", doing: "Reading the custom objects and twelve months of usage through the analysis user", done: "Read 11,842 objects and their usage, read only", system: "SAP ECC", tools: ["ECC · SE80 repository (read only)", "ECC · UPL usage statistics (read only)"] },
+				{ id: "profile", title: "Match the evidence and draft the map", owner: "data", kind: "build", ticks: 2, artifact: "mapping", doing: "Matching usage, findings and simplification items to every object", done: "Placed 11,630 objects; drafted map v1", system: "SAP S/4HANA sandbox", tools: ["Isolated run · 11,842 objects", "Owner lookup · 212 objects with no owner"] },
+				{ id: "material", title: "Resolve objects with no owner", owner: "owner", kind: "decision", decision: "material", doing: "Waiting for your decision on objects nobody claims", done: "Ownerless-object rule decided" },
+				{ id: "test", title: "Test the disposition rules", owner: "data", kind: "test", artifact: "mapping", doing: "Testing the disposition rules in the isolated sandbox", done: "Disposition checks passed", obligation: "tested", system: "SAP S/4HANA sandbox" },
+				{ id: "publish", title: "Publish the map for the build", owner: "coordinator", kind: "verify", doing: "Publishing the tested map to the remediation build", done: "Map published for the build", obligation: "mapped" },
+			],
+		},
+		pipeline: {
+			id: "pipeline", kind: "milestone",
+			obligations: [
+				{ id: "tested", label: "Pipeline passes every isolated check", evidence: "Check results bound to the version" },
+				{ id: "released", label: "Tested version released to production", evidence: "Release record and read-back" },
+				{ id: "loaded", label: "First nightly sweep blocks what it should", evidence: "Transport read-back" },
+			],
+			steps: [
+				{ id: "build", title: "Build the remediation pipeline", owner: "data", kind: "build", ticks: 2, artifact: "pipeline", doing: "Building remediation, adoption and the readiness gate from the map", done: "Built pipeline v1", system: "SAP S/4HANA sandbox", tools: ["Transport HLD-9042 · 14 objects (private)", "Readiness variant · isolated sandbox"] },
+				{ id: "test", title: "Test in isolation", owner: "data", kind: "test", ticks: 2, artifact: "pipeline", doing: "Running the pipeline against the sandbox copy of the repository", done: "Pipeline checks passed", obligation: "tested", system: "SAP S/4HANA sandbox" },
+				{ id: "release", title: "Release to production S/4HANA", owner: "coordinator", kind: "release", artifact: "pipeline", doing: "Releasing the tested transport into the change window", done: "Release applied", obligation: "released", system: "SAP S/4HANA" },
+				{ id: "verify", title: "Verify the first nightly sweep", owner: "coordinator", kind: "verify", ticks: 2, doing: "Reading back the swept transports and what was blocked", done: "Every drifting transport blocked; nothing clean refused", obligation: "loaded", system: "SAP CTS", tools: ["Read back transports by readiness result", "CTS queue · read only"] },
+			],
+		},
+		dashboard: {
+			id: "dashboard", kind: "milestone",
+			obligations: [
+				{ id: "tested", label: "Dashboard tiles match the sweep results in test", evidence: "Check results bound to the version" },
+				{ id: "released", label: "Published to the programme board", evidence: "Release record" },
+				{ id: "verified", label: "Production tiles match the sweep results", evidence: "Tile read-back" },
+			],
+			steps: [
+				{ id: "build", title: "Build the readiness dashboard", owner: "dashboard", kind: "build", ticks: 2, artifact: "dashboard", doing: "Building remaining, blocked and drift tiles on the sweep results", done: "Built dashboard v1", system: "Dashboards", tools: ["Dataset · sweep results (sandbox)", "Dashboard draft · programme workspace sandbox"] },
+				{ id: "test", title: "Test against the sweep results", owner: "dashboard", kind: "test", artifact: "dashboard", doing: "Checking tiles against the tested sweep results", done: "Dashboard checks passed", obligation: "tested", system: "Dashboards" },
+				{ id: "release", title: "Publish to the programme board", owner: "coordinator", kind: "release", artifact: "dashboard", after: { template: "pipeline", step: "release" }, doing: "Publishing the tested dashboard", done: "Dashboard published", obligation: "released", system: "Dashboards" },
+				{ id: "verify", title: "Verify production tiles", owner: "dashboard", kind: "verify", ticks: 2, doing: "Reading back production tiles against the sweep results", done: "Production tiles match the sweep results", obligation: "verified", system: "Dashboards" },
+			],
+		},
+		cycle: {
+			id: "cycle", kind: "cycle",
+			obligations: [
+				{ id: "loaded", label: "The day's transports read", evidence: "Transport count read-back" },
+				{ id: "matched", label: "Each transport tested against the readiness variant", evidence: "Transport read-back" },
+				{ id: "fresh", label: "Dashboard refreshed by 07:00", evidence: "Refresh timestamp" },
+				{ id: "notified", label: "Nightly summary posted to the programme", evidence: "Teams acceptance receipt" },
+			],
+			steps: [
+				{ id: "load", title: "Read the day's transports", owner: "data", kind: "refresh", doing: "Reading the day's transports through the released pipeline", done: "Transports read", obligation: "loaded", system: "SAP CTS", tools: ["Scheduled sweep · pipeline in production", "Transport count read-back"] },
+				{ id: "reconcile", title: "Test each transport for drift", owner: "analyst", kind: "analyze", ticks: 2, doing: "Running the readiness variant against each transport", done: "Drifting transports blocked; clean ones released", obligation: "matched", system: "SAP ATC", tools: ["Readiness variant · read only", "Disposition map · read only"] },
+				{ id: "refresh", title: "Refresh the dashboard", owner: "dashboard", kind: "refresh", doing: "Refreshing the dashboard with the sweep results", done: "Dashboard refreshed", obligation: "fresh", system: "Dashboards" },
+				notify("coordinator", "Posting the nightly summary to the programme channel", "Nightly summary posted; acceptance receipt kept"),
+				{ id: "verify", title: "Verify the cycle", owner: "coordinator", kind: "verify", doing: "Checking every obligation for this cycle", done: "Cycle verified" },
+			],
+		},
+		backfill: {
+			id: "backfill", kind: "case",
+			obligations: [
+				{ id: "matched", label: "Revived objects identified against their disposition", evidence: "Match report" },
+				{ id: "notified", label: "Result shared with the programme", evidence: "Teams acceptance receipt" },
+			],
+			steps: [
+				{ id: "read", title: "Read the revive requests", owner: "analyst", kind: "read", doing: "Reading the requests to revive an archived object", done: "Read the requests, read only", system: "SAP ECC", tools: ["Revive requests · read only"] },
+				{ id: "match", title: "Match each request to its disposition", owner: "analyst", kind: "analyze", ticks: 2, doing: "Matching each request to the evidence that archived the object", done: "Requests matched; unsupported ones listed", obligation: "matched" },
+				notify("coordinator", "Sharing the match report with the programme", "Match report shared"),
+			],
+		},
+	},
+	artifacts: {
+		mapping: {
+			key: "mapping", kind: "mapping", title: "Object disposition map", owner: "data", dependsOn: [],
+			variant: ["candidate-map"], summary: "Drafted from the repository, its usage and the readiness findings", changes: ["11,842 objects matched to usage and findings", "212 objects found in use with no named owner"],
+			checks: [
+				{ id: "keys", label: "Every object resolves to one disposition", scope: "Isolated test · 11,842 objects" },
+				{ id: "types", label: "Object types are compatible with the readiness variant", scope: "Isolated test · schema only" },
+				{ id: "required", label: "Every disposition carries its evidence", scope: "Isolated test · sandbox copy of the repository" },
+				{ id: "material", label: "Ownerless objects follow the decided rule", scope: "Isolated test · 212 objects with no owner" },
+			],
+			fails: (variant, check) => check === "material" && !variant.some(v => v.startsWith("material-")) ? "No rule decided for 212 objects in use with no named owner." : null,
+			amendments: [
+				{ id: "used-only", pattern: /(only|just)\b.*\b(used|executed|active)\b.*\bobjects?\b|used objects? only/i, label: "Map only executed objects", variant: "used-only", summary: "Maps only objects with an execution in twelve months", changes: ["Removes 8,232 never-executed objects from the map", "Pipeline checks that read the map need a rerun"] },
+			],
+		},
+		pipeline: {
+			key: "pipeline", kind: "pipeline", title: "Remediation and readiness pipeline", owner: "data", dependsOn: ["mapping"],
+			variant: ["disposition-bulk"], summary: "Remediation, standard adoption and the readiness gate built from the map", changes: ["Remediates the objects the map carries forward", "Adopts standard for the objects with an equivalent", "Registers a 22:00 CET nightly readiness sweep"],
+			checks: [
+				{ id: "rows", label: "Every object in the map is attempted", scope: "Isolated test · sandbox copy of the repository" },
+				{ id: "behaviour", label: "The behaviour exceptions keep the decided rule", scope: "Isolated test · 38 exception objects" },
+				{ id: "exposure", label: "Credit exposure matches the decided rule", scope: "Isolated test · twelve months of orders" },
+				{ id: "blockers", label: "All 1,180 error-priority findings are cleared", scope: "Isolated test · 604 objects" },
+				{ id: "archive", label: "Nothing below the threshold enters remediation", scope: "Isolated test · 9,352 archived objects" },
+				{ id: "gate", label: "A transport reintroducing a removed pattern is refused", scope: "Isolated test · 214 historic transports" },
+				{ id: "clean", label: "A clean transport is never refused", scope: "Isolated test · 4,104 historic transports" },
+				{ id: "evidence", label: "Every disposition carries its usage and finding evidence", scope: "Isolated test · sandbox copy of the repository" },
+				{ id: "revive", label: "An archived object can be revived by a named decision", scope: "Isolated test · 9,352 archived objects" },
+				{ id: "schema", label: "Disposition fields match the agreed map", scope: "Isolated test · schema only", dependsOn: "mapping" },
+				{ id: "owners", label: "Ownerless objects follow the decided rule", scope: "Isolated test · 212 objects with no owner", dependsOn: "mapping" },
+				{ id: "runtime", label: "Nightly sweep finishes within 40 minutes", scope: "Isolated test · 18 min 20 s measured" },
+			],
+			fails: (variant, check) => variant.includes("disposition-bulk") && check === "behaviour" ? `${S4_FIGURES.exceptions} objects are dispositioned to standard in bulk: each of them behaves differently from its successor, and the map says so.`
+				: variant.includes("disposition-bulk") && check === "exposure" ? `The custom credit-exposure check is among them, so €${S4_FIGURES.exposure.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} of orders a month would block on the wrong rule.`
+				: null,
+			repair: { behaviour: { variant: "disposition-exception", replaces: "disposition-bulk", summary: "Applies the decided rule to each of the 38 exceptions", change: "The 38 behaviour exceptions are dispositioned individually, and each is tested against the rule the owner chose" } },
+			amendments: [],
+			release: {
+				target: "SAP S/4HANA production · transport and the nightly sweep", authority: "answer",
+				changes: version => [`Pipeline v${version}`, "Adds the readiness gate and the disposition record", "Registers the 22:00 CET nightly sweep"],
+				impact: "Adds one scheduled job and one gate on the transport queue. No existing object is changed by the release itself. The dashboard reads the sweep results after it is released.",
+				recovery: "The gate can be disabled and the transport backed out. A transport already blocked stays blocked until someone releases it; nothing that was blocked has reached production.",
+			},
+		},
+		dashboard: {
+			key: "dashboard", kind: "dashboard", title: "Conversion readiness dashboard", owner: "dashboard", dependsOn: ["pipeline"],
+			variant: [], summary: "Readiness by disposition, drift and owner", changes: ["Tiles: cleared tonight, blocked and on whom, remaining before cutover", "Findings by disposition", "Sweep time shown on the dashboard"],
+			checks: [
+				{ id: "tiles", label: "Tiles match the sweep results", scope: "Sandbox · sandbox copy 12" },
+				{ id: "sum", label: "Dispositions add up to the repository total", scope: "Sandbox · sandbox copy 12" },
+				{ id: "fresh", label: "The dashboard shows when it was swept", scope: "Sandbox" },
+				{ id: "access", label: "Only the programme board can view it", scope: "Sandbox · access policy" },
+				{ id: "drill", label: "Owner drill-down adds up to its disposition", scope: "Sandbox · sandbox copy 12", dependsOn: "owner-drilldown" },
+			],
+			amendments: [
+				{ id: "owner-drilldown", pattern: /\b(owner|developer)\b.*\b(drill|breakdown|break down)|\bdrill[- ]?down\b.*\b(owner|developer)/i, label: "Add owner drill-down", variant: "owner-drilldown", summary: "Adds drill-down from disposition to owner", changes: ["Each disposition opens the owners waiting on it", "New check: owner totals add up to their disposition"] },
+			],
+			release: {
+				target: "Programme workspace · Conversion readiness dashboard", authority: "policy", policy: "Dashboard publishing to the programme board is preauthorized (policy ITGC-SAP-3).",
+				changes: (version, variant) => [`Dashboard v${version}`, ...variant.includes("owner-drilldown") ? ["Adds drill-down from disposition to owner"] : ["Disposition tiles, drift and remaining work"]],
+				impact: "Programme board viewers see this version. No object or transport changes.",
+				recovery: "The previous version can be republished. Anyone who viewed this version has already seen it.",
+			},
+		},
+		reconciliation: { key: "reconciliation", kind: "reconciliation", title: "Disposition evidence", owner: "analyst", dependsOn: ["pipeline"], variant: [], summary: "Dispositioned objects compared with the repository", changes: [], checks: [], amendments: [] },
+		runbook: { key: "runbook", kind: "runbook", title: "Operating runbook", owner: "coordinator", dependsOn: ["pipeline", "dashboard"], variant: [], summary: "How the nightly sweep runs, what is verified and what needs a person", changes: ["Nightly schedule and its checks", "Decisions that need a named owner", "Recovery without repeating effects"], checks: [], amendments: [] },
+	},
+	decisions: {
+		variance: {
+			id: "variance", kind: "approval", title: "Release the blocked transport anyway?", detail: "One object in this transport reintroduces a pattern the conversion removes. Only this transport waits; other work continues.", binding: "HLD-9117 · 1 of 4 objects",
+			facts: [{ label: "Record", value: "Transport HLD-9117" }, { label: "Objects", value: "4 · 3 clean" }, { label: "Decision", value: "ZFI_POST_EXIT reintroduces a removed pattern" }],
+			options: [
+				{ id: "approve", label: "Release with the exception recorded", primary: true, consequence: "The transport releases and the exception is recorded against the object. No disposition changes.", outcome: "approve" },
+				{ id: "decline", label: "Keep it blocked", consequence: "The transport stays blocked and returns to the developer with the finding.", outcome: "decline" },
+			],
+			boundary: "No disposition change, no business data change, and no cutover decision.",
+		},
+		material: {
+			id: "material", kind: "question", artifact: "mapping", title: "212 objects are in use and nobody owns them. How should they be dispositioned?", detail: "Found while mapping. It's a business rule, so the remediation specialist won't choose it for you.",
+			facts: [{ label: "Affected", value: "212 objects, all executed in twelve months" }, { label: "Findings", value: "2,000 across the group" }, { label: "Source", value: "No owner in the repository or the programme tracker" }],
+			options: [
+				{ id: "block", label: "Hold them for the Development Lead", primary: true, consequence: "They stay out of remediation until an owner is named, and the Development Lead gets them as one list.", outcome: "variant", variant: { add: "material-hold", summary: "Ownerless objects are held for the Development Lead" } },
+				{ id: "placeholder", label: "Remediate them with the estate", consequence: "They are remediated and carried forward, and an owner is found later or never.", outcome: "variant", variant: { add: "material-carry", summary: "Ownerless objects are remediated with the estate" } },
+			],
+		},
+		release: {
+			id: "release", kind: "release", title: "Release the pipeline to production?", detail: "Your release policy asks for approval before each pipeline release.",
+			facts: [], artifact: "pipeline",
+			options: [
+				{ id: "approve", label: "Approve release", primary: true, consequence: "Released now through the release adapter.", outcome: "release" },
+				{ id: "window", label: "Release in the Thursday 20:00 window", consequence: "Released in the agreed change window.", outcome: "release-window" },
+				{ id: "keep", label: "Keep in test", consequence: "Nothing is released. The tested version stays ready.", outcome: "keep-in-test" },
+			],
+		},
+	},
+	packages: [
+		{
+			id: "pkg_s4_conversion_v2", version: 2, title: "Custom code disposition and conversion readiness", kind: "new",
+			summary: "Disposition all 11,842 custom objects on evidence of use, remediate what carries forward, and stop the estate drifting back.",
+			outcome: "Every object dispositioned against the agreed rules, the 604 conversion blockers remediated first, and the programme board seeing a verified readiness dashboard by 07:00 CET.",
+			evidence: [
+				{ title: "Custom code inventory", detail: "11,842 objects with twelve months of usage · read only" },
+				{ title: "Sandbox copy of the repository", detail: "One copy · synthetic and redacted" },
+				{ title: "Programme interviews", detail: "Archive below twenty executions; the 38 exceptions are the business's call" },
+				{ title: "Readiness findings", detail: "27,415 findings; 1,180 of them block the conversion" },
+				{ title: "Transport history", detail: "4,318 transports over twenty-four months, 214 of them drifting" },
+			],
+			criteria: [
+				{ id: "agree", label: "Every object carries one disposition and its evidence", duty: "analyst", verify: "Disposition read-back against the repository" },
+				{ id: "dashboard", label: "Verified readiness dashboard by 07:00 CET", duty: "dashboard", verify: "Tile totals and sweep time" },
+				{ id: "tested", label: "Remediation tested in isolation first", duty: "data", verify: "Checks bound to each version" },
+				{ id: "released", label: "Production changes released only under policy", duty: "coordinator", verify: "Release record and read-back" },
+				{ id: "exceptions", label: "Behaviour exceptions tested against the decided rule", duty: "coordinator", verify: "Decision record" },
+			],
+			limitations: ["212 objects are in use with no named owner.", "Discovery could not confirm who authorizes production S/4HANA transports.", "Archived objects stay in the repository and can be revived by a named decision."],
+			inScope: ["Object disposition", "Remediation of what carries forward", "Standard adoption", "Nightly readiness sweep and dashboard"],
+			outScope: ["Master data and business partner conversion", "Authorisation and role redesign", "Non-SAP interfaces", "Fiori adoption", "Cutover decisions"],
+			questions: [
+				{ id: "release", label: "How should production S/4HANA changes be authorized?", detail: "Discovery couldn't confirm this. Testing never needs it. Dashboard publishing to the programme board is already pre-authorized by policy ITGC-SAP-3.", options: [{ id: "approval", label: "Ask me before each pipeline release", recommended: true, effect: "Each pipeline release waits for your approval with its target, checks and recovery limits." }, { id: "window", label: "Release in the Thursday 20:00 change window", effect: "Tested pipeline versions release in the window under policy, without a separate approval." }] },
+				{ id: "testdata", label: "What data may isolated tests use?", detail: "Tests run away from production either way.", options: [{ id: "synthetic", label: "The sandbox copy of the repository", recommended: true, effect: "Ready now. Results say they come from a sandbox copy." }, { id: "masked", label: "A masked production extract", effect: "Needs the data owner's approval before build and test can start." }] },
+			],
+			milestones: [
+				{ template: "mapping", reference: "MS-1", title: "Object disposition map" },
+				{ template: "pipeline", reference: "MS-2", title: "Remediation and readiness pipeline", dependsOn: [{ reference: "MS-1" }] },
+				{ template: "dashboard", reference: "MS-3", title: "Conversion readiness dashboard", dependsOn: [{ reference: "MS-2", step: "test" }] },
+			],
+			needs: ["Read the repository, usage statistics and readiness findings through the analysis user", "An isolated S/4HANA sandbox with a copy of the repository", "The release adapter for production S/4HANA and the dashboard", "A nightly 22:00 CET schedule once delivery is verified"],
+		},
+	],
+	assignments: [
+		{ id: "revive", pattern: /revive|archived object|restore object/i, template: "backfill", owner: "analyst", title: () => "Archived object revive review" },
+	],
+	caseTemplate: "exception",
+	cycleTemplate: "cycle",
+	delivery: {
+		evidence: {
+			summary: (day, reference, first) => first ? `First nightly sweep · ${day} transports tested` : `${reference} · ${day} transports tested`,
+			text: (version, basis, day) => `Disposition evidence v${version} recorded from ${basis}: every ${day} transport tested against the readiness variant, and nothing reintroducing a removed pattern reached the queue.`,
+			operations: ["Transports by readiness result · CTS · read only", "Disposition map · read only", "Compared 3 findings groups and the repository total"],
+		},
+		dashboardNoun: "conversion readiness dashboard",
+		cycle: { noun: "readiness sweep", hour: 22, zone: "CET" },
+		releaseReadBack: { reference: "transport HLD-9042", found: "the readiness gate and the nightly sweep registered" },
+	},
+	releaseWindow: { label: "Thursday 20:00", weekday: 4, hour: 20 },
+	preview: {
+		mapping: {
+			lede: (rows, hasUnapproved) => `${rows} object classes carry a disposition. ${hasUnapproved ? "One class is kept to isolated tests because the programme has not agreed it carries." : "Only agreed classes are dispositioned."}`,
+			sourceHeader: "Custom object class", targetHeader: "Disposition",
+			decisionTarget: "HOLD", decisionPrefix: "material-", compactTargets: ["HOLD", "EXCEPTION", "STANDARD"],
+			rows: [
+				{ source: "Z* · no execution in 24 months", target: "ARCHIVE", rule: () => "Below the threshold · blocked from transport", approved: true },
+				{ source: "Z* · no execution in 12 months", target: "ARCHIVE", rule: () => "Below the threshold · blocked from transport", approved: true },
+				{ source: "Z* · under 20 executions", target: "ARCHIVE", rule: () => "Below the threshold the owner set", approved: true },
+				{ source: "Z* · standard equivalent, same behaviour", target: "STANDARD", rule: () => "374 objects · successor functionality", approved: true },
+				{ source: "Z* · standard equivalent, behaviour differs", target: "EXCEPTION", rule: variant => variant.includes("disposition-bulk") ? "38 objects dispositioned in bulk, ZFI_CREDIT_EXP among them (fails behaviour and exposure)" : "38 objects tested individually, ZFI_CREDIT_EXP against the decided rule", approved: true },
+				{ source: "Z* · error-priority findings", target: "REMEDIATE", rule: () => "604 objects · sequenced first", approved: true },
+				{ source: "Z* · warning findings, in use", target: "REMEDIATE", rule: () => "Carried into S/4HANA", approved: true },
+				{ source: "Z* · in use, no named owner", target: "HOLD", rule: variant => variant.includes("material-hold") ? "Held for the Development Lead" : variant.includes("material-carry") ? "Remediated with the estate" : "212 objects have no owner · your decision", approved: true },
+				{ source: "Y* · legacy namespace", target: "ARCHIVE", rule: () => "No execution in 24 months", approved: true },
+				{ source: "Z* tables · no reader", target: "ARCHIVE", rule: () => "Data retained, code removed", approved: true },
+				{ source: "Z* · enhancement implementations", target: "REMEDIATE", rule: () => "Re-pointed at the S/4HANA BAdI", approved: true },
+				{ source: "Z* · called only by archived code", target: "ARCHIVE", rule: () => "Caller archived · usage not inherited", approved: true },
+				{ source: "Z* · sandbox-only experiments", target: "ARCHIVE", rule: () => "Never transported to production", approved: true },
+				{ source: "Z* · shadow reporting copies", target: "REVIEW", rule: () => "Isolated tests only", approved: false },
+			],
+			technical: (version, variant, rows) => `-- Generated from disposition map v${version}\nSELECT obj.name, obj.type, disposition\nFROM repository obj\nLEFT JOIN usage u ON u.object = obj.name\nLEFT JOIN simplification s ON s.object = obj.name\nWHERE disposition = CASE\n  WHEN COALESCE(u.executions, 0) < 20            THEN 'ARCHIVE'\n  WHEN s.successor IS NOT NULL AND s.behaviour_differs\n       THEN ${variant.includes("disposition-bulk") ? "'STANDARD'  -- bulk: fails the behaviour check" : "'EXCEPTION' -- tested individually, as decided"}\n  WHEN s.successor IS NOT NULL                    THEN 'STANDARD'\n  WHEN obj.owner IS NULL                          THEN ${variant.includes("material-hold") ? "'HOLD'" : variant.includes("material-carry") ? "'REMEDIATE'" : "'HOLD' -- awaits your decision"}\n  ELSE 'REMEDIATE'\nEND${rows.some(row => !row.approved) ? "\n  -- shadow reporting copies: isolated tests only" : ""};`,
+		},
+		pipeline: {
+			lede: variant => `Every night at 22:00 CET the pipeline reads the day's transports, tests each one against the readiness variant, and refuses any that reintroduce a pattern the conversion removes. The 38 behaviour exceptions are ${variant.includes("disposition-bulk") ? "dispositioned in bulk to standard" : "tested individually against the rule the owner decided"}.`,
+			stages: [
+				{ name: "SAP CTS", detail: "The day's transports · read only" },
+				{ name: "Readiness variant", detail: "ATC on the sandbox" },
+				{ name: "Disposition check", detail: "Against the published map" },
+				{ name: "Block or release", detail: "One governed write per transport" },
+				{ name: "Readiness dashboard", detail: "Programme workspace" },
+			],
+			rows: variant => [
+				{ label: "Behaviour exceptions", value: variant.includes("disposition-bulk") ? "Dispositioned in bulk (fails the behaviour check)" : "Tested individually, as the owner decided" },
+				{ label: "Schedule", value: "Nightly 22:00 CET · about 18 minutes in test" },
+			],
+			technical: (version, variant) => `-- conversion readiness · pipeline v${version}\nSELECT t.transport, o.object, atc.finding\nFROM cts.transport t\nJOIN cts.transport_object o ON o.transport = t.transport\nLEFT JOIN atc.readiness atc ON atc.object = o.object\nWHERE t.released_on = CURRENT_DATE\n  AND atc.priority = 'ERROR'\n  AND o.object NOT IN (\n    SELECT object FROM disposition WHERE disposition = 'ARCHIVE'\n  )\n  AND exception_rule = '${variant.includes("disposition-bulk") ? "BULK_STANDARD" : "PER_OBJECT"}';`,
+		},
+		reconciliation: {
+			lede: summary => `${summary}. Every transport tested against the readiness variant, and nothing reintroducing a removed pattern reached the queue.`,
+			columns: ["Transport state", "Read", "Tested", "Difference"],
+			totalLabel: "Transports read", format: count,
+			rows: [
+				{ name: "Clean, released", value: 46 },
+				{ name: "Blocked on a finding", value: 5 },
+				{ name: "Held for a named owner", value: 3 },
+			],
+			total: 54,
+			exceptionsTitle: "Transports blocked for a person", emptyLabel: "No blocked transports",
+		},
+		dashboard: {
+			subject: "Readiness", chartLabel: "Findings by disposition", format: count,
+			tiles: ({ exceptions, loaded }) => [
+				{ label: "Objects dispositioned", value: count(11842), note: loaded },
+				{ label: "Drifting transports", value: "0", note: "Blocked before the queue" },
+				{ label: "Blocked on a person", value: String(exceptions), note: "Reintroduces a removed pattern" },
+			],
+			rows: [
+				{ name: "Archive", value: 16098, children: [["No 24-month use", 11204], ["No 12-month use", 3004], ["Under threshold", 1890]] },
+				{ name: "Remediate", value: 8403, children: [["Error priority", 966], ["Warning", 5104], ["Information", 2333]] },
+				{ name: "Standard", value: 2914, children: [["Same behaviour", 2486], ["Behaviour differs", 428]] },
+			],
+			drillVariant: "owner-drilldown", drillNote: "Drill-down: open a disposition to see the owners waiting on it. Owner totals add up to their disposition.",
+			childrenLabel: row => `${row} owners`,
+		},
+		runbook: {
+			lede: "How S/4HANA conversion readiness runs from now on. Written by the Conversion coordinator from the verified delivery.",
+			daily: drill => `At 22:00 CET the released pipeline reads the day's transports, tests each against the readiness variant and the published disposition map, and refuses any that reintroduce a removed pattern. The refusal reaches the developer by 23:00 and the dashboard refreshes by 07:00.${drill ? " On the dashboard, each disposition opens to the owners waiting on it." : ""}`,
+			verified: "Each sweep is verified only when the transport read-back, the block record in CTS, the dashboard refresh time and the channel receipt all have evidence. A transport is refused before it enters the queue, never after.",
+			needsPerson: release => `Any transport reintroducing a removed pattern, any change to a disposition, and any object in use with no named owner are held for a named owner. Pipeline releases go out ${release}. Dashboard publishing to the programme board is pre-authorized by policy ITGC-SAP-3. The archive threshold and the behaviour exceptions are business decisions and are never chosen by a specialist.`,
+			recovery: "The gate can be disabled and the transport backed out. A transport already blocked stays blocked until someone releases it, and nothing that was blocked has reached production. An archived object is revived by a named decision, not by a silent restore.",
+		},
+		sampleDay: S4_FIGURES.day, testDataLabel: "Test data · sandbox copy of the repository", approvedOnlyVariant: "used-only",
+		variantText: {
+			"candidate-map": "Includes one class not yet agreed", "used-only": "Executed objects only",
+			"material-hold": "Ownerless objects held for the Development Lead", "material-carry": "Ownerless objects remediated with the estate",
+			"disposition-bulk": "Exceptions dispositioned in bulk", "disposition-exception": "Exceptions tested individually",
+			"owner-drilldown": "Drill-down from disposition to owner",
+		},
+	},
+	caseLabel: "Blocked transports",
+	match: ["s/4hana conversion", "custom code", "z-code", "atc", "simplification item", "conversion readiness", "custom object", "brownfield", "transport gate", "code remediation"],
+	incoming: ["HLD-9117", "HLD-9118", "HLD-9121", "HLD-9124", "HLD-9126", "HLD-9130", "HLD-9133", "HLD-9137"].map(transport => `${transport} · reintroduces a removed pattern`),
+	prefix: "CNV",
+	examples: { brief: "Disposition our custom objects for the S/4HANA conversion on evidence of use, and stop any transport reintroducing a pattern the conversion removes. Ask me before production changes.", detail: "Disposition, remediation & readiness", assignment: "Review the archived object revive requests" },
+}
+
 /* ---- Service desk (one agent) ---- */
 const service: Scenario = {
 	id: "service", name: "Service desk", title: "Incident triage", category: "IT service management · Incident",
@@ -1473,11 +1837,11 @@ const inventory: Scenario = {
 	examples: { brief: "Review inventory every morning, flag shortages and verify permitted replenishment within the approved purchasing policy.", detail: "Monitor stock & review replenishment", assignment: "Review SKU-212 stock" },
 }
 
-export const SCENARIOS: Record<WorkflowId, Scenario> = { invoice: revenue, payables, orders, service, onboarding, inventory }
+export const SCENARIOS: Record<WorkflowId, Scenario> = { invoice: revenue, payables, orders, conversion, service, onboarding, inventory }
 /*
  * Every scripted scenario, for looking one up and for finding the scenario a package belongs to.
  */
-export const WORKFLOW_IDS: WorkflowId[] = ["invoice", "payables", "orders", "service", "onboarding", "inventory"]
+export const WORKFLOW_IDS: WorkflowId[] = ["invoice", "payables", "orders", "conversion", "service", "onboarding", "inventory"]
 /*
  * The engagements the workspace starts with. `payables` is deliberately absent: it belongs to the
  * ServiceNow customer demo, which creates it from zero when its Discovery hands the package over,
@@ -1485,8 +1849,18 @@ export const WORKFLOW_IDS: WorkflowId[] = ["invoice", "payables", "orders", "ser
  */
 export const SCENARIO_ORDER: WorkflowId[] = ["invoice", "service", "onboarding", "inventory"]
 /* The engagement each customer demo is about. A demo hides the other demos' subjects entirely. */
-export const DEMO_SUBJECTS: WorkflowId[] = ["invoice", "payables", "orders"]
+export const DEMO_SUBJECTS: WorkflowId[] = ["invoice", "payables", "orders", "conversion"]
 export const scenarioFor = (id: WorkflowId) => SCENARIOS[id]
+/*
+ * How an engagement's schedule reads. The hour and its zone come from the scenario: an engagement
+ * that sweeps at 22:00 CET must not be described with the revenue engagement's 06:00 London.
+ */
+export function scheduleLabel(workflowId: WorkflowId, cycles: "daily" | "weekdays") {
+	const cycle = SCENARIOS[workflowId].delivery?.cycle
+	const hour = String(cycle?.hour ?? 6).padStart(2, "0")
+	return `${cycles === "weekdays" ? "Weekdays" : "Daily"} ${hour}:00 ${cycle?.zone ?? "London"}`
+}
+
 export const packageFor = (id: string) => WORKFLOW_IDS.flatMap(key => SCENARIOS[key].packages).find(item => item.id === id)
 export const packageScenario = (id: string) => WORKFLOW_IDS.find(key => SCENARIOS[key].packages.some(item => item.id === id))
 /* The newest package a scenario offers from Discovery. */

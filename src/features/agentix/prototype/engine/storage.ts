@@ -82,7 +82,7 @@ type LegacyRun = { id: string; agentId: string; reference: string; title: string
 type LegacyAgent = { id: string; workflowId?: WorkflowId; name: string; owner: string; scope: string; trigger: "Event" | "Schedule" | "Assignment"; status: "draft" | "active" | "paused"; version: number; origin: "discovery" | "prompt"; brief: string; mapping: string; checked: boolean; checking: boolean; automaticPayroll: boolean; supportRequested: boolean; connection: "ready" | "expired"; holdNotifications: boolean; nextOccurrence: string; notes: string[]; messages: { id: string; role: "user" | "agent"; text: string; runId?: string }[]; draft: string; caseDrafts?: Record<string, string> }
 type Legacy = { version: 3; selected: string | null; clock: number; agents: Record<string, LegacyAgent>; runs: LegacyRun[] }
 
-const LEGACY_NAMES: Record<WorkflowId, { name: string; owner: string }> = { invoice: { name: "Invoice operations", owner: "Accounts payable owner" }, payables: { name: "AP exception operations", owner: "Head of accounts payable" }, orders: { name: "Order sync operations", owner: "Revenue operations owner" }, service: { name: "Service desk", owner: "Service desk manager" }, onboarding: { name: "Employee onboarding", owner: "People operations owner" }, inventory: { name: "Inventory operations", owner: "Supply chain owner" } }
+const LEGACY_NAMES: Record<WorkflowId, { name: string; owner: string }> = { invoice: { name: "Invoice operations", owner: "Accounts payable owner" }, payables: { name: "AP exception operations", owner: "Head of accounts payable" }, orders: { name: "Order sync operations", owner: "Revenue operations owner" }, conversion: { name: "Conversion readiness operations", owner: "SAP programme owner" }, service: { name: "Service desk", owner: "Service desk manager" }, onboarding: { name: "Employee onboarding", owner: "People operations owner" }, inventory: { name: "Inventory operations", owner: "Supply chain owner" } }
 const PHASES = ["queued", "working", "approval", "human", "recovering", "verifying", "verified", "partial", "not_completed", "paused"]
 
 function readLegacy(raw: unknown): Legacy | null {
@@ -99,7 +99,7 @@ function readLegacy(raw: unknown): Legacy | null {
 	return data
 }
 
-const LEGACY_TEMPLATE: Record<WorkflowId, string> = { invoice: "exception", payables: "exception", orders: "exception", service: "incident", onboarding: "joiner", inventory: "cycle" }
+const LEGACY_TEMPLATE: Record<WorkflowId, string> = { invoice: "exception", payables: "exception", orders: "exception", conversion: "exception", service: "incident", onboarding: "joiner", inventory: "cycle" }
 /* How many of the new steps an old five-stage position had completed, per template. */
 const LEGACY_STEPS: Record<string, number[]> = { exception: [0, 1, 2, 3, 4, 6], incident: [0, 1, 2, 2, 3, 5], joiner: [0, 1, 3, 3, 4, 6], cycle: [0, 1, 3, 3, 4, 6] }
 

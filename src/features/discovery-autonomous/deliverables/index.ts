@@ -3,6 +3,7 @@ import type { ScenarioKey } from "../model"
 import { DILIGENCE_APPROVED_REVISIONS, DILIGENCE_DELIVERABLES } from "./diligence"
 import { ENTERPRISE_APPROVED_REVISIONS, ENTERPRISE_DELIVERABLES } from "./enterprise"
 import { ORDERSYNC_APPROVED_REVISIONS, ORDERSYNC_DELIVERABLES } from "./ordersync"
+import { S4HANA_APPROVED_REVISIONS, S4HANA_DELIVERABLES } from "./s4hana"
 import { REVENUE_APPROVED_REVISIONS, REVENUE_DELIVERABLES } from "./revenue"
 import { SERVICENOW_APPROVED_REVISIONS, SERVICENOW_DELIVERABLES } from "./servicenow"
 import { TPRM_APPROVED_REVISIONS, TPRM_DELIVERABLES } from "./tprm"
@@ -22,6 +23,7 @@ export const DELIVERABLE_CONTENT: Record<ScenarioKey, DeliverableBody[]> = {
 	revenue: REVENUE_DELIVERABLES,
 	servicenow: SERVICENOW_DELIVERABLES,
 	ordersync: ORDERSYNC_DELIVERABLES,
+	s4hana: S4HANA_DELIVERABLES,
 }
 
 // The reader maps a manifest entry to a body by index. A scenario that falls out
@@ -42,6 +44,7 @@ const APPROVED_REVISIONS: Record<ScenarioKey, Partial<Record<number, Deliverable
 	revenue: REVENUE_APPROVED_REVISIONS,
 	servicenow: SERVICENOW_APPROVED_REVISIONS,
 	ordersync: ORDERSYNC_APPROVED_REVISIONS,
+	s4hana: S4HANA_APPROVED_REVISIONS,
 }
 
 function revise(body: DeliverableBody, revision: DeliverableRevision | undefined): DeliverableBody {

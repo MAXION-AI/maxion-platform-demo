@@ -14,6 +14,7 @@ const FIRST_PACKAGE: Record<WorkflowId, { id: string; title: string }> = {
 	invoice: { id: "pkg_invoice_v1", title: "Invoice exception resolution" },
 	payables: { id: "pkg_ap_exceptions_v2", title: "AP exception triage and approval authority" },
 	orders: { id: "pkg_order_sync_v2", title: "Order sync and posting integrity" },
+	conversion: { id: "pkg_s4_conversion_v2", title: "Custom code disposition and conversion readiness" },
 	service: { id: "pkg_service_v1", title: "Incident triage" },
 	onboarding: { id: "pkg_onboarding_v1", title: "Employee onboarding" },
 	inventory: { id: "pkg_inventory_v1", title: "Inventory replenishment" },

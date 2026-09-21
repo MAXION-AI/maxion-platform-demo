@@ -3,7 +3,7 @@ import { Button as DsButton, Mark, SegmentedTabs, TextButton } from "@/design/pr
 import { useState, type ReactNode } from "react"
 import type { WorkflowId } from "./initiatives"
 import { releaseWindowFor } from "./engine/engine"
-import { packageFor, SCENARIOS } from "./engine/scenarios"
+import { SCENARIOS, packageFor, scheduleLabel } from "./engine/scenarios"
 import { describeClock, policyNote, shortTime, teamOf, teamPresence } from "./engine/selectors"
 import type { AgentixState } from "./engine/types"
 import { Status } from "./OperationsViews"
@@ -124,7 +124,7 @@ export function DetailsSheet({ state, engagementId, section, titleId, onSection,
 							{engagement.answers.release ? <div><dt>Production releases</dt><dd>{engagement.answers.release === "window" ? `Pipeline releases go out in the ${releaseWindowFor(engagement.workflowId).label} window under policy.` : "Each pipeline release waits for your approval, with its target, checks and recovery limits."} {policyNote(engagement)}</dd></div> : null}
 							{engagement.answers.testdata ? <div><dt>Test data</dt><dd>{engagement.answers.testdata === "synthetic" ? "Synthetic 30-day sample, redacted. No production credentials in tests." : "Masked production extract (needs the data owner's approval)."}</dd></div> : null}
 							<div><dt>Intake</dt><dd>{engagement.status === "paused" ? "Paused by you. Admitted work continues." : `Active · ${scenario.trigger}`}</dd></div>
-							{engagement.cycles !== "off" ? <div><dt>Schedule</dt><dd>{engagement.cycles === "weekdays" ? "Weekdays" : "Every day"} at 06:00 London · next {shortTime(Date.parse(engagement.nextOccurrence))}</dd></div> : null}
+							{engagement.cycles !== "off" ? <div><dt>Schedule</dt><dd>{scheduleLabel(engagement.workflowId, engagement.cycles)} · next {shortTime(Date.parse(engagement.nextOccurrence))}</dd></div> : null}
 							<div><dt>Concurrency</dt><dd>Up to three cases or cycles at once. Delivery milestones have their own capacity.</dd></div>
 							<div><dt>Notifications</dt><dd>{engagement.holdNotifications ? "Held for the engagement by you." : "Sent to the approved audience only."}</dd></div>
 							<div><dt>Deployment</dt><dd>v{engagement.version} · {engagement.origin.kind === "discovery" ? `from Discovery ${engagement.origin.title} v${engagement.origin.version}` : "from your brief"}</dd></div>

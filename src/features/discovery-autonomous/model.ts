@@ -3,7 +3,7 @@ import { DELIVERABLES } from "./deliverables"
 export { DELIVERABLES, DELIVERABLE_CONTENT, deliverableBodies } from "./deliverables"
 export type { DeliverableBody, DeliverableDecision, DeliverableSection, Exhibit } from "./deliverables"
 
-export type ScenarioKey = "tprm" | "diligence" | "enterprise" | "revenue" | "servicenow" | "ordersync"
+export type ScenarioKey = "tprm" | "diligence" | "enterprise" | "revenue" | "servicenow" | "ordersync" | "s4hana"
 
 export type Person = {
 	id: string
@@ -417,6 +417,61 @@ export const SCENARIOS: Record<ScenarioKey, Scenario> = {
 		summary:
 			"Salesforce orders can post into SAP under an agent team, provided the SAP business partner is the one customer master, every line maps to a real SAP material, and no timed-out post is ever retried into a duplicate sales order. Orders post the same day they are booked, anything above $50,000 or outside the agreed terms reaches revenue operations, and finance sees a verified order exception cockpit by 08:00 London.",
 		handoff: { target: "agentix", packageId: "pkg_order_sync_v2", opensAs: "A new Agentix engagement created from this package: four agents with separate permissions, three milestones and a daily operation" },
+	},
+	/*
+	 * The fourth customer demo's Discovery, and the one a system integrator recognises: Halden Group
+	 * is converting ECC 6.0 to S/4HANA, and the question that eats the programme is which of 11,842
+	 * custom objects survive it. Its figures are the ones the Agentix conversion engagement later
+	 * works with (engine/scenarios.ts S4_FIGURES and pkg_s4_conversion_v2).
+	 */
+	s4hana: {
+		key: "s4hana",
+		shortLabel: "S/4HANA conversion",
+		match: ["s/4hana conversion", "s4hana conversion", "custom code", "z-code", "zcode", "ecc", "brownfield", "atc", "simplification item", "custom object", "code remediation", "conversion readiness", "sap conversion", "s/4hana migration", "s4hana migration"],
+		title: "S/4HANA conversion: custom code disposition",
+		kicker: "Enterprise IT · SAP programme",
+		brief:
+			"Tell me which of our custom objects survive the S/4HANA conversion, which SAP now does as standard, and which ones we have to keep because the business depends on how they behave. Read the custom code inventory, the readiness findings, the transport history and the process documentation, interview the development and finance owners, and design the nightly operation an agent team will run to keep us conversion-ready.",
+		objective: "Agree a disposition for all 11,842 custom objects and a nightly readiness sweep that stops any new transport reintroducing a pattern the conversion removes.",
+		doneWhen: "The archive threshold, the standard-adoption rule, the behaviour exceptions, the transport-block rule and the release authority are agreed, and every open question is recorded for Agentix.",
+		decision: "Which custom objects do we carry into S/4HANA, and which decisions stay with the business?",
+		get deadline() { return `Programme board · ${daysAhead(7)}` },
+		interviewer: "SAP programme lead",
+		ownerInterview: [
+			{ topic: "Decision pressure", question: "Before I read the repository, what worries you most: the conversion effort estimate, the behaviour that changes when you adopt standard, or not knowing which custom code anyone still uses?", evidenceHint: "I’ll compare that with twelve months of usage statistics and the readiness findings." },
+			{ topic: "Object mix", question: "Which custom objects would your team retire without asking anyone, and which always need a decision?", evidenceHint: "I’ll test that against the 11,842 objects and what the usage statistics actually show." },
+			{ topic: "Standard adoption", question: "When SAP standard now does what a custom object was written for, but not in the same way, who decides whether the business changes?", evidenceHint: "I’ll check the rule against the readiness findings and how each object actually behaves." },
+			{ topic: "Archive tolerance", question: "How little use makes an object safe to archive without a conversation?", evidenceHint: "I’ll turn what you say into the threshold the disposition map applies." },
+			{ topic: "Release authority", question: "Who may approve a transport that reaches production S/4HANA?", evidenceHint: "What you settle becomes the release policy the agent team follows; anything still open goes to Agentix as a question." },
+			{ topic: "Success measure", question: "Ninety days after go-live, what would convince you the estate is staying conversion-clean?", evidenceHint: "I’ll turn it into the outcome criteria Agentix is measured against." },
+		],
+		people: [
+			person("anja", "Anja Möller", "IT Director", "Enterprise IT", "anja.moller@haldengroup.com", "High", "Conversion scope, effort and who owns the outcome", "Text"),
+			person("stefan", "Stefan Keller", "SAP Development Lead", "Enterprise IT", "stefan.keller@haldengroup.com", "High", "Custom code inventory, readiness findings, transports", "Voice"),
+			person("rosa", "Rosa Iglesias", "Finance Systems Manager", "Finance Systems", "rosa.iglesias@haldengroup.com", "High", "Credit exposure, close dependencies, standard adoption", "Workshop"),
+			person("damian", "Damian Okonkwo", "Basis and Platform Lead", "Enterprise IT", "damian.okonkwo@haldengroup.com", "Medium", "Sandbox, change windows, production transports", "Text"),
+		],
+		sources: [
+			{ name: "Custom code inventory", system: "SAP ECC", scope: "Repository and 12 months of usage · read only", records: "11,842 objects" },
+			{ name: "Readiness findings", system: "SAP ATC", scope: "S/4HANA readiness run on the sandbox", records: "27,415 findings" },
+			{ name: "Transport history", system: "SAP CTS", scope: "24 months", records: "4,318 transports" },
+			{ name: "Process documentation", system: "Solution Manager", scope: "Finance and logistics processes", records: "214 documents" },
+		],
+		inquiries: ["Object usage", "Readiness findings", "Standard equivalents", "Behaviour exceptions", "Release authority", "Conversion effort"],
+		exception: {
+			title: "Thirty-eight custom objects do something SAP standard does not",
+			trigger: "Rosa Iglesias raised the custom credit-exposure check, which counts open sales orders from quotation stage. Standard FSCM Credit Management counts them from order entry. MAX found 38 objects of this kind, and on the credit check alone €2,412,880.40 of orders a month would block differently.",
+			evidenceGap: "MAX compared each of the 412 objects that now have a standard equivalent against twelve months of executions. 374 behave identically and need no decision. For the remaining 38 the difference is real and measurable, but whether the business changes or the code stays is a policy decision, not a calculation MAX can make.",
+			consequence: "Adopting standard for all 412 retires 980 person-days of remediation. The 38 exceptions change behaviour at go-live, and Agentix tests every one of them against the standard rule before release.",
+			alternative: "Remediating the 38 keeps today’s behaviour and carries them into S/4HANA as supported custom code. The other 374 still go to standard, and Agentix tests the exceptions against their own rule.",
+			approveLabel: "Adopt SAP standard and change the process",
+			alternativeLabel: "Remediate the 38 and keep the behaviour",
+			approvedConfirmation: "Recorded. All 412 objects go to standard: the 38 exceptions change behaviour at go-live, 980 person-days of remediation come out of the estimate, and Agentix will test each exception against the standard rule before release. I resumed the affected branch.",
+			alternativeConfirmation: "Understood. The 38 exceptions are remediated and carried into S/4HANA with today’s behaviour; the other 374 still go to standard. Agentix will test each exception against its own rule. I resumed the affected branch.",
+		},
+		summary:
+			"The custom estate can be dispositioned and kept clean under an agent team, provided objects under the agreed usage threshold are archived without a conversation, standard is adopted wherever behaviour is unchanged, and the behaviour exceptions are named and tested rather than discovered at go-live. A nightly sweep runs at 22:00 CET, any transport reintroducing a removed pattern is blocked before it reaches the queue, and the programme board sees a verified readiness dashboard by 07:00.",
+		handoff: { target: "agentix", packageId: "pkg_s4_conversion_v2", opensAs: "A new Agentix engagement created from this package: four agents with separate permissions, three milestones and a nightly operation" },
 	},
 }
 

@@ -13,7 +13,7 @@ import type { ScenarioKey } from "@/features/discovery-autonomous/model"
  * the registry is typed `Record<DemoId, DemoScript>`, so an id without a script will not compile,
  * and an address naming anything else is simply not a demo.
  */
-export type DemoId = "revenue" | "servicenow" | "salesforce-sap"
+export type DemoId = "revenue" | "servicenow" | "salesforce-sap" | "s4hana"
 
 /*
  * Every demo tells the same twelve-beat story, so the dock, the guide and the progress

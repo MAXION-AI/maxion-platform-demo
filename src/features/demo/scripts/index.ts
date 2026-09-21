@@ -1,4 +1,5 @@
 import { REVENUE_SCRIPT } from "./revenue"
+import { S4HANA_SCRIPT } from "./s4hana"
 import { SALESFORCE_SAP_SCRIPT } from "./salesforceSap"
 import { SERVICENOW_SCRIPT } from "./servicenow"
 import type { DemoId, DemoScript } from "./types"
@@ -15,6 +16,7 @@ export const DEMO_SCRIPTS: Record<DemoId, DemoScript> = {
 	revenue: REVENUE_SCRIPT,
 	servicenow: SERVICENOW_SCRIPT,
 	"salesforce-sap": SALESFORCE_SAP_SCRIPT,
+	s4hana: S4HANA_SCRIPT,
 }
 
 export const DEMO_IDS = Object.keys(DEMO_SCRIPTS) as DemoId[]

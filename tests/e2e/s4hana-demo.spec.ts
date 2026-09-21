@@ -1,0 +1,249 @@
+import { expect, test, type Page } from "@playwright/test"
+
+/*
+ * The S/4HANA conversion demo, the one a system integrator recognises, driven the way a presenter
+ * drives it: from the demo address, through a new conversion Discovery, the handoff, and the
+ * Agentix engagement to a verified nightly sweep, using the presenter row for the scripted
+ * answers. Discovery runs on its own timers; Agentix is moved on with its Controls, as a
+ * presenter would.
+ */
+const DEMO = "/maxion-prototype?demo=s4hana"
+const EVERYDAY_DISCOVERY = "maxion.prototype.discovery-records.v1"
+const EVERYDAY_AGENTIX = "maxion-agentix-operations-v4"
+
+const dockRow = (page: Page) => page.locator(".mxd-dock-row")
+const composer = (page: Page) => page.getByRole("textbox", { name: "Message MAX" })
+
+async function openDock(page: Page) {
+	if (await page.locator(".mxd-panel").count()) return
+	await dockRow(page).click()
+	await expect(page.locator(".mxd-panel")).toBeVisible()
+}
+async function demoControls(page: Page, button: string, times = 1) {
+	await page.getByRole("button", { name: "Controls", exact: true }).click()
+	for (let i = 0; i < times; i++) await page.getByRole("button", { name: button, exact: true }).click()
+	await page.getByRole("button", { name: "Close controls" }).click()
+}
+
+const replaceNote = (page: Page) => page.getByRole("note").filter({ hasText: "Customer demo:" })
+
+async function startConversionDiscovery(page: Page, beforeCreate?: () => Promise<void>) {
+	await page.getByRole("region", { name: /template/i }).getByRole("button", { name: /S\/4HANA conversion/ }).first().click()
+	await page.getByRole("button", { name: "Start autonomous Discovery" }).click()
+	await expect(page.getByRole("textbox", { name: "Mission name" })).toHaveValue("S/4HANA conversion: custom code disposition")
+	await beforeCreate?.()
+	await page.getByRole("checkbox", { name: "Mission authority reviewed" }).check()
+	await page.getByRole("button", { name: "Create Discovery" }).click()
+	await expect(composer(page)).toBeVisible({ timeout: 10_000 })
+}
+
+/* The six scripted answers from the presenter row, the owner's one decision, and the finished package. */
+async function finishDiscovery(page: Page) {
+	for (let index = 0; index < 6; index++) {
+		await openDock(page)
+		await expect(page.locator(".mxd-panel")).toContainText(`Question ${index + 1} of 6`)
+		await page.locator(".mxd-panel").getByRole("button", { name: /Fill answer/ }).click()
+		await expect(composer(page)).toBeFocused()
+		await composer(page).press("Enter")
+	}
+	await expect(page.getByRole("heading", { name: "Thirty-eight custom objects do something SAP standard does not" })).toBeVisible({ timeout: 25_000 })
+	await page.getByRole("button", { name: "Adopt SAP standard and change the process" }).first().click()
+	await expect(page.getByRole("heading", { name: "Final plan and recommendations" })).toBeVisible({ timeout: 30_000 })
+}
+
+/* The charter approval, then the packet to Agentix. */
+async function handOff(page: Page) {
+	await page.locator(".workspace-header").getByRole("button", { name: "Continue to Agentix" }).click()
+	const handoff = page.getByRole("dialog", { name: "Continue to Agentix" })
+	await handoff.getByRole("button", { name: "Approve charter" }).click()
+	const charter = page.getByRole("dialog", { name: "Approve the project charter" })
+	await charter.getByRole("textbox", { name: "Approval reason" }).fill("Scope, owners and the five exclusions match what the programme board and Finance Systems agreed.")
+	await charter.getByRole("button", { name: "Approve charter" }).click()
+	await handoff.getByRole("button", { name: "Continue to Agentix" }).click()
+}
+
+const savedDemo = (page: Page) => page.evaluate(() => ({
+	discovery: JSON.parse(localStorage.getItem("maxion.prototype.discovery-records.v1::demo-s4hana") ?? "[]") as { id: string; scenarioKey: string }[],
+	agentix: JSON.parse(localStorage.getItem("maxion-agentix-operations-v4::demo-s4hana") ?? "null"),
+}))
+
+/* The handed-over package opens as a new engagement: answer, run the read-only check, activate. */
+async function createEngagement(page: Page) {
+	await expect(page.getByRole("heading", { name: "Review S/4HANA conversion" })).toBeVisible({ timeout: 10_000 })
+	await expect(page.getByText(/From Discovery · S\/4HANA conversion: custom code disposition · packet HP-/)).toBeVisible()
+	await expect(dockRow(page)).toContainText("6/12")
+	const questions = page.locator(".aop-questions")
+	await questions.getByText("Ask me before each pipeline release").click()
+	await questions.getByText("The sandbox copy of the repository").click()
+	await page.getByRole("button", { name: "Run the read-only check" }).click()
+	await expect(page.getByText("Read-only check passed. Nothing was written.")).toBeVisible({ timeout: 10_000 })
+	await page.getByRole("button", { name: /Activate engagement/ }).click()
+	await expect(page.locator('[data-work="MS-1"]').first()).toBeVisible()
+	// The header must agree with the activation: three milestones are queued, so it is Active.
+	await expect(page.locator(".aop-eng-head")).toContainText("Active")
+}
+
+test.beforeEach(async ({ page }) => {
+	await page.emulateMedia({ reducedMotion: "reduce" })
+})
+
+test("the conversion demo runs from a new Discovery to a verified morning in Agentix", async ({ page }) => {
+	test.setTimeout(240_000)
+	const errors: string[] = []
+	page.on("pageerror", error => errors.push(error.message))
+	page.on("console", message => { if (message.type() === "error") errors.push(message.text()) })
+
+	await page.goto(DEMO)
+	await expect(page.getByRole("heading", { name: "Continue where MAX left off." })).toBeVisible()
+	await expect(dockRow(page)).toContainText("1/12")
+	// Agentix starts from zero: no design, this demo's or another's, is queued to send.
+	await expect(page.getByText(/ready to send/)).toHaveCount(0)
+	// The first AP exceptions Discovery replaces nothing, so the setup doesn't say it will.
+	await startConversionDiscovery(page, () => expect(replaceNote(page)).toHaveCount(0))
+	await expect(page.locator(".workspace-header")).toContainText("S/4HANA conversion: custom code disposition")
+	await expect(page.locator(".workspace-header").getByRole("button", { name: "Continue to Agentix" })).toBeDisabled()
+
+	// The six scripted answers, each filled by the presenter row and sent with Enter.
+	const topics = ["Object mix · 2 of 6", "Standard adoption · 3 of 6", "Archive tolerance · 4 of 6", "Release authority · 5 of 6", "Success measure · 6 of 6"]
+	for (let index = 0; index < 6; index++) {
+		await openDock(page)
+		await expect(page.locator(".mxd-panel")).toContainText(`Question ${index + 1} of 6`)
+		await page.locator(".mxd-panel").getByRole("button", { name: /Fill answer/ }).click()
+		await expect(page.locator(".mxd-panel")).toHaveCount(0)
+		await expect(composer(page)).toBeFocused()
+		await expect(composer(page)).not.toHaveValue("")
+		await composer(page).press("Enter")
+		if (index < 5) await expect(page.getByText(topics[index])).toBeVisible()
+		// The presenter says out loud that the second answer sends MAX to the records, not to a guess.
+		if (index === 1) await expect(page.getByText(/verify .* in Custom code inventory instead of asking you to guess/i)).toBeVisible()
+	}
+	await expect(page.getByText(/enough owner context for this pass/i)).toBeVisible()
+
+	// One decision reaches the owner: two tolerance rules, each applied consistently.
+	await expect(page.getByRole("heading", { name: "Thirty-eight custom objects do something SAP standard does not" })).toBeVisible({ timeout: 25_000 })
+	await expect(dockRow(page)).toContainText("3/12")
+	await page.getByRole("button", { name: "Adopt SAP standard and change the process" }).first().click()
+
+	await expect(page.getByRole("heading", { name: "Final plan and recommendations" })).toBeVisible({ timeout: 30_000 })
+	await page.getByRole("button", { name: "Package", exact: true }).click()
+	await expect(page.getByText(/Two thirds of the custom estate has not run in a year/)).toBeVisible()
+	// The package stays the step while it is read; the charter approval moves on to the handoff.
+	await expect(dockRow(page)).toContainText("4/12")
+
+	// The charter is the one blocker; the packet goes to Agentix.
+	await page.locator(".workspace-header").getByRole("button", { name: "Continue to Agentix" }).click()
+	const handoff = page.getByRole("dialog", { name: "Continue to Agentix" })
+	await expect(handoff).toContainText("Opens in Agentix")
+	// The design this packet opens is a new engagement, never an expansion of one already running.
+	await expect(handoff).toContainText("A new Agentix engagement created from this package")
+	await expect(handoff.getByRole("button", { name: "Continue to Agentix" })).toBeDisabled()
+	await handoff.getByRole("button", { name: "Approve charter" }).click()
+	const charter = page.getByRole("dialog", { name: "Approve the project charter" })
+	await charter.getByRole("textbox", { name: "Approval reason" }).fill("Scope, owners and the five exclusions match what the programme board and Finance Systems agreed.")
+	await charter.getByRole("button", { name: "Approve charter" }).click()
+	await expect(dockRow(page)).toContainText("5/12")
+	await page.getByRole("textbox", { name: "Handoff note (optional)" }).fill("Start with the disposition map; the ownerless objects are the Development Lead’s to decide.")
+	await handoff.getByRole("button", { name: "Continue to Agentix" }).click()
+
+	// Agentix receives the packet as a new engagement, built from zero, with its provenance.
+	await createEngagement(page)
+
+	// The unmapped-SKU rule, the repaired pipeline and the release the owner approves.
+	await expect(dockRow(page)).toContainText("7/12")
+
+	// The dock's own action must open THIS demo's engagement. Beats 7-12 all emit it, and it
+	// used to fall through to the revenue engagement in every demo.
+	await openDock(page)
+	await page.locator(".mxd-panel").getByRole("button", { name: "Open the engagement" }).click()
+	await expect(page.getByRole("heading", { name: "S/4HANA conversion", exact: true })).toBeVisible()
+	await expect(page.getByRole("heading", { name: "Revenue reconciliation", exact: true })).toHaveCount(0)
+	await demoControls(page, "Skip")
+	await page.getByRole("button", { name: "Hold them for the Development Lead" }).click()
+	await expect(dockRow(page)).toContainText("8/12")
+	for (let i = 0; i < 6 && !(await page.getByRole("heading", { name: /Release remediation and readiness pipeline v2 to production\?/ }).count()); i++) await demoControls(page, "Skip")
+	await expect(page.getByRole("heading", { name: /Release remediation and readiness pipeline v2 to production\?/ })).toBeVisible()
+	await expect(dockRow(page)).toContainText("9/12")
+	await page.getByRole("button", { name: "Approve release" }).first().click()
+
+	// The dashboard publishes under policy and stays the step while it is shown; running the next cycle moves on.
+	for (let i = 0; i < 8 && !(await page.getByText("3 of 3 milestones verified").count()); i++) await demoControls(page, "Skip")
+	await expect(page.getByText("3 of 3 milestones verified")).toBeVisible()
+	await expect(dockRow(page)).toContainText("10/12")
+	await openDock(page)
+	await expect(page.locator(".mxd-panel")).toContainText("Published under ITGC-SAP-3.")
+	await page.keyboard.press("Escape")
+
+	// The previews are the beat this demo builds to: they must show THIS demo's data, never another's.
+	{
+		await page.getByRole("tab", { name: /^Results/ }).click()
+		await page.getByRole("button", { name: /Conversion readiness dashboard/ }).first().click()
+		const results = page.locator(".aop-results-preview")
+		await expect(results.getByText("Readiness ·", { exact: false }).first()).toBeVisible()
+		await expect(results.getByText("Objects dispositioned", { exact: false }).first()).toBeVisible()
+		await expect(results.getByText("Revenue ·", { exact: false })).toHaveCount(0)
+		await expect(results.getByText("SQL Server field", { exact: false })).toHaveCount(0)
+		await expect(results.getByText("$1,284,310.42", { exact: false })).toHaveCount(0)
+		await expect(results.getByText("Orders ·", { exact: false })).toHaveCount(0)
+		await page.getByRole("tab", { name: /^Work/ }).click()
+	}
+	await demoControls(page, "Run")
+	await expect(dockRow(page)).toContainText("11/12")
+	for (let i = 0; i < 4 && !(await dockRow(page).textContent())?.includes("12/12"); i++) await demoControls(page, "Skip")
+	await expect(dockRow(page)).toContainText("12/12")
+	await openDock(page)
+	await expect(page.locator(".mxd-panel")).toContainText("Close the story")
+
+	expect(errors).toEqual([])
+})
+
+test("the conversion demo keeps its own storage, leaving the other demos and the everyday prototype untouched", async ({ page }) => {
+	test.setTimeout(120_000)
+	await page.goto(DEMO)
+	await startConversionDiscovery(page)
+
+	const keys = await page.evaluate(() => Object.keys(localStorage).sort())
+	// Its own suffixed copies exist; nothing of the everyday prototype or the other demo is written.
+	expect(keys).toContain("maxion.prototype.discovery-records.v1::demo-s4hana")
+	expect(keys.some(key => key.endsWith("::demo-revenue") || key.endsWith("::demo-servicenow") || key.endsWith("::demo-salesforce-sap"))).toBe(false)
+	expect(keys).not.toContain("maxion.prototype.discovery-records.v1")
+	expect(keys).not.toContain("maxion-agentix-operations-v4")
+
+	const saved = await savedDemo(page)
+	expect(saved.discovery.some(record => record.scenarioKey === "s4hana")).toBe(true)
+	expect(saved.discovery.some(record => record.scenarioKey === "revenue" || record.scenarioKey === "ordersync")).toBe(false)
+
+	// The everyday prototype opens on its own data, with no demo row.
+	await page.goto("/maxion-prototype")
+	await expect(dockRow(page)).toHaveCount(0)
+	const everyday = await page.evaluate(([discovery, agentix]) => ({
+		discovery: localStorage.getItem(discovery) !== null,
+		agentix: localStorage.getItem(agentix) !== null,
+	}), [EVERYDAY_DISCOVERY, EVERYDAY_AGENTIX])
+	expect(everyday.discovery || everyday.agentix).toBe(true)
+})
+
+test("every new S/4HANA conversion Discovery starts Agentix again from zero", async ({ page }) => {
+	test.setTimeout(240_000)
+	await page.goto(`${DEMO}&start=package`)
+	await handOff(page)
+	await createEngagement(page)
+
+	// A second Discovery of the same scenario replaces the first and resets its Agentix.
+	await page.getByRole("navigation", { name: "Portal sections" }).getByRole("button", { name: "Discover", exact: true }).click()
+	await page.locator(".workspace-header").getByRole("button", { name: "More Discovery actions" }).click()
+	await page.getByRole("menuitem", { name: "New Discovery" }).click()
+	await startConversionDiscovery(page, async () => {
+		await expect(replaceNote(page)).toContainText("replaces the earlier S/4HANA conversion Discovery and starts Agentix again from zero")
+		// The note describes the button that does it.
+		expect(await page.getByRole("button", { name: "Create Discovery" }).getAttribute("aria-describedby")).toBe(await replaceNote(page).getAttribute("id"))
+	})
+	await expect(dockRow(page)).toContainText("2/12")
+
+	const saved = await savedDemo(page)
+	const records = saved.discovery.filter(record => record.scenarioKey === "s4hana")
+	expect(records).toHaveLength(1)
+	const agentix = saved.agentix as { engagements: Record<string, { status: string; packages: string[] }>; work: { engagementId: string }[] }
+	expect(agentix.engagements.conversion.status).toBe("draft")
+	expect(agentix.engagements.conversion.packages).toEqual([])
+	expect(agentix.work.filter(entry => entry.engagementId === "conversion")).toEqual([])
+})

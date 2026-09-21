@@ -1068,7 +1068,7 @@ function agentixWorkHint(work: Pick<AgentixWork, "decisions" | "setup">) {
 }
 
 // What a waiting case asks of its owner, named for the work rather than the template.
-const AGENTIX_DECISION_SUBJECT: Record<WorkflowId, string> = { invoice: "invoice variance", payables: "AP exception", orders: "blocked order", onboarding: "onboarding fulfillment", service: "incident handoff", inventory: "replenishment decision" }
+const AGENTIX_DECISION_SUBJECT: Record<WorkflowId, string> = { invoice: "invoice variance", payables: "AP exception", orders: "blocked order", conversion: "blocked transport", onboarding: "onboarding fulfillment", service: "incident handoff", inventory: "replenishment decision" }
 const agentixDecisionLabel = (item: AgentixPendingCase) => item.phase === "partial" ? `Resolve notification · ${item.engagement}` : item.label ?? `Review ${AGENTIX_DECISION_SUBJECT[item.workflowId]}`
 
 type ShellCommandContext = {
