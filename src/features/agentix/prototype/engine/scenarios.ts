@@ -273,7 +273,7 @@ const revenue: Scenario = {
 	boundary: "May read the billing ledger, build and test changes in an isolated environment, release tested versions under policy and record approved exception resolutions. A variance above $200 needs the revenue owner. No ledger edits, payment release or customer messages.",
 	teamReason: "Building a pipeline, validating a dashboard and investigating exceptions need different tools and permissions. The coordinator owns decisions, releases and the only ERP write, so no specialist can change production on its own.",
 	team: [
-		{ id: "coordinator", name: "Revenue coordinator", accountable: true, duty: "Owns each outcome, the decisions, production releases and the single ERP write-back.", tools: "ERP exception update · release adapter (simulated) · Teams finance channel", scope: "Cannot edit the billing ledger, release payments or message customers." },
+		{ id: "coordinator", name: "Revenue coordinator", accountable: true, duty: "Owns each outcome, the decisions, production releases and the single ERP write-back.", tools: "ERP exception update · release adapter · Teams finance channel", scope: "Cannot edit the billing ledger, release payments or message customers." },
 		{ id: "analyst", name: "Reconciliation analyst", duty: "Investigates invoice, receipt and ledger evidence and prepares exception decisions.", tools: "ERP, receiving and billing ledger · read only", scope: "Read only. Prepares decisions; never posts them." },
 		{ id: "data", name: "Data specialist", package: "pkg_revenue_v2", duty: "Maps billing fields, then builds and tests the ingestion and transformation pipeline in isolation.", tools: "SQL Server billing ledger · read only (existing gateway) · isolated AWS test workspace · private change set", scope: "No production credentials. Test data is synthetic and redacted." },
 		{ id: "dashboard", name: "Dashboard specialist", package: "pkg_revenue_v2", duty: "Builds and validates the revenue dashboard on the validated schema.", tools: "Dashboard authoring · reconciled schema read only", scope: "Publishes only through the coordinator's release." },
@@ -281,7 +281,7 @@ const revenue: Scenario = {
 	systems: [
 		{ id: "ledger", name: "SQL Server billing ledger", capability: "read", access: "Read only · existing secure gateway", detail: "dbo.Invoices, dbo.InvoiceLines, dbo.Credits, dbo.FxRates", package: "pkg_revenue_v2" },
 		{ id: "sandbox", name: "AWS test workspace", capability: "build", access: "Build and test · isolated", detail: "Disposable runs, synthetic 30-day sample, no production credentials", package: "pkg_revenue_v2" },
-		{ id: "schema", name: "AWS PostgreSQL revenue schema", capability: "production", access: "Release adapter · per release policy", detail: "Simulated production target; migrations and the nightly load job", package: "pkg_revenue_v2" },
+		{ id: "schema", name: "AWS PostgreSQL revenue schema", capability: "production", access: "Release adapter · per release policy", detail: "Production target; migrations and the nightly load job", package: "pkg_revenue_v2" },
 		{ id: "dash", name: "Finance workspace dashboards", capability: "production", access: "Publish · preauthorized for the finance group", detail: "Policy FIN-DASH-2", package: "pkg_revenue_v2" },
 		{ id: "erp", name: "ERP accounts payable", capability: "update", access: "One governed update per exception", detail: "Exception status and resolution note" },
 		{ id: "teams", name: "Microsoft Teams", capability: "notify", access: "Notification only", detail: "Finance channel and the AP owner" },
@@ -409,7 +409,7 @@ const revenue: Scenario = {
 			repair: { fx: { variant: "fx-posting-date", replaces: "fx-invoice-date", summary: "Looks up exchange rates by posting date", change: "FX lookup joins dbo.FxRates on PostingDate instead of InvoiceDate" } },
 			amendments: [],
 			release: {
-				target: "AWS PostgreSQL revenue schema · migration 0007 and the nightly load (simulated production)", authority: "answer",
+				target: "AWS PostgreSQL revenue schema · migration 0007 and the nightly load", authority: "answer",
 				changes: version => [`Pipeline v${version}`, "Creates revenue.daily_invoices and revenue.region_totals", "Registers the 05:30 London nightly load"],
 				impact: "Adds two tables and one scheduled job. No existing table changes. The dashboard reads the new tables after it is released.",
 				recovery: "Tables can be dropped and the job disabled. Loaded rows can be deleted and reloaded, but anything a downstream reader already used can't be recalled. The ledger is never changed.",
@@ -429,7 +429,7 @@ const revenue: Scenario = {
 				{ id: "region-drilldown", pattern: /\b(region(al)?)\b.*\b(drill|breakdown|break down)|\bdrill[- ]?down\b.*\bregion/i, label: "Add regional drill-down", variant: "region-drilldown", summary: "Adds drill-down from region to country", changes: ["Each region opens its countries", "New check: country totals add up to their region"] },
 			],
 			release: {
-				target: "Finance workspace · Revenue dashboard (simulated production)", authority: "policy", policy: "Dashboard publishing to the finance group is preauthorized (policy FIN-DASH-2).",
+				target: "Finance workspace · Revenue dashboard", authority: "policy", policy: "Dashboard publishing to the finance group is preauthorized (policy FIN-DASH-2).",
 				changes: (version, variant) => [`Dashboard v${version}`, ...variant.includes("region-drilldown") ? ["Adds drill-down from region to country"] : ["Revenue tiles, regional view and exceptions"]],
 				impact: "Finance group viewers see this version. No data changes.",
 				recovery: "The previous version can be republished. Anyone who viewed this version has already seen it.",
@@ -641,7 +641,7 @@ const payables: Scenario = {
 	boundary: "May read the exception queue, the contract register and the delegation of authority, build and test in an isolated sub-production instance, release tested update sets under policy, and close cases with their evidence. Anything above $5,000 or outside tolerance needs a named approver. No payment release, supplier master change or purchase-order amendment.",
 	teamReason: "Testing a tolerance, resolving who may approve, and moving an update set to production need different permissions. The coordinator owns decisions and the only production change, so no specialist can reach the production instance on its own.",
 	team: [
-		{ id: "coordinator", name: "Exception coordinator", accountable: true, duty: "Owns each outcome, the decisions, production releases and the single case write-back.", tools: "ServiceNow case update · release adapter (simulated) · Teams finance channel", scope: "Cannot release a payment, change a supplier master or amend a purchase order." },
+		{ id: "coordinator", name: "Exception coordinator", accountable: true, duty: "Owns each outcome, the decisions, production releases and the single case write-back.", tools: "ServiceNow case update · release adapter · Teams finance channel", scope: "Cannot release a payment, change a supplier master or amend a purchase order." },
 		{ id: "analyst", name: "Exception analyst", duty: "Investigates invoice, receipt and contract evidence and prepares exception decisions.", tools: "ServiceNow queue, purchase orders and goods receipts · read only", scope: "Read only. Prepares decisions; never posts them." },
 		{ id: "data", name: "Triage specialist", package: "pkg_ap_exceptions_v2", duty: "Classifies the exception queue, then builds and tests the triage and routing pipeline in isolation.", tools: "ServiceNow Finance Operations · read only · isolated sub-production instance · private update set", scope: "No production credentials. Test data is a synthetic sweep." },
 		{ id: "dashboard", name: "Reporting specialist", package: "pkg_ap_exceptions_v2", duty: "Builds and validates the AP exception dashboard on the triaged queue.", tools: "Dashboard authoring · triaged queue read only", scope: "Publishes only through the coordinator's release." },
@@ -650,7 +650,7 @@ const payables: Scenario = {
 		{ id: "queue", name: "ServiceNow Finance Operations", capability: "read", access: "Read only · integration user", detail: "fin_exception, fin_case_evidence, sys_user_delegate", package: "pkg_ap_exceptions_v2" },
 		{ id: "contracts", name: "SAP Ariba contract register", capability: "read", access: "Read only · integration user", detail: "212 active contracts and their negotiated tolerances", package: "pkg_ap_exceptions_v2" },
 		{ id: "subprod", name: "ServiceNow sub-production", capability: "build", access: "Build and test · isolated", detail: "Disposable update sets, synthetic sweep of 1,904 cases, no production credentials", package: "pkg_ap_exceptions_v2" },
-		{ id: "prod", name: "ServiceNow production", capability: "production", access: "Release adapter · per release policy", detail: "Simulated production target; update sets land in the Wednesday window", package: "pkg_ap_exceptions_v2" },
+		{ id: "prod", name: "ServiceNow production", capability: "production", access: "Release adapter · per release policy", detail: "Production target; update sets land in the Wednesday window", package: "pkg_ap_exceptions_v2" },
 		{ id: "dash", name: "Finance workspace dashboards", capability: "production", access: "Publish · preauthorized for the finance group", detail: "Policy FIN-AP-7", package: "pkg_ap_exceptions_v2" },
 		{ id: "case", name: "ServiceNow case record", capability: "update", access: "One governed update per exception", detail: "Closure code, rule applied and evidence" },
 		{ id: "teams", name: "Microsoft Teams", capability: "notify", access: "Notification only", detail: "Finance channel and the AP owner" },
@@ -780,7 +780,7 @@ const payables: Scenario = {
 			repair: { tolerance: { variant: "tolerance-contract", replaces: "tolerance-purchase-order", summary: "Tests price against the negotiated contract first", change: "Tolerance lookup reads the Ariba contract register, falling back to the purchase order only with no active contract" } },
 			amendments: [],
 			release: {
-				target: "ServiceNow production · update set and the daily sweep (simulated production)", authority: "answer",
+				target: "ServiceNow production · update set and the daily sweep", authority: "answer",
 				changes: version => [`Pipeline v${version}`, "Adds the triage flow and closure codes", "Registers the 06:00 London daily sweep"],
 				impact: "Adds one flow and one scheduled job. No existing case is changed. The dashboard reads the triaged queue after it is released.",
 				recovery: "The flow can be disabled and the update set backed out. Cases already closed can be reopened, but an approver who was already notified can't be un-notified. No payment is ever released.",
@@ -800,7 +800,7 @@ const payables: Scenario = {
 				{ id: "approver-drilldown", pattern: /\b(approver|authority)\b.*\b(drill|breakdown|break down)|\bdrill[- ]?down\b.*\b(approver|authority)/i, label: "Add approver drill-down", variant: "approver-drilldown", summary: "Adds drill-down from class to approver", changes: ["Each class opens the approvers waiting on it", "New check: approver totals add up to their class"] },
 			],
 			release: {
-				target: "Finance workspace · AP exception dashboard (simulated production)", authority: "policy", policy: "Dashboard publishing to the finance group is preauthorized (policy FIN-AP-7).",
+				target: "Finance workspace · AP exception dashboard", authority: "policy", policy: "Dashboard publishing to the finance group is preauthorized (policy FIN-AP-7).",
 				changes: (version, variant) => [`Dashboard v${version}`, ...variant.includes("approver-drilldown") ? ["Adds drill-down from class to approver"] : ["Exception tiles, class view and ageing"]],
 				impact: "Finance group viewers see this version. No case data changes.",
 				recovery: "The previous version can be republished. Anyone who viewed this version has already seen it.",
@@ -1000,7 +1000,7 @@ const orders: Scenario = {
 	boundary: "May read booked orders, both customer records and the material master, build and test in an isolated SAP sandbox, release tested transports under policy, and post a sales order under a deterministic idempotency key. Anything above $50,000, unmapped, or differing from the quote is blocked for a named owner. No price, discount, quote or contract change, and no invoicing or collections.",
 	teamReason: "Resolving a customer, preparing a commercial exception and moving a transport to production need different permissions. The coordinator owns decisions and the only production change, so no specialist can reach production SAP on its own.",
 	team: [
-		{ id: "coordinator", name: "Order sync coordinator", accountable: true, duty: "Owns each outcome, the decisions, production releases and the single Salesforce write-back.", tools: "Salesforce order update · release adapter (simulated) · Teams revenue channel", scope: "Cannot change a price, a quote or a contract, or touch invoicing." },
+		{ id: "coordinator", name: "Order sync coordinator", accountable: true, duty: "Owns each outcome, the decisions, production releases and the single Salesforce write-back.", tools: "Salesforce order update · release adapter · Teams revenue channel", scope: "Cannot change a price, a quote or a contract, or touch invoicing." },
 		{ id: "analyst", name: "Order exception analyst", duty: "Investigates order, quote and customer evidence and prepares blocked-order decisions.", tools: "Salesforce orders and quotes · SAP sales orders · read only", scope: "Read only. Prepares decisions; never posts them." },
 		{ id: "data", name: "Integration specialist", package: "pkg_order_sync_v2", duty: "Maps customers and materials, then builds and tests the order sync pipeline in isolation.", tools: "Salesforce CPQ · read only · isolated SAP sandbox · private transport", scope: "No production credentials. Test data is a synthetic 30-day order sample." },
 		{ id: "dashboard", name: "Reporting specialist", package: "pkg_order_sync_v2", duty: "Builds and validates the order exception cockpit on the posted orders.", tools: "Cockpit authoring · posted orders read only", scope: "Publishes only through the coordinator's release." },
@@ -1009,7 +1009,7 @@ const orders: Scenario = {
 		{ id: "sfdc", name: "Salesforce CPQ", capability: "read", access: "Read only · integration user", detail: "Booked orders, order lines, quotes and account records", package: "pkg_order_sync_v2" },
 		{ id: "master", name: "SAP business partner and material master", capability: "read", access: "Read only · integration user", detail: "2,418 active accounts and the material master", package: "pkg_order_sync_v2" },
 		{ id: "sandbox", name: "SAP S/4HANA sandbox", capability: "build", access: "Build and test · isolated", detail: "Disposable transports, synthetic 30-day order sample, no production credentials", package: "pkg_order_sync_v2" },
-		{ id: "prod", name: "SAP S/4HANA production", capability: "production", access: "Release adapter · per release policy", detail: "Simulated production target; transports land in the Thursday window", package: "pkg_order_sync_v2" },
+		{ id: "prod", name: "SAP S/4HANA production", capability: "production", access: "Release adapter · per release policy", detail: "Production target; transports land in the Thursday window", package: "pkg_order_sync_v2" },
 		{ id: "cockpit", name: "Finance workspace dashboards", capability: "production", access: "Publish · preauthorized for the finance group", detail: "Policy ITGC-SOX-4", package: "pkg_order_sync_v2" },
 		{ id: "sfdcwrite", name: "Salesforce order record", capability: "update", access: "One governed update per order", detail: "SAP order number, or the block reason" },
 		{ id: "teams", name: "Microsoft Teams", capability: "notify", access: "Notification only", detail: "Revenue channel and the order owner" },
@@ -1140,7 +1140,7 @@ const orders: Scenario = {
 			repair: { tax: { variant: "master-sap", replaces: "master-salesforce", summary: "Resolves the customer from the SAP business partner", change: "Customer resolution reads the SAP business partner, and Salesforce syncs down from it" } },
 			amendments: [],
 			release: {
-				target: "SAP S/4HANA production · transport and the daily sync (simulated production)", authority: "answer",
+				target: "SAP S/4HANA production · transport and the daily sync", authority: "answer",
 				changes: version => [`Pipeline v${version}`, "Adds the posting service and the idempotency key", "Registers the 06:00 London daily sync"],
 				impact: "Adds one posting service and one scheduled job. No existing sales order is changed. The cockpit reads the posted orders after it is released.",
 				recovery: "The service can be disabled and the transport backed out. A sales order already posted can be cancelled, but a cancelled SAP sales order stays on the books as an audit item. No invoice is ever raised.",
@@ -1160,7 +1160,7 @@ const orders: Scenario = {
 				{ id: "owner-drilldown", pattern: /\b(owner|assignee)\b.*\b(drill|breakdown|break down)|\bdrill[- ]?down\b.*\b(owner|assignee)/i, label: "Add owner drill-down", variant: "owner-drilldown", summary: "Adds drill-down from block reason to owner", changes: ["Each block reason opens the owners waiting on it", "New check: owner totals add up to their reason"] },
 			],
 			release: {
-				target: "Finance workspace · Order exception cockpit (simulated production)", authority: "policy", policy: "Cockpit publishing to the finance group is preauthorized (policy ITGC-SOX-4).",
+				target: "Finance workspace · Order exception cockpit", authority: "policy", policy: "Cockpit publishing to the finance group is preauthorized (policy ITGC-SOX-4).",
 				changes: (version, variant) => [`Cockpit v${version}`, ...variant.includes("owner-drilldown") ? ["Adds drill-down from block reason to owner"] : ["Order tiles, block reasons and quarter risk"]],
 				impact: "Finance group viewers see this version. No order data changes.",
 				recovery: "The previous version can be republished. Anyone who viewed this version has already seen it.",

@@ -151,7 +151,7 @@ function OutcomeResult({ state, workId, callbacks }: { state: AgentixState; work
 			</ul>
 			{item.effects.length ? <p className="aop-receipts"><Receipt size={14} />{item.effects.map(effect => `${effect.system}: ${effect.sends} dispatch${effect.sends === 1 ? "" : "es"}${effect.reference ? ` (${effect.reference})` : ""}`).join(" · ")}{item.flags.reconciled ? " · uncertain outcome reconciled, no duplicate" : ""}</p> : null}
 			{item.humanReference ? <p className="aop-receipts"><Mark seed="owner" size="xs" />Owner confirmation {item.humanReference}</p> : null}
-			<p className="aop-footnote">Simulated effects and receipts. “Notification accepted” is the provider's acceptance, not proof that someone read it.</p>
+			<p className="aop-footnote">Effects and receipts. “Notification accepted” is the provider's acceptance, not proof that someone read it.</p>
 		</article>
 	)
 }

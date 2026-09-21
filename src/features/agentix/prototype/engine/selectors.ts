@@ -258,7 +258,6 @@ export function measures(state: AgentixState, engagementId: string) {
 		verified: verified.length, total: finished.length, eligible: eligible.length,
 		autonomous: eligible.length ? eligible.filter(item => item.status === "verified").length : null,
 		medianMinutes: durations.length ? Math.round((durations[Math.floor((durations.length - 1) / 2)] + durations[Math.floor(durations.length / 2)]) / 2) : null,
-		cost: state.work.filter(item => item.engagementId === engagementId).reduce((sum, item) => sum + item.costCents, 0) / 100,
 		lastCycle: cycles[0],
 	}
 }

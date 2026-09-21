@@ -37,6 +37,13 @@ export function ProposalReview({ state, engagement, onAnswer, onEdit, onAction, 
 	const reused = new Set(teamOf(engagement).map(member => member.id))
 	const systems = scenario.systems.filter(system => !system.package || system.package === pkg?.id || engagement.packages.includes(system.package))
 	const onboarding = engagement.workflowId === "onboarding"
+	/*
+	 * The read-only check is the one thing between a reviewed proposal and activation, and its
+	 * button sits mid-page below the readiness rows. When it is all that is left, offer it in the
+	 * action bar too, beside the disabled Activate, so the next step is where the eye already is.
+	 */
+	const needsCheck = !expansion && !engagement.checking && !engagement.checked
+		&& !engagement.automaticPayroll && !(onboarding && !engagement.mapping)
 	// A package handed over by a Discovery names that Discovery and its packet, and leads back to it.
 	const handedOver = proposal?.origin === "discovery" ? proposal.discovery : undefined
 	const source = handedOver
@@ -108,7 +115,7 @@ export function ProposalReview({ state, engagement, onAnswer, onEdit, onAction, 
 						<div className="aop-section-foot">
 							{engagement.checking ? <p className="aop-hint" role="status"><span className="aop-live-dot" aria-hidden="true" /> Checking connections and read-back…</p>
 								: engagement.checked ? <p className="aop-hint"><CheckCircle size={12} weight="fill" /> Read-only check passed. Nothing was written.</p>
-								: <DsButton onClick={() => onAction("recheck")} disabled={engagement.automaticPayroll || (onboarding && !engagement.mapping)}>Run the read-only check</DsButton>}
+								: <p className="aop-hint">The read-only check runs from the action bar below.</p>}
 							<small>A read-only check, not a live provider certification.</small>
 						</div>
 					) : null}
@@ -172,8 +179,10 @@ export function ProposalReview({ state, engagement, onAnswer, onEdit, onAction, 
 					<div className="aop-setup-bar-end">
 						<div className="aop-deploy-text" id={`${id}-activation`}>
 							<strong>{ready ? (expansion ? `Ready to activate v${engagement.version + 1}` : "Ready for your activation") : "Before activation"}</strong>
-							<span>{ready ? readiness.summary : blockers[0]}</span>
+							{/* Telling someone to press the button beside the words wastes the line; say what the check does instead. */}
+							<span>{ready ? readiness.summary : needsCheck ? "Reads one record back. Nothing is written." : blockers[0]}</span>
 						</div>
+						{needsCheck ? <DsButton onClick={() => onAction("recheck")}>Run the read-only check</DsButton> : null}
 						<DsButton variant="primary" disabled={!ready} aria-describedby={`${id}-activation`} onClick={onActivate}>{expansion ? "Activate expansion" : "Activate engagement"}<ArrowRight size={14} /></DsButton>
 					</div>
 				</footer>

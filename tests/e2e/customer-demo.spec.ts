@@ -75,6 +75,8 @@ async function createEngagement(page: Page) {
 	const questions = page.locator(".aop-questions")
 	await questions.getByText("Ask me before each pipeline release").click()
 	await questions.getByText("The synthetic 30-day sample").click()
+	// The check is the last thing between the proposal and activation, so it sits in the action bar.
+	await expect(page.locator(".aop-setup-bar-end").getByRole("button", { name: "Run the read-only check" })).toBeVisible()
 	await page.getByRole("button", { name: "Run the read-only check" }).click()
 	await expect(page.getByText("Read-only check passed. Nothing was written.")).toBeVisible({ timeout: 10_000 })
 	await page.getByRole("button", { name: /Activate engagement/ }).click()

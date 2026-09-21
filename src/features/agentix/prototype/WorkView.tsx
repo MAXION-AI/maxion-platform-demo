@@ -178,7 +178,6 @@ export function WorkView({ state, engagementId, callbacks, showHistory, onHistor
 						<div><dt>Service health</dt><dd>{engagement.connection === "expired" ? "Notification connection expired" : engagement.permission === "lost" ? "Release permission lost" : engagement.checking ? "Rechecking the notification connection" : "All connections checked"}</dd></div>
 						<div><dt>Verified results</dt><dd>{figures.total ? `${figures.verified} of ${figures.total} finished` : "None finished yet"}</dd></div>
 						<div><dt>Median time to verify</dt><dd>{figures.medianMinutes === null ? "—" : `${figures.medianMinutes} min`}</dd></div>
-						<div><dt>Simulated cost</dt><dd>${figures.cost.toFixed(2)}</dd></div>
 					</dl>
 					<p className="aop-footnote">Derived from this engagement's records. No savings or ROI is claimed without a measured baseline.</p>
 				</section>
