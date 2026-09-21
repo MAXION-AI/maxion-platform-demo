@@ -99,3 +99,26 @@ test("the presenter row opens the stakeholder interview for the running demo", a
 	await expect(interview.getByRole("heading", { name: "AP invoice exceptions: ServiceNow triage and approval authority" })).toBeVisible()
 	await interview.close()
 })
+
+/*
+ * The deployed build routes inside the hash, so moving from one stakeholder's address to another
+ * changes the address without remounting the page. It has to follow the address anyway: this is
+ * exactly how three links from the presenter window into one window would go wrong.
+ */
+test("moving between two stakeholders in one window follows the address", async ({ page }) => {
+	test.setTimeout(90_000)
+	await page.goto("/stakeholder-interview?demo=revenue&who=grace")
+	await expect(page.getByText("Billing Systems Manager, Finance Systems")).toBeVisible()
+
+	await page.evaluate(() => { window.history.pushState(null, "", "/stakeholder-interview?demo=revenue&who=sam"); window.dispatchEvent(new PopStateEvent("popstate")) })
+	await expect(page.getByText("Data Platform Lead, Data & Analytics")).toBeVisible()
+	await expect(page.getByText("Billing Systems Manager, Finance Systems")).toHaveCount(0)
+
+	// And a different demo entirely, mid-interview: the second interview starts from its invitation.
+	await page.getByRole("checkbox").check()
+	await page.getByRole("button", { name: "Start the interview" }).click()
+	await expect(page.getByText(/I am MAX, running the Discovery/)).toBeVisible()
+	await page.evaluate(() => { window.history.pushState(null, "", "/stakeholder-interview?demo=servicenow"); window.dispatchEvent(new PopStateEvent("popstate")) })
+	await expect(page.getByRole("heading", { name: "AP invoice exceptions: ServiceNow triage and approval authority" })).toBeVisible()
+	await expect(page.getByRole("button", { name: "Start the interview" })).toBeDisabled()
+})

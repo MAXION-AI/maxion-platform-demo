@@ -58,9 +58,19 @@ function suggestionFor(topic: string, index: number, last: boolean) {
 }
 
 export function StakeholderInterviewPage() {
-	const script = useMemo(() => demoScript(guideDemo()), [])
+	// Unlike the presenter guide, this page follows its address rather than fixing to the window it
+	// opened in: a presenter moving between two stakeholders in one window must see the second one.
+	// The deployed build routes inside the hash, so the address can change without a remount.
+	const [address, setAddress] = useState(() => `${window.location.search}${window.location.hash}`)
+	useEffect(() => {
+		const read = () => setAddress(`${window.location.search}${window.location.hash}`)
+		window.addEventListener("hashchange", read)
+		window.addEventListener("popstate", read)
+		return () => { window.removeEventListener("hashchange", read); window.removeEventListener("popstate", read) }
+	}, [])
+	const script = useMemo(() => demoScript(guideDemo()), [address])
 	const scenario = SCENARIOS[script.scenarioKey]
-	const asked = useMemo(() => stakeholderWho(), [])
+	const asked = useMemo(() => stakeholderWho(), [address])
 	// A named stakeholder, or the one MAX would write to first.
 	const person = scenario.people.find(candidate => candidate.id === asked) ?? scenario.people[0]
 	const topics = useMemo(() => topicsFor(person), [person])
@@ -98,6 +108,8 @@ export function StakeholderInterviewPage() {
 	}, [answered, person, scenario.title, topics, turns, view])
 
 	useEffect(() => { thread.current?.scrollTo({ top: thread.current.scrollHeight }) }, [turns])
+	// A new address is a new interview: no answers, consent or closing state carry across.
+	useEffect(() => { setView("landing"); setClosing(null); setConsent(false); setTurns([]); setAsking(0); setDraft("") }, [address])
 
 	const send = (text: string) => {
 		const said = text.trim()
