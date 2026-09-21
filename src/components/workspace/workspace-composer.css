@@ -1,0 +1,20 @@
+/* Shared agent composer (mobbin 8dbb547d). Tokens only; it renders outside the design scope too. */
+.ws-composer { display: grid; gap: var(--ds-space-3); padding: var(--ds-space-3) var(--ds-space-2) var(--ds-space-2) var(--ds-space-4); border: 1px solid var(--ds-border); border-radius: var(--ds-radius-2xl); background: var(--ds-bg); box-shadow: var(--ds-shadow-composer); color: var(--ds-fg); font-family: var(--ds-font); font-size: var(--ds-text-sm); line-height: var(--ds-lh-sm); }
+.ws-composer textarea { display: block; width: 100%; min-height: var(--ds-lh-lg); margin: 0; padding: var(--ds-space-1) var(--ds-space-2) 0 0; border: 0; outline: 0; resize: none; overflow-y: auto; background: transparent; color: var(--ds-fg); font: inherit; font-size: var(--ds-text-lg); line-height: var(--ds-lh-lg); }
+.ws-composer textarea::placeholder { color: var(--ds-fg-placeholder); }
+.ws-composer-bar { display: flex; align-items: center; justify-content: space-between; gap: var(--ds-space-2); min-width: 0; }
+.ws-composer-context { display: inline-flex; align-items: center; gap: var(--ds-space-1); min-width: 0; overflow: hidden; color: var(--ds-fg-subtle); font-size: var(--ds-text-xs); line-height: var(--ds-lh-xs); text-overflow: ellipsis; white-space: nowrap; }
+.ws-composer-context > * { flex-shrink: 0; }
+.ws-composer-context > span:last-child { flex-shrink: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.ws-composer-tools { display: flex; flex-shrink: 0; align-items: center; gap: var(--ds-space-1); min-width: 0; }
+.ws-composer-tools > div { display: flex; flex-wrap: wrap; justify-content: flex-end; align-items: center; gap: var(--ds-space-1); min-width: 0; }
+.ws-composer-context strong { color: var(--ds-fg); font-weight: var(--ds-weight-medium); }
+.ws-composer-tools button:not(.ws-send) { display: inline-flex; align-items: center; gap: var(--ds-space-1); height: var(--ds-control-h-sm); min-height: 0; padding: 0 var(--ds-space-2); border: 0; border-radius: var(--ds-radius-md); background: none; color: var(--ds-fg); font: inherit; font-size: var(--ds-text-sm); font-weight: var(--ds-weight-medium); white-space: nowrap; cursor: pointer; }
+.ws-composer-tools button:not(.ws-send):hover { background: var(--ds-bg-hover); }
+.ws-composer-tools button:not(.ws-send) > span { color: var(--ds-fg-subtle); font-weight: var(--ds-weight-regular); }
+.ws-send { display: inline-flex; align-items: center; gap: var(--ds-space-1); height: var(--ds-control-h-sm); min-height: 0; padding: 0 var(--ds-space-3); border: 0; border-radius: var(--ds-radius-md); background: var(--ds-primary); color: var(--ds-fg-on-primary); font: inherit; font-size: var(--ds-text-sm); font-weight: var(--ds-weight-medium); cursor: pointer; opacity: 1; }
+.ws-send:hover:not(:disabled) { background: var(--ds-primary-hover); }
+.ws-send:disabled { background: var(--ds-primary-disabled); color: var(--ds-fg-on-primary); cursor: default; opacity: 1; }
+@media (max-width: 480px) {
+	.ws-composer-context { display: none; }
+}

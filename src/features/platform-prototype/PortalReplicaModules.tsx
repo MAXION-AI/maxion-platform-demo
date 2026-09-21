@@ -9,40 +9,40 @@ import {
 	ChartBar,
 	Check,
 	CheckCircle,
-	Clock,
 	Code,
 	Compass,
-	Cube,
 	Database,
 	FileText,
 	FlowArrow,
 	FolderPlus,
 	GearSix,
 	GridFour,
-	Info,
 	List,
 	MagnifyingGlass,
-	PaperPlaneTilt,
 	Plug,
 	Plus,
 	Question,
 	ShieldCheck,
 	PencilSimpleLine,
-	Pulse,
 	Stack,
 	TerminalWindow,
 	Users,
 	WarningCircle,
 	X,
 } from "@phosphor-icons/react"
-import { motion, useReducedMotion } from "motion/react"
+import { AnimatePresence, motion, useReducedMotion } from "motion/react"
 import { useEffect, useMemo, useRef, useState, type CSSProperties, type FormEvent, type ReactNode, type RefObject } from "react"
 
-import type { AgentixAttention } from "@/features/agentix/prototype/AgentixInitiativesPage"
-import { listDiscoveryJumpRecords } from "@/features/discovery-autonomous/DiscoveryAutonomousPrototypePage"
+import { useRiseIn } from "@/components/motion/MotionKit"
+import { Button, Card, EmptyState, Mark, SearchInput } from "@/design/primitives"
+import type { AgentixAttention, AgentixIntent, AgentixPendingCase } from "@/features/agentix/prototype/AgentixInitiativesPage"
+import { listDiscoveryJumpRecords, type DiscoveryJump, type DiscoveryJumpRecord, type HandoffPacket } from "@/features/discovery-autonomous/DiscoveryAutonomousPrototypePage"
 import { DELIVERABLES } from "@/features/discovery-autonomous/deliverables"
 
-import { MaxionSpiralMark, PRIMARY_NAVIGATION } from "./PortalChrome"
+import { ActionArt, ActivityAvatar, ProjectArt, type ActionArtKind, type ActivityTone } from "./HomeArt"
+import { NavGlyph, type NavGlyphName } from "./NavGlyphs"
+import { MaxionSpiralMark } from "./PortalChrome"
+import "./workspace-home.css"
 import {
 	EXECUTE_TASKS,
 	WORKSPACE_CYCLE_RESET,
@@ -57,6 +57,23 @@ import {
 } from "./model"
 
 type Navigate = (module: MaxionModuleId) => void
+
+// What a waiting Agentix case asks of its owner, in the words Agentix's own inbox uses.
+export const agentixCaseAction = (item: AgentixPendingCase) => item.phase === "approval" ? "Review decision" : item.phase === "human" ? "Provide confirmation" : "Resolve notification"
+// Every entry from outside Agentix opens the exact case it names, never whichever
+// engagement happened to be open last.
+export const agentixCaseIntent = (item: AgentixPendingCase): AgentixIntent => ({ type: "decision", id: item.phase === "human" ? "audience" : "approval", runId: item.id })
+
+type OpenDiscoveryRecord = (recordId: string, jump: DiscoveryJump) => void
+// A saved Discovery opens where it needs the viewer: the waiting decision, the finished
+// package, or otherwise its saved point of work. Never whichever record was open last.
+const discoveryJump = (record: DiscoveryJumpRecord): DiscoveryJump => record.status === "needs-input" ? "decision" : record.status === "completed" ? "package" : "resume"
+
+// Relative time for a saved moment, in the dashboard's short form.
+const sinceLabel = (iso: string) => {
+	const minutes = Math.floor((Date.now() - Date.parse(iso)) / 60000)
+	return !Number.isFinite(minutes) || minutes < 1 ? "Just now" : minutes < 60 ? `${minutes}m` : minutes < 1440 ? `${Math.floor(minutes / 60)}h` : `${Math.floor(minutes / 1440)}d`
+}
 
 // motion's hook settles a tick after mount; the media query is the truth jsdom forces,
 // so timed theater checks both and takes the instant path if either says reduce.
@@ -75,8 +92,9 @@ function useDialogFocus(panelRef: RefObject<HTMLElement | null>, open: boolean) 
 		const panel = panelRef.current
 		if (!panel) return
 		const trigger = document.activeElement instanceof HTMLElement ? document.activeElement : null
-		// An autofocused field inside the surface already owns focus — never steal it back.
-		if (!panel.contains(document.activeElement)) panel.focus()
+		// Capture the opener before moving focus; React autoFocus runs before this
+		// effect and would otherwise make the field itself the return target.
+		if (!panel.contains(document.activeElement)) (panel.querySelector<HTMLElement>("[data-dialog-autofocus]") ?? panel).focus()
 		const onKeyDown = (event: KeyboardEvent) => {
 			if (event.key !== "Tab") return
 			const focusable = Array.from(panel.querySelectorAll<HTMLElement>(FOCUSABLE_SELECTOR))
@@ -125,22 +143,38 @@ function PortalStat({ icon, label, value, hint }: { icon: ReactNode; label: stri
 	)
 }
 
+type DashboardActivity = { module: MaxionModuleId; glyph: NavGlyphName; title: string; detail: string; time: string; tone: ActivityTone; open?: () => void }
+
 export function DashboardModule({
 	projects,
+	active = true,
 	onNavigate,
+	onStartDiscovery,
+	onOpenDiscoveryRecord,
+	onOpenAgentix,
 	agentix,
 	discoveryReady,
 	planSent,
+	planPacket = null,
 	executeVerified,
+	onCommand,
+	onCreateProject,
 }: {
 	projects: PortalProject[]
+	// The stage stays mounted while hidden; saved Discoveries are read again each time it shows.
+	active?: boolean
 	onNavigate: Navigate
+	onStartDiscovery: () => void
+	onOpenDiscoveryRecord: OpenDiscoveryRecord
+	onOpenAgentix: (intent: AgentixIntent) => void
 	agentix: AgentixAttention
 	discoveryReady: boolean
 	planSent: boolean
+	planPacket?: HandoffPacket | null
 	executeVerified: boolean
+	onCommand?: () => void
+	onCreateProject?: () => void
 }) {
-	const prefersReducedMotion = useReducedMotion()
 	const [historyOpen, setHistoryOpen] = useState(false)
 	const activeProjects = projects.filter((project) => project.status === "active")
 	const dateLabel = new Intl.DateTimeFormat("en-US", {
@@ -151,127 +185,166 @@ export function DashboardModule({
 	}).format(new Date())
 	// Saved Discoveries are the real record; the dashboard counts them instead of
 	// asserting a number that stops being true the moment one is finished.
-	const discoveries = useMemo(() => listDiscoveryJumpRecords(), [discoveryReady])
+	const discoveries = useMemo(() => listDiscoveryJumpRecords(), [discoveryReady, active])
 	const runningDiscoveries = discoveries.filter((record) => record.status !== "completed").length
-	const discoveriesNeedingInput = discoveries.filter((record) => record.status === "needs-input").length
+	const waitingDiscoveries = discoveries.filter((record) => record.status === "needs-input")
+	// The row follows the Discovery that most needs the viewer, then the one still working.
+	const leadDiscovery = waitingDiscoveries[0] ?? discoveries.find((record) => record.status === "active") ?? discoveries[0]
 	// What was already true when this session opened. Anything that has changed since is
 	// something the viewer just did, and a row that says "41m" about it is a lie.
-	const openedWith = useRef({ discoveryReady, planSent, executeVerified, approval: agentix.approval, audience: agentix.audience })
+	const openedWith = useRef({ planSent, executeVerified })
+	// Agentix reports a tick after the shell mounts. Its first report is what was already
+	// true, so the seeded case reads as old work rather than as something that just happened.
+	const agentixBaseline = useRef<{ approval: boolean; audience: boolean; pending: string[] | null } | null>(null)
+	if (agentix.reported !== false && !agentixBaseline.current) agentixBaseline.current = { approval: agentix.approval, audience: agentix.audience, pending: agentix.pending ? agentix.pending.map((item) => item.id) : null }
 	const since = (changed: boolean, resting: string) => changed ? "Just now" : resting
-	const agentixChanged = openedWith.current.approval !== agentix.approval || openedWith.current.audience !== agentix.audience
-	const activities = [
-		{
-			module: "discovery" as const,
-			icon: Compass,
-			title: discoveryReady ? "TPRM decision package generated" : "TPRM owner interview is active",
-			detail: discoveryReady ? `${DELIVERABLES.length} deliverables · evidence lineage verified` : "One authority boundary needs review",
-			time: since(openedWith.current.discoveryReady !== discoveryReady, "8m"),
-			tone: discoveryReady ? "success" : "attention",
-		},
-		{
-			module: "plan" as const,
-			icon: FlowArrow,
-			title: planSent ? "ERP modernization plan sent to Execute" : "ERP modernization plan updated",
-			detail: "5 flows · 17 build packages · v12",
-			time: since(openedWith.current.planSent !== planSent, "24m"),
-			tone: "info",
-		},
-		{
-			module: "execute" as const,
-			icon: Cube,
-			title: executeVerified ? "Mission authority engagement verified" : planSent ? "Mission authority implementation progressing" : "Execute is waiting for approved work",
-			detail: executeVerified ? "48 tests passed · release gate clean" : planSent ? "5 isolated workspaces · no blockers" : "No engagement started · authority stays unbound",
-			time: since(openedWith.current.executeVerified !== executeVerified, "41m"),
-			tone: executeVerified ? "success" : planSent ? "live" : "info",
-		},
+	// The row names the case that is waiting and opens exactly that case.
+	const waiting = agentix.pending ?? []
+	const leadCase = waiting.find((item) => item.phase === "approval") ?? waiting[0]
+	const baseline = agentixBaseline.current
+	// A case that was not waiting at the first report is new; an empty queue that was not
+	// empty then is the viewer's own resolution.
+	const agentixChanged = Boolean(baseline && (baseline.pending && agentix.pending
+		? leadCase ? !baseline.pending.includes(leadCase.id) : baseline.pending.length > 0
+		: baseline.approval !== agentix.approval || baseline.audience !== agentix.audience))
+	const agentixIntent: AgentixIntent = leadCase
+		? agentixCaseIntent(leadCase)
+		: agentix.approval ? { type: "decision", id: "approval" } : agentix.audience ? { type: "decision", id: "audience" } : { type: "surface", id: "activity" }
+	const discoveryActivity: DashboardActivity = leadDiscovery
+		? {
+			module: "discovery",
+			glyph: "discovery",
+			title: leadDiscovery.title,
+			detail: leadDiscovery.status === "needs-input"
+				? `Review decision · one authority boundary is waiting${waitingDiscoveries.length > 1 ? ` · ${waitingDiscoveries.length - 1} more waiting` : ""}`
+				: leadDiscovery.status === "completed" ? `Decision package generated · ${DELIVERABLES.length} deliverables · evidence lineage verified` : "Working autonomously · MAX stops only at an authority boundary",
+			// The record keeps its own last-worked time, as the Discovery hub shows it.
+			time: sinceLabel(leadDiscovery.updatedAt),
+			tone: leadDiscovery.status === "needs-input" ? "attention" : leadDiscovery.status === "completed" ? "success" : "live",
+			open: () => onOpenDiscoveryRecord(leadDiscovery.id, discoveryJump(leadDiscovery)),
+		}
+		: { module: "discovery", glyph: "discovery", title: "Start a Discovery", detail: "Give MAX a brief · it researches, interviews owners and returns a decision package", time: "", tone: "info", open: onStartDiscovery }
+	const activities: DashboardActivity[] = [
+		discoveryActivity,
 		{
 			module: "agentix" as const,
-			icon: Pulse,
-			title: agentix.approval ? "Invoice variance needs one exact approval" : agentix.audience ? "Onboarding needs payroll-owner fulfillment" : "Open your Agentix workspace",
-			detail: agentix.approval ? "$240 price variance · invoice v2" : agentix.audience ? "Completed HR and IT work is preserved" : "Agent status, conversation and outcomes in one place",
+			glyph: "agentix",
+			title: leadCase ? leadCase.title : agentix.approval ? "Invoice variance needs one exact approval" : agentix.audience ? "Onboarding needs payroll-owner fulfillment" : agentixChanged ? "Nothing in Agentix needs you" : "View your engagements",
+			detail: leadCase
+				? `${agentixCaseAction(leadCase)} · ${leadCase.engagement} · ${leadCase.reference}${waiting.length > 1 ? ` · ${waiting.length - 1} more waiting` : ""}`
+				: agentix.approval ? "$240 price variance · invoice v2" : agentix.audience ? "Completed HR and IT work is preserved" : agentixChanged ? "Your decisions are recorded · engagements continue" : "Agentix · active work, exceptions and verified outcomes",
 			time: since(agentixChanged, "1h"),
-			tone: agentix.count ? "attention" : "success",
+			tone: leadCase || agentix.approval || agentix.audience ? "attention" : "success",
+			open: () => onOpenAgentix(agentixIntent),
 		},
 	]
 	// Older entries stay folded away until asked for, so "View all" moves something real.
-	const history = [
-		{ module: "integrations" as const, icon: Plug, title: "SAP S/4HANA connection flagged for review", detail: "Existing access remains active · tenant admin notified", time: "3h", tone: "attention" },
-		{ module: "projects" as const, icon: Stack, title: "Pricing transformation delivered and closed", detail: "Plan completed · evidence retained", time: "Yesterday", tone: "info" },
-		{ module: "integrations" as const, icon: Plug, title: "QuickBooks scope updated", detail: "Tenant admin · Company 934771", time: "Yesterday", tone: "info" },
+	const history: DashboardActivity[] = [
+		{ module: "integrations" as const, glyph: "integrations", title: "SAP S/4HANA connection flagged for review", detail: "Existing access remains active · tenant admin notified", time: "3h", tone: "attention" },
+		{ module: "projects" as const, glyph: "projects", title: "Pricing transformation delivered and closed", detail: "Plan completed · evidence retained", time: "Yesterday", tone: "info" },
+		{ module: "integrations" as const, glyph: "integrations", title: "QuickBooks scope updated", detail: "Tenant admin · Company 934771", time: "Yesterday", tone: "info" },
 	]
 	const visibleActivities = historyOpen ? [...activities, ...history] : activities
 
+	const quickActions: Array<{ label: string; art: ActionArtKind; run: () => void }> = [
+		{ label: "New project", art: "project", run: () => onCreateProject ? onCreateProject() : onNavigate("projects") },
+		{ label: "Start Discovery", art: "discovery", run: onStartDiscovery },
+		{ label: "New engagement", art: "agentix", run: () => onOpenAgentix({ type: "create" }) },
+		{ label: "Ask MAX", art: "consult", run: () => onNavigate("consult") },
+	]
+	const attentionCount = activities.filter((item) => item.tone === "attention").length
+
+	/*
+	 * The Dashboard is the ElevenLabs Home (mobbin ec8402ae): a workspace kicker over
+	 * the greeting, a row of illustrated actions, then two titled lists, the work
+	 * that needs the viewer beside the projects to pick up again.
+	 */
 	return (
-		<div className="mxp-portal-page mxp-dashboard-page">
-			<motion.div initial={prefersReducedMotion ? false : { opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: prefersReducedMotion ? 0 : 0.32 }}>
-				<section className="mxp-dashboard-welcome">
-					<p>{dateLabel}</p>
-					<h1>Good afternoon, Root Admin</h1>
-					<span>You have {activeProjects.length} active projects and {runningDiscoveries} {runningDiscoveries === 1 ? "discovery" : "discoveries"} in progress.</span>
-					<div>
-						<button type="button" onClick={() => onNavigate("projects")}><Stack size={16} />New Project</button>
-						<button type="button" onClick={() => onNavigate("discovery")}><Compass size={16} />Start Discovery</button>
-						<button type="button" onClick={() => onNavigate("plan")}><FlowArrow size={16} />Create Plan</button>
-						<button type="button" onClick={() => onNavigate("execute")}><Cube size={16} />Open Execute</button>
-						<button type="button" onClick={() => onNavigate("consult")}><MaxionSpiralMark variant="current" className="mxp-inline-spiral" />Ask Max</button>
-					</div>
-				</section>
-			</motion.div>
-
-			<section className="mxp-portal-stats" aria-label="Workspace summary">
-				<PortalStat icon={<Stack size={18} />} label="Active projects" value={String(activeProjects.length)} hint="Across this workspace" />
-				<PortalStat icon={<Compass size={18} />} label="Active discoveries" value={String(runningDiscoveries)} hint={discoveriesNeedingInput ? `${discoveriesNeedingInput === 1 ? "One" : String(discoveriesNeedingInput)} needs your input` : "None need your input"} />
-				<PortalStat icon={<FlowArrow size={18} />} label="Plans created" value={String(PLAN_LIBRARY.length)} hint="Two ready for execution" />
-				<PortalStat icon={<ChartBar size={18} />} label="Workspace units" value={`${WORKSPACE_UNITS_PERCENT}%`} hint={`${100 - WORKSPACE_UNITS_PERCENT}% remains this cycle`} />
-			</section>
-
-			<div className="mxp-dashboard-grid">
-				<div className="mxp-dashboard-main-column">
-					<section className="mxp-portal-card mxp-activity-card">
-						<header><div><h2>Workspace activity</h2><p>{historyOpen ? `Current work and the last ${history.length} closed events` : "Current work across MAXION"}</p></div><button type="button" aria-expanded={historyOpen} onClick={() => setHistoryOpen((open) => !open)}>{historyOpen ? "Show less" : "View all"}</button></header>
-						<div>
-							{visibleActivities.map((item) => {
-								const Icon = item.icon
-								return (
-									<button type="button" key={item.title} onClick={() => onNavigate(item.module)}>
-										<span className={`mxp-activity-icon is-${item.tone}`}><Icon size={16} weight="duotone" /></span>
-										<span><strong>{item.title}</strong><small>{item.detail}</small></span>
-										<time>{item.time}</time><CaretRight size={14} />
-									</button>
-								)
-							})}
-						</div>
-					</section>
-
-					<section className="mxp-portal-card mxp-dashboard-projects">
-						<header><div><h2>Projects</h2><p>Recently active workspaces</p></div><button type="button" onClick={() => onNavigate("projects")}>View projects</button></header>
-						<div>
-							{activeProjects.slice(0, 3).map((project) => (
-								<button type="button" key={project.id} onClick={() => onNavigate("projects")}>
-									<span className="mxp-project-glyph"><Stack size={16} weight="duotone" /></span>
-									<span><strong>{project.name}</strong><small>{project.description}</small></span>
-									<div className="mxp-avatar-stack">{project.members.slice(0, 3).map((member) => <i key={member.name} title={member.name}>{member.initials}</i>)}</div>
-									<time>{project.updated}</time>
-								</button>
-							))}
-						</div>
-					</section>
+		<div className="mxp-dashboard-page wh-root ds-scope">
+			<header className="ds-topbar wh-topbar">
+				<div className="ds-topbar-start"><span className="ds-topbar-title">Dashboard</span></div>
+				<div className="ds-topbar-end">
+					{onCommand ? <Button size="sm" className="wh-jump" onClick={onCommand}><MagnifyingGlass aria-hidden="true" />Jump to<kbd>⌘K</kbd></Button> : null}
 				</div>
+			</header>
+			<div className="wh-scroll">
+				<div className="wh-page">
+					<button type="button" className="wh-announce" onClick={() => onOpenAgentix({ type: "surface", id: "activity" })}>
+						<span className="wh-announce-tag">New</span>
+						<span>Agentix engagements keep working between your visits</span>
+						<CaretRight aria-hidden="true" />
+					</button>
 
-				<aside className="mxp-dashboard-side-column">
-					<section className="mxp-portal-card mxp-quick-nav">
-						<header><h2>Quick navigation</h2></header>
-						<div>
-							{PRIMARY_NAVIGATION.filter((item) => item.id !== "dashboard" && item.id !== "agentix").map((item) => {
-								const Icon = item.icon
-								return <button type="button" key={item.id} onClick={() => onNavigate(item.id)}>{item.spiral ? <MaxionSpiralMark className="mxp-quick-icon" /> : Icon ? <Icon className="mxp-quick-icon" weight="duotone" /> : null}<span><strong>{item.label}</strong><small>{item.id === "projects" ? "Manage projects and members" : item.id === "discovery" ? "Run autonomous discovery work" : item.id === "plan" ? "Create and refine delivery plans" : item.id === "execute" ? "Run governed development workspaces" : "Work with MAX across the platform"}</small></span><CaretRight size={13} /></button>
-							})}
-						</div>
+					<section className="wh-hello">
+						<p className="wh-kicker">Enterprise workspace · {dateLabel}</p>
+						<h1>Good afternoon, Root Admin</h1>
 					</section>
-					<section className="mxp-portal-card mxp-connected-context">
-						<Plug size={18} weight="duotone" /><div><strong>6 systems connected</strong><small>Salesforce, Jira, SharePoint, SAP and more</small></div><button type="button" onClick={() => onNavigate("integrations")}>Manage</button>
+
+					<nav className="wh-actions" aria-label="Quick actions">
+						{quickActions.map((action, index) => (
+							<button type="button" key={action.label} className="wh-tile" style={{ "--wh-i": index } as CSSProperties} onClick={action.run}>
+								<span className="wh-tile-art"><ActionArt kind={action.art} /></span>
+								<span className="wh-tile-label">{action.label}</span>
+							</button>
+						))}
+					</nav>
+
+					<section className="wh-summary" aria-label="Workspace summary">
+						<dl>
+						<div><dt><NavGlyph name="projects" />Active projects</dt><dd><strong>{activeProjects.length}</strong><small>Across this workspace</small></dd></div>
+						<div><dt><NavGlyph name="discovery" />Active discoveries</dt><dd><strong>{runningDiscoveries}</strong><small>{waitingDiscoveries.length ? `${waitingDiscoveries.length === 1 ? "One needs" : `${waitingDiscoveries.length} need`} your input` : "None need your input"}</small></dd></div>
+						<div><dt><NavGlyph name="usage" />Workspace units</dt><dd><strong>{WORKSPACE_UNITS_PERCENT}%</strong><small>{100 - WORKSPACE_UNITS_PERCENT}% remains this cycle</small></dd></div>
+						</dl>
 					</section>
-				</aside>
+
+					<div className="wh-columns">
+						<section className="wh-column" aria-labelledby="wh-activity-title">
+							<header className="wh-column-head">
+								<h2 id="wh-activity-title">Workspace activity</h2>
+								{attentionCount ? <span className="wh-count">{attentionCount} waiting</span> : null}
+							</header>
+							<ul className="wh-list">
+								{visibleActivities.map((item) => (
+									<li key={`${item.module}-${item.title}`}>
+										<button type="button" className="wh-row" onClick={() => item.open ? item.open() : onNavigate(item.module)}>
+											<ActivityAvatar glyph={item.glyph} tone={item.tone} />
+											<span className="wh-row-text"><strong>{item.title}</strong><small>{item.detail}</small></span>
+											{item.time ? <time>{item.time}</time> : null}
+										</button>
+									</li>
+								))}
+							</ul>
+							<Button className="wh-more" aria-expanded={historyOpen} onClick={() => setHistoryOpen((open) => !open)}>{historyOpen ? "Show less" : `View all activity`}</Button>
+						</section>
+
+						<section className="wh-column" aria-labelledby="wh-projects-title">
+							<header className="wh-column-head"><h2 id="wh-projects-title">Pick up a project</h2></header>
+							<ul className="wh-list is-feature">
+								{activeProjects.slice(0, 3).map((project) => (
+									<li key={project.id}>
+										<button type="button" className="wh-feature" onClick={() => onNavigate("projects")}>
+											<span className="wh-feature-art"><ProjectArt seed={project.id} compact /></span>
+											<span className="wh-row-text">
+												<strong>{project.name}</strong>
+												<small>{project.description}</small>
+												<span className="wh-feature-meta">
+													<span className="wh-avatars">{project.members.slice(0, 3).map((member) => <i key={member.name} title={member.name}>{member.initials}</i>)}</span>
+													Updated {project.updated}
+												</span>
+											</span>
+										</button>
+									</li>
+								))}
+							</ul>
+							<Button className="wh-more" onClick={() => onNavigate("projects")}>View all projects</Button>
+						</section>
+					</div>
+
+					<footer className="wh-foot">
+						<span>MAX reads workspace context through your connected systems.</span>
+						<Button variant="ghost" size="sm" onClick={() => onNavigate("integrations")}><NavGlyph name="integrations" />Manage connected systems<CaretRight aria-hidden="true" /></Button>
+					</footer>
+				</div>
 			</div>
 		</div>
 	)
@@ -283,14 +356,23 @@ export function ProjectsModule({
 	projects,
 	onProjectsChange,
 	onNavigate,
+	onStartDiscovery,
+	onOpenDiscoveryRecord,
+	onCommand,
+	createSignal = 0,
 }: {
 	projects: PortalProject[]
 	onProjectsChange: (projects: PortalProject[]) => void
 	onNavigate: Navigate
+	onStartDiscovery: () => void
+	onOpenDiscoveryRecord: OpenDiscoveryRecord
+	onCommand?: () => void
+	// Bumped by the Dashboard's "New project" action: open the create dialog on arrival.
+	createSignal?: number
 }) {
 	const [query, setQuery] = useState("")
 	const [sort, setSort] = useState<"updated" | "name">("updated")
-	const [view, setView] = useState<"grid" | "list">("grid")
+	const [view, setView] = useState<"grid" | "list">("list")
 	const [showArchived, setShowArchived] = useState(false)
 	const [createOpen, setCreateOpen] = useState(false)
 	const [newName, setNewName] = useState("")
@@ -369,70 +451,299 @@ export function ProjectsModule({
 	}
 	// A half-typed invite never survives leaving the panel or the tab it belongs to.
 	useEffect(() => { setInviteOpen(false); setInviteName("") }, [selected?.id, detailsTab])
+	// A project's linked Discovery opens that saved record where it needs the viewer; a project
+	// without one starts a fresh Discovery. The record is read again on click, so it is current.
+	const linkedDiscoveryTitle = selected?.discovery
+	const hasLinkedDiscovery = useMemo(() => Boolean(linkedDiscoveryTitle && listDiscoveryJumpRecords().some((record) => record.title === linkedDiscoveryTitle)), [linkedDiscoveryTitle])
+	const openProjectDiscovery = () => {
+		const record = linkedDiscoveryTitle ? listDiscoveryJumpRecords().find((item) => item.title === linkedDiscoveryTitle) : undefined
+		if (record) onOpenDiscoveryRecord(record.id, discoveryJump(record))
+		else onStartDiscovery()
+	}
 
+	useEffect(() => { if (createSignal) setCreateOpen(true) }, [createSignal])
+	const reduced = useReducedMotion()
+	const rise = useRiseIn()
+	const activeCount = projects.filter((project) => project.status === "active").length
+	const archivedCount = projects.filter((project) => project.status === "archived").length
+	const openCreate = (template?: ProjectTemplate) => {
+		if (template) { setNewName(template.name); setNewDescription(template.description) }
+		setCreateOpen(true)
+	}
+
+	/*
+	 * Projects is the ElevenLabs Studio page (mobbin ab7a5853) with the Productions
+	 * table (mobbin 675595a6): the title and its one filled action, templates to
+	 * start from, then recent work behind a full-width search, filter chips and a
+	 * grid or list switch. Each project wears its own colour and logo.
+	 */
 	return (
-		<div className="mxp-portal-page mxp-projects-page" ref={rootRef}>
-			<div className="mxp-breadcrumb"><button type="button" onClick={() => onNavigate("dashboard")}>Home</button><CaretRight size={12} /><span>Projects</span></div>
-			<PortalPageHeader
-				eyebrow="Workspace"
-				title="Projects"
-				description={`${projects.filter((project) => project.status === "active").length} active projects · ${projects.filter((project) => project.status === "archived").length} archived`}
-				actions={<button type="button" className="mxp-primary" onClick={() => setCreateOpen(true)}><Plus size={16} />Create Project</button>}
-			/>
-			<div className="mxp-project-toolbar">
-				<label><MagnifyingGlass size={16} /><span className="sr-only">Search projects</span><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search projects by name or description" /></label>
-				<label className="mxp-project-sort"><ArrowsDownUp size={15} /><span className="sr-only">Sort projects</span><select value={sort} onChange={(event) => setSort(event.target.value as "updated" | "name")}><option value="updated">Recently updated</option><option value="name">Name</option></select></label>
-				<label className="mxp-archive-toggle"><input type="checkbox" checked={showArchived} onChange={(event) => setShowArchived(event.target.checked)} />Show archived</label>
-				<div className="mxp-view-switcher" role="group" aria-label="Project view"><button type="button" aria-pressed={view === "grid"} onClick={() => setView("grid")}><GridFour size={16} /><span className="sr-only">Grid view</span></button><button type="button" aria-pressed={view === "list"} onClick={() => setView("list")}><List size={16} /><span className="sr-only">List view</span></button></div>
-			</div>
-			<div aria-live="polite" className="sr-only">{announcement}</div>
-			{visible.length ? (
-				<section className={`mxp-project-collection is-${view}`} aria-label="Projects">
-					{visible.map((project) => (
-						<article key={project.id} className={project.status === "archived" ? "is-archived" : ""}>
-							<button type="button" className="mxp-project-open" onClick={() => { setSelected(project); setDetailsTab("overview") }}>
-								<span className="mxp-project-card-icon"><Stack size={19} weight="duotone" /></span>
-								<span className="mxp-project-copy"><span><strong>{project.name}</strong><i className={`mxp-project-status is-${project.status}`}>{project.status}</i></span><p>{project.description}</p><small>{project.role} · Updated {project.updated}</small></span>
-								<span className="mxp-avatar-stack">{project.members.slice(0, 3).map((member) => <i key={member.name} title={member.name}>{member.initials}</i>)}</span>
+		<div className="mxp-projects-page pj-root ds-scope" ref={rootRef}>
+			<header className="ds-topbar pj-topbar">
+				<div className="ds-topbar-start"><span className="ds-topbar-title">Projects</span></div>
+				<div className="ds-topbar-end">
+					{onCommand ? <Button size="sm" className="wh-jump" onClick={onCommand}><MagnifyingGlass aria-hidden="true" />Jump to<kbd>⌘K</kbd></Button> : null}
+				</div>
+			</header>
+			<div className="pj-scroll">
+				<div className="pj-page">
+					<header className="pj-head">
+						<div>
+							<h1 className="ds-page-title">Projects</h1>
+							<p className="ds-page-desc">{`${activeCount} active projects · ${archivedCount} archived`}</p>
+						</div>
+						<div className="ds-page-actions">
+							<Button variant="primary" onClick={() => openCreate()}><Plus aria-hidden="true" />Create Project</Button>
+						</div>
+					</header>
+
+					<section className="pj-section" aria-labelledby="pj-start-title">
+						<h2 id="pj-start-title" className="pj-section-title">Start from a template</h2>
+						<div className="pj-templates">
+							{PROJECT_TEMPLATES.map((template) => (
+								<button type="button" key={template.name} className="pj-template" onClick={() => openCreate(template)}>
+									<span className="pj-template-art"><ProjectArt seed={template.name} /></span>
+									<span className="pj-template-text"><strong>{template.name}</strong><small>{template.detail}</small></span>
+								</button>
+							))}
+						</div>
+					</section>
+
+					<section className="pj-section" aria-labelledby="pj-recent-title">
+						<h2 id="pj-recent-title" className="pj-section-title">Recently updated</h2>
+						<div className="pj-toolbar">
+							<SearchInput label="Search projects" className="pj-search" value={query} onChange={(event) => setQuery(event.target.value)} onClear={() => setQuery("")} placeholder="Search projects by name or description" />
+							<div className="pj-views" role="group" aria-label="Project view">
+								<Button icon aria-pressed={view === "grid"} onClick={() => setView("grid")}><GridFour aria-hidden="true" /><span className="sr-only">Grid view</span></Button>
+								<Button icon aria-pressed={view === "list"} onClick={() => setView("list")}><List aria-hidden="true" /><span className="sr-only">List view</span></Button>
+							</div>
+						</div>
+						<div className="pj-filters">
+							<label className="pj-chip pj-sort">
+								<ArrowsDownUp aria-hidden="true" />
+								<span className="sr-only">Sort projects</span>
+								<select value={sort} onChange={(event) => setSort(event.target.value as "updated" | "name")}>
+									<option value="updated">Recently updated</option>
+									<option value="name">Name</option>
+								</select>
+							</label>
+							<button type="button" className="pj-chip" aria-pressed={showArchived} onClick={() => setShowArchived((value) => !value)}>
+								{showArchived ? <Check aria-hidden="true" /> : <Plus aria-hidden="true" />}Archived<span className="pj-chip-count">{archivedCount}</span>
 							</button>
-							<footer><span>{project.plan ? <><FlowArrow size={13} />Plan linked</> : <><Info size={13} />No plan</>}</span><span>{project.discovery ? <><Compass size={13} />Discovery linked</> : <><Info size={13} />No discovery</>}</span><button type="button" aria-label={`${project.status === "active" ? "Archive" : "Restore"} ${project.name}`} onClick={() => toggleArchive(project)}><Archive size={14} />{project.status === "active" ? "Archive" : "Restore"}</button></footer>
-						</article>
-					))}
-				</section>
-			) : (
-				<section className="mxp-projects-empty"><Stack size={28} weight="duotone" /><h2>No matching projects</h2><p>Clear the search or include archived workspaces.</p><button type="button" onClick={() => { setQuery(""); setShowArchived(true) }}>Show all projects</button></section>
-			)}
+						</div>
+						<div aria-live="polite" className="sr-only">{announcement}</div>
+						{visible.length ? (
+							<section className={`mxp-project-collection pj-collection is-${view}`} aria-label="Projects">
+								{view === "list" ? <div className="pj-table-head" aria-hidden="true"><span>Name</span><span>Linked work</span><span>Team</span><span>Updated</span><span /></div> : null}
+								<AnimatePresence initial={false} mode="popLayout">
+									{visible.map((project) => (
+										<motion.article key={project.id} className={`pj-item${project.status === "archived" ? " is-archived" : ""}`} {...rise}>
+											<span className="pj-item-art"><ProjectArt seed={project.id} compact={view === "list"} /></span>
+											<span className="pj-item-main">
+												<button type="button" className="mxp-project-open pj-open" onClick={() => { setSelected(project); setDetailsTab("overview") }}>
+													<span className="pj-name"><strong>{project.name}</strong><i className={`pj-status is-${project.status}`}>{project.status}</i></span>
+												</button>
+												<small className="pj-desc">{project.description}</small>
+											</span>
+											<span className="pj-links">
+												<span className={`pj-link${project.plan ? " is-on" : ""}`}><NavGlyph name="plan" />{project.plan ? "Plan" : "No plan"}</span>
+												<span className={`pj-link${project.discovery ? " is-on" : ""}`}><NavGlyph name="discovery" />{project.discovery ? "Discovery" : "No discovery"}</span>
+											</span>
+											<span className="pj-team wh-avatars">{project.members.slice(0, 3).map((member) => <i key={member.name} title={member.name}>{member.initials}</i>)}</span>
+											<span className="pj-updated">{project.role} · {project.updated}</span>
+											<Button variant="ghost" size="sm" className="pj-archive" aria-label={`${project.status === "active" ? "Archive" : "Restore"} ${project.name}`} onClick={() => toggleArchive(project)}><Archive aria-hidden="true" /><span>{project.status === "active" ? "Archive" : "Restore"}</span></Button>
+										</motion.article>
+									))}
+								</AnimatePresence>
+							</section>
+						) : (
+							<EmptyState
+								className="pj-empty"
+								icon={<NavGlyph name="projects" />}
+								title="No matching projects"
+								action={<Button onClick={() => { setQuery(""); setShowArchived(true) }}>Show all projects</Button>}>
+								<p>Clear the search or include archived projects.</p>
+							</EmptyState>
+						)}
+					</section>
+				</div>
+			</div>
 
 			{createOpen ? (
-				<div className="mxp-dialog-layer" onMouseDown={(event) => { if (event.currentTarget === event.target) setCreateOpen(false) }}>
-					<section role="dialog" aria-modal="true" aria-labelledby="create-project-title" className="mxp-portal-dialog" ref={dialogRef} tabIndex={-1}>
-						<header><div><span className="mxp-dialog-icon"><FolderPlus size={18} /></span><div><small>Workspace</small><h2 id="create-project-title">Create new project</h2></div></div><button type="button" aria-label="Close create project dialog" onClick={() => setCreateOpen(false)}><X size={17} /></button></header>
-						<form onSubmit={createProject}><label>Project name<span>{newName.length}/80</span><input autoFocus maxLength={80} required value={newName} onChange={(event) => setNewName(event.target.value)} placeholder="e.g., Finance operating model" /></label><label>Description<textarea value={newDescription} onChange={(event) => setNewDescription(event.target.value)} rows={3} placeholder="Describe the scope, stakeholders, or desired outcome." /></label><div><button type="button" onClick={() => setCreateOpen(false)}>Cancel</button><button type="submit" className="mxp-primary" disabled={!newName.trim()}>Create Project</button></div></form>
-					</section>
+				<div className="mxp-dialog-layer pj-dialog-layer" onMouseDown={(event) => { if (event.currentTarget === event.target) setCreateOpen(false) }}>
+					<motion.section role="dialog" aria-modal="true" aria-labelledby="create-project-title" aria-describedby="create-project-desc" className="pj-dialog" ref={dialogRef} tabIndex={-1} initial={reduced ? false : { y: 8, scale: 0.98 }} animate={{ y: 0, scale: 1 }} transition={{ type: "spring", stiffness: 520, damping: 38 }}>
+						<header className="pj-dialog-head">
+							<span className="pj-dialog-icon" aria-hidden="true"><NavGlyph name="projects" /></span>
+							<div>
+								<h2 id="create-project-title">Create new project</h2>
+								<p id="create-project-desc">One workspace for its Discovery, Plan and delivery.</p>
+							</div>
+							<button type="button" className="pj-dialog-close" aria-label="Close create project dialog" onClick={() => setCreateOpen(false)}><X aria-hidden="true" /></button>
+						</header>
+						<form className="pj-form" onSubmit={createProject}>
+							<label className="pj-field">
+								<span className="pj-field-row"><span>Project name</span><span className="pj-count">{newName.length}/80</span></span>
+								<input className="ds-input" data-dialog-autofocus maxLength={80} required value={newName} onChange={(event) => setNewName(event.target.value)} placeholder="e.g., Finance operating model" />
+							</label>
+							<label className="pj-field">Description<textarea className="ds-textarea" value={newDescription} onChange={(event) => setNewDescription(event.target.value)} rows={3} placeholder="Describe the scope, stakeholders, or desired outcome." /></label>
+							<footer className="pj-dialog-foot">
+								<Button onClick={() => setCreateOpen(false)}>Cancel</Button>
+								<Button type="submit" variant="primary" disabled={!newName.trim()}>Create Project</Button>
+							</footer>
+						</form>
+					</motion.section>
 				</div>
 			) : null}
 
-			{selected ? (
-				<><button type="button" className="mxp-panel-scrim" aria-label="Close project details" onClick={() => setSelected(null)} /><aside className="mxp-project-panel" aria-label={`${selected.name} project details`} ref={panelRef} tabIndex={-1}><header><div><span className="mxp-project-card-icon"><Stack size={19} /></span><div><small>Project</small><h2>{selected.name}</h2></div></div><button type="button" aria-label="Close project details" onClick={() => setSelected(null)}><X size={17} /></button></header><nav aria-label="Project details sections">{(["overview", "team", "activity", "settings"] as const).map((tab) => <button key={tab} type="button" className={detailsTab === tab ? "is-active" : ""} onClick={() => setDetailsTab(tab)}>{tab}</button>)}</nav><div className="mxp-project-panel-body">{detailsTab === "overview" ? <><p>{selected.description}</p><dl><div><dt>Status</dt><dd>{selected.status}</dd></div><div><dt>Your role</dt><dd>{selected.role}</dd></div><div><dt>Plan</dt><dd>{selected.plan || "Not created"}</dd></div><div><dt>Discovery</dt><dd>{selected.discovery || "Not started"}</dd></div></dl><div className="mxp-project-panel-actions"><button type="button" onClick={() => onNavigate("discovery")}><Compass size={15} />{selected.discovery ? "Open Discovery" : "Start Discovery"}</button><button type="button" onClick={() => onNavigate("plan")}><FlowArrow size={15} />{selected.plan ? "Open Plan" : "Create Plan"}</button></div></> : detailsTab === "team" ? <div className="mxp-team-list">{selected.members.map((member, index) => <div key={member.name}><span>{member.initials}</span><strong>{member.name}</strong><small>{index === 0 ? "Owner" : "Member"}</small></div>)}{inviteOpen ? <form className="mxp-team-invite" onSubmit={(event) => { event.preventDefault(); addMember() }}><label><span className="sr-only">New member name</span><input autoFocus maxLength={60} value={inviteName} onChange={(event) => setInviteName(event.target.value)} onKeyDown={(event) => { if (event.key === "Enter") { event.preventDefault(); addMember() } }} placeholder="Full name" /></label><button type="button" onClick={() => { setInviteOpen(false); setInviteName("") }}>Cancel</button><button type="submit" className="mxp-primary" disabled={!inviteName.trim()}>Add</button></form> : <button type="button" onClick={() => setInviteOpen(true)}><Users size={15} />Add member</button>}</div> : detailsTab === "activity" ? <div className="mxp-project-activity"><p><CheckCircle size={15} />Plan evidence snapshot updated<time>12 minutes ago</time></p><p><Compass size={15} />Discovery interview completed<time>Yesterday</time></p><p><Users size={15} />Sarah Liu joined the project<time>4 days ago</time></p></div> : <div className="mxp-project-settings"><label>Project name<input value={selected.name} readOnly /></label><button type="button" onClick={() => toggleArchive(selected)}><Archive size={15} />{selected.status === "active" ? "Archive project" : "Restore project"}</button></div>}</div></aside></>
-			) : null}
+			<AnimatePresence>
+				{selected ? (
+					<motion.div key="panel" className="pj-sheet-layer" initial={reduced ? false : { opacity: 1 }} exit={reduced ? undefined : { opacity: 1 }}>
+						<motion.button type="button" className="mxp-panel-scrim pj-scrim" aria-label="Close project details" tabIndex={-1} onClick={() => setSelected(null)} initial={reduced ? false : { opacity: 0 }} animate={{ opacity: 1 }} exit={reduced ? undefined : { opacity: 0 }} transition={{ duration: 0.2 }} />
+						<motion.aside className="mxp-project-panel pj-sheet" aria-label={`${selected.name} project details`} ref={panelRef} tabIndex={-1} initial={reduced ? false : { x: 32 }} animate={{ x: 0 }} exit={reduced ? undefined : { x: 32, opacity: 0 }} transition={{ type: "spring", stiffness: 420, damping: 40 }}>
+							<header className="pj-sheet-head">
+								<span className="pj-sheet-art"><ProjectArt seed={selected.id} compact /></span>
+								<div>
+									<p className="pj-kicker">Project</p>
+									<h2>{selected.name}</h2>
+								</div>
+								<button type="button" className="pj-dialog-close" aria-label="Close project details" onClick={() => setSelected(null)}><X aria-hidden="true" /></button>
+							</header>
+							<ul className="pj-pills" aria-label="Project summary">
+								<li className={`pj-status is-${selected.status}`}>{selected.status}</li>
+								<li className="pj-pill">{selected.role}</li>
+								<li className="pj-pill">Updated {selected.updated}</li>
+							</ul>
+							<nav className="pj-tabs" aria-label="Project details sections">
+								{(["overview", "team", "activity", "settings"] as const).map((tab) => (
+									<button key={tab} type="button" className={detailsTab === tab ? "is-active" : ""} aria-pressed={detailsTab === tab} onClick={() => setDetailsTab(tab)}>
+										{tab}
+										{detailsTab === tab ? <motion.span className="pj-tab-underline" layoutId="pj-tab-underline" transition={reduced ? { duration: 0 } : { type: "spring", stiffness: 520, damping: 40 }} /> : null}
+									</button>
+								))}
+							</nav>
+							<div className="mxp-project-panel-body pj-sheet-body">
+								{detailsTab === "overview" ? (
+									<>
+										<p className="pj-sheet-desc">{selected.description}</p>
+										<dl className="pj-rows">
+											<div><dt>Status</dt><dd>{selected.status}</dd></div>
+											<div><dt>Your role</dt><dd>{selected.role}</dd></div>
+											<div><dt>Plan</dt><dd>{selected.plan || "Not created"}</dd></div>
+											<div><dt>Discovery</dt><dd>{selected.discovery || "Not started"}</dd></div>
+										</dl>
+										<div className="pj-next">
+											<button type="button" className="pj-next-card" aria-label={hasLinkedDiscovery ? "Open Discovery" : "Start Discovery"} aria-describedby="pj-next-discovery" onClick={openProjectDiscovery}>
+												<ActivityAvatar glyph="discovery" tone={hasLinkedDiscovery ? "success" : "info"} />
+												<span><strong>{hasLinkedDiscovery ? "Open Discovery" : "Start Discovery"}</strong><small id="pj-next-discovery">{hasLinkedDiscovery ? selected.discovery : "Let MAX research and interview owners"}</small></span>
+											</button>
+											<button type="button" className="pj-next-card" aria-label={selected.plan ? "Open Plan" : "Create Plan"} aria-describedby="pj-next-plan" onClick={() => onNavigate("plan")}>
+												<ActivityAvatar glyph="plan" tone={selected.plan ? "success" : "info"} />
+												<span><strong>{selected.plan ? "Open Plan" : "Create Plan"}</strong><small id="pj-next-plan">{selected.plan || "Turn the Discovery package into delivery"}</small></span>
+											</button>
+										</div>
+									</>
+								) : detailsTab === "team" ? (
+									<div className="pj-team-list">
+										<ul>
+											{selected.members.map((member, index) => (
+												<li key={member.name}>
+													<span className="pj-person">{member.initials}</span>
+													<strong>{member.name}</strong>
+													{index === 0 ? <span className="pj-owner">Owner</span> : <small>Member</small>}
+												</li>
+											))}
+										</ul>
+										{inviteOpen ? (
+											<form className="pj-invite" onSubmit={(event) => { event.preventDefault(); addMember() }}>
+												<label><span className="sr-only">New member name</span><input className="ds-input" autoFocus maxLength={60} value={inviteName} onChange={(event) => setInviteName(event.target.value)} onKeyDown={(event) => { if (event.key === "Enter") { event.preventDefault(); addMember() } }} placeholder="Full name" /></label>
+												<Button onClick={() => { setInviteOpen(false); setInviteName("") }}>Cancel</Button>
+												<Button type="submit" variant="primary" disabled={!inviteName.trim()}>Add</Button>
+											</form>
+										) : <Button className="pj-add" onClick={() => setInviteOpen(true)}><Users aria-hidden="true" />Add member</Button>}
+									</div>
+								) : detailsTab === "activity" ? (
+									<ol className="pj-timeline">
+										<li><ActivityAvatar glyph="plan" tone="success" /><span><strong>Plan evidence snapshot updated</strong><small>12 minutes ago</small></span></li>
+										<li><ActivityAvatar glyph="discovery" tone="success" /><span><strong>Discovery interview completed</strong><small>Yesterday</small></span></li>
+										<li><ActivityAvatar glyph="projects" tone="info" /><span><strong>Sarah Liu joined the project</strong><small>4 days ago</small></span></li>
+									</ol>
+								) : (
+									<div className="pj-settings">
+										<label className="pj-field">Project name<input className="ds-input" value={selected.name} readOnly /></label>
+										<Button onClick={() => toggleArchive(selected)}><Archive aria-hidden="true" />{selected.status === "active" ? "Archive project" : "Restore project"}</Button>
+									</div>
+								)}
+							</div>
+						</motion.aside>
+					</motion.div>
+				) : null}
+			</AnimatePresence>
 		</div>
 	)
 }
 
-const PLAN_LIBRARY = [
+type ProjectTemplate = { name: string; description: string; detail: string }
+// Starting points for a new project; picking one fills the create dialog.
+const PROJECT_TEMPLATES: ProjectTemplate[] = [
+	{ name: "Finance transformation", description: "Modernize close, controls and reporting across finance systems.", detail: "ERP, controls and reporting" },
+	{ name: "Acquisition integration", description: "Diligence, day-one readiness and the 100-day value plan for an acquisition.", detail: "Diligence to the 100-day plan" },
+	{ name: "Customer data foundation", description: "Unify account, support and adoption data into one owned customer model.", detail: "One owned customer model" },
+	{ name: "Vendor risk program", description: "Tier, onboard and monitor third parties with evidence-backed decisions.", detail: "Tiering, onboarding and monitoring" },
+]
+
+type PlanLibraryRow = { id: string; name: string; project: string; status: "active" | "generated" | "completed"; detail: string; updated: string }
+
+const PLAN_LIBRARY: readonly PlanLibraryRow[] = [
 	{ id: "erp", name: "ERP modernization delivery plan", project: "ERP modernization", status: "active", detail: "5 flows · 17 build packages", updated: "12 minutes ago" },
 	{ id: "northbridge", name: "NorthBridge 100-day plan", project: "NorthBridge acquisition", status: "generated", detail: "Investment committee package ready", updated: "Yesterday" },
 	{ id: "customer", name: "Customer data foundation", project: "Customer 360", status: "active", detail: "11 outcomes · 38 delivery items", updated: "4 days ago" },
 	{ id: "pricing", name: "Pricing transformation roadmap", project: "Pricing transformation", status: "completed", detail: "Fully delivered", updated: "Jun 18" },
-] as const
+]
 
-export function PlanLibraryModule({ projects, onOpenPlan, onStartPlan, onNavigate }: { projects: PortalProject[]; onOpenPlan: () => void; onStartPlan: () => void; onNavigate: Navigate }) {
+// The plan a Discovery handoff feeds. The Discovery registry names the record holding the
+// packet and that record's project names its plan, which moves to the top as new. A packet
+// no project claims becomes a new plan of its own rather than borrowing another's row.
+function receivedPlanRow(packet: HandoffPacket, projects: PortalProject[]): { row: PlanLibraryRow; claimed: boolean } {
+	const record = listDiscoveryJumpRecords().find((item) => "handoffId" in item && item.handoffId === packet.id)
+	const project = record ? projects.find((item) => item.discovery === record.title) : undefined
+	const plan = project ? PLAN_LIBRARY.find((item) => item.name === project.plan) : undefined
+	const row: PlanLibraryRow = {
+		id: plan?.id ?? `packet-${packet.id}`,
+		name: plan?.name ?? (record ? `${record.title} plan` : `Plan from ${packet.id}`),
+		project: plan?.project ?? project?.name ?? record?.title ?? "Discovery handoff",
+		status: plan?.status ?? "generated",
+		detail: `From Discovery packet ${packet.id}`,
+		updated: sinceLabel(packet.createdAt),
+	}
+	return { row, claimed: Boolean(record) }
+}
+
+export function PlanLibraryModule({ projects, packet = null, packetLanded = false, onOpenPlan, onOpenPacketPlan, onStartPlan, onNavigate }: { projects: PortalProject[]; packet?: HandoffPacket | null; packetLanded?: boolean; onOpenPlan: () => void; onOpenPacketPlan?: () => void; onStartPlan: () => void; onNavigate: Navigate }) {
 	const [tab, setTab] = useState<"all" | "active" | "generated" | "completed">("all")
 	const [createOpen, setCreateOpen] = useState(false)
 	const [projectId, setProjectId] = useState(projects.find((project) => project.status === "active")?.id ?? "")
 	const [objective, setObjective] = useState("")
 	const [source, setSource] = useState<"discovery" | "documents" | "integrations" | "project" | "manual">("discovery")
-	const filtered = PLAN_LIBRARY.filter((plan) => tab === "all" || plan.status === tab)
+	const rise = useRiseIn()
+	// Discovery writes the packet onto its record a beat after handing it over, so a packet no
+	// record claims yet is looked up again briefly before it stands as a plan of its own.
+	const [lookup, setLookup] = useState(0)
+	const resolved = useMemo(() => packet ? receivedPlanRow(packet, projects) : null, [packet, projects, lookup])
+	const received = resolved?.row ?? null
+	const unclaimed = resolved !== null && !resolved.claimed
+	useEffect(() => {
+		if (!unclaimed) return
+		let tries = 0
+		const timer = window.setInterval(() => {
+			tries += 1
+			setLookup((value) => value + 1)
+			if (tries >= 8) window.clearInterval(timer)
+		}, 250)
+		return () => window.clearInterval(timer)
+	}, [unclaimed, packet?.id])
+	const plans = received ? [received, ...PLAN_LIBRARY.filter((plan) => plan.id !== received.id)] : PLAN_LIBRARY
+	const filtered = plans.filter((plan) => tab === "all" || plan.status === tab)
+	const openPacketPlan = onOpenPacketPlan ?? onOpenPlan
 	const startPlan = (event: FormEvent<HTMLFormElement>) => {
 		event.preventDefault()
 		if (!projectId || (source === "manual" && !objective.trim())) return
@@ -449,9 +760,21 @@ export function PlanLibraryModule({ projects, onOpenPlan, onStartPlan, onNavigat
 	return (
 		<div className="mxp-portal-page mxp-plan-library">
 			<PortalPageHeader eyebrow="Plan" title="From evidence to implementation-ready" description="Give MAX a goal or verified context. It decomposes the work, draws every architecture flow, challenges the guidance, and returns only when your decision is needed." actions={<><button type="button" onClick={() => onNavigate("projects")}><FolderPlus size={16} />Create Project</button><button type="button" className="mxp-primary" onClick={() => setCreateOpen(true)}><Plus size={16} />Create Plan</button></>} />
-			<section className="mxp-portal-stats" aria-label="Plan summary"><PortalStat icon={<FlowArrow size={18} />} label="Total plans" value="4" hint="Across all projects" /><PortalStat icon={<Activity size={18} />} label="Autonomous runs" value="2" hint="MAX is working" /><PortalStat icon={<ShieldCheck size={18} />} label="Needs your input" value="1" hint="One exact decision" /><PortalStat icon={<CheckCircle size={18} />} label="Execute-ready" value="2" hint="L3 and L4 complete" /></section>
+			<section className="mxp-portal-stats" aria-label="Plan summary"><PortalStat icon={<FlowArrow size={18} />} label="Total plans" value={String(plans.length)} hint="Across all projects" /><PortalStat icon={<Activity size={18} />} label="Autonomous runs" value="2" hint="MAX is working" /><PortalStat icon={<ShieldCheck size={18} />} label="Needs your input" value="1" hint="One exact decision" /><PortalStat icon={<CheckCircle size={18} />} label="Execute-ready" value="2" hint="L3 and L4 complete" /></section>
+			{packet ? (
+				<section className="mxp-plan-received" aria-label="Discovery handoff">
+					<CheckCircle size={16} weight="fill" />
+					<span><strong>Received from Discovery · {packet.id}</strong><small>{packet.note ? `“${packet.note}” · ` : ""}Frozen decision package · {sinceLabel(packet.createdAt)}</small></span>
+					<button type="button" onClick={openPacketPlan}>{packetLanded ? "Open plan" : "Plan from this package"}<ArrowRight size={14} /></button>
+				</section>
+			) : null}
 			<section className="mxp-plan-resume"><span><MaxionSpiralMark className="mxp-plan-resume-spiral" /><div><small>MAX finished this run</small><strong>ERP modernization delivery plan</strong><p>Five implementation flows are decomposed through L2–L4 and critic-checked. The implementation boundary is ready for your approval.</p></div></span><button type="button" onClick={onOpenPlan}>Resume plan<ArrowRight size={14} /></button></section>
-			<section className="mxp-portal-card mxp-plan-list-card"><header><div><h2>Plans</h2><p>Current plans across your projects</p></div></header><nav role="tablist" aria-label="Plan status">{(["all", "active", "generated", "completed"] as const).map((value) => <button key={value} type="button" role="tab" aria-selected={tab === value} className={tab === value ? "is-active" : ""} onClick={() => setTab(value)}>{value[0].toUpperCase() + value.slice(1)} <span>{value === "all" ? PLAN_LIBRARY.length : PLAN_LIBRARY.filter((plan) => plan.status === value).length}</span></button>)}</nav><div>{filtered.map((plan) => <button type="button" key={plan.id} onClick={onOpenPlan}><span className="mxp-plan-item-icon"><FlowArrow size={17} weight="duotone" /></span><span><strong>{plan.name}</strong><small>{plan.project} · {plan.detail}</small></span>{plan.status !== "active" ? <i className={`is-${plan.status}`}>{plan.status}</i> : null}<time>{plan.updated}</time><CaretRight size={14} /></button>)}</div></section>
+			<section className="mxp-portal-card mxp-plan-list-card"><header><div><h2>Plans</h2><p>Current plans across your projects</p></div></header><nav role="tablist" aria-label="Plan status">{(["all", "active", "generated", "completed"] as const).map((value) => <button key={value} type="button" role="tab" aria-selected={tab === value} className={tab === value ? "is-active" : ""} onClick={() => setTab(value)}>{value[0].toUpperCase() + value.slice(1)} <span>{value === "all" ? plans.length : plans.filter((plan) => plan.status === value).length}</span></button>)}</nav><div>{filtered.map((plan) => {
+				const content = <><span className="mxp-plan-item-icon"><FlowArrow size={17} weight="duotone" /></span><span><strong>{plan.name}</strong><small>{plan.project} · {plan.detail}</small></span>{plan === received ? <i className="is-new">New</i> : plan.status !== "active" ? <i className={`is-${plan.status}`}>{plan.status}</i> : null}<time>{plan.updated}</time><CaretRight size={14} /></>
+				return plan === received
+					? <motion.button type="button" key={`${plan.id}-${packet?.id}`} onClick={openPacketPlan} {...rise}>{content}</motion.button>
+					: <button type="button" key={plan.id} onClick={onOpenPlan}>{content}</button>
+			})}</div></section>
 			{createOpen ? (
 				<div className="mxp-dialog-layer" onMouseDown={(event) => { if (event.currentTarget === event.target) setCreateOpen(false) }}>
 					<section role="dialog" aria-modal="true" aria-labelledby="create-plan-title" className="mxp-portal-dialog mxp-plan-create-dialog">
@@ -667,8 +990,32 @@ export function ExecuteHubModule({
 	)
 }
 
-function StatusSummary({ approved }: { approved: boolean }) {
-	return <span className={`mxp-status-summary${approved ? " is-clear" : ""}`}><i />{approved ? "No pending approvals" : "1 pending approval"}</span>
+// One row per Agentix case waiting on an approval, named for its engagement and case. Inspect
+// opens the engagement that owns the case; Review decision opens the case itself.
+function ApprovalInbox({ approvals, onOpenAgentix }: { approvals: AgentixPendingCase[]; onOpenAgentix: (intent: AgentixIntent) => void }) {
+	return (
+		<section className="ds-scope mxp-approvals" aria-label="Pending approvals">
+			{approvals.length ? (
+				<Card title="Pending approvals" count={approvals.length} description="Agentix stopped before each effect. Each opens with its exact change, owner and evidence.">
+					<div className="ds-list">
+						{approvals.map((item) => (
+							<article key={item.id} className="ds-list-row mxp-approval-row" aria-label={`${item.title} · ${item.reference}`}>
+								<span className="ds-list-row-mark"><Mark seed={item.agentId} size="sm" /></span>
+								<span className="ds-list-row-main"><strong>{item.title}</strong><small>{item.engagement} · {item.reference}</small></span>
+								<span className="ds-list-row-action mxp-approval-actions">
+									<Button variant="ghost" size="sm" aria-label={`Inspect ${item.engagement}`} onClick={() => onOpenAgentix({ type: "engagement", id: item.agentId })}>Inspect</Button>
+									<Button variant="primary" size="sm" aria-label={`${agentixCaseAction(item)} · ${item.reference}`} onClick={() => onOpenAgentix(agentixCaseIntent(item))}>{agentixCaseAction(item)}<ArrowRight aria-hidden="true" /></Button>
+								</span>
+							</article>
+						))}
+					</div>
+				</Card>
+			) : (
+				// Nothing waiting is one quiet line, not an empty bordered card.
+				<EmptyState className="mxp-approvals-empty" icon={<CheckCircle weight="fill" />} title="All caught up">No approvals are waiting for you.</EmptyState>
+			)}
+		</section>
+	)
 }
 
 type IntegrationRecord = {
@@ -748,20 +1095,20 @@ const HELP_TOPICS = [
 export function AccountUtilityModule({
 	module,
 	onNavigate,
-	approvalOpen = false,
-	onOpenApproval,
+	approvals = [],
+	onOpenAgentix,
 }: {
 	module: "settings" | "approvals" | "usage" | "help"
 	onNavigate: Navigate
-	// The one open approval is Agentix's July close decision. This surface reports it and
-	// routes to it; it never keeps a second copy that can disagree with the agent.
-	approvalOpen?: boolean
-	onOpenApproval?: () => void
+	// The Agentix cases waiting on an approval, as Agentix reports them. This surface lists
+	// and routes to them; it never keeps a second copy that can disagree with the agent.
+	approvals?: AgentixPendingCase[]
+	onOpenAgentix?: (intent: AgentixIntent) => void
 }) {
 	const [helpQuery, setHelpQuery] = useState("")
 	const [openTopic, setOpenTopic] = useState<string | null>(null)
 	const helpMatches = HELP_TOPICS.filter((topic) => `${topic.title} ${topic.answer}`.toLowerCase().includes(helpQuery.trim().toLowerCase()))
 	const config = module === "settings" ? { icon: GearSix, eyebrow: "Account", title: "Settings", description: "Manage workspace identity, governance, notifications, and security." } : module === "approvals" ? { icon: ShieldCheck, eyebrow: "Governance", title: "My approvals", description: "Material decisions waiting for your explicit authority." } : module === "usage" ? { icon: ChartBar, eyebrow: "Account", title: "Usage", description: "Review workspace units and activity for the current billing cycle." } : { icon: Question, eyebrow: "Support", title: "Help", description: "Find guidance for MAXION workflows and platform administration." }
 	const Icon = config.icon
-	return <div className="mxp-portal-page mxp-utility-page"><PortalPageHeader eyebrow={config.eyebrow} title={config.title} description={config.description} />{module === "settings" ? <section className="mxp-portal-card mxp-settings-card"><header><span><Icon size={18} /></span><div><h2>Workspace defaults</h2><p>Controls apply across MAXION modules.</p></div></header><label><span><strong>Agent notifications</strong><small>Notify owners when an autonomous run needs intervention.</small></span><input type="checkbox" defaultChecked /></label><label><span><strong>Weekly operating brief</strong><small>Send a verified summary every Monday.</small></span><input type="checkbox" defaultChecked /></label><button type="button" onClick={() => onNavigate("integrations")}><Plug size={15} />Manage integrations<ArrowRight size={14} /></button></section> : module === "approvals" ? <section className="mxp-approval-inbox"><header><div><h2>Pending decisions</h2><p>Approvals preserve the exact effect, owner, and evidence.</p></div><StatusSummary approved={!approvalOpen} /></header>{!approvalOpen ? <div className="mxp-approval-empty"><CheckCircle size={26} /><h3>All caught up</h3><p>No approvals are waiting for you.</p></div> : <article><span><ShieldCheck size={19} /></span><div><small>Agentix · Invoice exception</small><h3>Review a $240 invoice price variance</h3><p>Invoice INV-20841 v2 · price variance only. Payment release remains outside this initiative. Review the exact evidence and decision in Agentix.</p></div><div><button type="button" onClick={() => onNavigate("agentix")}>Inspect</button><button type="button" className="mxp-primary" onClick={() => onOpenApproval ? onOpenApproval() : onNavigate("agentix")}>Review invoice variance</button></div></article>}</section> : module === "usage" ? <section className="mxp-usage-layout"><div className="mxp-usage-ring" style={{ "--mxp-usage-arc": `${WORKSPACE_UNITS_PERCENT}%` } as CSSProperties}><strong>{WORKSPACE_UNITS_PERCENT}%</strong><span>of workspace units used</span><small>{workspaceUnitsLabel(WORKSPACE_UNITS_USED)} of {workspaceUnitsLabel(WORKSPACE_UNIT_CAP)} units · resets {WORKSPACE_CYCLE_RESET}</small></div><div className="mxp-portal-card"><h2>Current cycle</h2><dl>{WORKSPACE_USAGE_ROWS.map((row) => <div key={row.module}><dt>{row.module}</dt><dd>{workspaceUnitsLabel(row.units)} units<span className="mxp-usage-bar" aria-hidden="true"><i style={{ width: `${Math.round((row.units / WORKSPACE_UNITS_USED) * 100)}%` }} /></span></dd></div>)}</dl><p className="mxp-usage-total"><ChartBar size={13} />{workspaceUnitsLabel(WORKSPACE_UNIT_CAP - WORKSPACE_UNITS_USED)} units remain before the cycle resets on {WORKSPACE_CYCLE_RESET}.</p></div></section> : <section className="mxp-help-layout"><label><MagnifyingGlass size={16} /><input aria-label="Search help" value={helpQuery} onChange={(event) => { setHelpQuery(event.target.value); setOpenTopic(null) }} placeholder="Search MAXION help" /></label>{helpMatches.map((topic) => <div className="mxp-help-topic" key={topic.title}><button type="button" aria-expanded={openTopic === topic.title} onClick={() => setOpenTopic((current) => current === topic.title ? null : topic.title)}><Question size={15} /><span>{topic.title}</span><CaretRight size={13} /></button>{openTopic === topic.title ? <p>{topic.answer}</p> : null}</div>)}{helpMatches.length === 0 ? <p className="mxp-help-empty">No help topic matches “{helpQuery.trim()}”. Ask Consult MAX instead — it answers from the live workspace rather than a static article.</p> : null}</section>}</div>
+	return <div className="mxp-portal-page mxp-utility-page"><PortalPageHeader eyebrow={config.eyebrow} title={config.title} description={config.description} />{module === "settings" ? <section className="mxp-portal-card mxp-settings-card"><header><span><Icon size={18} /></span><div><h2>Workspace defaults</h2><p>Controls apply across MAXION modules.</p></div></header><label><span><strong>Agent notifications</strong><small>Notify owners when an autonomous run needs intervention.</small></span><input type="checkbox" defaultChecked /></label><label><span><strong>Weekly operating brief</strong><small>Send a verified summary every Monday.</small></span><input type="checkbox" defaultChecked /></label><button type="button" onClick={() => onNavigate("integrations")}><Plug size={15} />Manage integrations<ArrowRight size={14} /></button></section> : module === "approvals" ? <ApprovalInbox approvals={approvals} onOpenAgentix={(intent) => onOpenAgentix ? onOpenAgentix(intent) : onNavigate("agentix")} /> : module === "usage" ? <section className="mxp-usage-layout"><div className="mxp-usage-ring" style={{ "--mxp-usage-arc": `${WORKSPACE_UNITS_PERCENT}%` } as CSSProperties}><strong>{WORKSPACE_UNITS_PERCENT}%</strong><span>of workspace units used</span><small>{workspaceUnitsLabel(WORKSPACE_UNITS_USED)} of {workspaceUnitsLabel(WORKSPACE_UNIT_CAP)} units · resets {WORKSPACE_CYCLE_RESET}</small></div><div className="mxp-portal-card"><h2>Current cycle</h2><dl>{WORKSPACE_USAGE_ROWS.map((row) => <div key={row.module}><dt>{row.module}</dt><dd>{workspaceUnitsLabel(row.units)} units<span className="mxp-usage-bar" aria-hidden="true"><i style={{ width: `${Math.round((row.units / WORKSPACE_UNITS_USED) * 100)}%` }} /></span></dd></div>)}</dl><p className="mxp-usage-total"><ChartBar size={13} />{workspaceUnitsLabel(WORKSPACE_UNIT_CAP - WORKSPACE_UNITS_USED)} units remain before the cycle resets on {WORKSPACE_CYCLE_RESET}.</p></div></section> : <section className="mxp-help-layout"><label><MagnifyingGlass size={16} /><input aria-label="Search help" value={helpQuery} onChange={(event) => { setHelpQuery(event.target.value); setOpenTopic(null) }} placeholder="Search MAXION help" /></label>{helpMatches.map((topic) => <div className="mxp-help-topic" key={topic.title}><button type="button" aria-expanded={openTopic === topic.title} onClick={() => setOpenTopic((current) => current === topic.title ? null : topic.title)}><Question size={15} /><span>{topic.title}</span><CaretRight size={13} /></button>{openTopic === topic.title ? <p>{topic.answer}</p> : null}</div>)}{helpMatches.length === 0 ? <p className="mxp-help-empty">No help topic matches “{helpQuery.trim()}”. Ask Consult MAX instead — it answers from the live workspace rather than a static article.</p> : null}</section>}</div>
 }

@@ -52,32 +52,120 @@ test("drives the Discovery workspace from the keyboard", async ({ page }) => {
 
 	// 1 opens the Thread and the composer takes focus.
 	await page.keyboard.press("1")
-	await expect(page.getByRole("heading", { name: "Work with MAX" })).toBeVisible()
+	await expect(page.getByRole("heading", { name: /MAX is investigating|Your next step/ })).toBeVisible()
 	const composer = page.getByRole("textbox", { name: "Message MAX" })
 	await expect(composer).toBeFocused()
 
 	// Digits typed into an input never switch views.
 	await page.keyboard.press("2")
-	await expect(page.getByRole("heading", { name: "Work with MAX" })).toBeVisible()
+	await expect(page.getByRole("heading", { name: /MAX is investigating|Your next step/ })).toBeVisible()
 	await composer.blur()
 	await page.keyboard.press("2")
 	await expect(page.getByRole("heading", { name: "MAX is running the Discovery." })).toBeVisible()
 
-	// The locked Package tab explains itself instead of switching.
-	await page.keyboard.press("3")
-	await expect(page.getByText("Package unlocks at synthesis · MAX is still preparing the evidence")).toBeVisible()
-	await expect(page.getByRole("heading", { name: "MAX is running the Discovery." })).toBeVisible()
+	// 3 is the Workshop room, 4 the package. Planned deliverables stay
+	// inspectable before synthesis.
+	await page.keyboard.press("4")
+	await expect(page.getByRole("heading", { name: "Planned deliverables" })).toBeVisible()
+	await expect(page.getByRole("button", { name: "Export all" })).toBeDisabled()
 
 	// Slash returns to the composer from anywhere in the workspace.
 	await page.keyboard.press("/")
 	await expect(composer).toBeFocused()
 
-	// Escape closes the palette and hands focus back to the trigger.
+	// The menu is modal: the field keeps focus, the arrows move the highlighted option, and Tab stays inside.
 	await page.keyboard.press("ControlOrMeta+k")
-	await expect(page.getByRole("dialog", { name: "Discovery command menu" })).toBeVisible()
+	const palette = page.getByRole("dialog", { name: "Discovery command menu" })
+	await expect(palette).toBeVisible()
+	await expect(palette).toHaveAttribute("aria-modal", "true")
+	const search = palette.getByRole("textbox", { name: "Search Discovery" })
+	await page.keyboard.press("ArrowDown")
+	const highlighted = palette.getByRole("option", { selected: true })
+	await expect(highlighted).toHaveCount(1)
+	await expect(search).toHaveAttribute("aria-activedescendant", (await highlighted.getAttribute("id")) ?? "")
+	await page.keyboard.press("Tab")
+	await expect(search).toBeFocused()
+	await page.keyboard.press("Shift+Tab")
+	await expect(search).toBeFocused()
+	await expect(palette.locator("footer")).toContainText("Composer")
+
+	// Escape closes the palette and hands focus back to the trigger.
 	await page.keyboard.press("Escape")
-	await expect(page.getByRole("dialog", { name: "Discovery command menu" })).toHaveCount(0)
+	await expect(palette).toHaveCount(0)
 	await expect(composer).toBeFocused()
+
+	// On the hub nothing is open, and view keys have nothing to switch.
+	await page.getByRole("button", { name: "All discoveries", exact: true }).click()
+	await expect(page.getByRole("heading", { name: "Continue where MAX left off." })).toBeVisible()
+	await page.keyboard.press("ControlOrMeta+k")
+	await expect(palette).toBeVisible()
+	await expect(palette).not.toContainText("Currently open")
+	await expect(palette.locator("footer")).not.toContainText("Composer")
+	await page.keyboard.press("Escape")
+})
+
+test("keeps page shortcuts and the menu behind an open dialog or sheet", async ({ page }) => {
+	await page.goto("/discovery-prototype")
+	await page.getByRole("button", { name: "Resume NorthBridge acquisition diligence, Completed" }).click()
+	const packageTab = page.getByRole("button", { name: "Package", exact: true })
+	await packageTab.click()
+	await expect(packageTab).toHaveClass(/active/)
+
+	await page.getByRole("button", { name: "Review handoff" }).click()
+	const dialog = page.getByRole("dialog", { name: "Continue to Agentix" })
+	const cancel = dialog.getByRole("button", { name: "Cancel" })
+	await cancel.focus()
+	await page.keyboard.press("1")
+	await page.keyboard.press("/")
+	await page.keyboard.press("ControlOrMeta+k")
+	await expect(cancel).toBeFocused()
+	await expect(packageTab).toHaveClass(/active/)
+	await expect(page.getByRole("dialog", { name: "Discovery command menu" })).toHaveCount(0)
+	await page.keyboard.press("Escape")
+	await expect(dialog).toHaveCount(0)
+
+	await page.getByRole("button", { name: "Open setup" }).click()
+	const sheet = page.getByRole("dialog", { name: "Setup" })
+	await expect(sheet).toBeVisible()
+	await page.keyboard.press("/")
+	await page.keyboard.press("2")
+	await expect.poll(() => sheet.evaluate((element) => element.contains(document.activeElement))).toBe(true)
+	await expect(packageTab).toHaveClass(/active/)
+})
+
+test("routes the header to the composer, out of the menu, and on to Agentix after the handoff", async ({ page }) => {
+	await page.goto("/discovery-prototype")
+	await page.getByRole("button", { name: "Resume ServiceNow financial-control integration, Working autonomously" }).click()
+	await page.getByRole("button", { name: "Thread", exact: true }).click()
+	const composer = page.getByRole("textbox", { name: "Message MAX" })
+	await page.getByRole("button", { name: "Steer MAX" }).click()
+	await expect(composer).toBeFocused()
+	await page.getByRole("button", { name: "Autonomy", exact: true }).click()
+	await page.getByRole("button", { name: "Discovery status" }).click()
+	await expect(composer).toBeFocused()
+
+	// Tab leaves the overflow menu and closes it.
+	await page.getByRole("button", { name: "More Discovery actions" }).click()
+	await expect(page.getByRole("menuitem", { name: "New Discovery" })).toBeFocused()
+	await page.keyboard.press("Tab")
+	await expect(page.getByRole("menu", { name: "More Discovery actions" })).toHaveCount(0)
+
+	// A finished run is handed off once, and then the header is the way to Agentix.
+	await page.getByRole("button", { name: "All discoveries", exact: true }).click()
+	await page.getByRole("button", { name: "Resume NorthBridge acquisition diligence, Completed" }).click()
+	await expect(page.getByRole("button", { name: "Package", exact: true })).toHaveAccessibleDescription("Ready to hand off")
+	await page.getByRole("button", { name: "Package", exact: true }).click()
+	await page.getByRole("button", { name: "Review handoff" }).click()
+	await page.getByRole("dialog", { name: "Continue to Agentix" }).getByRole("button", { name: "Continue to Agentix" }).click()
+	// NorthBridge has no prebuilt operating design, so its packet opens engagement setup in Agentix.
+	const agentixSetup = page.getByRole("heading", { name: "What should an agent take on?" })
+	await expect(agentixSetup).toBeVisible()
+	await page.getByRole("navigation", { name: "Portal sections" }).getByRole("button", { name: "Discover" }).click()
+	const header = page.locator(".workspace-header")
+	await expect(header.getByRole("button", { name: "Continue to Agentix" })).toHaveCount(0)
+	await expect(header.locator("button:disabled")).toHaveCount(0)
+	await header.getByRole("button", { name: "Open in Agentix" }).click()
+	await expect(agentixSetup).toBeVisible()
 })
 
 test("gives drawers initial focus, traps Tab, and restores focus on Escape", async ({ page }) => {
@@ -85,8 +173,9 @@ test("gives drawers initial focus, traps Tab, and restores focus on Escape", asy
 	await page.getByRole("button", { name: "Resume Third-party onboarding control redesign, Needs your input" }).click()
 	await expect(page.getByRole("heading", { name: "MAX is running the Discovery." })).toBeVisible()
 
-	const peopleTrigger = page.getByRole("button", { name: /^People 4 mapped/ })
+	const peopleTrigger = page.getByRole("button", { name: "Open setup" })
 	await peopleTrigger.click()
+	await page.getByRole("button", { name: "Open stakeholder program" }).click()
 	const drawer = page.getByRole("dialog", { name: "Stakeholder program" })
 	await expect(drawer).toBeVisible()
 	await expect(drawer.getByRole("button", { name: "Close panel" })).toBeFocused()
@@ -138,4 +227,56 @@ test("lands resumed needs-input discoveries on the waiting decision", async ({ p
 			return cardRect.bottom > logRect.top && cardRect.top < logRect.bottom
 		}))
 		.toBe(true)
+})
+
+test("keeps manifest edits on the record and clears the handoff blocker in place", async ({ page }) => {
+	await page.goto("/discovery-prototype")
+	await expect(page.getByRole("heading", { name: "Continue where MAX left off." })).toBeVisible()
+	// A finished run whose charter still waits for the owner.
+	await page.evaluate(() => {
+		const key = "maxion.prototype.discovery-records.v1"
+		const records = JSON.parse(localStorage.getItem(key) ?? "[]")
+		const done = records.find((record: { id: string }) => record.id === "seed-northbridge-diligence")
+		localStorage.setItem(key, JSON.stringify([{ ...done, id: "gate-run", title: "Charter gate run", charterApproval: null, handoff: null }, ...records]))
+	})
+	await page.reload()
+	await page.getByRole("button", { name: /Resume Charter gate run/ }).click()
+	await page.getByRole("button", { name: "Package", exact: true }).click()
+	const list = page.getByRole("navigation", { name: "Deliverable list" })
+	await expect(list.getByRole("button")).toHaveCount(9)
+
+	// Switching outputs off changes the record, and a required one says what it costs.
+	await page.getByRole("button", { name: "Manage package" }).click()
+	const sheet = page.getByRole("dialog", { name: "Deliverable manifest" })
+	await sheet.getByRole("switch", { name: /Technical assessment/ }).click()
+	await sheet.getByRole("switch", { name: /Executive decision brief/ }).click()
+	await expect(sheet.getByText("Executive decision brief is a required output")).toBeVisible()
+	await expect(sheet.getByText("Adjusted by you · 7 of 9 included")).toBeVisible()
+	await sheet.getByRole("button", { name: "Done" }).click()
+	await expect(sheet).toBeHidden()
+	await expect(list.getByRole("button")).toHaveCount(7)
+	await page.getByRole("button", { name: "Manage package" }).click()
+	await expect(sheet.getByText("Adjusted by you · 7 of 9 included")).toBeVisible()
+	await expect(sheet.getByRole("switch", { name: /Technical assessment/ })).not.toBeChecked()
+	await page.keyboard.press("Escape")
+	await expect(sheet).toBeHidden()
+
+	// While the charter waits, the header's handoff is not the page's filled action.
+	const headerContinue = page.locator(".workspace-header").getByRole("button", { name: "Continue to Agentix" })
+	await expect(headerContinue).not.toHaveClass(/ds-button--primary/)
+	await headerContinue.click()
+	const handoff = page.getByRole("dialog", { name: "Continue to Agentix" })
+	await expect(handoff.locator(".handoff-row.is-list li")).toHaveCount(7)
+	await expect(handoff.getByText(/Executive decision brief removed by you/)).toBeVisible()
+	await expect(handoff.getByRole("button", { name: "Continue to Agentix" })).toBeDisabled()
+
+	// The blocker carries its own fix, and approving returns to the handoff.
+	await handoff.getByRole("button", { name: "Approve charter" }).click()
+	const charter = page.getByRole("dialog", { name: "Approve the project charter" })
+	await charter.getByRole("textbox", { name: "Approval reason" }).fill("Scope and owners match the committee decision.")
+	await charter.getByRole("button", { name: "Approve charter" }).click()
+	await expect(charter).toBeHidden()
+	await expect(handoff.getByRole("button", { name: "Continue to Agentix" })).toBeEnabled()
+	await expect(page.getByRole("textbox", { name: "Handoff note (optional)" })).toBeFocused()
+	await expect(headerContinue).toHaveClass(/ds-button--primary/)
 })

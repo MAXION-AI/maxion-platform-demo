@@ -1,0 +1,157 @@
+/*
+ * Portal shell: the sidebar, its collapsed rail and its phone drawer.
+ * Replaces the sidebar rules that used to live in portal-replica.css and
+ * the retired Devin layer. Every visual decision comes from src/design; this adds
+ * only the shell's own layout, so it carries no raw colours or sizes.
+ */
+.maxion-platform-prototype.mxp-root { grid-template-columns: var(--ds-sidebar-w) minmax(0, 1fr); background: var(--ds-bg); }
+.maxion-platform-prototype .mxp-stage { background: var(--ds-bg); }
+.mxp-portal-sidebar { position: relative; z-index: 60; overflow: hidden; transition: width 200ms var(--ds-ease), transform 200ms var(--ds-ease); }
+
+/* Brand row */
+.mxp-portal-brand { display: flex; align-items: center; justify-content: space-between; gap: var(--ds-space-2); height: var(--ds-topbar-h); flex: 0 0 auto; margin-bottom: var(--ds-space-2); padding-left: var(--ds-space-2); }
+.mxp-portal-brand > button:first-child { display: flex; align-items: center; gap: var(--ds-space-2); min-width: 0; padding: 0; border: 0; background: transparent; color: var(--ds-fg); cursor: pointer; }
+.mxp-portal-brand img { display: none; }
+.mxp-portal-brand-mark { display: block; width: var(--ds-space-5); height: var(--ds-space-5); flex-shrink: 0; }
+.mxp-brand-word { color: var(--ds-fg); font-size: var(--ds-text-md); font-weight: var(--ds-weight-semibold); letter-spacing: -0.01em; }
+.mxp-sidebar-collapse { display: grid; place-items: center; width: var(--ds-control-h-sm); height: var(--ds-control-h-sm); flex-shrink: 0; border: 0; border-radius: var(--ds-radius-sm); background: transparent; color: var(--ds-fg-subtle); cursor: pointer; }
+.mxp-sidebar-collapse:hover { background: var(--ds-bg-hover); color: var(--ds-fg); }
+.mxp-mobile-nav-close { display: none; }
+
+/* Search. The reference gives this slot on the rail a white card with a hairline. */
+.ws-sidebar-search { display: flex; align-items: center; gap: var(--ds-space-2); width: 100%; height: var(--ds-control-h); flex-shrink: 0; margin-bottom: var(--ds-space-4); padding: 0 var(--ds-space-2); border: 1px solid var(--ds-border); border-radius: var(--ds-radius-md); background: var(--ds-bg); color: var(--ds-fg-subtle); font-size: var(--ds-text-sm); text-align: left; cursor: pointer; }
+.ws-sidebar-search > span { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ws-sidebar-search kbd { font: inherit; font-size: var(--ds-text-xs); color: var(--ds-fg-subtle); }
+.ws-sidebar-search:hover { border-color: var(--ds-border-strong); color: var(--ds-fg); }
+
+/* Navigation */
+.mxp-portal-sidebar-scroll { display: flex; flex: 1; min-height: 0; flex-direction: column; overflow-y: auto; }
+.mxp-portal-sidebar ul { margin: 0; padding: 0; list-style: none; }
+.mxp-account-nav { margin-top: auto; padding-top: var(--ds-space-5); }
+.mxp-portal-nav-icon { width: var(--ds-icon); height: var(--ds-icon); flex-shrink: 0; }
+.mxp-portal-nav-item > span { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.mxp-account-divider i { display: none; }
+
+/* Workspace units, as a bordered card like the reference's footer cards. */
+.mxp-unit-balance { display: grid; gap: var(--ds-space-2); width: 100%; margin-bottom: var(--ds-space-2); padding: var(--ds-space-2) var(--ds-space-3); border: 1px solid var(--ds-border); border-radius: var(--ds-radius-md); background: var(--ds-bg); color: var(--ds-fg); text-align: left; cursor: pointer; }
+.mxp-unit-balance:hover { border-color: var(--ds-border-strong); }
+.mxp-unit-balance > span:first-child { display: block; min-width: 0; }
+.mxp-unit-balance strong { display: block; color: var(--ds-fg); font-size: var(--ds-text-sm); font-weight: var(--ds-weight-medium); }
+.mxp-unit-balance small { display: block; color: var(--ds-fg-subtle); font-size: var(--ds-text-xs); line-height: var(--ds-lh-xs); }
+.mxp-unit-track { height: 2px; overflow: hidden; border-radius: var(--ds-radius-full); background: var(--ds-bg-muted); }
+.mxp-unit-track i { display: block; height: 100%; border-radius: inherit; background: var(--ds-fg-subtle); }
+
+/* Footer */
+.mxp-portal-sidebar-footer { flex: 0 0 auto; padding-top: var(--ds-space-3); border-top: 1px solid var(--ds-border); }
+.mxp-sidebar-user { display: flex; align-items: center; gap: var(--ds-space-2); min-width: 0; padding: 0 var(--ds-space-2) var(--ds-space-2); }
+.mxp-sidebar-user > span { display: grid; place-items: center; width: var(--ds-control-h-sm); height: var(--ds-control-h-sm); flex-shrink: 0; border-radius: var(--ds-radius-full); background: var(--ds-bg-selected); color: var(--ds-fg); font-size: var(--ds-text-xs); font-weight: var(--ds-weight-medium); }
+.mxp-sidebar-user > div { display: flex; min-width: 0; flex: 1; flex-direction: column; }
+.mxp-sidebar-user strong { overflow: hidden; color: var(--ds-fg); font-size: var(--ds-text-sm); font-weight: var(--ds-weight-medium); text-overflow: ellipsis; white-space: nowrap; }
+.mxp-sidebar-user small { overflow: hidden; color: var(--ds-fg-subtle); font-size: var(--ds-text-xs); text-overflow: ellipsis; white-space: nowrap; }
+.mxp-sidebar-actions { display: flex; align-items: center; justify-content: space-between; gap: var(--ds-space-1); }
+.mxp-sidebar-actions button { display: flex; align-items: center; gap: var(--ds-space-2); height: var(--ds-control-h-sm); padding: 0 var(--ds-space-2); border: 0; border-radius: var(--ds-radius-sm); background: transparent; color: var(--ds-fg-subtle); font-size: var(--ds-text-xs); cursor: pointer; }
+.mxp-sidebar-actions button:hover { background: var(--ds-bg-hover); color: var(--ds-fg); }
+.mxp-sidebar-actions kbd { font: inherit; font-size: var(--ds-text-xs); }
+.mxp-sidebar-notice { display: block; min-height: var(--ds-space-3); padding: 0 var(--ds-space-2); color: var(--ds-fg-subtle); font-size: var(--ds-text-xs); }
+
+.mxp-mobile-nav-trigger, .mxp-mobile-nav-scrim { display: none; }
+
+/* Collapsed rail. Labels are clipped rather than removed so every control keeps its name. */
+@media (min-width: 861px) {
+	.maxion-platform-prototype.mxp-root--sidebar-collapsed { grid-template-columns: var(--ds-rail-w) minmax(0, 1fr); }
+	.mxp-portal-sidebar.is-collapsed { width: var(--ds-rail-w); }
+	.mxp-portal-sidebar.is-collapsed .mxp-portal-brand { height: auto; flex-direction: column; gap: var(--ds-space-1); margin-bottom: var(--ds-space-3); padding-left: 0; }
+	.mxp-portal-sidebar.is-collapsed .ws-sidebar-search { justify-content: center; padding: 0; }
+	.mxp-portal-sidebar.is-collapsed :is(.mxp-brand-word, .ws-sidebar-search > span, .ws-sidebar-search kbd, .mxp-account-divider, .mxp-unit-balance, .mxp-sidebar-notice, .mxp-sidebar-actions kbd) { display: none; }
+	.mxp-portal-sidebar.is-collapsed .mxp-portal-nav-item { position: relative; justify-content: center; gap: 0; padding: 0; }
+	.mxp-portal-sidebar.is-collapsed :is(.mxp-portal-nav-item > span, .mxp-sidebar-user > div, .mxp-sidebar-actions button > span) { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }
+	/* The count rides the item's top-right corner as a small bubble, clear of the glyph (Agentix keeps its satellite there). */
+	.mxp-portal-sidebar.is-collapsed .mxp-portal-nav-item > .ds-count { position: absolute; top: calc(var(--ds-rail-count-lift) * -1); right: 0; min-width: var(--ds-rail-count); height: var(--ds-rail-count); padding: 0 2px; background: var(--ds-bg); color: var(--ds-fg); box-shadow: inset 0 0 0 1px var(--ds-border); font-size: var(--ds-text-2xs); line-height: var(--ds-rail-count); font-weight: var(--ds-weight-semibold); }
+	.mxp-portal-sidebar.is-collapsed .mxp-account-nav { padding-top: var(--ds-space-4); }
+	.mxp-portal-sidebar.is-collapsed :is(.mxp-sidebar-user, .mxp-sidebar-actions) { justify-content: center; }
+}
+
+/* Phone drawer */
+@media (max-width: 860px) {
+	.maxion-platform-prototype.mxp-root, .maxion-platform-prototype.mxp-root--sidebar-collapsed { grid-template-columns: minmax(0, 1fr); }
+	.mxp-portal-sidebar, .mxp-portal-sidebar.is-collapsed { position: fixed; inset: 0 auto 0 0; width: var(--ds-drawer-w); visibility: hidden; transform: translateX(-102%); }
+	.mxp-portal-sidebar.is-mobile-open { visibility: visible; transform: translateX(0); }
+	.mxp-sidebar-collapse { display: none; }
+	/* The menu button sits centred on the 48px top bar, in its 12px start inset, and below
+	 * every sheet and dialog layer (drawer 40+, dialogs 60+). A 44px hit area keeps the
+	 * touch target while the drawn control matches the bar's small buttons. */
+	.mxp-mobile-nav-trigger { position: fixed; z-index: 30; top: calc((var(--ds-topbar-h) - var(--ds-control-h-sm)) / 2); left: var(--ds-space-3); display: grid; place-items: center; width: var(--ds-control-h-sm); height: var(--ds-control-h-sm); padding: 0; border: 1px solid var(--ds-border); border-radius: var(--ds-radius-md); background: var(--ds-bg); color: var(--ds-fg); cursor: pointer; transition: background var(--ds-duration) var(--ds-ease), border-color var(--ds-duration) var(--ds-ease); }
+	.mxp-mobile-nav-trigger::after { position: absolute; inset: calc(-1 * var(--ds-space-2)); content: ""; }
+	.mxp-mobile-nav-trigger:hover { border-color: var(--ds-border-strong); background: var(--ds-bg-hover); }
+	.mxp-mobile-nav-trigger svg { width: var(--ds-icon); height: var(--ds-icon); }
+	.mxp-mobile-nav-trigger[aria-expanded="true"] { opacity: 0; pointer-events: none; }
+	/* A modal owns the screen: the shell's menu button steps out rather than floating over it. */
+	body:has([aria-modal="true"], dialog:modal) .mxp-mobile-nav-trigger { visibility: hidden; }
+	.mxp-mobile-nav-scrim { position: fixed; z-index: 55; inset: 0; display: block; border: 0; background: var(--ds-scrim); }
+	.mxp-mobile-nav-close { display: grid; place-items: center; width: var(--ds-control-h-sm); height: var(--ds-control-h-sm); border: 0; border-radius: var(--ds-radius-sm); background: transparent; color: var(--ds-fg-subtle); cursor: pointer; }
+	.mxp-portal-nav-item { height: var(--ds-control-h); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+	.mxp-portal-sidebar { transition-duration: 0s; }
+}
+
+/* The retired bottom tab bar reserved 56px under every phone screen; the drawer replaced it. */
+@media (max-width: 720px) {
+	.maxion-platform-prototype .mxp-stage { inset: 0; }
+}
+
+/* Sidebar glyphs (NavGlyphs.tsx): abstract figures rather than stock pictograms.
+ * A receding back layer, an accent that takes the module's tint when the row is
+ * hovered or open, and one small gesture on hover. The same glyphs mark the
+ * module rows in the command menu. */
+.mxp-nav-glyph { overflow: visible; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+.mxp-nav-glyph .nv-solid { fill: currentColor; stroke: none; }
+.mxp-nav-glyph .nv-back { opacity: 0.42; }
+.mxp-nav-glyph .nv-wedge { fill: currentColor; stroke: none; opacity: 0.24; }
+.mxp-nav-glyph .nv-pop { transform-box: fill-box; transform-origin: 50% 50%; }
+.ds-scope .mxp-portal-nav-item .mxp-nav-glyph { color: var(--ds-fg-nav); }
+.ds-scope .mxp-portal-nav-item:is(:hover, .is-active) .mxp-nav-glyph { color: var(--ds-fg); }
+.mxp-nav-glyph :is(.nv-accent, .nv-move, .nv-back) { transition: transform 360ms var(--ds-ease), color var(--ds-duration) var(--ds-ease), opacity var(--ds-duration) var(--ds-ease); }
+.mxp-nav-glyph .nv-move { transform-box: view-box; transform-origin: 50% 50%; }
+.mxp-nav-glyph .nv-grow { transform-box: fill-box; transform-origin: 50% 100%; }
+.mxp-nav-glyph .nv-draw { stroke-dasharray: 1; }
+.mxp-command-glyph { width: var(--ds-icon); height: var(--ds-icon); flex-shrink: 0; }
+
+
+.mxp-nav-glyph[data-glyph="dashboard"] { --nv-tint: var(--ds-tint-1-fg); }
+.mxp-nav-glyph[data-glyph="projects"] { --nv-tint: var(--ds-tint-3-fg); }
+.mxp-nav-glyph[data-glyph="discovery"] { --nv-tint: var(--ds-tint-5-fg); }
+.mxp-nav-glyph[data-glyph="plan"] { --nv-tint: var(--ds-tint-0-fg); }
+.mxp-nav-glyph[data-glyph="execute"] { --nv-tint: var(--ds-tint-4-fg); }
+.mxp-nav-glyph[data-glyph="agentix"] { --nv-tint: var(--ds-tint-2-fg); }
+.mxp-nav-glyph:is([data-glyph="settings"], [data-glyph="integrations"], [data-glyph="approvals"], [data-glyph="usage"], [data-glyph="help"]) { --nv-tint: var(--ds-fg); }
+
+:is(.mxp-portal-nav-item:hover, .mxp-portal-nav-item.is-active, .mxp-command-list button:hover, .mxp-command-list button.is-active) .mxp-nav-glyph .nv-accent { color: var(--nv-tint); }
+:is(.mxp-portal-nav-item.is-active, .mxp-command-list button.is-active) .mxp-nav-glyph .nv-back { opacity: 0.52; }
+
+/* Gestures only where motion is welcome; with reduced motion a glyph keeps its pose and just takes its tint. */
+@media (prefers-reduced-motion: no-preference) {
+	:is(.mxp-portal-nav-item, .mxp-command-list button):hover [data-glyph="dashboard"] .nv-pop { animation: nv-pop 520ms var(--ds-ease); }
+	:is(.mxp-portal-nav-item, .mxp-command-list button):hover [data-glyph="projects"] .nv-move { transform: translate(-1px, -1px); }
+	:is(.mxp-portal-nav-item, .mxp-command-list button):hover [data-glyph="discovery"] .nv-move { transform: rotate(135deg); }
+	:is(.mxp-portal-nav-item, .mxp-command-list button):hover [data-glyph="plan"] .nv-draw { animation: nv-draw 640ms var(--ds-ease); }
+	:is(.mxp-portal-nav-item, .mxp-command-list button):hover [data-glyph="execute"] .nv-move { transform: rotate(45deg); }
+	:is(.mxp-portal-nav-item, .mxp-command-list button):hover [data-glyph="agentix"] .nv-pop { animation: nv-pop 520ms var(--ds-ease); }
+	:is(.mxp-portal-nav-item, .mxp-command-list button):hover [data-glyph="agentix"] .nv-draw { animation: nv-draw 520ms var(--ds-ease) 120ms both; }
+	:is(.mxp-portal-nav-item, .mxp-command-list button):hover [data-glyph="settings"] .nv-move { transform: translateX(2px); }
+	:is(.mxp-portal-nav-item, .mxp-command-list button):hover [data-glyph="settings"] .nv-move.nv-move-back { transform: translateX(-2px); }
+	:is(.mxp-portal-nav-item, .mxp-command-list button):hover [data-glyph="integrations"] .nv-move { transform: translateX(1px); }
+	:is(.mxp-portal-nav-item, .mxp-command-list button):hover [data-glyph="integrations"] .nv-move.nv-move-back { transform: translateX(-1px); }
+	:is(.mxp-portal-nav-item, .mxp-command-list button):hover [data-glyph="approvals"] .nv-move { transform: translateY(1px); }
+	:is(.mxp-portal-nav-item, .mxp-command-list button):hover [data-glyph="usage"] .nv-grow { animation: nv-grow 560ms var(--ds-ease); }
+	:is(.mxp-portal-nav-item, .mxp-command-list button):hover [data-glyph="usage"] .nv-grow:nth-of-type(2) { animation-delay: 70ms; }
+	:is(.mxp-portal-nav-item, .mxp-command-list button):hover [data-glyph="usage"] .nv-grow:nth-of-type(3) { animation-delay: 140ms; }
+	:is(.mxp-portal-nav-item, .mxp-command-list button):hover [data-glyph="help"] .nv-move { transform: rotate(45deg); }
+}
+@keyframes nv-draw { from { stroke-dashoffset: 1; } to { stroke-dashoffset: 0; } }
+@keyframes nv-grow { 0%, 100% { transform: scaleY(1); } 45% { transform: scaleY(0.55); } }
+@keyframes nv-pop { 0%, 100% { transform: scale(1); } 40% { transform: scale(0.7); } 70% { transform: scale(1.08); } }
+@media (prefers-reduced-motion: reduce) {
+	.mxp-nav-glyph, .mxp-nav-glyph * { transition: none !important; animation: none !important; }
+}

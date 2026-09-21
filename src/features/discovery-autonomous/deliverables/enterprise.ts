@@ -1,4 +1,4 @@
-import type { DeliverableBody } from "./types"
+import type { DeliverableBody, DeliverableRevision } from "./types"
 
 // ServiceNow financial-control integration · Northstar architecture council
 // Evidence base: 2,418 change and incident records, 57 architecture documents,
@@ -428,7 +428,7 @@ const REQUIREMENTS: DeliverableBody = {
 					{ label: "Journal and posting", values: [19, 3, 0] },
 					{ label: "Segregation of duties", values: [14, 1, 0] },
 					{ label: "Access recertification", values: [2, 1, 5], note: "Outside integration scope" },
-					{ label: "Management review", values: [1, 2, 9], note: "Quarterly · automation disproportionate" },
+					{ label: "Management review", values: [1, 2, 9], note: "Quarterly · kept manual" },
 					{ label: "Vendor and third party", values: [4, 1, 0] },
 				],
 			},
@@ -1026,3 +1026,14 @@ const PROCESS_ANALYSIS: DeliverableBody = {
 }
 
 export const ENTERPRISE_DELIVERABLES: DeliverableBody[] = [EXECUTIVE_BRIEF, BUSINESS_CASE, PROJECT_CHARTER, PROCESS_ANALYSIS, REQUIREMENTS, TECHNICAL_ASSESSMENT, TARGET_OPERATING_MODEL, RAID_REGISTER, ROADMAP]
+
+// With the owner's approval the outage fallback becomes a design resolution
+// case, so the brief reports the open case rather than a trade-off recorded for
+// the council.
+export const ENTERPRISE_APPROVED_REVISIONS: Partial<Record<number, DeliverableRevision>> = {
+	0: {
+		findings: {
+			"Unresolved exposure": { label: "Open design resolution case", detail: "The outage fallback is in a design resolution case. Until it closes, high-risk changes still fail closed during an outage, and the case decides whether an independent attestor can lift that block." },
+		},
+	},
+}

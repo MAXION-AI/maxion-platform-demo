@@ -1,0 +1,668 @@
+/*
+ * Agentix. Tokens only (scripts/check-design-tokens.mjs keeps this file strict).
+ * Each surface is composed from an ElevenLabs screen on Mobbin; the mapping is
+ * in docs/elevenlabs-reference-map.md. The engagements landing is composed from
+ * primitives and only needs the layout hooks in its own section.
+ */
+
+/* ---- Root ------------------------------------------------------------------ */
+/* The module is a size container: its layout follows the space it is given, whether or not the sidebar is open. */
+.aop-root { container: aop-root / inline-size; display: flex; flex-direction: column; height: 100%; min-height: 0; font-variant-numeric: tabular-nums; }
+.aop-main { flex: 1; min-height: 0; overflow-x: hidden; overflow-y: auto; }
+.aop-root .aop-main > .ds-banner { margin-bottom: var(--ds-space-4); }
+.aop-mono { font-variant-numeric: tabular-nums; }
+.aop-subtle { color: var(--ds-fg-subtle); }
+.aop-root svg { flex-shrink: 0; }
+
+/* Top bar: breadcrumb, current engagement with its mark, Demo and one action. Its insets match
+ * Discovery and the design page, so the crumb starts at the same x in every module. */
+.aop-root .aop-topbar.ds-topbar { padding-inline: var(--ds-space-4); }
+.aop-root .aop-crumb-mark { margin-right: calc(-1 * var(--ds-space-1)); }
+
+/* ---- Engagements landing (primitives; layout only) -------------------------- */
+/* Needs you: the Discover hub's waiting tray, white hairline rows on the callout fill. */
+.aop-owner-inbox { display: grid; gap: var(--ds-space-3); margin-bottom: var(--ds-space-5); padding: var(--ds-space-3) var(--ds-space-4) var(--ds-space-4); border-radius: var(--ds-radius-lg); background: var(--ds-bg-callout); }
+.aop-inbox-head { display: flex; align-items: center; gap: var(--ds-space-2); min-width: 0; min-height: var(--ds-control-h-sm); }
+.aop-inbox-head > svg { color: var(--ds-warning-fg); }
+.aop-inbox-head h2 { font-size: var(--ds-text-sm); line-height: var(--ds-lh-sm); font-weight: var(--ds-weight-medium); }
+.aop-inbox-note { margin-left: auto; overflow: hidden; color: var(--ds-fg-subtle); font-size: var(--ds-text-xs); line-height: var(--ds-lh-xs); text-overflow: ellipsis; white-space: nowrap; }
+.aop-inbox-list { display: grid; overflow: hidden; border: 1px solid var(--ds-border); border-radius: var(--ds-radius-md); background: var(--ds-bg); }
+.aop-inbox-row { display: grid; grid-template-columns: auto minmax(0, 0.9fr) minmax(0, 1.1fr) auto; align-items: center; gap: var(--ds-space-3); width: 100%; min-height: var(--ds-control-h); padding: var(--ds-space-2) var(--ds-space-3); border: 0; background: var(--ds-bg); color: var(--ds-fg); font: inherit; text-align: left; transition: background var(--ds-duration) var(--ds-ease); }
+.aop-inbox-row + .aop-inbox-row { border-top: 1px solid var(--ds-border); }
+.aop-inbox-row:hover { background: var(--ds-bg-hover); }
+.aop-inbox-title { overflow: hidden; font-size: var(--ds-text-sm); line-height: var(--ds-lh-sm); font-weight: var(--ds-weight-medium); text-overflow: ellipsis; white-space: nowrap; }
+.aop-inbox-meta { overflow: hidden; color: var(--ds-fg-subtle); font-size: var(--ds-text-xs); line-height: var(--ds-lh-xs); text-overflow: ellipsis; white-space: nowrap; }
+.aop-inbox-action { display: inline-flex; align-items: center; justify-content: flex-end; gap: var(--ds-space-1); font-size: var(--ds-text-sm); line-height: var(--ds-lh-sm); font-weight: var(--ds-weight-medium); white-space: nowrap; }
+.aop-root .ds-text-button.aop-inbox-more { justify-self: start; color: var(--ds-fg-subtle); font-size: var(--ds-text-xs); line-height: var(--ds-lh-xs); }
+.aop-root .ds-text-button.aop-inbox-more:hover { color: var(--ds-fg); }
+.aop-root .ds-text-button.aop-inbox-more > svg { transition: transform var(--ds-duration) var(--ds-ease); }
+.aop-root .ds-text-button.aop-inbox-more[aria-expanded="true"] > svg { transform: rotate(180deg); }
+/* Nothing waiting: one quiet line, no frame and no zero. */
+.aop-root .aop-inbox-clear { display: flex; align-items: center; gap: var(--ds-space-2); margin-bottom: var(--ds-space-5); color: var(--ds-fg-subtle); font-size: var(--ds-text-sm); line-height: var(--ds-lh-sm); }
+.aop-inbox-clear > svg { color: var(--ds-positive-fg); }
+.aop-list-tools { display: grid; gap: var(--ds-space-3); margin-bottom: var(--ds-space-3); }
+.aop-demo-controls { margin-top: var(--ds-space-8); }
+.aop-demo-controls p { max-width: 80ch; }
+.aop-demo-actions { flex-wrap: wrap; margin-top: var(--ds-space-3); }
+.aop-reset { margin-top: var(--ds-space-3); }
+.aop-reset p { margin-bottom: var(--ds-space-3); }
+
+/* ---- Shared pieces ------------------------------------------------------------ */
+/* Pills: the batch-call header and table pills. */
+.aop-pill-row { display: flex; flex-wrap: wrap; align-items: center; gap: var(--ds-space-2); margin: 0; padding: 0; list-style: none; }
+.aop-pill, .aop-status { display: inline-flex; align-items: center; gap: var(--ds-space-1); height: var(--ds-space-6); padding: 0 var(--ds-space-2); border-radius: var(--ds-radius-full); background: var(--ds-bg-muted); color: var(--ds-fg); font-size: var(--ds-text-xs); line-height: var(--ds-lh-xs); font-weight: var(--ds-weight-medium); white-space: nowrap; }
+.aop-pill > svg { color: var(--ds-fg-subtle); }
+.aop-pill.is-strong { background: var(--ds-primary); color: var(--ds-fg-on-primary); }
+.aop-status.is-positive { background: var(--ds-positive-bg); color: var(--ds-positive-fg); }
+.aop-status.is-attention { background: var(--ds-warning-bg); color: var(--ds-warning-fg); }
+.aop-status.is-danger { background: var(--ds-danger-bg); color: var(--ds-danger-fg); }
+.aop-status.is-live { background: var(--ds-tint-1-bg); color: var(--ds-tint-1-fg); }
+.aop-status.is-neutral > svg { color: var(--ds-fg-subtle); }
+
+/* A live dot with a soft ping, for work in flight. */
+.aop-live-dot { position: relative; display: inline-block; flex-shrink: 0; width: var(--ds-dots); height: var(--ds-dots); border-radius: var(--ds-radius-full); background: currentColor; }
+.aop-live-dot::after { position: absolute; inset: 0; border-radius: inherit; background: currentColor; content: ""; animation: aop-ping 1600ms var(--ds-ease) infinite; }
+@keyframes aop-ping { from { transform: scale(1); opacity: 0.55; } to { transform: scale(2.8); opacity: 0; } }
+
+/* Chips: grey capsules for tools, references and receipts. */
+.aop-chip { display: inline-flex; align-items: center; gap: var(--ds-space-1); min-height: var(--ds-lh-sm); padding: 0 var(--ds-space-2); border-radius: var(--ds-radius-full); background: var(--ds-bg-muted); color: var(--ds-fg); font-size: var(--ds-text-xs); line-height: var(--ds-lh-xs); font-weight: var(--ds-weight-medium); font-style: normal; white-space: nowrap; }
+.aop-chip.is-strong { background: var(--ds-primary); color: var(--ds-fg-on-primary); }
+.aop-chips { display: flex; flex-wrap: wrap; align-items: flex-start; gap: var(--ds-space-1); }
+.aop-chips .aop-chip { padding-block: 2px; white-space: normal; }
+/* Outline chips: the user sheet's meta chips, a hairline capsule with a subtle glyph or a colour mark. */
+.aop-chip.is-outline { border: 1px solid var(--ds-border); background: var(--ds-bg); }
+.aop-chip.is-outline > svg { color: var(--ds-fg-subtle); }
+.aop-chips > .aop-chip.is-outline { min-height: var(--ds-space-6); padding-block: 0; }
+.aop-root .aop-chip .ds-mark.ds-mark--xs { width: var(--ds-avatar-xs); height: var(--ds-avatar-xs); margin-left: calc(-1 * var(--ds-space-1)); border-radius: var(--ds-radius-full); }
+
+/* Icon tile: the sheet-title tile. */
+.aop-icon-tile { display: grid; flex-shrink: 0; place-items: center; width: var(--ds-icon-tile); height: var(--ds-icon-tile); border: 1px solid var(--ds-border); border-radius: var(--ds-radius-md); background: var(--ds-bg); color: var(--ds-fg); }
+.aop-icon-tile.is-warning { border-color: transparent; background: var(--ds-warning-bg); color: var(--ds-warning-fg); }
+.aop-icon-tile.is-live { border-color: transparent; background: var(--ds-tint-1-bg); color: var(--ds-tint-1-fg); }
+
+/* Callouts: the #f5f5f5 info callout and the tinted failed-connection callout. */
+.aop-callout { display: flex; align-items: flex-start; gap: var(--ds-space-3); margin: 0; padding: var(--ds-space-3) var(--ds-space-4); border-radius: var(--ds-radius-lg); background: var(--ds-bg-callout); color: var(--ds-fg); font-size: var(--ds-text-sm); line-height: var(--ds-lh-sm); }
+.aop-callout > svg { margin-top: 1px; color: var(--ds-fg-subtle); }
+.aop-callout.is-warning { background: var(--ds-warning-bg); }
+.aop-callout.is-warning > svg, .aop-callout.is-warning :is(h2, h3) { color: var(--ds-warning-fg); }
+.aop-callout.is-danger { background: var(--ds-danger-bg); }
+.aop-callout.is-danger > svg, .aop-callout.is-danger h2, .aop-callout.is-danger h3 { color: var(--ds-danger-fg); }
+.aop-callout.is-positive { background: var(--ds-positive-bg); }
+.aop-callout.is-positive > svg { color: var(--ds-positive-fg); }
+.aop-callout.is-live > svg { color: var(--ds-tint-1-fg); }
+.aop-callout-body { display: grid; flex: 1; gap: var(--ds-space-1); min-width: 0; }
+.aop-callout-body :is(h2, h3) { font-size: var(--ds-text-sm); line-height: var(--ds-lh-sm); font-weight: var(--ds-weight-medium); }
+.aop-callout-body :is(h2, h3):focus { outline: none; }
+.aop-callout-body p { max-width: 68ch; }
+.aop-callout-meta { font-size: var(--ds-text-xs); line-height: var(--ds-lh-xs); }
+.aop-callout-actions { display: flex; flex-wrap: wrap; align-items: center; gap: var(--ds-space-4); margin-top: var(--ds-space-2); }
+/* Strips under the engagement header: one line centred, its one action at the right. */
+.aop-strip { align-items: center; }
+.aop-strip > svg { margin-top: 0; }
+.aop-strip > :is(p, span) { flex: 1; min-width: 0; }
+.aop-strip > .ds-button { flex-shrink: 0; }
+.aop-strip-reason { font-weight: var(--ds-weight-medium); }
+/* A strip opens and folds in the flow; the fold carries the gap so nothing jumps when it closes. */
+.aop-strip-fold { display: flow-root; min-width: 0; overflow: clip; }
+.aop-root .aop-strip-fold > .aop-callout { margin-top: var(--ds-space-3); }
+/* The connection-failed callout (mobbin e37ce067): the icon on the title line, both lines in the failure ink. */
+.aop-runtime-repair { align-items: flex-start; }
+.aop-runtime-repair > svg { margin-top: 2px; }
+.aop-runtime-repair.is-danger p { color: var(--ds-danger-fg); }
+.aop-runtime-repair > .aop-repair-dot { margin: calc((var(--ds-lh-sm) - var(--ds-dots)) / 2) calc((var(--ds-icon) - var(--ds-dots)) / 2) 0; color: var(--ds-tint-1-fg); }
+.aop-runtime-repair > .ds-button { flex-shrink: 0; align-self: center; }
+
+/* Sub-headings: a small title with its count at the right. */
+.aop-subhead { display: flex; align-items: baseline; justify-content: space-between; gap: var(--ds-space-3); margin-bottom: var(--ds-space-2); }
+.aop-subhead :is(h2, h3) { font-size: var(--ds-text-sm); line-height: var(--ds-lh-sm); font-weight: var(--ds-weight-medium); }
+.aop-subhead > span { color: var(--ds-fg-subtle); font-size: var(--ds-text-xs); line-height: var(--ds-lh-xs); }
+
+/* Lists: one bordered card of rows, as in the integrations and members lists. */
+.aop-list { display: grid; margin: 0; padding: 0; overflow: hidden; border: 1px solid var(--ds-border); border-radius: var(--ds-radius-lg); list-style: none; }
+.aop-list > li + li { border-top: 1px solid var(--ds-border); }
+.aop-list-row { display: flex; align-items: center; gap: var(--ds-space-3); width: 100%; min-height: var(--ds-row-h); padding: var(--ds-space-2) var(--ds-space-4); border: 0; background: var(--ds-bg); color: var(--ds-fg); font: inherit; text-align: left; }
+button.aop-list-row { transition: background var(--ds-duration) var(--ds-ease); }
+button.aop-list-row:hover { background: var(--ds-bg-hover); }
+.aop-list-text { display: grid; flex: 1; min-width: 0; }
+.aop-list-text strong { font-size: var(--ds-text-sm); line-height: var(--ds-lh-sm); font-weight: var(--ds-weight-medium); }
+.aop-list-text small { color: var(--ds-fg-subtle); font-size: var(--ds-text-xs); line-height: var(--ds-lh-xs); }
+.aop-row-action { display: inline-flex; align-items: center; gap: var(--ds-space-1); color: var(--ds-fg-subtle); font-size: var(--ds-text-xs); white-space: nowrap; }
+button.aop-list-row:hover .aop-row-action { color: var(--ds-fg); }
+
+/* Label and value rows, as on the conversation overview. */
+.aop-rows { display: grid; margin: 0; }
+.aop-rows > div { display: flex; align-items: baseline; justify-content: space-between; gap: var(--ds-space-4); min-height: var(--ds-control-h); padding: var(--ds-space-2) 0; border-top: 1px solid var(--ds-border); font-size: var(--ds-text-sm); line-height: var(--ds-lh-sm); }
+.aop-rows dt { flex-shrink: 0; color: var(--ds-fg); }
+.aop-rows dd { margin: 0; color: var(--ds-fg-subtle); text-align: right; overflow-wrap: anywhere; }
+.aop-rows.is-stacked > div { display: grid; gap: 0; }
+.aop-rows.is-stacked dd { text-align: left; }
+
+/* Disclosures: rows with a caret, as on the Analysis tab. */
+.aop-case-disclosure { border-top: 1px solid var(--ds-border); }
+.aop-case-disclosure > summary { display: flex; align-items: center; justify-content: space-between; gap: var(--ds-space-3); min-height: var(--ds-row-h); font-size: var(--ds-text-sm); line-height: var(--ds-lh-sm); font-weight: var(--ds-weight-medium); }
+.aop-case-disclosure > summary > svg { color: var(--ds-fg-subtle); transition: transform var(--ds-duration) var(--ds-ease); }
+.aop-case-disclosure[open] > summary > svg { transform: rotate(90deg); }
+.aop-case-disclosure > :not(summary) { margin-bottom: var(--ds-space-4); }
+.aop-inline-disclosure > summary { display: inline-flex; align-items: center; gap: var(--ds-space-1); min-height: var(--ds-control-h-sm); color: var(--ds-fg-subtle); font-size: var(--ds-text-sm); }
+.aop-inline-disclosure > summary:hover { color: var(--ds-fg); }
+.aop-inline-disclosure > summary > svg { transition: transform var(--ds-duration) var(--ds-ease); }
+.aop-inline-disclosure[open] > summary > svg { transform: rotate(90deg); }
+.aop-inline-disclosure > p { max-width: 68ch; margin-top: var(--ds-space-1); color: var(--ds-fg-subtle); font-size: var(--ds-text-sm); }
+
+.aop-actions { display: flex; flex-wrap: wrap; align-items: center; gap: var(--ds-space-2); }
+.aop-footnote { display: flex; align-items: flex-start; gap: var(--ds-space-1); color: var(--ds-fg-subtle); font-size: var(--ds-text-xs); line-height: var(--ds-lh-xs); }
+.aop-footnote > svg { margin-top: 2px; }
+.aop-hint { color: var(--ds-fg-subtle); font-size: var(--ds-text-xs); line-height: var(--ds-lh-xs); }
+.aop-count { color: var(--ds-fg-subtle); font-size: var(--ds-text-xs); line-height: var(--ds-lh-xs); font-variant-numeric: tabular-nums; }
+
+/* Fields: the create-agent fields, 44px tall with a count beside the label. */
+.aop-field { display: grid; align-content: start; gap: var(--ds-space-2); min-width: 0; }
+.aop-field > label, .aop-field-row label, .aop-field-name, .aop-field-label { color: var(--ds-fg); font-size: var(--ds-text-sm); line-height: var(--ds-lh-sm); font-weight: var(--ds-weight-medium); }
+.aop-field-row { display: flex; align-items: baseline; justify-content: space-between; gap: var(--ds-space-2); }
+.aop-field > small { color: var(--ds-fg-subtle); font-size: var(--ds-text-xs); line-height: var(--ds-lh-xs); }
+.aop-root .aop-field .ds-input { height: var(--ds-control-h-lg); }
+.aop-root .aop-field .ds-textarea { min-height: calc(var(--ds-control-h-lg) * 2); max-height: calc(var(--ds-control-h-lg) * 6); resize: none; field-sizing: content; }
+.aop-field-error { display: flex; align-items: center; gap: var(--ds-space-1); color: var(--ds-danger-fg); font-size: var(--ds-text-xs); line-height: var(--ds-lh-xs); }
+/* An invalid field keeps its red hairline while focused, where the shell otherwise draws the ink one. */
+.aop-root .aop-field .ds-input[aria-invalid="true"]:focus { border-color: var(--ds-danger-fg); }
+.aop-select { position: relative; display: block; }
+.aop-select > select { appearance: none; padding-right: var(--ds-space-8); cursor: pointer; }
+.aop-select > svg { position: absolute; top: 50%; right: var(--ds-space-3); color: var(--ds-fg-subtle); pointer-events: none; transform: translateY(-50%); }
+.aop-limit { display: flex; align-items: flex-start; gap: var(--ds-space-2); min-height: var(--ds-control-h-lg); padding: var(--ds-space-2) var(--ds-space-3); border-radius: var(--ds-radius-md); background: var(--ds-bg-inset); color: var(--ds-fg-subtle); font-size: var(--ds-text-xs); line-height: var(--ds-lh-xs); }
+.aop-limit > svg { margin-top: 2px; color: var(--ds-fg); }
+
+/* ---- Setup: the publishing stepper --------------------------------------------- */
+.aop-main--setup { scroll-padding-bottom: calc(var(--ds-control-h) + var(--ds-space-8)); }
+.aop-setup { display: grid; grid-template-columns: var(--ds-rail-narrow) minmax(0, var(--ds-reader-max)); justify-content: center; gap: var(--ds-space-12); padding: var(--ds-space-8) var(--ds-page-x) 0; }
+.aop-setup-rail { position: sticky; top: var(--ds-space-8); align-self: start; }
+.aop-setup-rail .mk-step-text strong { font-size: var(--ds-text-sm); line-height: var(--ds-lh-sm); font-weight: var(--ds-weight-medium); }
+.aop-setup-rail .mk-step-text small { margin-top: 2px; }
+.aop-setup-rail .mk-step.is-pending .mk-step-text strong { color: var(--ds-fg); font-weight: var(--ds-weight-medium); }
+.aop-setup-main { display: grid; align-content: start; gap: var(--ds-space-6); min-width: 0; }
+
+.aop-create-head h1 { font-size: var(--ds-text-xl); line-height: var(--ds-lh-xl); font-weight: var(--ds-weight-semibold); letter-spacing: var(--ds-track-xl); }
+.aop-create-head p { max-width: 56ch; margin-top: var(--ds-space-1); color: var(--ds-fg-subtle); font-size: var(--ds-text-subtitle); line-height: var(--ds-lh-subtitle); }
+
+.aop-source-tabs { display: flex; flex-wrap: wrap; gap: var(--ds-space-1); }
+.aop-source-tabs > button { height: var(--ds-control-h); padding: 0 var(--ds-space-3); border: 1px solid transparent; border-radius: var(--ds-radius-md); background: none; color: var(--ds-fg-subtle); font-size: var(--ds-text-sm); font-weight: var(--ds-weight-medium); transition: color var(--ds-duration) var(--ds-ease), border-color var(--ds-duration) var(--ds-ease); }
+.aop-source-tabs > button:hover { color: var(--ds-fg); }
+.aop-source-tabs > button[aria-pressed="true"] { border-color: var(--ds-border); background: var(--ds-bg); color: var(--ds-fg); }
+
+/* The brief: the system-prompt card, a field with its own footer bar. */
+.aop-brief { display: grid; gap: var(--ds-space-2); }
+.aop-brief-card { overflow: hidden; border: 1px solid var(--ds-border); border-radius: var(--ds-radius-xl); background: var(--ds-bg); transition: border-color var(--ds-duration) var(--ds-ease); }
+.aop-brief-card:hover { border-color: var(--ds-border-strong); }
+.aop-brief-card.is-focused { border-color: var(--ds-fg); }
+.aop-brief-field { position: relative; padding: var(--ds-space-4) var(--ds-space-4) var(--ds-space-2); }
+.aop-root .aop-brief-card .aop-brief-field textarea { display: block; width: 100%; min-height: calc(var(--ds-control-h-lg) * 2.5); padding: 0; border: 0; background: transparent; color: var(--ds-fg); font-size: var(--ds-text-lg); line-height: var(--ds-lh-lg); resize: none; field-sizing: content; max-height: calc(var(--ds-control-h-lg) * 8); }
+.aop-root .aop-brief-card .aop-brief-field textarea:focus-visible { outline: none; }
+.aop-brief-field .mk-placeholder { inset: var(--ds-space-4) var(--ds-space-4) auto; font-size: var(--ds-text-lg); line-height: var(--ds-lh-lg); }
+.aop-brief-bar { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--ds-space-3); padding: var(--ds-space-2) var(--ds-space-4); border-top: 1px solid var(--ds-border); background: var(--ds-bg-inset); }
+.aop-inline-select { display: inline-flex; align-items: center; gap: var(--ds-space-2); color: var(--ds-fg-subtle); font-size: var(--ds-text-xs); }
+.aop-inline-select .aop-select { display: inline-block; }
+.aop-inline-select select { height: var(--ds-control-h-sm); padding: 0 var(--ds-space-6) 0 var(--ds-space-3); border: 1px solid var(--ds-border); border-radius: var(--ds-radius-full); background: var(--ds-bg); color: var(--ds-fg); font-size: var(--ds-text-xs); font-weight: var(--ds-weight-medium); }
+.aop-inline-select .aop-select > svg { right: var(--ds-space-2); }
+/* A problem with the brief takes the hint's place under the card, so nothing above it moves. */
+.aop-brief-notice { display: flex; align-items: flex-start; gap: var(--ds-space-1); margin: 0; color: var(--ds-warning-fg); font-size: var(--ds-text-xs); line-height: var(--ds-lh-xs); }
+.aop-brief-notice > svg { margin-top: 1px; }
+.aop-source-panel { display: grid; gap: var(--ds-space-6); min-width: 0; }
+
+/* Templates: the use-case cards, a colour mark and two lines. */
+.aop-template-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--ds-space-3); margin-top: calc(-1 * var(--ds-space-3)); }
+.aop-template { display: flex; align-items: center; gap: var(--ds-space-3); min-width: 0; padding: var(--ds-space-3) var(--ds-space-4); border: 1px solid var(--ds-border); border-radius: var(--ds-radius-xl); background: var(--ds-bg); color: var(--ds-fg); text-align: left; transition: border-color var(--ds-duration) var(--ds-ease), background var(--ds-duration) var(--ds-ease), transform var(--ds-duration) var(--ds-ease); }
+.aop-template:hover { border-color: var(--ds-border-strong); background: var(--ds-bg-hover); }
+.aop-template:active { transform: scale(0.99); }
+.aop-template.is-selected { border-color: var(--ds-fg); }
+.aop-template > span { display: grid; min-width: 0; }
+.aop-template strong { font-size: var(--ds-text-sm); line-height: var(--ds-lh-sm); font-weight: var(--ds-weight-medium); }
+.aop-template small { color: var(--ds-fg-subtle); font-size: var(--ds-text-xs); line-height: var(--ds-lh-xs); }
+
+/* The pinned bar: Back at the left, the filled action at the right. */
+.aop-setup-bar { position: sticky; bottom: 0; z-index: 2; display: flex; align-items: center; justify-content: space-between; gap: var(--ds-space-4); padding: var(--ds-space-4) 0; border-top: 1px solid var(--ds-border); background: var(--ds-bg); }
+.aop-setup-bar-end { display: flex; align-items: center; gap: var(--ds-space-4); min-width: 0; }
+.aop-setup-bar-end > span, .aop-deploy-text > span { color: var(--ds-fg-subtle); font-size: var(--ds-text-xs); line-height: var(--ds-lh-xs); }
+.aop-deploy-text { display: grid; min-width: 0; }
+.aop-deploy-text strong { font-size: var(--ds-text-sm); line-height: var(--ds-lh-sm); font-weight: var(--ds-weight-medium); }
+.aop-deploy-bar .aop-deploy-text { text-align: right; }
+/* The demo disclosure sits above the pinned bar, so the bar stays the last thing on the page. */
+.aop-setup-main > .aop-demo-controls { margin-top: 0; }
+
+/* Review sections: a title and a line, then the content, on one hairline. */
+.aop-setup-review .aop-engagement-head { padding-bottom: var(--ds-space-2); }
+.aop-step-section { padding-top: var(--ds-space-6); border-top: 1px solid var(--ds-border); }
+.aop-section-head { display: flex; align-items: flex-start; justify-content: space-between; gap: var(--ds-space-4); margin-bottom: var(--ds-space-5); }
+.aop-section-head h2 { font-size: var(--ds-text-md); line-height: var(--ds-lh-md); font-weight: var(--ds-weight-semibold); }
+.aop-section-head p { max-width: 60ch; margin-top: var(--ds-space-1); color: var(--ds-fg-subtle); font-size: var(--ds-text-sm); line-height: var(--ds-lh-sm); }
+.aop-section-head > :last-child:not(div) { flex-shrink: 0; }
+.aop-section-foot { display: flex; flex-direction: column; align-items: flex-start; gap: var(--ds-space-1); margin-top: var(--ds-space-3); }
+.aop-section-foot > small { color: var(--ds-fg-subtle); font-size: var(--ds-text-xs); line-height: var(--ds-lh-xs); }
+.aop-root .ds-text-button.aop-foot-link { text-decoration: underline; text-decoration-color: var(--ds-border-strong); text-underline-offset: 2px; }
+.aop-root .ds-text-button.aop-foot-link:hover { text-decoration-color: currentColor; }
+/* The callout swaps in place and its height eases, so the rows below move with it. */
+.aop-readiness-callout { margin-bottom: var(--ds-space-5); }
+.aop-root .ds-text-button.aop-row-change { flex-shrink: 0; min-height: var(--ds-control-h-xs); color: var(--ds-fg-subtle); font-size: var(--ds-text-xs); line-height: var(--ds-lh-xs); }
+.aop-root .ds-text-button.aop-row-change:hover { color: var(--ds-fg); }
+.aop-root .ds-text-button.aop-mapping-keep { justify-self: start; }
+
+.aop-definition-fields { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--ds-space-5) var(--ds-space-4); }
+.aop-definition-scope { grid-column: 1 / -1; }
+.aop-step-section > .aop-inline-disclosure { margin-top: var(--ds-space-3); }
+
+/* Duties: the batch-call table, labels over one hairline and no row rules. */
+.aop-table { display: grid; }
+.aop-table-head, .aop-table-row { display: grid; grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.2fr) minmax(0, 1fr); align-items: start; gap: var(--ds-space-4); }
+.aop-table-head { padding-bottom: var(--ds-space-2); border-bottom: 1px solid var(--ds-border); color: var(--ds-fg-subtle); font-size: var(--ds-text-sm); line-height: var(--ds-lh-sm); }
+.aop-table-row { padding: var(--ds-space-3) 0; font-size: var(--ds-text-sm); line-height: var(--ds-lh-sm); }
+/* The mark stays on the first line; a chip that wraps lines up under the name, not the mark. */
+.aop-duty { display: grid; grid-template-columns: var(--ds-mark-xs) minmax(0, 1fr); align-items: start; column-gap: var(--ds-space-2); min-width: 0; }
+.aop-duty-name { display: flex; flex-wrap: wrap; align-items: center; gap: var(--ds-space-1) var(--ds-space-2); min-width: 0; }
+.aop-duty strong { font-weight: var(--ds-weight-medium); }
+
+/* Coverage: one row per required step, the duty and system that carry it. */
+.aop-coverage { display: grid; grid-template-columns: var(--ds-step-dot) minmax(0, 1fr) max-content; column-gap: var(--ds-space-3); margin: 0; padding: 0; list-style: none; }
+.aop-coverage > li { display: grid; grid-column: 1 / -1; grid-template-columns: subgrid; align-items: start; row-gap: var(--ds-space-2); padding: var(--ds-space-3) 0; }
+.aop-coverage > li + li { border-top: 1px solid var(--ds-border); }
+.aop-coverage-index { display: grid; place-items: center; width: var(--ds-step-dot); height: var(--ds-step-dot); border-radius: var(--ds-radius-full); background: var(--ds-bg-muted); font-size: var(--ds-text-xs); font-weight: var(--ds-weight-medium); }
+.aop-coverage-step { display: grid; min-width: 0; }
+.aop-coverage-step strong { font-size: var(--ds-text-sm); line-height: var(--ds-lh-sm); font-weight: var(--ds-weight-medium); }
+.aop-coverage-step small { color: var(--ds-fg-subtle); font-size: var(--ds-text-xs); line-height: var(--ds-lh-xs); overflow-wrap: anywhere; }
+.aop-coverage-flow { display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: var(--ds-space-1); color: var(--ds-fg-subtle); }
+
+/* Activation terms: the terms dialog's bordered box. */
+.aop-terms { display: grid; margin: 0; overflow: hidden; border: 1px solid var(--ds-border); border-radius: var(--ds-radius-xl); }
+.aop-terms > div { display: grid; grid-template-columns: calc(var(--ds-space-12) * 2.5) minmax(0, 1fr); gap: var(--ds-space-4); padding: var(--ds-space-3) var(--ds-space-4); font-size: var(--ds-text-sm); line-height: var(--ds-lh-sm); }
+.aop-terms > div + div { border-top: 1px solid var(--ds-border); }
+.aop-terms dt { color: var(--ds-fg-subtle); }
+.aop-terms dd { margin: 0; }
+
+/* ---- Engagement header: the batch-call header ------------------------------------ */
+.aop-engagement-head { display: grid; grid-template-columns: minmax(0, 1fr) auto; grid-template-areas: "title actions" "pills pills"; align-items: center; gap: var(--ds-space-3) var(--ds-space-6); }
+.aop-engagement-title { display: flex; grid-area: title; align-items: center; gap: var(--ds-space-3); min-width: 0; }
+.aop-engagement-title > div { min-width: 0; }
+.aop-engagement-title h1 { font-size: var(--ds-text-xl); line-height: var(--ds-lh-xl); font-weight: var(--ds-weight-semibold); letter-spacing: var(--ds-track-xl); overflow-wrap: anywhere; }
+.aop-engagement-title p { overflow: hidden; color: var(--ds-fg-subtle); font-size: var(--ds-text-sm); line-height: var(--ds-lh-sm); text-overflow: ellipsis; white-space: nowrap; }
+.aop-engagement-actions { grid-area: actions; justify-content: flex-end; }
+.aop-engagement-pills { grid-area: pills; }
+
+/* ---- The operating workspace --------------------------------------------------- */
+.aop-main--operating { display: flex; flex-direction: column; overflow: hidden; }
+.aop-operating-head { display: grid; flex-shrink: 0; padding: var(--ds-space-5) var(--ds-space-4) var(--ds-space-5) var(--ds-space-8); }
+.aop-operating-workspace { display: grid; flex: 1; grid-template-columns: minmax(0, 1fr) calc(var(--ds-panel-w) + var(--ds-space-8)); grid-template-rows: minmax(0, 1fr); min-height: 0; }
+.aop-workspace-switch { display: none; }
+/* The work column is a size container too: its table and callout follow the column, not the window. */
+.aop-primary-work { container: aop-work / inline-size; display: flex; flex-direction: column; min-width: 0; min-height: 0; }
+
+/* The tab strip: text tabs, a sliding 2px ink underline, one filter chip. As on the shared
+ * tabstrip, the hairline is a border and the tabs reach 1px into it so the underline sits on it. */
+.aop-work-heading { display: flex; flex-shrink: 0; align-items: stretch; gap: var(--ds-space-3); height: var(--ds-tabstrip-h); padding: 0 var(--ds-space-8); border-bottom: 1px solid var(--ds-border); scrollbar-width: none; }
+.aop-tabs { display: flex; flex-shrink: 0; margin-bottom: -1px; margin-left: calc(-1 * var(--ds-space-3)); }
+.aop-tab { position: relative; display: inline-flex; align-items: center; gap: var(--ds-space-1); padding: 0 var(--ds-space-3); border: 0; white-space: nowrap; background: none; color: var(--ds-fg-subtle); font-size: var(--ds-text-sm); line-height: var(--ds-lh-sm); font-weight: var(--ds-weight-medium); transition: color var(--ds-duration) var(--ds-ease); }
+.aop-tab:hover, .aop-tab[aria-pressed="true"] { color: var(--ds-fg); }
+.aop-tab-count { color: var(--ds-fg-subtle); font-weight: var(--ds-weight-regular); font-variant-numeric: tabular-nums; }
+.aop-tab-underline { position: absolute; right: 0; bottom: 0; left: 0; height: 2px; background: var(--ds-fg); }
+.aop-filter { display: inline-flex; align-self: center; align-items: center; gap: var(--ds-space-1); height: var(--ds-control-h-sm); flex-shrink: 0; margin-left: auto; padding: 0 var(--ds-space-3) 0 var(--ds-space-2); border: 1px solid var(--ds-border); border-radius: var(--ds-radius-full); background: var(--ds-bg); color: var(--ds-fg); font-size: var(--ds-text-xs); font-weight: var(--ds-weight-medium); white-space: nowrap; transition: background var(--ds-duration) var(--ds-ease), color var(--ds-duration) var(--ds-ease); }
+.aop-filter > svg { color: var(--ds-warning-fg); }
+.aop-filter:not([aria-pressed="true"]):hover:not(:disabled) { background: var(--ds-bg-hover); }
+.aop-filter[aria-pressed="true"] { border-color: var(--ds-primary); background: var(--ds-primary); color: var(--ds-fg-on-primary); }
+.aop-filter[aria-pressed="true"]:hover:not(:disabled) { border-color: var(--ds-primary-hover); background: var(--ds-primary-hover); }
+.aop-filter[aria-pressed="true"] > svg, .aop-filter[aria-pressed="true"] .aop-tab-count { color: inherit; }
+.aop-filter:disabled { color: var(--ds-fg-subtle); cursor: default; }
+.aop-filter:disabled > svg { color: var(--ds-fg-subtle); }
+.aop-root .aop-work-heading .aop-back { align-self: center; margin-left: calc(-1 * var(--ds-space-2)); }
+.aop-work-crumb { display: inline-flex; align-self: center; align-items: center; gap: var(--ds-space-2); min-width: 0; overflow: hidden; color: var(--ds-fg-subtle); font-size: var(--ds-text-sm); white-space: nowrap; }
+.aop-work-crumb > span:last-child { overflow: hidden; color: var(--ds-fg); text-overflow: ellipsis; }
+.aop-work-end { align-self: center; margin-left: auto; }
+
+.aop-primary-scroll { flex: 1; min-height: 0; overflow-y: auto; }
+.aop-work-column { display: grid; align-content: start; gap: var(--ds-space-6); padding: var(--ds-space-6) var(--ds-space-8) var(--ds-space-8); }
+.aop-work-view { display: grid; align-content: start; gap: var(--ds-space-6); min-width: 0; }
+.aop-work-column > .aop-demo-controls { margin-top: var(--ds-space-2); }
+
+/* The next step: the info callout, with the one filled action. */
+.aop-next-action { display: flex; align-items: center; gap: var(--ds-space-4); padding: var(--ds-space-3) var(--ds-space-4); border-radius: var(--ds-radius-lg); background: var(--ds-bg-callout); }
+.aop-next-text { flex: 1; min-width: 0; }
+.aop-next-label { display: block; color: var(--ds-fg-subtle); font-size: var(--ds-text-xs); line-height: var(--ds-lh-xs); }
+.aop-next-text h2 { font-size: var(--ds-text-md); line-height: var(--ds-lh-md); font-weight: var(--ds-weight-semibold); }
+.aop-next-text p { overflow-wrap: anywhere; color: var(--ds-fg-subtle); font-size: var(--ds-text-sm); line-height: var(--ds-lh-sm); }
+
+/* Cases: quiet column labels, rows without rules, the pill at the right. */
+/* Exiting rows pop out of the flow, so the list is their positioning context. A priority chip widens the status column for every row. */
+.aop-cases { --aop-middle-col: calc(var(--ds-space-12) * 2); --aop-status-col: calc(var(--ds-space-12) * 3); position: relative; display: grid; }
+.aop-cases.is-history { --aop-middle-col: calc(var(--ds-space-12) * 2.5); }
+.aop-cases.has-priority { --aop-status-col: calc(var(--ds-space-12) * 5); }
+.aop-cases-head, .aop-run-row { display: grid; grid-template-columns: minmax(0, 1fr) var(--aop-middle-col) var(--aop-status-col); align-items: center; gap: var(--ds-space-6); }
+.aop-cases-head { height: var(--ds-control-h); padding: 0 var(--ds-space-2); border-bottom: 1px solid var(--ds-border); color: var(--ds-fg-subtle); font-size: var(--ds-text-sm); }
+.aop-cases-head > span:last-child { text-align: right; }
+.aop-cases-head + .aop-run-row { margin-top: var(--ds-space-1); }
+.aop-run-row { width: 100%; min-height: var(--ds-row-h); padding: var(--ds-space-2); border: 0; border-radius: var(--ds-radius-md); background: none; color: var(--ds-fg); font: inherit; text-align: left; transition: background var(--ds-duration) var(--ds-ease); }
+.aop-run-row:hover { background: var(--ds-bg-hover); }
+.aop-run-name { display: flex; align-items: center; gap: var(--ds-space-3); min-width: 0; }
+.aop-run-icon { display: grid; flex-shrink: 0; place-items: center; width: var(--ds-control-h-sm); height: var(--ds-control-h-sm); border-radius: var(--ds-radius-md); background: var(--ds-bg-muted); color: var(--ds-fg-subtle); }
+.aop-run-icon.is-positive { background: var(--ds-positive-bg); color: var(--ds-positive-fg); }
+.aop-run-icon.is-attention { background: var(--ds-warning-bg); color: var(--ds-warning-fg); }
+.aop-run-icon.is-danger { background: var(--ds-danger-bg); color: var(--ds-danger-fg); }
+.aop-run-icon.is-live { background: var(--ds-tint-1-bg); color: var(--ds-tint-1-fg); }
+.aop-run-text { display: grid; min-width: 0; }
+.aop-run-text strong { overflow: hidden; font-size: var(--ds-text-sm); line-height: var(--ds-lh-sm); font-weight: var(--ds-weight-medium); text-overflow: ellipsis; white-space: nowrap; }
+.aop-run-text small { overflow: hidden; color: var(--ds-fg-subtle); font-size: var(--ds-text-xs); line-height: var(--ds-lh-xs); text-overflow: ellipsis; white-space: nowrap; }
+.aop-run-time { color: var(--ds-fg-subtle); font-size: var(--ds-text-xs); white-space: nowrap; }
+.aop-run-status { display: flex; align-items: center; justify-content: flex-end; gap: var(--ds-space-2); min-width: 0; color: var(--ds-fg-subtle); }
+.aop-run-status > .aop-chip { flex-shrink: 0; }
+.aop-stage { display: flex; align-items: center; gap: var(--ds-space-2); }
+.aop-stage-bar { display: grid; flex: 1; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 2px; }
+.aop-stage-count { color: var(--ds-fg-subtle); font-size: var(--ds-text-xs); line-height: var(--ds-lh-xs); }
+.aop-stage i { height: var(--ds-space-1); border-radius: var(--ds-radius-full); background: var(--ds-bg-muted); }
+.aop-stage i.is-done { background: var(--ds-fg); }
+.aop-stage.is-positive i.is-done { background: var(--ds-positive-fg); }
+.aop-stage.is-attention i.is-done { background: var(--ds-warning-fg); }
+.aop-stage.is-danger i.is-done { background: var(--ds-danger-fg); }
+.aop-stage i.is-current { background: linear-gradient(90deg, var(--ds-bg-muted) 0%, var(--ds-tint-1-fg) 50%, var(--ds-bg-muted) 100%); background-size: 200% 100%; animation: aop-sweep 1400ms linear infinite; }
+@keyframes aop-sweep { from { background-position: 100% 0; } to { background-position: -100% 0; } }
+.aop-root .aop-more { justify-self: start; margin-top: var(--ds-space-3); }
+.aop-schedule-note { color: var(--ds-fg-subtle); font-size: var(--ds-text-xs); line-height: var(--ds-lh-xs); }
+
+.aop-empty { display: grid; justify-items: center; gap: var(--ds-space-1); padding: var(--ds-space-12) var(--ds-space-4); text-align: center; }
+.aop-empty strong { margin-top: var(--ds-space-3); font-size: var(--ds-text-sm); line-height: var(--ds-lh-sm); font-weight: var(--ds-weight-medium); }
+.aop-empty p { max-width: 44ch; color: var(--ds-fg-subtle); font-size: var(--ds-text-sm); line-height: var(--ds-lh-sm); }
+.aop-empty-icon { position: relative; display: grid; place-items: center; width: var(--ds-icon-tile); height: var(--ds-icon-tile); border: 1px solid var(--ds-border); border-radius: var(--ds-radius-md); color: var(--ds-fg); }
+.aop-empty-icon::after { position: absolute; inset: -1px; border: 1px solid var(--ds-orb-1); border-radius: inherit; content: ""; animation: aop-radar 2400ms var(--ds-ease) infinite; }
+@keyframes aop-radar { from { transform: scale(1); opacity: 0.9; } to { transform: scale(1.7); opacity: 0; } }
+.aop-empty-icon.is-still::after { display: none; }
+
+/* Outcomes: the dashboard metric card inside its tray. */
+.aop-value { display: grid; gap: var(--ds-space-3); }
+.aop-metrics { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); margin: var(--ds-tray-pad); border: 1px solid var(--ds-border); border-radius: var(--ds-radius-xl); background: var(--ds-bg); outline: var(--ds-tray-pad) solid var(--ds-bg-inset); }
+.aop-metrics > div { display: grid; align-content: start; gap: var(--ds-space-1); min-width: 0; padding: var(--ds-space-4); }
+.aop-metrics > div + div { border-left: 1px solid var(--ds-border); }
+.aop-metrics span { color: var(--ds-fg-subtle); font-size: var(--ds-text-sm); line-height: var(--ds-lh-sm); }
+.aop-metrics strong { font-size: var(--ds-text-title); line-height: var(--ds-lh-title); font-weight: var(--ds-weight-medium); }
+.aop-metrics strong small { color: var(--ds-fg-subtle); font-size: var(--ds-text-sm); font-weight: var(--ds-weight-regular); }
+.aop-metrics .aop-metric-note { color: var(--ds-fg-subtle); font-size: var(--ds-text-xs); line-height: var(--ds-lh-xs); }
+
+/* ---- A case: the conversation overview and user sheet ------------------------------ */
+.aop-case { display: grid; gap: var(--ds-space-5); }
+.aop-case-head { display: grid; gap: var(--ds-space-2); }
+.aop-case-kicker { color: var(--ds-fg-subtle); font-size: var(--ds-text-xs); line-height: var(--ds-lh-xs); }
+.aop-case-head h2 { font-size: var(--ds-text-title); line-height: var(--ds-lh-title); font-weight: var(--ds-weight-medium); overflow-wrap: anywhere; }
+.aop-case-head h2:focus { outline: none; }
+/* Blocks that fold away when the case moves on; the clip keeps the collapsing card inside its own box. */
+.aop-fold { min-width: 0; overflow: clip; }
+.aop-case-activity { display: flex; align-items: center; gap: var(--ds-space-2); margin: 0; padding: var(--ds-space-3) var(--ds-space-4); border-radius: var(--ds-radius-lg); background: var(--ds-bg-callout); font-size: var(--ds-text-sm); line-height: var(--ds-lh-sm); }
+.aop-case-activity.is-live > .aop-live-dot { color: var(--ds-tint-1-fg); }
+.aop-case-activity.is-positive { background: var(--ds-positive-bg); color: var(--ds-positive-fg); }
+.aop-case-activity.is-danger { background: var(--ds-danger-bg); color: var(--ds-danger-fg); }
+.aop-case-activity.is-attention { background: var(--ds-warning-bg); color: var(--ds-warning-fg); }
+
+.aop-decision { display: grid; gap: var(--ds-space-4); padding: var(--ds-space-5); border: 1px solid var(--ds-border); border-radius: var(--ds-radius-xl); background: var(--ds-bg); }
+.aop-decision-head { display: flex; align-items: flex-start; gap: var(--ds-space-3); }
+.aop-decision-head h3 { font-size: var(--ds-text-md); line-height: var(--ds-lh-md); font-weight: var(--ds-weight-semibold); }
+.aop-decision-head p { color: var(--ds-fg-subtle); font-size: var(--ds-text-sm); line-height: var(--ds-lh-sm); }
+.aop-decision-foot { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--ds-space-3); padding-top: var(--ds-space-4); border-top: 1px solid var(--ds-border); }
+.aop-decision-foot > small { display: inline-flex; align-items: center; gap: var(--ds-space-1); color: var(--ds-fg-subtle); font-size: var(--ds-text-xs); line-height: var(--ds-lh-xs); }
+.aop-decision-foot > :only-child { margin-left: auto; }
+/* Declining asks once, in place: the question at the left, Keep and the confirm at the right. */
+.aop-decision-confirm { display: flex; flex: 1; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--ds-space-3); min-width: 0; }
+.aop-decision-confirm > p { flex: 1 1 calc(var(--ds-space-12) * 5); max-width: 56ch; color: var(--ds-fg-subtle); font-size: var(--ds-text-sm); line-height: var(--ds-lh-sm); }
+.aop-decision-confirm strong { color: var(--ds-fg); font-weight: var(--ds-weight-medium); }
+
+.aop-case-section { display: grid; }
+.aop-criteria { display: grid; margin: 0; padding: 0; list-style: none; }
+.aop-criteria > li { display: flex; align-items: center; justify-content: space-between; gap: var(--ds-space-3); min-height: var(--ds-control-h); padding: var(--ds-space-2) 0; border-top: 1px solid var(--ds-border); font-size: var(--ds-text-sm); line-height: var(--ds-lh-sm); }
+.aop-case-note { display: flex; align-items: center; gap: var(--ds-space-2); padding-top: var(--ds-space-3); border-top: 1px solid var(--ds-border); color: var(--ds-positive-fg); font-size: var(--ds-text-sm); line-height: var(--ds-lh-sm); }
+
+.aop-root .aop-case-contract { margin-bottom: var(--ds-space-3); color: var(--ds-fg-subtle); font-size: var(--ds-text-xs); line-height: var(--ds-lh-xs); }
+.aop-timeline { display: grid; margin: 0; padding: 0; list-style: none; }
+.aop-timeline > li { position: relative; display: grid; grid-template-columns: var(--ds-control-h-sm) minmax(0, 1fr); gap: var(--ds-space-3); padding-bottom: var(--ds-space-4); }
+.aop-timeline > li::before { position: absolute; top: calc(var(--ds-control-h-sm) + var(--ds-space-1)); bottom: var(--ds-space-1); left: calc(var(--ds-control-h-sm) / 2); width: 1px; background: var(--ds-border); content: ""; }
+.aop-timeline > li:last-child::before { display: none; }
+.aop-timeline-mark { display: grid; place-items: center; width: var(--ds-control-h-sm); height: var(--ds-control-h-sm); border: 1px solid var(--ds-border); border-radius: var(--ds-radius-md); background: var(--ds-bg); color: var(--ds-border-strong); }
+.aop-timeline > li.is-positive .aop-timeline-mark { color: var(--ds-positive-fg); }
+.aop-timeline > li.is-live .aop-timeline-mark { color: var(--ds-tint-1-fg); }
+.aop-timeline > li.is-attention .aop-timeline-mark { color: var(--ds-warning-fg); }
+.aop-timeline > li.is-danger .aop-timeline-mark { color: var(--ds-danger-fg); }
+.aop-timeline > li.is-neutral .aop-timeline-mark { color: var(--ds-fg-subtle); }
+.aop-timeline > li.is-future .aop-timeline-mark { color: var(--ds-border-strong); }
+.aop-timeline-body { min-width: 0; }
+.aop-timeline-title { display: flex; flex-wrap: wrap; align-items: center; gap: var(--ds-space-2); min-height: var(--ds-control-h-sm); font-size: var(--ds-text-sm); line-height: var(--ds-lh-sm); }
+.aop-timeline-title strong { font-weight: var(--ds-weight-medium); }
+.aop-timeline > li.is-future .aop-timeline-title strong, .aop-timeline > li.is-future .aop-timeline-card > p:first-child { color: var(--ds-fg-subtle); }
+.aop-timeline-card { margin-top: var(--ds-space-2); padding: var(--ds-space-3) var(--ds-space-4); border: 1px solid var(--ds-border); border-radius: var(--ds-radius-xl); font-size: var(--ds-text-sm); line-height: var(--ds-lh-sm); }
+.aop-timeline-card > .aop-chips { margin-top: var(--ds-space-2); }
+.aop-root .aop-receipts { display: flex; align-items: center; gap: var(--ds-space-2); margin-bottom: var(--ds-space-2); font-size: var(--ds-text-sm); line-height: var(--ds-lh-sm); font-weight: var(--ds-weight-medium); }
+.aop-case-actions { padding-top: var(--ds-space-2); }
+
+/* ---- Conversation: the test-agent panel -------------------------------------------- */
+.aop-context-thread { display: flex; flex-direction: column; min-width: 0; min-height: 0; border-left: 1px solid var(--ds-border); background: var(--ds-bg); }
+.aop-thread-head { display: flex; flex-shrink: 0; align-items: center; gap: var(--ds-space-2); height: var(--ds-tabstrip-h); padding: 0 var(--ds-space-4); border-bottom: 1px solid var(--ds-border); }
+.aop-thread-head h2 { font-size: var(--ds-text-sm); line-height: var(--ds-lh-sm); font-weight: var(--ds-weight-medium); }
+/* The work column already leads back to the list; only the phone, which shows one panel at a time, needs it here. */
+.aop-root .aop-thread-head .aop-thread-back { display: none; margin-left: calc(-1 * var(--ds-space-2)); }
+.aop-thread-log { position: relative; display: flex; flex: 1; flex-direction: column; gap: var(--ds-space-5); min-height: 0; overflow-y: auto; padding: var(--ds-space-5) var(--ds-space-4); mask-image: linear-gradient(to bottom, transparent 0, var(--ds-fg) var(--ds-space-5)); }
+.aop-thread-log:focus-visible { outline-offset: -2px; }
+.aop-thread-empty { display: grid; justify-items: center; gap: var(--ds-space-1); margin: auto 0; text-align: center; }
+.aop-thread-empty > .aop-icon-tile { margin-bottom: var(--ds-space-2); }
+.aop-thread-empty p { max-width: 34ch; color: var(--ds-fg-subtle); font-size: var(--ds-text-sm); line-height: var(--ds-lh-sm); }
+.aop-thread-empty strong { color: var(--ds-fg); font-weight: var(--ds-weight-medium); }
+.aop-suggestions { display: flex; flex-wrap: wrap; justify-content: center; gap: var(--ds-space-2); margin-top: var(--ds-space-3); }
+.aop-suggestion { display: inline-flex; align-items: center; gap: var(--ds-space-1); height: var(--ds-control-h-sm); padding: 0 var(--ds-space-3); border: 1px solid var(--ds-border); border-radius: var(--ds-radius-full); background: var(--ds-bg); color: var(--ds-fg); font-size: var(--ds-text-xs); font-weight: var(--ds-weight-medium); transition: background var(--ds-duration) var(--ds-ease), border-color var(--ds-duration) var(--ds-ease); }
+.aop-suggestion:hover { border-color: var(--ds-border-strong); background: var(--ds-bg-hover); }
+.aop-turn { display: flex; flex-direction: column; align-items: flex-start; gap: var(--ds-space-2); min-width: 0; }
+.aop-turn.is-owner { align-items: flex-end; }
+.aop-turn-speaker { display: flex; align-items: center; gap: var(--ds-space-2); font-size: var(--ds-text-sm); line-height: var(--ds-lh-sm); font-weight: var(--ds-weight-medium); }
+.aop-turn.is-owner .aop-turn-speaker { color: var(--ds-fg-subtle); font-size: var(--ds-text-xs); line-height: var(--ds-lh-xs); font-weight: var(--ds-weight-regular); }
+.aop-bubble { max-width: 88%; padding: var(--ds-space-3) var(--ds-space-4); border: 1px solid var(--ds-border); border-radius: var(--ds-radius-xl); background: var(--ds-bg); }
+.aop-turn:not(.is-owner) .aop-bubble { max-width: calc(100% - var(--ds-mark-xs) - var(--ds-space-2)); margin-left: calc(var(--ds-mark-xs) + var(--ds-space-2)); }
+.aop-turn.is-owner .aop-bubble { border-color: transparent; background: var(--ds-bg-callout); }
+.aop-bubble p { font-size: var(--ds-text-sm); line-height: var(--ds-lh-sm); white-space: pre-wrap; overflow-wrap: anywhere; }
+.aop-bubble.is-thinking { display: flex; align-items: center; gap: var(--ds-space-2); font-size: var(--ds-text-sm); line-height: var(--ds-lh-sm); }
+.aop-thinking-dots { display: inline-flex; gap: 2px; }
+.aop-thinking-dots > i { width: var(--ds-space-1); height: var(--ds-space-1); border-radius: var(--ds-radius-full); background: var(--ds-fg-subtle); animation: aop-bounce 1000ms var(--ds-ease) infinite; }
+.aop-thinking-dots > i:nth-child(2) { animation-delay: 150ms; }
+.aop-thinking-dots > i:nth-child(3) { animation-delay: 300ms; }
+@keyframes aop-bounce { 0%, 80%, 100% { transform: translateY(0); } 40% { transform: translateY(calc(-1 * var(--ds-space-1))); } }
+.aop-context-thread > .ws-composer { flex-shrink: 0; margin: 0 var(--ds-space-4) var(--ds-space-4); }
+
+/* ---- Team & scope: a side sheet over a light scrim ------------------------------ */
+/* It enters and leaves on the dialog's own transitions (the exit keeps it in the top layer), over a scrim that fades. */
+.aop-drawer { position: fixed; inset: 0 0 0 auto; width: var(--ds-sheet-w); max-width: 100vw; height: 100dvh; max-height: 100dvh; margin: 0; padding: 0; overflow: hidden; border: 0; border-left: 1px solid var(--ds-border); background: var(--ds-bg); color: var(--ds-fg); box-shadow: var(--ds-shadow-dialog); translate: 100% 0; transition: translate 240ms var(--ds-ease), overlay 240ms allow-discrete, display 240ms allow-discrete; }
+.aop-drawer[open] { display: flex; flex-direction: column; translate: 0 0; transition-duration: 420ms; }
+@starting-style { .aop-drawer[open] { translate: 100% 0; } }
+.aop-drawer::backdrop { background-color: transparent; transition: background-color 240ms var(--ds-ease), overlay 240ms allow-discrete, display 240ms allow-discrete; }
+.aop-drawer[open]::backdrop { background-color: var(--ds-scrim-sheet); transition-duration: 420ms; }
+@starting-style { .aop-drawer[open]::backdrop { background-color: transparent; } }
+/* The head, description, list, marks and footer match Discovery's setup sheet. */
+.aop-sheet-head { display: flex; align-items: center; gap: var(--ds-space-3); padding: var(--ds-space-5) var(--ds-space-4) 0 var(--ds-space-6); }
+.aop-sheet-head h2 { flex: 1; min-width: 0; font-size: var(--ds-text-title); line-height: var(--ds-lh-title); font-weight: var(--ds-weight-medium); }
+.aop-root .aop-sheet-lede { margin: var(--ds-space-4) var(--ds-space-6) 0; color: var(--ds-fg-subtle); font-size: var(--ds-text-sm); line-height: var(--ds-lh-sm); }
+.aop-sheet-close { display: inline-grid; flex-shrink: 0; align-self: flex-start; place-items: center; width: var(--ds-control-h-sm); height: var(--ds-control-h-sm); padding: 0; border: 0; border-radius: var(--ds-radius-md); background: none; color: var(--ds-fg-subtle); }
+.aop-sheet-close:hover { background: var(--ds-bg-hover); color: var(--ds-fg); }
+.aop-drawer-scroll { display: grid; flex: 1; align-content: start; gap: var(--ds-space-6); min-height: 0; overflow-y: auto; padding: var(--ds-space-5) var(--ds-space-6) var(--ds-space-6); }
+.aop-sheet-section { display: grid; }
+.aop-sheet-desc { color: var(--ds-fg-subtle); font-size: var(--ds-text-sm); line-height: var(--ds-lh-sm); }
+.aop-sheet-section > .aop-sheet-desc { margin-bottom: var(--ds-space-3); }
+.aop-root .aop-sheet-section > .ds-button { justify-self: start; margin-top: var(--ds-space-3); }
+.aop-duties { container: aop-duties / inline-size; margin: 0; padding: 0; overflow: hidden; border: 1px solid var(--ds-border); border-radius: var(--ds-radius-lg); list-style: none; }
+.aop-duties > li + li { border-top: 1px solid var(--ds-border); }
+.aop-duties summary { display: flex; align-items: center; gap: var(--ds-space-3); min-height: calc(var(--ds-row-h) + var(--ds-space-3)); padding: var(--ds-space-2) var(--ds-space-4); transition: background var(--ds-duration) var(--ds-ease); }
+.aop-duties summary:hover { background: var(--ds-bg-hover); }
+/* A long name and its chip wrap inside the text column, so the chip never runs under the status pill. */
+.aop-duties .aop-list-text strong { display: flex; flex-wrap: wrap; align-items: center; gap: var(--ds-space-1) var(--ds-space-2); min-width: 0; }
+.aop-duties summary > .aop-status { flex-shrink: 0; }
+.aop-caret { color: var(--ds-fg-subtle); transition: transform var(--ds-duration) var(--ds-ease); }
+.aop-duties details[open] .aop-caret { transform: rotate(90deg); }
+.aop-duties dl { padding: 0 var(--ds-space-4) var(--ds-space-3) calc(var(--ds-space-4) + var(--ds-control-h) + var(--ds-space-3)); }
+/*
+ * In a list under 480px (the sheet on a phone) the status leaves the name's line and
+ * sits under the role, lined up with the text; the mark and caret stay centred on the row.
+ */
+@container aop-duties (max-width: 30rem) {
+	.aop-duties summary { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; row-gap: var(--ds-space-2); padding-block: var(--ds-space-3); }
+	.aop-duties summary > .ds-mark { grid-column: 1; grid-row: 1 / 3; }
+	.aop-duties summary > .aop-list-text { grid-column: 2; grid-row: 1; }
+	.aop-duties summary > .aop-status { grid-column: 2; grid-row: 2; justify-self: start; }
+	.aop-duties summary > .aop-caret { grid-column: 3; grid-row: 1 / 3; }
+}
+.aop-sheet-card { display: grid; gap: var(--ds-space-2); padding: var(--ds-space-5); border: 1px solid var(--ds-border); border-radius: var(--ds-radius-xl); background: var(--ds-bg-inset); font-size: var(--ds-text-sm); line-height: var(--ds-lh-sm); }
+.aop-sheet-card h3 { font-size: var(--ds-text-md); line-height: var(--ds-lh-md); font-weight: var(--ds-weight-medium); }
+.aop-sheet-card .aop-rows { margin-bottom: var(--ds-space-1); }
+.aop-sheet-note { color: var(--ds-fg-subtle); font-size: var(--ds-text-xs); line-height: var(--ds-lh-xs); }
+.aop-record { display: grid; gap: var(--ds-space-2); margin: 0; padding-left: var(--ds-space-5); color: var(--ds-fg-subtle); font-size: var(--ds-text-sm); line-height: var(--ds-lh-sm); }
+.aop-sheet-foot { display: flex; align-items: center; justify-content: space-between; gap: var(--ds-space-3); padding: var(--ds-space-4) var(--ds-space-6) var(--ds-space-5); border-top: 1px solid var(--ds-border); }
+.aop-sheet-foot > span { color: var(--ds-fg-subtle); font-size: var(--ds-text-xs); line-height: var(--ds-lh-xs); }
+
+/* ---- Toast: the publish confirmation ------------------------------------------ */
+.aop-toast-region { position: fixed; right: var(--ds-space-4); bottom: var(--ds-space-4); z-index: 60; pointer-events: none; }
+.aop-toast { display: flex; align-items: center; gap: var(--ds-space-2); max-width: min(calc(var(--ds-panel-w) + var(--ds-space-8)), calc(100vw - var(--ds-space-8))); margin: 0; padding: var(--ds-space-3) var(--ds-space-4); border-radius: var(--ds-radius-lg); background: var(--ds-primary); color: var(--ds-fg-on-primary); font-size: var(--ds-text-sm); line-height: var(--ds-lh-sm); }
+
+/* ---- Narrow screens ------------------------------------------------------------ */
+@media (max-width: 1100px) {
+	.aop-setup { grid-template-columns: minmax(0, var(--ds-reader-max)); gap: var(--ds-space-5); }
+	.aop-setup-rail { position: static; }
+	.aop-setup-rail .mk-steps { grid-auto-columns: minmax(0, 1fr); grid-auto-flow: column; gap: var(--ds-space-3); }
+	.aop-setup-rail .mk-step { padding-bottom: 0; }
+	.aop-setup-rail .mk-step::before { display: none; }
+	.aop-setup-rail .mk-step-text small { display: none; }
+}
+/*
+ * A narrow work column (under 640px, sidebar or not) drops the progress and time
+ * columns, so a case title always keeps the room it needs.
+ */
+@container aop-work (max-width: 40rem) {
+	.aop-cases-head { display: none; }
+	.aop-cases-head + .aop-run-row { margin-top: 0; }
+	.aop-run-row { grid-template-columns: minmax(0, 1fr) auto; gap: var(--ds-space-3); }
+	.aop-run-row > :is(.aop-stage, .aop-run-time) { display: none; }
+	.aop-metrics { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+	.aop-metrics > div:nth-child(odd) { border-left: 0; }
+	.aop-metrics > div:nth-child(n + 3) { border-top: 1px solid var(--ds-border); }
+}
+/* Under 576px the next step's action drops beneath its text, lined up with it. */
+@container aop-work (max-width: 36rem) {
+	.aop-next-action { flex-wrap: wrap; }
+	.aop-next-text { flex-basis: calc(100% - var(--ds-icon-tile) - var(--ds-space-4)); }
+	.aop-root .aop-next-action > .ds-button { margin-left: calc(var(--ds-icon-tile) + var(--ds-space-4)); }
+}
+/*
+ * Under 880px of module width the work and the conversation take turns behind a
+ * switch. The page scrolls as one, so the engagement header scrolls away while the
+ * switch and the work tabs stay pinned; the conversation takes the whole height.
+ */
+@container aop-root (max-width: 55rem) {
+	.aop-main--operating { overflow-y: auto; }
+	.aop-main--operating > .aop-operating-workspace { flex: 1 0 auto; grid-template-columns: minmax(0, 1fr); grid-template-rows: auto minmax(0, 1fr); }
+	.aop-operating-head { padding-inline: var(--ds-space-6); padding-bottom: var(--ds-space-1); }
+	.aop-work-heading, .aop-work-column { padding-inline: var(--ds-space-6); }
+	.aop-workspace-switch { position: sticky; top: 0; z-index: 2; display: flex; gap: 2px; padding: calc(var(--ds-space-2) + 2px) calc(var(--ds-space-6) + 2px) calc(var(--ds-space-3) + 2px); background: var(--ds-bg); }
+	.aop-workspace-switch::before { position: absolute; inset: var(--ds-space-2) var(--ds-space-6) var(--ds-space-3); z-index: -1; border-radius: var(--ds-radius-md); background: var(--ds-bg-muted); content: ""; }
+	.aop-workspace-switch > button { display: inline-flex; flex: 1; align-items: center; justify-content: center; gap: var(--ds-space-1); height: var(--ds-control-h-sm); border: 0; border-radius: var(--ds-radius-sm); background: none; color: var(--ds-fg-subtle); font-size: var(--ds-text-sm); font-weight: var(--ds-weight-medium); white-space: nowrap; }
+	.aop-workspace-switch > button[aria-pressed="true"] { background: var(--ds-bg); color: var(--ds-fg); }
+	.aop-work-heading { position: sticky; top: calc(var(--ds-control-h-sm) + var(--ds-space-1) + var(--ds-space-2) + var(--ds-space-3)); z-index: 1; background: var(--ds-bg); }
+	.aop-primary-scroll { flex: none; overflow: visible; }
+	.aop-root .aop-thread-head .aop-thread-back { display: inline-flex; }
+	.aop-operating-workspace[data-mobile-view="work"] .aop-context-thread,
+	.aop-operating-workspace[data-mobile-view="conversation"] .aop-primary-work { display: none; }
+	.aop-context-thread { border-left: 0; }
+	/* One inset for the switch, the thread and its composer. */
+	.aop-thread-head, .aop-thread-log { padding-inline: var(--ds-space-6); }
+	.aop-context-thread > .ws-composer { margin-inline: var(--ds-space-6); }
+	.aop-main--operating:has(> .aop-operating-workspace[data-mobile-view="conversation"]) { overflow: hidden; }
+	.aop-main--operating:has(> .aop-operating-workspace[data-mobile-view="conversation"]) > .aop-operating-head { display: none; }
+	.aop-main--operating > .aop-operating-workspace[data-mobile-view="conversation"] { flex: 1 1 0; min-height: 0; }
+}
+@media (max-width: 900px) {
+	.aop-definition-fields { grid-template-columns: minmax(0, 1fr); }
+	.aop-table-head { display: none; }
+	.aop-table-row { grid-template-columns: minmax(0, 1fr); gap: var(--ds-space-2); }
+	.aop-table-row + .aop-table-row { border-top: 1px solid var(--ds-border); }
+	.aop-coverage { grid-template-columns: var(--ds-step-dot) minmax(0, 1fr); }
+	.aop-coverage-flow { grid-column: 2; justify-content: flex-start; }
+}
+@media (max-width: 860px) {
+	.mxp-root--agentix .mxp-stage { bottom: 0; }
+	.aop-root .aop-topbar.ds-topbar { padding-left: var(--ds-mobile-nav-offset); }
+}
+@media (max-width: 600px) {
+	.aop-root .aop-topbar.ds-topbar { gap: var(--ds-space-1); padding-right: var(--ds-space-3); padding-left: var(--ds-mobile-nav-offset); }
+	.aop-root .aop-topbar .ds-badge { display: none; }
+	/* The engagement's name leaves the bar while its header is on the page, and returns with the conversation. */
+	.aop-root:not(:has([data-mobile-view="conversation"])) .aop-topbar :is(.ds-crumb-current, .ds-crumb-sep, .aop-crumb-mark) { display: none; }
+	.aop-setup { padding-inline: var(--ds-space-4); }
+	.aop-template-grid { grid-template-columns: minmax(0, 1fr); }
+	.aop-setup-bar, .aop-setup-bar-end { flex-wrap: wrap; }
+	.aop-setup-bar-end { justify-content: flex-end; }
+	/* On a phone the pinned bar is one row, Back at the left and Activate at the right, as on Start; the reason is read, not shown. */
+	.aop-deploy-bar .aop-deploy-text { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+	/* Section descriptions keep the full width; their pill sits beneath the title. */
+	.aop-section-head { flex-direction: column; gap: var(--ds-space-2); }
+	/* Readiness rows keep their text full width; the pill and any action drop under it. */
+	.aop-readiness .aop-list-row { flex-wrap: wrap; row-gap: var(--ds-space-1); }
+	.aop-readiness .aop-list-text { flex-basis: calc(100% - var(--ds-control-h) - var(--ds-space-3)); }
+	.aop-readiness .aop-list-text + * { margin-left: calc(var(--ds-control-h) + var(--ds-space-3)); }
+	.aop-engagement-head { grid-template-columns: minmax(0, 1fr); grid-template-areas: "title" "pills" "actions"; }
+	.aop-engagement-actions { justify-content: flex-start; }
+	.aop-pill.is-optional { display: none; }
+	.aop-setup-note, .aop-inline-select-label { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+	.aop-run-text strong { white-space: normal; }
+	.aop-operating-head { padding: var(--ds-space-4) var(--ds-space-4) var(--ds-space-1); }
+	.aop-work-heading, .aop-work-column { padding-inline: var(--ds-space-4); }
+	.aop-workspace-switch { padding-inline: calc(var(--ds-space-4) + 2px); }
+	.aop-workspace-switch::before { inset-inline: var(--ds-space-4); }
+	.aop-thread-head, .aop-thread-log { padding-inline: var(--ds-space-4); }
+	.aop-context-thread > .ws-composer { margin-inline: var(--ds-space-4); }
+	/* Tabs scroll sideways rather than wrap. */
+	.aop-work-heading { overflow-x: auto; }
+	.aop-next-action { flex-wrap: wrap; }
+	.aop-root .aop-next-action > .ds-button { width: 100%; margin-left: 0; }
+	/*
+	 * Strips keep their text full width with the action beneath it, as wide as the strip like
+	 * the next step's action; a label too long for the narrowest phone wraps inside the button.
+	 * Their text runs to several lines here, so the mark sits on the first line.
+	 * The repair owner line is left to the sheet.
+	 */
+	.aop-strip, .aop-runtime-repair { flex-wrap: wrap; align-items: flex-start; }
+	.aop-strip > svg { margin-top: 2px; }
+	.aop-strip > :is(p, span, .aop-callout-body) { flex: 1 1 calc(100% - var(--ds-icon) - var(--ds-space-3)); }
+	.aop-root .aop-strip > .ds-button { width: 100%; height: auto; min-height: var(--ds-control-h); margin-left: 0; padding-block: var(--ds-space-2); white-space: normal; text-align: center; text-wrap: balance; }
+	.aop-runtime-repair .aop-callout-meta { display: none; }
+	/* Needs you rows put the engagement under the title. */
+	.aop-inbox-note { display: none; }
+	.aop-inbox-row { grid-template-columns: auto minmax(0, 1fr) auto; row-gap: 0; }
+	.aop-inbox-meta { grid-row: 2; grid-column: 2 / -1; }
+	.aop-terms > div { grid-template-columns: minmax(0, 1fr); gap: 0; }
+	.aop-rows > div { display: grid; gap: 0; }
+	.aop-rows dd { text-align: left; }
+	.aop-root :is(.ds-input, .ds-textarea), .aop-root .aop-brief-card .aop-brief-field textarea { font-size: var(--ds-text-subtitle); }
+	.aop-drawer-scroll { padding-inline: var(--ds-space-4); }
+	.aop-sheet-head { padding-left: var(--ds-space-4); }
+	.aop-root .aop-sheet-lede { margin-inline: var(--ds-space-4); }
+	.aop-sheet-foot { padding-inline: var(--ds-space-4); }
+	.aop-toast-region { right: var(--ds-space-4); left: var(--ds-space-4); }
+}
+@media (max-width: 400px) {
+	.aop-root .aop-topbar .aop-breadcrumb { width: var(--ds-control-h-sm); padding: 0; justify-content: center; }
+	.aop-root .aop-topbar .aop-breadcrumb .aop-crumb-label { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+	/* With the conversation open, New engagement keeps only its icon so the engagement's name fits. */
+	.aop-root:has([data-mobile-view="conversation"]) .aop-topbar .ds-topbar-end > .ds-button { width: var(--ds-control-h-sm); padding: 0; justify-content: center; gap: 0; font-size: 0; }
+	.aop-root .aop-topbar .ds-crumb-sep { display: none; }
+	.aop-tabs { margin-left: calc(-1 * var(--ds-space-2)); }
+	.aop-tab { padding-inline: var(--ds-space-2); }
+	/* The stepper names only the step in hand; the others keep their marks and are still read out. */
+	.aop-setup-rail .mk-steps { display: flex; gap: var(--ds-space-3); }
+	.aop-setup-rail .mk-step { flex: none; }
+	.aop-setup-rail .mk-step:not(.is-current) { grid-template-columns: var(--ds-step-dot); column-gap: 0; }
+	.aop-setup-rail .mk-step:not(.is-current) .mk-step-text { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+	.aop-setup-rail .mk-step.is-current { flex: 0 1 auto; min-width: 0; }
+	.aop-setup-rail .mk-step.is-current strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+	/* The starting point is a full-width two-part control. */
+	.aop-source-tabs { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 2px; padding: 2px; border-radius: var(--ds-radius-md); background: var(--ds-bg-muted); }
+	.aop-source-tabs > button { height: auto; min-height: var(--ds-control-h); padding: var(--ds-space-1) var(--ds-space-2); border: 0; border-radius: var(--ds-radius-sm); line-height: var(--ds-lh-xs); text-align: center; }
+	.aop-source-tabs > button[aria-pressed="true"] { background: var(--ds-bg); }
+}
+@media (max-width: 360px) {
+	/* The Needs you filter keeps its mark and count; its name is still read out. */
+	.aop-filter { gap: var(--ds-space-1); font-size: 0; }
+	.aop-filter > .aop-tab-count { font-size: var(--ds-text-xs); }
+}
+@media (prefers-reduced-motion: reduce) {
+	.aop-root *, .aop-root *::before, .aop-root *::after, .aop-drawer::backdrop { animation: none !important; transition: none !important; scroll-behavior: auto !important; }
+}

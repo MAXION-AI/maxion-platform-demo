@@ -1,0 +1,109 @@
+/*
+ * Discovery → Agentix handoff. Tokens only (scripts/check-design-tokens.mjs).
+ * The entry sits on the Discovery hub; the handoff page is the Review Changes
+ * panel set in a Studio reading column (docs/elevenlabs-reference-map.md).
+ */
+
+/* ---- Entry on the Discovery hub ---------------------------------------------- */
+.agw-discovery-packages { margin-top: var(--ds-space-8); }
+.agw-discovery-packages summary { display: flex; align-items: center; gap: var(--ds-space-2); min-height: var(--ds-row-h); padding: 0 var(--ds-space-2); border-radius: var(--ds-radius-md); color: var(--ds-fg); font-size: var(--ds-text-sm); line-height: var(--ds-lh-sm); list-style: none; cursor: pointer; transition: background var(--ds-duration) var(--ds-ease); }
+.agw-discovery-packages summary::-webkit-details-marker { display: none; }
+.agw-discovery-packages summary:hover { background: var(--ds-bg-hover); }
+.agw-discovery-packages summary strong { font-weight: var(--ds-weight-medium); }
+.agw-caret { flex-shrink: 0; color: var(--ds-fg-subtle); transition: transform var(--ds-duration) var(--ds-ease); }
+.agw-discovery-packages details[open] .agw-caret { transform: rotate(90deg); }
+.agw-count { margin-left: auto; color: var(--ds-fg-subtle); font-size: var(--ds-text-xs); line-height: var(--ds-lh-xs); }
+.agw-discovery-packages details > p { margin: 0 0 var(--ds-space-3); padding-left: calc(var(--ds-space-8) - 2px); color: var(--ds-fg-subtle); font-size: var(--ds-text-sm); line-height: var(--ds-lh-sm); }
+.agw-package-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--ds-space-3); }
+.agw-package-grid > button { display: flex; align-items: center; gap: var(--ds-space-3); width: 100%; min-width: 0; padding: var(--ds-space-3) var(--ds-space-4); border: 1px solid var(--ds-border); border-radius: var(--ds-radius-xl); background: var(--ds-bg); color: var(--ds-fg); font: inherit; text-align: left; cursor: pointer; transition: border-color var(--ds-duration) var(--ds-ease); }
+.agw-package-grid > button:hover { border-color: var(--ds-border-strong); }
+.agw-package-text { display: grid; flex: 1; min-width: 0; }
+.agw-package-text small { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.agw-version { color: var(--ds-fg-subtle); font-weight: var(--ds-weight-regular); }
+.agw-package-state[data-state="active"] { color: var(--ds-positive-fg); }
+.agw-package-grid strong { font-size: var(--ds-text-sm); line-height: var(--ds-lh-sm); font-weight: var(--ds-weight-medium); }
+.agw-package-grid small { color: var(--ds-fg-subtle); font-size: var(--ds-text-xs); line-height: var(--ds-lh-xs); }
+.agw-package-grid > button > svg { color: var(--ds-fg-subtle); }
+
+/* ---- The handoff page -------------------------------------------------------- */
+.axi-root { display: flex; flex-direction: column; height: 100%; min-height: 0; }
+.axi-main { flex: 1; min-height: 0; overflow-y: auto; }
+.axi-column { display: grid; gap: var(--ds-space-6); max-width: calc(var(--ds-reader-max) + 2 * var(--ds-page-x)); margin: 0 auto; padding: var(--ds-space-8) var(--ds-page-x) var(--ds-space-12); }
+.axi-root .axi-topbar.ds-topbar { padding-inline: var(--ds-space-4); }
+.axi-crumb-mark { margin-right: calc(-1 * var(--ds-space-1)); }
+.axi-root .axi-topbar .ds-crumb-current { min-width: 0; }
+.axi-mono { font-family: var(--ds-font-mono); color: var(--ds-fg-subtle); font-size: var(--ds-text-xs); line-height: var(--ds-lh-xs); }
+
+.axi-head { display: flex; align-items: flex-start; gap: var(--ds-space-4); }
+.axi-head > div { min-width: 0; }
+.axi-kicker { color: var(--ds-fg-subtle); font-size: var(--ds-text-xs); line-height: var(--ds-lh-xs); }
+.axi-head h1 { font-size: var(--ds-text-xl); line-height: var(--ds-lh-xl); font-weight: var(--ds-weight-semibold); letter-spacing: var(--ds-track-xl); }
+.axi-head p:not(.axi-kicker) { margin-top: var(--ds-space-1); color: var(--ds-fg-subtle); font-size: var(--ds-text-sm); line-height: var(--ds-lh-sm); }
+.axi-pills { display: flex; flex-wrap: wrap; gap: var(--ds-space-2); margin: calc(-1 * var(--ds-space-2)) 0 0; padding: 0; list-style: none; }
+.axi-pill { display: inline-flex; align-items: center; gap: var(--ds-space-1); height: var(--ds-space-6); padding: 0 var(--ds-space-2); border-radius: var(--ds-radius-full); background: var(--ds-bg-muted); color: var(--ds-fg); font-size: var(--ds-text-xs); line-height: var(--ds-lh-xs); font-weight: var(--ds-weight-medium); white-space: nowrap; }
+.axi-pill > svg { color: var(--ds-fg-subtle); }
+.axi-pill.is-positive { background: var(--ds-positive-bg); color: var(--ds-positive-fg); }
+.axi-pill.is-positive > svg { color: inherit; }
+/* The live signal Agentix uses: a dot with a slow ping. */
+.axi-live-dot { position: relative; flex-shrink: 0; width: var(--ds-dots); height: var(--ds-dots); margin-inline: 2px; border-radius: var(--ds-radius-full); background: currentColor; }
+.axi-live-dot::after { position: absolute; inset: 0; border-radius: inherit; background: currentColor; content: ""; animation: axi-ping 1600ms var(--ds-ease) infinite; }
+@keyframes axi-ping { from { transform: scale(1); opacity: 0.55; } to { transform: scale(2.8); opacity: 0; } }
+
+/* The package: a review panel with its manifest and one filled action. */
+.axi-package { display: grid; gap: var(--ds-space-4); padding: var(--ds-space-5); border: 1px solid var(--ds-border); border-radius: var(--ds-radius-2xl); background: var(--ds-bg); }
+.axi-package > header { display: flex; align-items: baseline; justify-content: space-between; gap: var(--ds-space-3); }
+.axi-package h2 { font-size: var(--ds-text-title); line-height: var(--ds-lh-title); font-weight: var(--ds-weight-medium); }
+.axi-package > p { color: var(--ds-fg-subtle); font-size: var(--ds-text-sm); line-height: var(--ds-lh-sm); }
+.axi-manifest { display: grid; margin: 0; overflow: hidden; border: 1px solid var(--ds-border); border-radius: var(--ds-radius-xl); }
+.axi-manifest > div { display: grid; grid-template-columns: minmax(0, 0.8fr) minmax(0, 1.2fr); gap: var(--ds-space-4); padding: var(--ds-space-3) var(--ds-space-4); font-size: var(--ds-text-sm); line-height: var(--ds-lh-sm); }
+.axi-manifest > div + div { border-top: 1px solid var(--ds-border); }
+.axi-manifest dt { display: flex; align-self: start; align-items: center; gap: var(--ds-space-2); font-weight: var(--ds-weight-medium); }
+.axi-manifest dt > svg { flex-shrink: 0; width: var(--ds-icon); height: var(--ds-icon); color: var(--ds-positive-fg); }
+.axi-manifest dd { margin: 0; color: var(--ds-fg-subtle); overflow-wrap: anywhere; }
+.axi-manifest > .is-gap { background: var(--ds-warning-bg); }
+.axi-manifest > .is-gap dt > svg { color: var(--ds-warning-fg); }
+.axi-manifest > .is-gap dd { color: var(--ds-fg); }
+.axi-package > footer { display: flex; align-items: center; justify-content: space-between; gap: var(--ds-space-3); padding-top: var(--ds-space-4); border-top: 1px solid var(--ds-border); }
+.axi-package > footer small { color: var(--ds-fg-subtle); font-size: var(--ds-text-xs); line-height: var(--ds-lh-xs); }
+
+/* The approved design, section by section. */
+.axi-section { display: grid; gap: var(--ds-space-3); padding-top: var(--ds-space-6); border-top: 1px solid var(--ds-border); }
+.axi-section h2 { font-size: var(--ds-text-title); line-height: var(--ds-lh-title); font-weight: var(--ds-weight-medium); }
+.axi-lede { font-size: var(--ds-text-lg); line-height: var(--ds-lh-lg); }
+.axi-changes { display: grid; margin: 0; padding: 0; list-style: none; }
+.axi-changes > li { display: grid; grid-template-columns: var(--ds-step-dot) minmax(0, 1fr); gap: var(--ds-space-3); padding: var(--ds-space-3) 0; }
+.axi-changes > li + li { border-top: 1px solid var(--ds-border); }
+.axi-index { display: grid; place-items: center; width: var(--ds-step-dot); height: var(--ds-step-dot); border-radius: var(--ds-radius-full); background: var(--ds-bg-muted); font-size: var(--ds-text-xs); font-weight: var(--ds-weight-medium); }
+.axi-change { display: grid; gap: var(--ds-space-1); font-size: var(--ds-text-sm); line-height: var(--ds-lh-sm); }
+.axi-before { color: var(--ds-fg-subtle); text-decoration: line-through; text-decoration-color: var(--ds-border-strong); }
+.axi-after { display: flex; align-items: baseline; gap: var(--ds-space-2); font-weight: var(--ds-weight-medium); }
+.axi-after > svg { color: var(--ds-positive-fg); }
+.axi-change small { color: var(--ds-fg-subtle); font-size: var(--ds-text-xs); line-height: var(--ds-lh-xs); }
+.axi-sources, .axi-checks { display: grid; margin: 0; padding: 0; overflow: hidden; border: 1px solid var(--ds-border); border-radius: var(--ds-radius-xl); list-style: none; }
+.axi-sources > li + li, .axi-checks > li + li { border-top: 1px solid var(--ds-border); }
+.axi-sources summary { display: flex; align-items: center; gap: var(--ds-space-3); min-height: var(--ds-row-h); padding: 0 var(--ds-space-4); font-size: var(--ds-text-sm); font-weight: var(--ds-weight-medium); transition: background var(--ds-duration) var(--ds-ease); }
+.axi-sources summary:hover { background: var(--ds-bg-hover); }
+.axi-source-title { flex: 1; min-width: 0; }
+.axi-caret { color: var(--ds-fg-subtle); transition: transform var(--ds-duration) var(--ds-ease); }
+.axi-sources details[open] .axi-caret { transform: rotate(90deg); }
+.axi-sources details > :not(summary) { padding-left: calc(var(--ds-space-4) + var(--ds-mark-xs) + var(--ds-space-3)); padding-right: var(--ds-space-4); }
+.axi-sources details > p { font-size: var(--ds-text-sm); line-height: var(--ds-lh-sm); }
+.axi-sources details > small { display: block; padding-bottom: var(--ds-space-3); color: var(--ds-fg-subtle); font-size: var(--ds-text-xs); line-height: var(--ds-lh-xs); }
+.axi-checks > li { display: flex; align-items: center; gap: var(--ds-space-3); min-height: var(--ds-control-h-lg); padding: var(--ds-space-2) var(--ds-space-4); font-size: var(--ds-text-sm); line-height: var(--ds-lh-sm); }
+.axi-checks > li > svg { color: var(--ds-positive-fg); }
+
+@media (max-width: 860px) {
+	/* The crumb clears the shell's floating menu button at Discovery's inset (cockpit.css). */
+	.axi-root .axi-topbar.ds-topbar { padding-left: var(--ds-mobile-nav-offset); }
+}
+@media (max-width: 600px) {
+	.agw-package-grid { grid-template-columns: minmax(0, 1fr); }
+	.axi-root .axi-topbar :is(.ds-crumb-sep, .ds-crumb-current, .axi-crumb-mark) { display: none; }
+	.axi-column { padding-inline: var(--ds-space-4); }
+	.axi-manifest > div { grid-template-columns: minmax(0, 1fr); gap: 0; }
+	.axi-manifest dd { padding-left: calc(var(--ds-icon) + var(--ds-space-2)); }
+	.axi-package > footer { flex-direction: column; align-items: stretch; }
+}
+@media (prefers-reduced-motion: reduce) {
+	.agw-discovery-packages *, .axi-root *, .axi-root *::after { transition: none !important; animation: none !important; }
+}

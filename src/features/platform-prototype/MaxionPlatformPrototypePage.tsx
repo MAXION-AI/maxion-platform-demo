@@ -7,9 +7,7 @@ import {
 	Check,
 	CheckCircle,
 	CirclesThree,
-	Clock,
 	Code,
-	Compass,
 	Cube,
 	Database,
 	DotsThree,
@@ -22,7 +20,6 @@ import {
 	Paperclip,
 	Pause,
 	Play,
-	Plug,
 	Plus,
 	ShieldCheck,
 	Pulse,
@@ -33,25 +30,49 @@ import {
 	Users,
 } from "@phosphor-icons/react"
 import { AnimatePresence, motion } from "motion/react"
-import { Fragment, useEffect, useRef, useState, type ReactNode } from "react"
+import { Fragment, useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react"
 import { useLocation } from "react-router-dom"
 
 import { useDocumentTitle } from "@/app/hooks/useDocumentTitle"
-import { AgentixInitiativesPage, DiscoveryHandoffWorkspace, OperationalDiscoveryEntry, type AgentixAttention, type AgentixIntent, type AgentixIntentSignal } from "@/features/agentix/prototype/AgentixInitiativesPage"
-import { WORKFLOWS, type WorkflowId } from "@/features/agentix/prototype/initiatives"
+import { Mark } from "@/design/primitives"
 import {
+	AgentixInitiativesPage,
+	DiscoveryHandoffWorkspace,
+	OperationalDiscoveryEntry,
+	type AgentixAttention,
+	type AgentixEngagementSummary,
+	type AgentixIntent,
+	type AgentixIntentSignal,
+	type AgentixOrigin,
+	type AgentixPendingCase,
+} from "@/features/agentix/prototype/AgentixInitiativesPage"
+import { type WorkflowId } from "@/features/agentix/prototype/initiatives"
+import { awaitingCreation, itemBy } from "@/features/agentix/prototype/engine/engine"
+import { SCENARIOS, systemNames } from "@/features/agentix/prototype/engine/scenarios"
+import { needsYou, teamOf } from "@/features/agentix/prototype/engine/selectors"
+import { readState } from "@/features/agentix/prototype/engine/storage"
+import { PresenterDock } from "@/features/demo/PresenterDock"
+import type { DemoAction, DemoSnapshot } from "@/features/demo/progress"
+import { demoScript } from "@/features/demo/scripts"
+import { demoSession, fillDemoAnswer } from "@/features/demo/session"
+import {
+	demoRecordId,
 	DiscoveryAutonomousPrototypePage,
 	listDiscoveryJumpRecords,
 	type DiscoveryJump,
 	type DiscoveryJumpRecord,
 	type DiscoveryOpenSignal,
+	type HandoffPacket,
 } from "@/features/discovery-autonomous/DiscoveryAutonomousPrototypePage"
 
 import { PLAN_JUMP_ENTRIES, PlanModule, type PlanJumpSignal } from "./PlanAgenticModule"
 import { ExecuteDeliveryWorkspace, type ExecuteDeliveryCommand, type ExecuteDeliveryProgress } from "./ExecuteDeliveryWorkspace"
-import { MaxionSpiralMark, PortalSidebar, PRIMARY_NAVIGATION } from "./PortalChrome"
+import { ACCOUNT_NAVIGATION, MaxionSpiralMark, PortalSidebar, PRIMARY_NAVIGATION } from "./PortalChrome"
+import { NavGlyph, type NavGlyphName } from "./NavGlyphs"
 import {
 	AccountUtilityModule,
+	agentixCaseAction,
+	agentixCaseIntent,
 	DashboardModule,
 	ExecuteHubModule,
 	IntegrationsModule,
@@ -233,7 +254,6 @@ const EXECUTE_PALETTE_MODULES: ReadonlyArray<{ id: MaxionModuleId; label: string
 	{ id: "dashboard", label: "Dashboard", hint: "Portal overview" },
 	{ id: "projects", label: "Projects", hint: "Delivery portfolio" },
 	{ id: "discovery", label: "Discover", hint: "Autonomous discovery" },
-	{ id: "plan", label: "Plan", hint: "Implementation plans" },
 	{ id: "agentix", label: "Agentix", hint: "Operational agents" },
 	{ id: "consult", label: "Consult MAX", hint: "Ask across MAXION" },
 	{ id: "integrations", label: "Integrations", hint: "Connected systems" },
@@ -879,7 +899,8 @@ function ExecuteWorkspaceModule({
 // answer cannot survive the decision it describes.
 type ConsultShellState = {
 	agentix: AgentixAttention
-	discoveryReady: boolean
+	/* The saved Discovery that is waiting on the owner, if any. */
+	discoveryWaiting: { id: string; title: string } | null
 	planSent: boolean
 	planSnapshot: string
 	executeVerified: boolean
@@ -899,9 +920,11 @@ function consultDeliveryLine(state: ConsultShellState) {
 
 function consultAttentionAnswer(state: ConsultShellState) {
 	const open: string[] = []
-	if (state.agentix.approval) open.push("the $240 invoice-variance approval in Agentix")
-	if (state.agentix.audience) open.push("the payroll-owner fulfillment in Agentix")
-	if (!state.discoveryReady) open.push("the external-counsel authority boundary in Discovery")
+	const approvalCase = state.agentix.pending?.find((item) => item.phase === "approval")
+	const audienceCase = state.agentix.pending?.find((item) => item.phase === "human")
+	if (state.agentix.approval) open.push(approvalCase ? `the ${approvalCase.title} decision (${approvalCase.reference}) in Agentix` : "the $240 invoice-variance approval in Agentix")
+	if (state.agentix.audience) open.push(audienceCase ? `the ${audienceCase.title} confirmation (${audienceCase.reference}) in Agentix` : "the payroll-owner fulfillment in Agentix")
+	if (state.discoveryWaiting) open.push(`your input on ${state.discoveryWaiting.title} in Discovery`)
 	const delivery = consultDeliveryLine(state)
 	if (open.length === 0) return `Nothing is waiting on your authority right now. ${delivery} I can still walk any decision back to the evidence it was made on.`
 	const list = open.length === 1 ? open[0] : `${open.slice(0, -1).join(", ")} and ${open[open.length - 1]}`
@@ -914,9 +937,9 @@ function consultAttentionAnswer(state: ConsultShellState) {
 function consultAnswer(message: string, state: ConsultShellState) {
 	const text = message.toLowerCase()
 	if (/\b(discovery|discover|evidence|interview|claim|source|research|tprm)\b/.test(text)) {
-		return state.discoveryReady
-			? "Discovery closed its package: five deliverables, every claim still naming the source it came from, and the external-counsel boundary decided rather than assumed. Nothing in it was written past the evidence."
-			: "Discovery is mid-interview on the third-party onboarding redesign. One authority boundary is still yours — whether MAX may interview external counsel — so the package is not evidence-complete yet. The internal path stays open either way."
+		return state.discoveryWaiting
+			? `${state.discoveryWaiting.title} is waiting on you. The decision is yours, so its package is not evidence-complete yet; MAX keeps the internal path open either way and does not decide it for you.`
+			: "No Discovery is waiting on you. Work in progress continues on its own, and every finished package keeps each claim tied to the source it came from. Nothing in them was written past the evidence."
 	}
 	if (/\b(plan|architecture|flow|decompose|design|blueprint|l2|l3|l4)\b/.test(text)) {
 		return state.planSent
@@ -930,15 +953,15 @@ function consultAnswer(message: string, state: ConsultShellState) {
 			: "Execute has no ERP engagement yet; the plan is approved but has not been sent. Whenever it is, the authority stays files, terminal, and tests — deployment is a separate decision."
 	}
 	if (/\b(agent|agentix|close|approval|approve|effect|effects|finance|quickbooks|sap|reminder|reminders)\b/.test(text)) {
-		if (state.agentix.approval) return "The invoice initiative is waiting for the AP owner to decide a $240 price variance on invoice v2. The coordinator has joined the invoice and receipt specialists’ findings. No ERP resolution is posted until that exact decision is made. All effects in this demo are simulated."
+		if (state.agentix.approval) return "The deployed invoice agent has one case waiting for the AP owner to decide a $240 price variance on invoice v2. Its other cases continue independently. No ERP resolution is posted for this case until that exact decision is made."
 		return state.agentix.audience
 			? "The onboarding initiative is waiting for the payroll owner’s fulfillment reference. HR and IT results are preserved. Agentix cannot provision payroll access through the current connection and does not assume a broader permission."
-			: "Agentix has four illustrative initiatives: incident triage with one agent, and invoice exceptions, employee onboarding and inventory replenishment with coordinated teams. Discovery supplies the approved process; Agentix maps and runs it. No financial outcome is inferred merely because an approval queue is empty."
+			: "Agentix shows four agent responsibilities: incident triage with one agent, and invoice exceptions, employee onboarding and inventory replenishment with coordinated teams. Deployed agents accept ongoing work; each case or scheduled cycle has its own outcome. Discovery supplies a design, readiness is checked before activation, and conversation is for steering. An empty approval queue is not proof of completion."
 	}
 	return consultAttentionAnswer(state)
 }
 
-function ConsultModule({ state, onCommand, onNavigate }: { state: ConsultShellState; onCommand: () => void; onNavigate: (module: MaxionModuleId) => void }) {
+function ConsultModule({ state, onCommand, onNavigate, onOpenAgentix, onOpenDiscoveryRecord }: { state: ConsultShellState; onCommand: () => void; onNavigate: (module: MaxionModuleId) => void; onOpenAgentix: (intent: AgentixIntent) => void; onOpenDiscoveryRecord: (recordId: string, jump: DiscoveryJump) => void }) {
 	const [input, setInput] = useState("")
 	const [threads, setThreads] = useState<ConsultThread[]>(() => [
 		{ id: "attention", title: "What needs my attention?", time: "Just now", messages: [{ actor: "MAX", text: CONSULT_GREETING }] },
@@ -979,12 +1002,25 @@ function ConsultModule({ state, onCommand, onNavigate }: { state: ConsultShellSt
 		setInput("")
 		setThinking(false)
 	}
-	const alerts: HeaderAlert[] = []
-	if (state.agentix.approval) alerts.push({ id: "approval", title: "Invoice variance needs a decision", detail: "Agentix · $240 · invoice v2", onOpen: () => onNavigate("agentix") })
-	if (state.agentix.audience) alerts.push({ id: "audience", title: "Onboarding needs human fulfillment", detail: "Agentix · payroll owner confirmation", onOpen: () => onNavigate("agentix") })
-	if (!state.discoveryReady) alerts.push({ id: "discovery", title: "An external interview needs your approval", detail: "Discover · third-party onboarding redesign", onOpen: () => onNavigate("discovery") })
+	// Agentix boundaries open the exact case they name, never whichever engagement was open last.
+	const pending = state.agentix.pending
+	const alerts: HeaderAlert[] = pending
+		? pending.slice(0, 3).map((item) => ({ id: `agentix-${item.id}`, title: item.title, detail: `${agentixCaseAction(item)} · ${item.engagement} · ${item.reference}`, onOpen: () => onOpenAgentix(agentixCaseIntent(item)) }))
+		: []
+	if (!pending && state.agentix.approval) alerts.push({ id: "approval", title: "Invoice variance needs a decision", detail: "Agentix · $240 · invoice v2", onOpen: () => onOpenAgentix({ type: "decision", id: "approval" }) })
+	if (!pending && state.agentix.audience) alerts.push({ id: "audience", title: "Onboarding needs human fulfillment", detail: "Agentix · payroll owner confirmation", onOpen: () => onOpenAgentix({ type: "decision", id: "audience" }) })
+	const leadCase = pending?.find((item) => item.phase === "approval") ?? pending?.[0]
+	const agentixAnswerAction = leadCase
+		? <button type="button" onClick={() => onOpenAgentix(agentixCaseIntent(leadCase))}><Pulse size={13} />{leadCase.phase === "approval" ? "Open Agentix approval" : `Open ${leadCase.reference}`}</button>
+		: state.agentix.approval
+			? <button type="button" onClick={() => onOpenAgentix({ type: "decision", id: "approval" })}><Pulse size={13} />Open Agentix approval</button>
+			: state.agentix.audience
+				? <button type="button" onClick={() => onOpenAgentix({ type: "decision", id: "audience" })}><Pulse size={13} />Open onboarding confirmation</button>
+				: <button type="button" onClick={() => onOpenAgentix({ type: "surface", id: "activity" })}><Pulse size={13} />Open Agentix engagements</button>
+	const waiting = state.discoveryWaiting
+	if (waiting) alerts.push({ id: "discovery", title: "A Discovery needs your input", detail: `Discover · ${waiting.title}`, onOpen: () => onOpenDiscoveryRecord(waiting.id, "decision") })
 	if (state.executeVerified) alerts.push({ id: "release", title: "A release is waiting on its owner", detail: "Execute · cumulative gate passed", onOpen: () => onNavigate("execute") })
-	return <div className="mxp-consult mxp-module-with-rail"><ContextRail title="Consult MAX" kicker="Cross-platform intelligence" footer={<div className="mxp-rail-user"><span>RA</span><div><strong>Root Admin</strong><small>Authorized tenant context</small></div></div>}><button type="button" className="mxp-rail-primary" onClick={startThread}><Plus size={14} />New conversation</button><div className="mxp-rail-label">Recent</div>{threads.map((thread) => <button type="button" key={thread.id} className={thread.id === activeThread.id ? "is-active" : ""} aria-current={thread.id === activeThread.id ? "true" : undefined} onClick={() => { setActiveThreadId(thread.id); setThinking(false) }}><ChatCircleText size={15} /><span><strong>{thread.title}</strong><small>{thread.time}</small></span></button>)}<div className="mxp-rail-label">Scope</div><button type="button" aria-pressed={scope === "all"} onClick={() => setScope("all")}><Database size={15} /><span>All MAXION context</span>{scope === "all" ? <i className="mxp-success-dot" /> : null}</button><button type="button" aria-pressed={scope === "project"} onClick={() => setScope("project")}><Stack size={15} /><span>ERP modernization only</span>{scope === "project" ? <i className="mxp-success-dot" /> : null}</button></ContextRail><div className="mxp-module-area"><ModuleHeader label="Consult MAX" title="Cross-platform conversation" detail="Answers preserve source, ownership, and authority" onCommand={onCommand} alerts={alerts} /><main className="mxp-consult-main"><header><MaxionMark size={34} /><span>Consult MAX</span><h1>Ask across the work, not around it.</h1><p>Consult MAX explains the current truth across modules. It can route you to work, but it cannot silently approve or execute it.</p></header><div className="mxp-consult-thread">{activeThread.messages.map((message, index) => <article key={`${activeThread.id}-${message.actor}-${index}`} className={message.actor === "You" ? "is-user" : "is-max"}>{message.actor === "MAX" ? <MaxionMark size={27} /> : <span className="mxp-user-avatar">RA</span>}<div><span>{message.actor}<time>Now</time></span><p>{message.stream ? <StreamedText text={message.text} /> : message.text}</p>{message.actor === "MAX" && index > 0 ? <div className="mxp-answer-actions">{state.agentix.approval ? <button type="button" onClick={() => onNavigate("agentix")}><Pulse size={13} />Open Agentix approval</button> : <button type="button" onClick={() => onNavigate("agentix")}><Pulse size={13} />Open Agentix activity</button>}{state.planSent ? <button type="button" onClick={() => onNavigate("execute")}><Cube size={13} />Open the Execute engagement</button> : <button type="button" onClick={() => onNavigate("plan")}><FlowArrow size={13} />Open the ERP plan</button>}{state.discoveryReady ? null : <button type="button" onClick={() => onNavigate("discovery")}><MagnifyingGlass size={13} />Open Discovery boundary</button>}</div> : null}</div></article>)}{thinking ? <article className="is-max mxp-consult-thinking"><MaxionMark size={27} /><div><span>MAX<time>Now</time></span><p><SpinnerGap className="mxp-spin" size={12} />Reading the live workspace…</p></div></article> : null}</div></main><div className="mxp-consult-composer"><div><textarea aria-label="Message Consult MAX" value={input} onChange={(event) => setInput(event.target.value)} onKeyDown={(event) => { if (event.key === "Enter" && !event.shiftKey) { event.preventDefault(); submit() } }} placeholder="Ask what changed, what needs attention, or why a decision was made…" rows={1} /><div><span><button type="button" aria-label="Attach context"><Paperclip size={15} /></button><small><Database size={13} />{scope === "all" ? "All authorized MAXION context" : "ERP modernization project only"}</small></span><button type="button" aria-label="Send to Consult MAX" disabled={!input.trim()} onClick={submit}><ArrowRight size={15} /></button></div></div></div></div></div>
+	return <div className="mxp-consult mxp-module-with-rail"><ContextRail title="Consult MAX" kicker="Cross-platform intelligence" footer={<div className="mxp-rail-user"><span>RA</span><div><strong>Root Admin</strong><small>Authorized tenant context</small></div></div>}><button type="button" className="mxp-rail-primary" onClick={startThread}><Plus size={14} />New conversation</button><div className="mxp-rail-label">Recent</div>{threads.map((thread) => <button type="button" key={thread.id} className={thread.id === activeThread.id ? "is-active" : ""} aria-current={thread.id === activeThread.id ? "true" : undefined} onClick={() => { setActiveThreadId(thread.id); setThinking(false) }}><ChatCircleText size={15} /><span><strong>{thread.title}</strong><small>{thread.time}</small></span></button>)}<div className="mxp-rail-label">Scope</div><button type="button" aria-pressed={scope === "all"} onClick={() => setScope("all")}><Database size={15} /><span>All MAXION context</span>{scope === "all" ? <i className="mxp-success-dot" /> : null}</button><button type="button" aria-pressed={scope === "project"} onClick={() => setScope("project")}><Stack size={15} /><span>ERP modernization only</span>{scope === "project" ? <i className="mxp-success-dot" /> : null}</button></ContextRail><div className="mxp-module-area"><ModuleHeader label="Consult MAX" title="Cross-platform conversation" detail="Answers preserve source, ownership, and authority" onCommand={onCommand} alerts={alerts} /><main className="mxp-consult-main"><header><MaxionMark size={34} /><span>Consult MAX</span><h1>Ask across the work, not around it.</h1><p>Consult MAX explains the current truth across modules. It can route you to work, but it cannot silently approve or execute it.</p></header><div className="mxp-consult-thread">{activeThread.messages.map((message, index) => <article key={`${activeThread.id}-${message.actor}-${index}`} className={message.actor === "You" ? "is-user" : "is-max"}>{message.actor === "MAX" ? <MaxionMark size={27} /> : <span className="mxp-user-avatar">RA</span>}<div><span>{message.actor}<time>Now</time></span><p>{message.stream ? <StreamedText text={message.text} /> : message.text}</p>{message.actor === "MAX" && index > 0 ? <div className="mxp-answer-actions">{agentixAnswerAction}{state.planSent ? <button type="button" onClick={() => onNavigate("execute")}><Cube size={13} />Open the Execute engagement</button> : <button type="button" onClick={() => onNavigate("plan")}><FlowArrow size={13} />Open the ERP plan</button>}{waiting ? <button type="button" onClick={() => onOpenDiscoveryRecord(waiting.id, "decision")}><MagnifyingGlass size={13} />Open Discovery decision</button> : null}</div> : null}</div></article>)}{thinking ? <article className="is-max mxp-consult-thinking"><MaxionMark size={27} /><div><span>MAX<time>Now</time></span><p><SpinnerGap className="mxp-spin" size={12} />Reading the live workspace…</p></div></article> : null}</div></main><div className="mxp-consult-composer"><div><textarea aria-label="Message Consult MAX" value={input} onChange={(event) => setInput(event.target.value)} onKeyDown={(event) => { if (event.key === "Enter" && !event.shiftKey) { event.preventDefault(); submit() } }} placeholder="Ask what changed, what needs attention, or why a decision was made…" rows={1} /><div><span><button type="button" aria-label="Attach context"><Paperclip size={15} /></button><small><Database size={13} />{scope === "all" ? "All authorized MAXION context" : "ERP modernization project only"}</small></span><button type="button" aria-label="Send to Consult MAX" disabled={!input.trim()} onClick={submit}><ArrowRight size={15} /></button></div></div></div></div></div>
 }
 
 // The shell command layer: one registry every module feeds, so a jump target is reachable
@@ -996,14 +1032,49 @@ type ShellCommandItem = {
 	hint: string
 	keywords: string
 	icon?: typeof MagnifyingGlass
+	// Module rows wear the same abstract glyph as the sidebar.
+	glyph?: NavGlyphName
 	spiral?: boolean
+	// Entity rows carry the seed of the Mark the entity wears everywhere else.
+	mark?: string
 	current?: boolean
 	run: () => void
 }
 
+// The Agentix work the registry can name: what Agentix reported, completed from its saved
+// state while the report is still the shell's placeholder. Names are engagement names, the
+// ones Agentix shows, never the template a responsibility started from.
+type AgentixWork = { pending: AgentixPendingCase[]; engagements: AgentixEngagementSummary[]; decisions: number; setup: number; approvals: number }
+
+function readAgentixWork(attention: AgentixAttention): AgentixWork {
+	const saved = attention.pending && attention.engagements ? null : readState()
+	const waiting = saved ? needsYou(saved) : []
+	// Only work items that wait on the viewer, named the way Agentix names them.
+	const pending = attention.pending ?? waiting.flatMap((entry): AgentixPendingCase[] => {
+		const item = entry.workId ? itemBy(saved!, entry.workId) : undefined
+		const engagement = saved!.engagements[entry.engagementId]
+		if (!item || !engagement || entry.kind === "proposal" || entry.kind === "setup") return []
+		return [{ id: item.id, agentId: engagement.id, workflowId: engagement.workflowId, engagement: engagement.name, reference: item.reference, title: item.title, phase: entry.kind === "human" ? "human" : entry.kind === "partial" ? "partial" : "approval" }]
+	}).filter((entry, index, all) => all.findIndex((other) => other.id === entry.id) === index)
+	const engagements = attention.engagements ?? (saved ? Object.values(saved.engagements).filter((engagement) => !awaitingCreation(engagement)).map((engagement) => ({ id: engagement.id, name: engagement.name, workflowId: engagement.workflowId, status: engagement.status, duties: teamOf(engagement).length, category: SCENARIOS[engagement.workflowId].category })) : [])
+	const setup = attention.setup ?? (saved ? waiting.filter((entry) => entry.kind === "proposal" || entry.kind === "setup").length : Math.max(0, attention.count - pending.length))
+	return { pending, engagements, decisions: attention.decisions ?? pending.length, setup, approvals: pending.filter((item) => item.phase === "approval").length }
+}
+
+const plural = (count: number, one: string, many = `${one}s`) => `${count} ${count === 1 ? one : many}`
+
+function agentixWorkHint(work: Pick<AgentixWork, "decisions" | "setup">) {
+	return [work.decisions ? plural(work.decisions, "decision") : "", work.setup ? `${work.setup} setup` : ""].filter(Boolean).join(" · ")
+}
+
+// What a waiting case asks of its owner, named for the work rather than the template.
+const AGENTIX_DECISION_SUBJECT: Record<WorkflowId, string> = { invoice: "invoice variance", payables: "AP exception", orders: "blocked order", onboarding: "onboarding fulfillment", service: "incident handoff", inventory: "replenishment decision" }
+const agentixDecisionLabel = (item: AgentixPendingCase) => item.phase === "partial" ? `Resolve notification · ${item.engagement}` : item.label ?? `Review ${AGENTIX_DECISION_SUBJECT[item.workflowId]}`
+
 type ShellCommandContext = {
 	active: MaxionModuleId
 	agentix: AgentixAttention
+	agentixWork: AgentixWork
 	discoveries: DiscoveryJumpRecord[]
 	navigate: (module: MaxionModuleId) => void
 	startDiscovery: () => void
@@ -1011,69 +1082,93 @@ type ShellCommandContext = {
 	openExecuteWorkspace: (taskId: ExecuteWorkspaceId) => void
 	openExecuteHub: (target: "approvals" | "engagements") => void
 	openDiscoveryRecord: (recordId: string, jump: DiscoveryJump) => void
+	openPlanPacket: (packet: HandoffPacket) => void
 	openAgentix: (intent: AgentixIntent) => void
 }
 
 function buildShellCommandItems(context: ShellCommandContext): ShellCommandItem[] {
 	const items: ShellCommandItem[] = []
-	// Open boundaries lead the list, and disappear from it the moment they are resolved.
-	if (context.agentix.approval) items.push({ id: "decision-approval", group: "Decisions", label: "Review invoice variance", hint: "Agentix · $240 price variance · invoice v2", keywords: "approval approve invoice variance finance agentix", icon: ShieldCheck, run: () => context.openAgentix({ type: "decision", id: "approval" }) })
-	if (context.agentix.audience) items.push({ id: "decision-audience", group: "Decisions", label: "Review onboarding fulfillment", hint: "Agentix · payroll owner confirmation needed", keywords: "onboarding payroll human fulfillment agentix", icon: ChatCircleText, run: () => context.openAgentix({ type: "decision", id: "audience" }) })
+	const work = context.agentixWork
+	// Open boundaries lead the list, one row per waiting case, and disappear the moment they
+	// are resolved. Each row names its engagement and case, and opens exactly that case.
+	for (const item of work.pending) {
+		items.push({
+			id: `decision-agentix-${item.id}`,
+			group: "Decisions",
+			label: agentixDecisionLabel(item),
+			hint: `${item.engagement} · ${item.reference} · ${item.title}`,
+			keywords: `agentix engagement decision approval approve confirmation needs you ${agentixCaseAction(item)} ${item.title} ${item.reference} ${item.engagement} ${SCENARIOS[item.workflowId].title}`,
+			mark: item.agentId,
+			run: () => context.openAgentix(agentixCaseIntent(item)),
+		})
+	}
 	for (const record of context.discoveries) {
 		if (record.status !== "needs-input") continue
-		items.push({ id: `discovery-decision-${record.id}`, group: "Decisions", label: `Review decision · ${record.title}`, hint: "Discover · a bounded decision is waiting", keywords: `discovery decision approve boundary ${record.keywords}`, icon: Compass, run: () => context.openDiscoveryRecord(record.id, "decision") })
+		items.push({ id: `discovery-decision-${record.id}`, group: "Decisions", label: `Review decision · ${record.title}`, hint: "Discover · a bounded decision is waiting", keywords: `discovery decision approve boundary ${record.keywords}`, mark: record.id, run: () => context.openDiscoveryRecord(record.id, "decision") })
 	}
 
-	for (const item of [...PRIMARY_NAVIGATION, { id: "integrations" as const, label: "Integrations", icon: Plug }]) {
+	const agentixHint = agentixWorkHint(work)
+	for (const item of [...PRIMARY_NAVIGATION, ...ACCOUNT_NAVIGATION.filter((entry) => entry.id === "integrations" || entry.id === "approvals")]) {
 		const spiral = "spiral" in item && Boolean(item.spiral)
 		const hint = item.id === context.active
 			? "Current module"
-			: item.id === "agentix" && context.agentix.count
-				? `${context.agentix.count} decision${context.agentix.count === 1 ? "" : "s"} waiting`
-				: item.id === "consult" ? "Ask across MAXION" : `Open ${item.label}`
-		items.push({ id: `go-${item.id}`, group: "Go to", label: item.label, hint, keywords: `module navigate open ${item.label}`, icon: item.icon, spiral, current: item.id === context.active, run: () => context.navigate(item.id) })
+			: item.id === "agentix" && agentixHint
+				? agentixHint
+				: item.id === "approvals"
+					? work.approvals ? `${plural(work.approvals, "approval")} waiting` : "Nothing waiting for your authority"
+					: item.id === "consult" ? "Ask across MAXION" : `Open ${item.label}`
+		const keywords = item.id === "agentix" ? "module navigate open engagements" : item.id === "approvals" ? "module navigate open governance decisions pending approve" : "module navigate open"
+		items.push({ id: `go-${item.id}`, group: "Go to", label: item.label, hint, keywords: `${keywords} ${item.label}`, glyph: item.glyph, spiral, current: item.id === context.active, run: () => context.navigate(item.id) })
 	}
 
 	items.push({ id: "action-discovery", group: "Actions", label: "Start a Discovery", hint: "Autonomous research and interviews", keywords: "new discovery start research interviews brief mission", icon: Plus, run: context.startDiscovery })
-	items.push({ id: "action-agent", group: "Actions", label: "New Agentix work", hint: "Describe an outcome or start from Discovery", keywords: "new agent create activate operational autonomy agentix", icon: Lightning, run: () => context.openAgentix({ type: "create" }) })
+	items.push({ id: "action-agent", group: "Actions", label: "New Agentix engagement", hint: "Describe the work, or start from a Discovery design", keywords: "new engagement agent create activate operational autonomy agentix", icon: Lightning, run: () => context.openAgentix({ type: "create" }) })
 
-	EXECUTE_TASKS.forEach((task, index) => items.push({
-		id: `execute-workspace-${task.id}`,
-		group: "Execute",
-		label: `Open Workspace ${String(index + 1).padStart(2, "0")} · ${task.title}`,
-		hint: `${task.detail} · isolated worktree`,
-		keywords: `execute workspace agent session worktree ${task.id} ${task.detail}`,
-		icon: Code,
-		run: () => context.openExecuteWorkspace(task.id),
-	}))
-	items.push({ id: "execute-approvals", group: "Execute", label: "Execute approvals", hint: "Workspace boundary and release decisions", keywords: "execute approvals boundary release deploy governance", icon: ShieldCheck, run: () => context.openExecuteHub("approvals") })
-	items.push({ id: "execute-engagements", group: "Execute", label: "All engagements", hint: "Back to the Execute hub", keywords: "execute engagements hub overview", icon: Cube, run: () => context.openExecuteHub("engagements") })
+	// Plan and Execute are disabled, so the command menu offers no way into them either.
 
 	for (const record of context.discoveries) {
-		items.push({ id: `discovery-resume-${record.id}`, group: "Discover", label: `Resume ${record.title}`, hint: record.statusLabel, keywords: `discovery resume open continue ${record.keywords}`, icon: Compass, run: () => context.openDiscoveryRecord(record.id, "resume") })
+		items.push({ id: `discovery-resume-${record.id}`, group: "Discover", label: `Resume ${record.title}`, hint: record.statusLabel, keywords: `discovery resume open continue ${record.keywords}`, mark: record.id, run: () => context.openDiscoveryRecord(record.id, "resume") })
+		// A handed-off record opens where its packet went, as Discovery's own Open in Agentix does.
+		if (record.handoff) {
+			const packet = record.handoff
+			items.push({ id: `discovery-agentix-${record.id}`, group: "Discover", label: `Open in Agentix · ${record.title}`, hint: `Packet ${packet.id} · operating package`, keywords: `discovery agentix handoff packet ${packet.id} ${record.keywords}`, glyph: "agentix", run: () => context.openPlanPacket(packet) })
+		}
 		if (record.status === "completed") items.push({ id: `discovery-package-${record.id}`, group: "Discover", label: `Open package · ${record.title}`, hint: "Deliverables and routing", keywords: `discovery package deliverables outputs ${record.keywords}`, icon: FileText, run: () => context.openDiscoveryRecord(record.id, "package") })
 	}
 
-	for (const workflow of WORKFLOWS) {
-		items.push({ id: `agentix-agent-${workflow.id}`, group: "Agentix", label: `Open ${workflow.title}`, hint: `${workflow.team.length} agents · ${workflow.category}`, keywords: `agentix initiative ${workflow.title} ${workflow.category}`, icon: Pulse, run: () => context.openAgentix({ type: "workflow", id: workflow.id }) })
+	for (const engagement of work.engagements) {
+		const template = SCENARIOS[engagement.workflowId]
+		const cases = work.pending.filter((item) => item.agentId === engagement.id)
+		const state = engagement.status === "draft" ? "Setup" : engagement.status === "paused" ? "Intake paused" : cases.length ? `${plural(cases.length, "case")} need${cases.length === 1 ? "s" : ""} you` : ""
+		items.push({
+			id: `agentix-engagement-${engagement.id}`,
+			group: "Agentix",
+			label: `Open ${engagement.name}`,
+			// What needs the viewer leads; the category only fills a row that has nothing waiting.
+			hint: [state, plural(engagement.duties, "duty", "duties"), state ? "" : engagement.category].filter(Boolean).join(" · "),
+			// The systems it works in find it too, so "servicenow" still reaches Service desk.
+			keywords: `agentix engagement ${engagement.name} ${template.title} ${engagement.category} ${systemNames(engagement.workflowId).join(" ")} ${cases.map((item) => `${item.reference} ${item.title}`).join(" ")}`,
+			mark: engagement.id,
+			run: () => context.openAgentix({ type: "engagement", id: engagement.id }),
+		})
 	}
-	items.push({ id: "agentix-today", group: "Agentix", label: "Agentix today", hint: "Decisions and live work", keywords: "agentix today decisions live work needs you", icon: Tray, run: () => context.openAgentix({ type: "surface", id: "today" }) })
-	items.push({ id: "agentix-activity", group: "Agentix", label: "Agentix activity", hint: "Everything Agentix committed", keywords: "agentix activity ledger receipts committed history", icon: Clock, run: () => context.openAgentix({ type: "surface", id: "activity" }) })
+	items.push({ id: "agentix-attention", group: "Agentix", label: "Engagements needing attention", hint: "Agentix · decisions, setup and repairs", keywords: "agentix engagements needs you attention today decisions setup repair", icon: Tray, run: () => context.openAgentix({ type: "surface", id: "today" }) })
+	items.push({ id: "agentix-engagements", group: "Agentix", label: "All engagements", hint: `Agentix · ${plural(work.engagements.length, "engagement")}`, keywords: "agentix engagements all list activity overview", glyph: "agentix", run: () => context.openAgentix({ type: "surface", id: "activity" }) })
 
-	for (const entry of PLAN_JUMP_ENTRIES) items.push({ id: entry.id, group: "Plan", label: entry.label, hint: entry.hint, keywords: `plan ${entry.keywords}`, icon: FlowArrow, run: () => context.openPlanArtifact(entry.artifactId) })
 
 	return items
 }
 
 // Exact and prefix matches outrank keyword matches, so "INT-02" lands on the contract and
 // "Workspace 03" lands on the workspace instead of whatever mentioned them first.
+// Open boundaries win ties, and a query that asks for decisions ranks them with label matches
+// even when only their keywords matched.
+const DECISION_QUERY = /^(decid|decision|approv|review|pending|needs|waiting|confirm)/
 function rankShellCommandItem(item: ShellCommandItem, query: string) {
 	const label = item.label.toLowerCase()
-	if (label === query) return 0
-	if (label.startsWith(query)) return 1
-	if (label.includes(query)) return 2
-	if (item.hint.toLowerCase().includes(query)) return 3
-	return 4
+	const rank = label === query ? 0 : label.startsWith(query) ? 1 : label.includes(query) ? 2 : item.hint.toLowerCase().includes(query) ? 3 : 4
+	if (item.group !== "Decisions") return rank
+	return (rank > 2 && DECISION_QUERY.test(query) ? 2 : rank) - 0.5
 }
 
 function CommandMenu({ context, onClose }: { context: ShellCommandContext; onClose: () => void }) {
@@ -1098,7 +1193,7 @@ function CommandMenu({ context, onClose }: { context: ShellCommandContext; onClo
 	const run = (item: ShellCommandItem) => { item.run(); onClose() }
 	return (
 		<div className="mxp-command-layer" onMouseDown={(event) => { if (event.currentTarget === event.target) onClose() }}>
-			<motion.section role="dialog" aria-modal="true" aria-label="MAXION command menu" initial={prefersReducedMotion() ? false : { opacity: 0, scale: 0.98, y: -6 }} animate={{ opacity: 1, scale: 1, y: 0 }} transition={{ duration: 0.16, ease: [0.16, 1, 0.3, 1] }}>
+			<motion.section role="dialog" aria-modal="true" aria-label="MAXION command menu" initial={prefersReducedMotion() ? false : { scale: 0.98, y: -6, filter: "blur(3px)" }} animate={{ scale: 1, y: 0, filter: "blur(0px)" }} transition={{ duration: 0.16, ease: [0.16, 1, 0.3, 1] }}>
 				<div className="mxp-command-search">
 					<MagnifyingGlass size={16} />
 					<input
@@ -1121,7 +1216,7 @@ function CommandMenu({ context, onClose }: { context: ShellCommandContext; onClo
 						const Icon = item.icon
 						return (
 							<button type="button" key={item.id} className={index === activeIndex ? "is-active" : ""} onMouseEnter={() => setActive(index)} onClick={() => run(item)}>
-								{item.spiral ? <MaxionSpiralMark className="mxp-command-spiral" /> : Icon ? <Icon size={16} /> : <span className="mxp-command-dot" aria-hidden="true" />}
+								{item.mark ? <span className="ds-scope mxp-command-mark"><Mark seed={item.mark} size="xs" /></span> : item.glyph ? <NavGlyph name={item.glyph} className="mxp-command-glyph" /> : item.spiral ? <MaxionSpiralMark className="mxp-command-spiral" /> : Icon ? <Icon size={16} /> : <span className="mxp-command-dot" aria-hidden="true" />}
 								<span><strong>{item.label}</strong><small>{item.hint}</small></span>
 								<i>{item.group}</i>
 								{item.current ? <Check size={14} /> : <CaretRight size={13} />}
@@ -1141,29 +1236,43 @@ function CommandMenu({ context, onClose }: { context: ShellCommandContext; onClo
 const SHELL_KEYBOARD_MODULES: MaxionModuleId[] = ["dashboard", "projects", "consult", "integrations", "settings", "approvals", "usage", "help"]
 
 export function MaxionPlatformPrototypePage() {
-	useDocumentTitle("MAXION · Unified platform prototype")
+	// The customer demo opens where its story starts: Discover, or its finished Discovery's package.
+	const demo = demoSession()
+	const script = demo ? demoScript(demo.id) : null
+	useDocumentTitle(demo ? "MAXION" : "MAXION · Unified platform prototype")
 	const location = useLocation()
-	const initialModule: MaxionModuleId = location.pathname.includes("agentix") ? "agentix" : "dashboard"
+	const initialModule: MaxionModuleId = demo ? "discovery" : location.pathname.includes("agentix") ? "agentix" : location.pathname.includes("discovery") ? "discovery" : "dashboard"
 	const [activeModule, setActiveModule] = useState<MaxionModuleId>(initialModule)
 	const [commandOpen, setCommandOpen] = useState(false)
 	const [mobileNavOpen, setMobileNavOpen] = useState(false)
 	const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
 	const [keyboardNavigation, setKeyboardNavigation] = useState(false)
 	const [projects, setProjects] = useState(INITIAL_PROJECTS)
-	const [discoveryReady, setDiscoveryReady] = useState(false)
 	const [discoverySetupSignal, setDiscoverySetupSignal] = useState(0)
 	const [planSent, setPlanSent] = useState(false)
 	const [planSnapshot, setPlanSnapshot] = useState("v12")
 	const [executeVerified, setExecuteVerified] = useState(false)
-	// The Agentix simulation reports only actual waiting cases, never seeded alerts.
-	const [agentixAttention, setAgentixAttention] = useState<AgentixAttention>({ count: 0, audience: false, approval: false })
-	const [operationalDiscovery, setOperationalDiscovery] = useState<WorkflowId | null>(null)
+	// The Agentix simulation reports only actual waiting cases, never seeded alerts. Until it
+	// has reported, the shell holds a placeholder that says so, and nothing reads it as a change.
+	const [agentixAttention, setAgentixAttention] = useState<AgentixAttention>({ count: 0, audience: false, approval: false, reported: false })
+	const reportAgentixAttention = useCallback((attention: AgentixAttention) => setAgentixAttention({ ...attention, reported: true }), [])
+	// A Discovery design page, and the engagement it was opened from when it has one.
+	const [operationalDiscovery, setOperationalDiscovery] = useState<{ id: WorkflowId; origin: AgentixOrigin | null } | null>(null)
+	// The packet Discovery froze for Plan. It stays with the shell so Plan can show what it received.
+	const [planPacket, setPlanPacket] = useState<HandoffPacket | null>(null)
+	// A shell toast belongs to the module that raised it and shows only there.
+	const [shellToast, setShellToast] = useState<{ key: string; text: string; module: MaxionModuleId } | null>(null)
+	const [shellToastLift, setShellToastLift] = useState<number | null>(null)
+	const stageRef = useRef<HTMLDivElement>(null)
 	// One-shot cross-module intents. Each carries a tick so the receiving module consumes it
 	// exactly once — re-entering a module never replays an old jump.
 	const [planJump, setPlanJump] = useState<PlanJumpSignal | null>(null)
 	const [executeJump, setExecuteJump] = useState<ExecuteJumpSignal | null>(null)
-	const [discoveryOpen, setDiscoveryOpen] = useState<DiscoveryOpenSignal | null>(null)
+	// A negative tick is never reused by nextJumpTick, so the demo's opening jump can't shadow a later one.
+	const [discoveryOpen, setDiscoveryOpen] = useState<DiscoveryOpenSignal | null>(() => demo?.start === "package" && script ? { tick: -1, recordId: demoRecordId(script), jump: "package" } : null)
 	const [agentixIntent, setAgentixIntent] = useState<AgentixIntentSignal | null>(null)
+	// The Dashboard's "New project" action lands on Projects with its create dialog open.
+	const [projectCreateSignal, setProjectCreateSignal] = useState(0)
 	const jumpTickRef = useRef(0)
 	// The shell keyboard reads the current module without re-subscribing the listener.
 	const activeModuleRef = useRef(activeModule)
@@ -1182,7 +1291,11 @@ export function MaxionPlatformPrototypePage() {
 			if (event.key === "Tab" || !targetIsEditable) setKeyboardNavigation(true)
 			// Module palettes stop ⌘K in the capture phase, so this bubble-phase listener
 			// only ever runs when no module owns the keyboard.
-			if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "k") { event.preventDefault(); setCommandOpen((open) => !open) }
+			if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "k") {
+				event.preventDefault()
+				if (document.querySelector(".aop-drawer[open]")) return
+				setCommandOpen((open) => !open)
+			}
 			if (event.key === "Escape") setCommandOpen(false)
 			// '/' belongs to whichever surface is visible. Inside a module the module's own
 			// capture-phase listener claims it and stops it here; on a shell page nothing
@@ -1202,22 +1315,48 @@ export function MaxionPlatformPrototypePage() {
 		}
 	}, [])
 
-	const navigate = (module: MaxionModuleId) => {
-		// Execute is a focused, long-running workspace. Keep MAXION navigation one
-		// action away without taking meaningful width away from the work surface — and
-		// hand the sidebar back exactly as it was when the viewer leaves again.
-		if (module === "execute") {
-			if (activeModuleRef.current !== "execute") collapsedBeforeExecuteRef.current = sidebarCollapsed
-			setSidebarCollapsed(true)
-		} else if (activeModuleRef.current === "execute") {
-			setSidebarCollapsed(collapsedBeforeExecuteRef.current)
+	useEffect(() => {
+		if (!shellToast) return
+		const timer = window.setTimeout(() => setShellToast(null), 4200)
+		return () => window.clearTimeout(timer)
+	}, [shellToast])
+	const shellToastShown = shellToast !== null && shellToast.module === activeModule
+	// The toast never covers a composer: while it shows it rises above whichever one the
+	// visible module has on screen, including a dock that opens after it appeared.
+	useEffect(() => {
+		const stage = stageRef.current
+		if (!shellToastShown || !stage) return
+		let frame = 0
+		const measure = () => {
+			window.cancelAnimationFrame(frame)
+			frame = window.requestAnimationFrame(() => {
+				const dock = Array.from(stage.querySelectorAll<HTMLElement>(".apn-steering-dock, .ws-composer")).find((node) => node.getClientRects().length > 0)
+				setShellToastLift(dock ? Math.max(0, window.innerHeight - dock.getBoundingClientRect().top) : null)
+			})
 		}
+		measure()
+		const observer = new MutationObserver(measure)
+		observer.observe(stage, { childList: true, subtree: true })
+		window.addEventListener("resize", measure)
+		return () => {
+			window.cancelAnimationFrame(frame)
+			observer.disconnect()
+			window.removeEventListener("resize", measure)
+		}
+	}, [shellToastShown])
+
+	const navigate = (requested: MaxionModuleId) => {
+		// Plan and Execute are disabled; anything still pointing at them lands in Agentix, which is
+		// where the work now runs. Their code stays in the tree, unreachable, rather than deleted.
+		const module: MaxionModuleId = requested === "plan" || requested === "execute" ? "agentix" : requested
+		// Discover always opens on its own hub; a design page is only ever shown by the
+		// action that asked for it (openOperationalDiscovery sets it after navigating).
+		if (module === "discovery") setOperationalDiscovery(null)
 		setActiveModule(module)
 		setCommandOpen(false)
 		setMobileNavOpen(false)
 	}
 	const startDiscoverySetup = () => {
-		setOperationalDiscovery(null)
 		// Signal Discovery to open its setup screen instead of dropping the user
 		// wherever the module last was.
 		setDiscoverySetupSignal((current) => current + 1)
@@ -1227,13 +1366,44 @@ export function MaxionPlatformPrototypePage() {
 	const openPlanArtifact = (artifactId: string) => { setPlanJump({ tick: nextJumpTick(), artifactId }); navigate("plan") }
 	const openExecuteWorkspace = (taskId: ExecuteWorkspaceId) => { setExecuteJump({ tick: nextJumpTick(), target: { kind: "workspace", taskId } }); navigate("execute") }
 	const openExecuteHub = (target: "approvals" | "engagements") => { setExecuteJump({ tick: nextJumpTick(), target: { kind: target } }); navigate("execute") }
-	const openDiscoveryRecord = (recordId: string, jump: DiscoveryJump) => { setOperationalDiscovery(null); setDiscoveryOpen({ tick: nextJumpTick(), recordId, jump }); navigate("discovery") }
-	const openAgentix = (intent: AgentixIntent) => { setAgentixIntent({ tick: nextJumpTick(), intent }); navigate("agentix") }
-	const openOperationalDiscovery = (id: WorkflowId) => { setOperationalDiscovery(id); navigate("discovery") }
-	// Saved discoveries live in localStorage, so the registry reads them when the menu opens.
+	const openDiscoveryRecord = (recordId: string, jump: DiscoveryJump) => { setDiscoveryOpen({ tick: nextJumpTick(), recordId, jump }); navigate("discovery") }
+	// Entering Agentix closes any design page, so Discover reopens on its hub afterwards.
+	const openAgentix = (intent: AgentixIntent) => { setOperationalDiscovery(null); setAgentixIntent({ tick: nextJumpTick(), intent }); navigate("agentix") }
+	const openOperationalDiscovery = (id: WorkflowId, origin?: AgentixOrigin) => { navigate("discovery"); setOperationalDiscovery({ id, origin: origin ?? null }) }
+	// An operating package goes to Agentix, which receives it once and opens its review; asking again
+	// (Open in Agentix, the command menu) opens the same review or the engagement it became.
+	const sendToAgentix = (packet: HandoffPacket) => {
+		const discovery = { recordId: packet.recordId ?? "", packetId: packet.id, title: packet.title ?? "Discovery package" }
+		// A package Agentix already knows opens its review; a Discovery without one opens the
+		// engagement setup, prefilled from its brief. Either way the packet reaches Agentix.
+		if (packet.packageId) openAgentix({ type: "handoff", packageId: packet.packageId, discovery, note: packet.note })
+		else openAgentix({ type: "create", brief: packet.brief, discovery })
+		return true
+	}
+	// A packet sent earlier is opened, not received again, so it carries no toast.
+	const openPlanPacket = (packet: HandoffPacket) => { sendToAgentix(packet) }
+	// Discovery hands over a frozen packet and it always goes to Agentix: to the review of the
+	// design it names, or to engagement setup when the Discovery has no prebuilt design.
+	const receiveDiscoveryHandoff = (packet?: HandoffPacket) => {
+		if (packet) sendToAgentix(packet)
+		else navigate("agentix")
+	}
+	// The presenter row's one action: each moves THIS demo's story to where its next step happens.
+	const runDemoAction = (action: DemoAction, snapshot: DemoSnapshot) => {
+		const record = snapshot.discovery
+		if (action.kind === "discover") navigate("discovery")
+		else if (action.kind === "fill") { navigate("discovery"); fillDemoAnswer(action.text, record?.id) }
+		else if (action.kind === "discovery") openDiscoveryRecord(action.recordId, action.jump)
+		else if (action.kind === "review" && record?.handoff?.target === "agentix") openPlanPacket({ ...record.handoff, target: "agentix", note: record.handoff.note ?? "" })
+		// Beats 7-12 emit { kind: "engagement" }: open the engagement this demo actually created.
+		else if (script) openAgentix({ type: "workflow", id: script.engagementId })
+	}
+	// Saved discoveries and Agentix engagements live in localStorage, so the registry reads
+	// them when the menu opens.
 	const commandContext: ShellCommandContext = {
 		active: activeModule,
 		agentix: agentixAttention,
+		agentixWork: commandOpen ? readAgentixWork(agentixAttention) : { pending: [], engagements: [], decisions: 0, setup: 0, approvals: 0 },
 		discoveries: commandOpen ? listDiscoveryJumpRecords() : [],
 		navigate,
 		startDiscovery: startDiscoverySetup,
@@ -1241,30 +1411,49 @@ export function MaxionPlatformPrototypePage() {
 		openExecuteWorkspace,
 		openExecuteHub,
 		openDiscoveryRecord,
+		openPlanPacket,
 		openAgentix,
 	}
 	// The entrance animation belongs to the stage that just became visible; `hidden`
 	// semantics stay untouched because every module keeps its state and keyboard gate.
 	const stageClass = (module: MaxionModuleId, modifier = "") => `mxp-stage-view${modifier ? ` ${modifier}` : ""}${activeModule === module ? " is-entering" : ""}`
+	// A design page opened from an engagement sends its viewer back to that engagement, not to a copy of the design.
+	const handoffOrigin = operationalDiscovery?.origin ?? null
+	// The cases waiting on the viewer, as Agentix reports them or, until its report carries
+	// them, as Agentix saved them. Every shell surface that names a case reads this one list.
+	// What Discovery waits on comes from its saved records, not from whichever record was last open.
+	// Consult and the Dashboard show only while Discover is hidden, so reading on each module change is enough.
+	const discoveryWaiting = useMemo(() => {
+		const record = listDiscoveryJumpRecords().find((item) => item.status === "needs-input")
+		return record ? { id: record.id, title: record.title } : null
+	}, [activeModule])
+	const agentixShell = useMemo<AgentixAttention>(() => ({ ...agentixAttention, pending: agentixAttention.pending ?? readAgentixWork(agentixAttention).pending }), [agentixAttention])
+	const pendingApprovalCases = useMemo(() => (agentixShell.pending ?? []).filter((item) => item.phase === "approval"), [agentixShell])
+	// My approvals counts the cases waiting on an approval, not whether any exists.
+	const pendingApprovals = pendingApprovalCases.length
 	const currentLabel = PRIMARY_NAVIGATION.find((item) => item.id === activeModule)?.label ??
 		({ settings: "Settings", integrations: "Integrations", approvals: "My approvals", usage: "Usage", help: "Help" } as const)[activeModule as "settings" | "integrations" | "approvals" | "usage" | "help"] ??
 		"MAXION"
 
 	return (
 		<div className={`maxion-platform-prototype mxp-root${activeModule === "execute" ? " mxp-root--execute" : ""}${activeModule === "agentix" ? " mxp-root--agentix" : ""}${sidebarCollapsed ? " mxp-root--sidebar-collapsed" : ""}${keyboardNavigation ? " mxp-keyboard-navigation" : ""}`}>
-			<PortalSidebar active={activeModule} onNavigate={navigate} onCommand={() => setCommandOpen(true)} mobileOpen={mobileNavOpen} onMobileOpenChange={setMobileNavOpen} collapsed={sidebarCollapsed} onCollapsedChange={setSidebarCollapsed} badges={{ agentix: agentixAttention.count, approvals: agentixAttention.approval ? 1 : 0, execute: executeVerified ? 0 : 1 }} />
-			<div className="mxp-stage" aria-label={`${currentLabel} module`}>
-				<div className={stageClass("dashboard")} hidden={activeModule !== "dashboard"}><DashboardModule projects={projects} onNavigate={navigate} agentix={agentixAttention} discoveryReady={discoveryReady} planSent={planSent} executeVerified={executeVerified} /></div>
-				<div className={stageClass("projects")} hidden={activeModule !== "projects"}><ProjectsModule projects={projects} onProjectsChange={setProjects} onNavigate={navigate} /></div>
-				<div className={stageClass("discovery", "mxp-stage-view--discovery")} hidden={activeModule !== "discovery"}><div hidden={operationalDiscovery !== null} style={{ height: "100%" }}><DiscoveryAutonomousPrototypePage embedded setupSignal={discoverySetupSignal} openSignal={discoveryOpen} onPackageReady={() => setDiscoveryReady(true)} operationalPackages={<OperationalDiscoveryEntry onOpen={openOperationalDiscovery} />} /></div>{operationalDiscovery ? <DiscoveryHandoffWorkspace workflowId={operationalDiscovery} onBack={() => setOperationalDiscovery(null)} onSend={id => openAgentix({ type: "import", id })} /> : null}</div>
-				<div className={stageClass("plan")} hidden={activeModule !== "plan"}><PlanModule projects={projects} onNavigate={navigate} onCommand={() => setCommandOpen(true)} jumpSignal={planJump} onSendToExecute={(snapshot) => { setPlanSent(true); setPlanSnapshot(snapshot); navigate("execute") }} /></div>
-				<div className={stageClass("execute", "mxp-stage-view--execute")} hidden={activeModule !== "execute"}><ExecuteModule active={activeModule === "execute"} onNavigate={navigate} planHandoff={planSent} planSnapshot={planSnapshot} jumpSignal={executeJump} onVerified={() => setExecuteVerified(true)} /></div>
-				<div className={stageClass("agentix")} hidden={activeModule !== "agentix"}><AgentixInitiativesPage intentSignal={agentixIntent} onAttentionChange={setAgentixAttention} onOpenDiscovery={openOperationalDiscovery} /></div>
-				<div className={stageClass("consult")} hidden={activeModule !== "consult"}><ConsultModule state={{ agentix: agentixAttention, discoveryReady, planSent, planSnapshot, executeVerified }} onCommand={() => setCommandOpen(true)} onNavigate={navigate} /></div>
+			<PortalSidebar active={activeModule} onNavigate={navigate} onCommand={() => setCommandOpen(true)} mobileOpen={mobileNavOpen} onMobileOpenChange={setMobileNavOpen} collapsed={sidebarCollapsed} onCollapsedChange={setSidebarCollapsed} badges={{ agentix: agentixAttention.count, approvals: pendingApprovals, execute: executeVerified ? 0 : 1 }} demo={script ? <PresenterDock script={script} collapsed={sidebarCollapsed} onRun={runDemoAction} /> : undefined} />
+			{/* Plan and Execute are disabled: their modules are not mounted, and nothing navigates to them. */}
+			<div ref={stageRef} className="mxp-stage" aria-label={`${currentLabel} module`}>
+				<div className={stageClass("dashboard")} hidden={activeModule !== "dashboard"}><DashboardModule projects={projects} active={activeModule === "dashboard"} onNavigate={navigate} onStartDiscovery={startDiscoverySetup} onOpenDiscoveryRecord={openDiscoveryRecord} onOpenAgentix={openAgentix} agentix={agentixShell} discoveryReady={discoveryWaiting === null} planSent={planSent} planPacket={planPacket} executeVerified={executeVerified} onCommand={() => setCommandOpen(true)} onCreateProject={() => { setProjectCreateSignal((tick) => tick + 1); navigate("projects") }} /></div>
+				<div className={stageClass("projects")} hidden={activeModule !== "projects"}><ProjectsModule projects={projects} onProjectsChange={setProjects} onNavigate={navigate} onStartDiscovery={startDiscoverySetup} onOpenDiscoveryRecord={openDiscoveryRecord} onCommand={() => setCommandOpen(true)} createSignal={projectCreateSignal} /></div>
+				<div className={stageClass("discovery", "mxp-stage-view--discovery")} hidden={activeModule !== "discovery"}><div hidden={operationalDiscovery !== null} style={{ height: "100%" }}><DiscoveryAutonomousPrototypePage embedded active={activeModule === "discovery" && operationalDiscovery === null} setupSignal={discoverySetupSignal} openSignal={discoveryOpen} onContinueToAgentix={receiveDiscoveryHandoff} operationalPackages={<OperationalDiscoveryEntry onOpen={openOperationalDiscovery} />} /></div>{operationalDiscovery ? <DiscoveryHandoffWorkspace key={operationalDiscovery.id} workflowId={operationalDiscovery.id} origin={operationalDiscovery.origin} onBack={() => setOperationalDiscovery(null)} onBackToOrigin={handoffOrigin ? () => openAgentix({ type: "engagement", id: handoffOrigin.engagementId }) : undefined} onSend={(id) => openAgentix(handoffOrigin ? { type: "engagement", id: handoffOrigin.engagementId } : { type: "import", id })} /> : null}</div>
+				<div className={stageClass("agentix")} hidden={activeModule !== "agentix"}><AgentixInitiativesPage intentSignal={agentixIntent} onAttentionChange={reportAgentixAttention} onOpenDiscovery={openOperationalDiscovery} onOpenDiscoveryRecord={(recordId) => openDiscoveryRecord(recordId, "package")} active={activeModule === "agentix"} /></div>
+				<div className={stageClass("consult")} hidden={activeModule !== "consult"}><ConsultModule state={{ agentix: agentixAttention, discoveryWaiting, planSent, planSnapshot, executeVerified }} onCommand={() => setCommandOpen(true)} onNavigate={navigate} onOpenAgentix={openAgentix} onOpenDiscoveryRecord={openDiscoveryRecord} /></div>
 				<div className={stageClass("integrations")} hidden={activeModule !== "integrations"}><IntegrationsModule /></div>
-				{(["settings", "approvals", "usage", "help"] as const).map((module) => <div key={module} className={stageClass(module)} hidden={activeModule !== module}><AccountUtilityModule module={module} onNavigate={navigate} approvalOpen={agentixAttention.approval} onOpenApproval={() => openAgentix({ type: "decision", id: "approval" })} /></div>)}
+				{(["settings", "approvals", "usage", "help"] as const).map((module) => <div key={module} className={stageClass(module)} hidden={activeModule !== module}><AccountUtilityModule module={module} onNavigate={navigate} approvals={pendingApprovalCases} onOpenAgentix={openAgentix} /></div>)}
 			</div>
 			<AnimatePresence>{commandOpen ? <CommandMenu context={commandContext} onClose={() => setCommandOpen(false)} /> : null}</AnimatePresence>
+			<div className="mxp-shell-toast-region" role="status" aria-live="polite" style={shellToastShown && shellToastLift !== null ? { bottom: `calc(${shellToastLift}px + var(--ds-space-3))` } : undefined}>
+				<AnimatePresence>
+					{shellToast && shellToastShown ? <motion.p key={shellToast.key} className="mxp-shell-toast" initial={prefersReducedMotion() ? false : { y: 12, scale: 0.98 }} animate={{ y: 0, scale: 1 }} exit={prefersReducedMotion() ? undefined : { opacity: 0, y: 8 }} transition={{ type: "spring", stiffness: 480, damping: 36 }}><CheckCircle size={16} weight="fill" />{shellToast.text}</motion.p> : null}
+				</AnimatePresence>
+			</div>
 		</div>
 	)
 }

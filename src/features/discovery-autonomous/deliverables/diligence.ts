@@ -1,4 +1,4 @@
-import type { DeliverableBody } from "./types"
+import type { DeliverableBody, DeliverableRevision } from "./types"
 
 // NorthBridge Analytics acquisition diligence · Harborpeak investment committee
 // Evidence base: 316 data-room documents, 92 diligence issues, 1,824 pipeline
@@ -975,3 +975,19 @@ const PROCESS_ANALYSIS: DeliverableBody = {
 }
 
 export const DILIGENCE_DELIVERABLES: DeliverableBody[] = [EXECUTIVE_BRIEF, BUSINESS_CASE, PROJECT_CHARTER, PROCESS_ANALYSIS, REQUIREMENTS, TECHNICAL_ASSESSMENT, TARGET_OPERATING_MODEL, RAID_REGISTER, ROADMAP]
+
+// With the owner's approval the classification conflict goes to the evidence
+// workshop, so the brief reports it as open there rather than only disclosed.
+export const DILIGENCE_APPROVED_REVISIONS: Partial<Record<number, DeliverableRevision>> = {
+	0: {
+		sections: {
+			"What this package does not claim": [
+				"The revenue classification conflict is open in the evidence workshop, not resolved. With your approval, Finance and the deal team are reconciling the two definitions; until the workshop records one, no conclusion in this package rests on the management figure, and where the two definitions produce different answers, both are shown. The committee still chooses the definition the purchase agreement will use.",
+				"Diligence did not obtain audited support for FY22, only management accounts. The reconciliation therefore covers 24 months of ledger actuals but cannot speak to the restated prior year. That limitation is carried in the RAID register as A-04 rather than smoothed over.",
+			],
+		},
+		findings: {
+			"Unresolved exposure": { label: "Open in the evidence workshop", detail: "Finance and the deal team are reconciling the revenue classification. Until the workshop records one definition, no committee conclusion rests on the management figure." },
+		},
+	},
+}

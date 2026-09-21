@@ -1,62 +1,120 @@
-# Agentix — one place to work
+# Agentix — engagements that own ongoing work
+Updated 2026-09-18. This replaces the 2026-09-11 deployed-agents contract. It describes the frontend demo only; nothing here is a production runtime sign-off.
 
-Updated 2026-09-11. Product surface. This supersedes the screen-by-screen UX described in `agentix-initiative-demo.md`; it does not change production implementation status.
+## What the customer should understand
+"This agent owns this responsibility. Here is its work, what needs me, and what it has achieved." A deployed specialist team keeps its responsibility. It can work through qualified business tools, build versioned engineering artifacts, test them in isolation, release them under policy, and then keep operating the result. These are capabilities inside one engagement, not separate modules or agent types. There is no workflow-versus-role selector, model or effort picker, agent count, sandbox picker or graph to configure.
 
-## The three jobs
+## Navigation
+MAXION sidebar → Agentix → engagement → a work item or a result. An engagement has three stable destinations:
 
-1. Know what the agent is doing and whether anything needs me.
-2. Steer the work without losing its context, progress or conversation.
-3. Inspect the outcome and evidence without confusing a finished agent turn with a finished business task.
+| Destination | Answers | Contents |
+|---|---|---|
+| Work (default) | What is happening? Does it need me? | A "Now" line (open work by state, and whether anything needs you), the latest achievements, the first decision in full with the rest as rows, then Delivery milestones, recurring cycles, cases, and History. An aside shows team presence and operation facts. |
+| Results | What has actually been achieved? | Artifacts with business previews first, and verified outcomes. |
+| Activity | What did the agents do? | Actions, decisions, tool operations and evidence, grouped by day and filterable. Tool operations expand. No private reasoning is shown. |
 
-The previous experience violated Tesler's Law by making the viewer import, configure, activate and then manually start a “sample case” across separate screens. It violated Zeigarnik and Pareto by hiding the team and putting the conversation below long-form configuration. The Discovery promotion displaced the actual Discovery work list (Serial Position and Proximity).
+Team, sources, connections and operating rules live in the Details sheet, not in standing panels. Breadcrumbs and Back restore the list with its scroll position and return focus to the row you opened. Under a 64rem workspace, Results switch from list-and-preview to list, then detail.
 
-## Implemented interaction model
+## One state model
+`engine/` owns a single versioned store (`AgentixState` v4) and every transition: `engine.ts` (tick, decisions, releases, amendments, intake and demo controls), `steering.ts` (instructions), `selectors.ts` (derived views) and `scenarios.ts` (typed scenario data). Engagements, deployed specialists, work items (case, cycle, milestone), artifacts with versions and checks, releases and decisions are separate records linked by id. Conversation messages, work, results, activity and controls all read the same records, so they always agree. `seed.ts` builds the initial demo, and `storage.ts` validates, persists and migrates it.
 
-One persistent workspace has a work list, a conversation/activity stream, a pinned composer and a context column. The existing MAXION navigation stays intact. On narrower screens the work list and context are explicit, closeable secondary views; neither becomes a new product step.
+## Entry and activation
+Discovery ("Send to Agentix") and a direct brief ("Assign work") land on the same review. Sending a package again, or writing a brief that matches it, reopens the review in progress. It never creates a second engagement. A brief routes one of three ways: new work for the deployed team, the package that expands it, or, only if you choose it, a separate engagement.
 
-The demo opens on an already-authorized invoice case. Its analysts work independently, then the coordinator asks for the precise $240 decision inline. This is seeded demonstration work, not fabricated live customer activity. All four initiatives remain available: incident triage (one agent), invoice exceptions, onboarding and inventory (three agents each).
+The review leads with what activation starts: the outcome, the operating boundary, the systems with their capability (read, build & test, production change, record update, notify) and what starts. Next come the only questions the package can't answer. For the flagship these are how pipeline releases are authorized (dashboard publishing is already pre-authorized by policy FIN-DASH-2) and what data isolated tests may use. Then a readiness split: read sources, build and test in isolation, and change production. Each of the three is ready or not on its own, so the outcome is never labelled ready while a needed capability is missing. Team (reused versus added), milestones, coverage and the source package are disclosures. Provenance is exact: "From Discovery · title vN" or "From your brief". Activation is separate from any production release.
 
-Discovery and natural-language entry converge on the same proposed scope inside this workspace. Activation starts the work; there is no operating-model/work/discovery tab tour. Reopening an existing running initiative does not restart it. The Discovery landing keeps its existing saved work, interview flow and nine-document deliverable reader. Completed operational designs sit in a secondary disclosure after that work, not in a promotional panel before it.
+## Work model and visibility
+Cases, scheduled cycles and bounded milestones share one work list. Milestones declare dependencies (MS-2 after MS-1; MS-3 after MS-2's test), and specialists work in parallel. One blocked item never stops the engagement: every row, and each specialist in Team, reads as working, waiting for a dependency, waiting for your decision, recovering or ready for incoming work. The words carry the meaning, not colour alone. New work for an existing team (Assign work, or the composer) creates a work item for the deployed specialist; nothing is rebuilt.
 
-Working chat interactions: pause, resume, high priority and hold notifications. Questions explain sources, team choice, status and permission boundaries. Unknown instructions are retained in the conversation with an explicit “not applied” response; the frontend is not connected to a language model. Drafts, selected work, decisions, instructions and progress persist in versioned browser storage. No credentials or external systems are used.
+## Results, testing and release
+The flagship previews are the source-to-target mapping, the pipeline stages (SQL is secondary), reconciliation evidence, the regional dashboard with country drill-down, the operating runbook, and version and release history with compare. Every preview is labelled either as synthetic test data or as simulated production. Its actions are real: request a change (scoped composer), inspect evidence, compare versions and open related work.
 
-ERP unknown-outcome recovery is autonomous in the simulation. It preserves the original request reference and demonstrates one create, not a retry button masquerading as autonomy. Financial approval cannot be bypassed by typing “continue.” Payroll fulfillment requires a reference. Held notification obligations remain incomplete until explicitly released. Reduced-motion preferences alter motion, never execution timing.
+- **Testing.** Tests run in an isolated workspace on the synthetic 30-day sample, bound to one version. Pipeline v1 fails two checks and is repaired automatically (at most two attempts). v2 then passes all nine. The detail shows each tested version and what failed. A passed test is never presented as a production result.
+- **Release.** A release names its target, changes, impact, checks, authority and recovery limits. Rollback is not promised for data a downstream reader has already used. The pipeline needs your approval (or the Saturday 02:00 window, if you chose that policy). Dashboard publishing is pre-authorised by policy FIN-DASH-2.
+- **Authority.** A release applies only under a pre-authorising policy or a resolved approval. A hold only defers a release that is already allowed to proceed. Chat, holds and demo controls never stand in for approval. A stopped or kept-in-test release that needs approval comes back only through "Request release again", which asks for approval again. Reaching the window without approval asks again. Under the Saturday-window policy, stopping and resuming a release, or lifting your own hold, waits for the next window again. A release that has already been dispatched always finishes or reconciles; it is never left mid-release.
+- **Unknown outcomes.** An unknown outcome (the first pipeline release loses its acknowledgement) enters reconciliation for three demo minutes. Nothing is resent, and it resolves as applied once.
+- **Lost permission.** Removing release permission blocks a release before it applies.
+- **Amendments.** A change creates a new version. While a release it would affect is applying or being reconciled, the change shows "Waiting to apply" and applies once that release settles. It invalidates results on unreleased versions and supersedes pending releases, withdrawing their decisions. Dependents that have checks are rebuilt and retested. A deployed version's record is never rewritten. A change to released work becomes a CHG follow-up item for the same specialist, and production stays on the released version until the new one passes and releases.
 
-## UX laws acceptance matrix
+## Continuous operation
+Once the pipeline and dashboard milestones are verified, the same engagement runs a daily 06:00 London reconciliation. Each cycle is an independent occurrence: it loads, reconciles, refreshes the dashboard and notifies. The Work view shows the next occurrence, data freshness (marked Stale when the last scheduled occurrence hasn't verified), service health, and derived measures (verified count, median time to verify, simulated cost). No savings are claimed. A failed notification keeps the completed record change as a partial outcome and resumes only the outstanding send. A notification outage holds only notifications: new work is still admitted and progresses up to its send. Pause intake, pause a work item, and hold or stop a release are separate controls.
 
-| Law | Requirement | Acceptance | Verification |
-|---|---|---|---|
-| Hick's | Work, conversation and context, without mode selection | One primary business action in the active decision/proposal | Desktop and mobile walkthrough |
-| Fitts's | Controls near their content; mobile actions comfortably tappable | Primary controls ≥44px; no target under24px; adjacent actions ≥8px gap | Browser geometry and keyboard test |
-| Jakob's | Familiar left navigation, message input, Enter/Shift-Enter and Escape | Global Cmd/Ctrl-K remains the platform menu | E2E keyboard test |
-| Proximity | Group each request with evidence and its action | 4–8px within groups, 16–32px between groups | CSS and screenshot review |
-| Miller's | Small stable work list and scannable activity | 4 initiatives, 4–5 steps per process, 3 context sections | Fixture and screenshot checks |
-| Doherty | Input and steering acknowledge immediately | <400ms feedback target; no blocking animation; long work has visible steps | Local browser walkthrough; no production latency claim |
-| Von Restorff | Approval or activation is the dominant action | One filled brand action per business request; chat send uses neutral styling | Screenshot review |
-| Serial Position | Current work first, steering always reachable | Invoice work opens directly; composer pinned; Discovery promotion follows existing work | Landing and viewport tests |
-| Peak-End | A business result, not a toast | Durable outcome summary plus 3 inspectable record receipts | All four outcome journeys |
-| Zeigarnik | Preserve and show progress | Fixed N-of-M step count; selected work and drafts survive refresh | Pause/reload E2E and state tests |
-| Prägnanz | Four top-level visual regions including platform navigation | Platform nav, work list, conversation, context; compact views disclose secondary regions | 320/375/768/1280/1440px review |
-| Similarity | One vocabulary for state and action | Shared status component and shared button variants | Component and screenshot review |
-| Uniform connectedness | Each container represents one object | Approval facts/actions together; connectors only between process steps | Visual inspection |
-| Tesler's | Agent chooses internal execution and handles recovery | No model, effort, agent-count or workflow/persona picker; no manual ERP reconciliation step | UI assertions and inventory journey |
-| Postel's | Preserve imperfect input without silently applying it | Whitespace accepted; unsupported brief retained; no generic resume bypass | State and input tests |
-| Parkinson's | Reach work without setup overhead | Existing work visible on entry; draft activation in one action | E2E entry and handoff tests |
-| Occam's | Remove redundant product surfaces | No sample-run launcher, operating-model tabs or hidden-team requirement | UI assertions |
-| Pareto | Spend attention on work, steering and verified results | These 3 jobs visible in common workspace; detailed policies/sources collapsed | Primary journey walkthrough |
+## Conversation and steering
+One composer is always in the dock, in Work, Results and Activity alike, addressed to the accountable agent. It shows its scope: the whole engagement, a work item or a result. Drafts are kept per scope. Navigation never retargets an unsent draft; the composer offers to write about what you're viewing instead. The conversation panel opens as an overlay, can be pinned beside the work, collapses to the latest reply, and closing it never pauses work. Material progress posts a linked update in the conversation.
 
-## Boundaries and implementation choices
+| Instruction | Result |
+|---|---|
+| Questions ("What needs me?", "Explain the failed check") | Answered from the records; nothing changes. If the question describes supported work, the reply offers it, and nothing happens until you accept. |
+| Prioritize, pause or resume a case; hold a notification; pause or resume intake; hold a release until the window; stop a release | Applied immediately and visible in the work list, detail and activity |
+| "Add regional drill-down to this dashboard", "Use only the approved source fields" | Queued, then applied on the next demo minute as a new version |
+| "Reconcile the August credit notes" | Queued as new work for the reconciliation analyst |
+| Approve or release | Refused. Decisions stay in their cards. |
+| Widen permissions or grant access | Refused. A broader scope needs a new review. |
+| "Hold this release until the agreed window" on a release still awaiting approval | Not applied. The reply points to "Approve for Saturday 02:00" on its card. |
+| A change that names another case from inside a case | Not applied, with the reason; your text stays in the composer. From the whole engagement, naming a case ("Pause INV-20843") targets that case. |
+| Anything the demo can't do | Not applied, with the reason; your text stays in the composer |
 
-- This is a frontend simulation, not proof of OpenAI Agents SDK, Merge or Azure execution. A 3-agent screen does not prove runtime parallelism. No performance or cost savings are represented as measured business results.
-- Reuse the existing React/Vite, Phosphor icons, MAXION spiral, typography and CSS token family. No new component framework, infrastructure, generated images or service dependency.
-- `workspaceState.ts` owns bounded transitions and supported steering. `WorkspaceParts.tsx` owns common activity/team/decision/outcome views. `AgentixInitiativesPage.tsx` owns composition and persistence. The existing scenario evidence stays in `initiatives.ts`.
-- State is version2 under a new browser-storage key. Version1 demo data is left untouched. A browser reload restores a checkpoint; no work executes while the browser is closed, and a scheduled trigger is illustrated rather than connected to a scheduler.
-- User/provider text renders as React text, not raw HTML. Storage reads validate shape and bound histories. A storage failure remains usable in-memory and explicitly warns that refresh persistence is unavailable.
-- Production scale, auth, tenant isolation, durable execution and provider receipts are intentionally out of this demo. The product-strength plan remains their authority. No new infrastructure is provisioned.
-- Rollback: revert this UX change set. It has no migration, provider effects or cross-repository dependency; the old browser-storage key remains available.
+Instruction states are Queued, Waiting to apply, Applied, Not applied, Couldn't apply and Answered. Classification happens as you send, so there is no separate "received" state. Questions only read, so a question about a named item is answered about that item.
 
-## Verification record
+## Demo controls
+The Demo button opens a labelled sheet with:
+- clock controls: advance one minute, skip five, go to the release window;
+- per-engagement controls: incoming work, run the next cycle now (early, without moving the clock), expire the notification connection, remove release permission, lose the next release acknowledgement;
+- a reset with confirmation.
 
-See the updated unit and Playwright suites for executable coverage. Manual review covers desktop hierarchy, mobile navigation, the pinned input, actual steering and Discovery landing order. Automated checks include all four workflows, authority boundaries, partial outcomes, pause/reload, malformed storage, source handoff, keyboard behavior, responsive overflow and axe serious/critical violations. Passing a deterministic demo test is not production qualification.
+On the Assign work page, a "Demo controls" disclosure holds the scripted-scenario selector. It is not an AI model setting.
 
-Recorded checks: 18 Agentix unit tests (12 workspace and 6 legacy component regressions), 10 platform unit/integration tests, and 23 browser tests passed. Browser coverage includes 320, 375, 768, 1280 and 1440px widths, dark mode and reduced motion. A production-preview check at 125 kB/s with 150 ms latency reached the workspace in 5.48 s; opening New work after load took 90 ms in that observation. These are local observations, not production SLOs. The existing single-bundle size warning remains a cold-load limitation; this work does not claim to have solved platform-wide code splitting.
+A view that fails to render shows "This view couldn't be shown" with a way back, instead of blanking the MAXION shell.
+
+## Storage
+The key is `maxion-agentix-operations-v4`. On first read, a saved v3 demo is migrated; the v3 key and all unrelated storage are left untouched. Reading never writes. Malformed state falls back to the seeded demo, and records are shape-checked and bounded (work 240, events 600, messages 400).
+
+## Limits
+Everything is simulated. There is no language model; four scripted scenarios stand in. No real SQL Server, AWS, ERP, HR, ServiceNow, Teams or email action occurs, and there are no credentials. Work advances only while MAXION is open in this browser and stops when it closes. A production runtime would need durable tenant-scoped workers, a scheduler, authorization, an effect ledger and provider verification.
+
+## UX laws
+| Law | Decision | Acceptance |
+|---|---|---|
+| Hick's | Three destinations; one filled action per decision | No mode pickers; demo controls live in their own sheet |
+| Fitts's | 36px controls on desktop, 44px at 600px and narrower; 8px gaps | Checked at 320, 390, 768, 1024 and 1440px |
+| Jakob's | Tabs, breadcrumbs, side sheet and composer match the Plan and Execute modules | Arrow keys move between tabs; Escape closes and returns focus |
+| Proximity | A decision holds its facts, consequence and actions | Release facts sit beside approve, window and keep-in-test |
+| Miller's | "Now" in one line, the first decision in full, the rest as rows | History starts collapsed with 20 records |
+| Doherty | Every action updates local state immediately | Instructions show Queued, Applied or Not applied within the same frame |
+| Von Restorff | Only the decision's primary action is filled | Assign work and header actions are outline buttons |
+| Serial position | Needs-you comes first, then delivery, cycles and cases | The newest achievement leads the Now panel |
+| Peak-end | A verified milestone reads as its evidence | Delivery ends in "runs as a daily operation" with the next cycle |
+| Zeigarnik | Open obligations stay visible | Required outcomes show evidenced or pending per item |
+| Prägnanz | At most main, aside and an optional conversation | No five-column cockpit; the aside moves below under 64rem |
+| Similarity | One status vocabulary everywhere | The same words in rows, detail, team and activity |
+| Uniform connectedness | One card per decision; one row per work item | Artifacts, releases and items link rather than nest |
+| Tesler's | The review asks only what the package can't answer | Two questions for the flagship; the rest is derived |
+| Postel's | Unsupported input is preserved | Declined instructions keep their text |
+| Parkinson's | Existing work opens immediately | New work for a deployed team needs one sentence |
+| Occam's | One store, one tick, one composer | The chat-first and case-drawer components were removed |
+| Pareto | Status, decisions and results first | Team, sources, connections and rules are one sheet away |
+
+## Verification record — 2026-09-18
+- **Types and build.** `npx tsc --noEmit -p .` and `pnpm build` passed. The build's existing single-bundle warning remains (about 1.80 MB of JavaScript, 500 kB gzipped); code splitting is out of scope.
+- **Unit and component tests.** `npx vitest run` passed: 351 tests in 10 files. Agentix accounts for 52: engine and steering, storage migration, view components, and the retained legacy prototype.
+- **Browser journeys.** `PLAYWRIGHT_BROWSERS_PATH=0 npx playwright test` passed all 68 tests, 17 of them in `agentix-operations.spec.ts`:
+  - both entry points without duplicates, and a prompt-origin brief;
+  - an existing specialist taking new work;
+  - parallel milestones with one blocked;
+  - failure → repair → recheck;
+  - an unknown release reconciled once;
+  - an amendment making a new version while production stays;
+  - lost permission;
+  - a partial notification;
+  - scoped steering and drafts;
+  - delivery → daily operation;
+  - keyboard tabs, sheets and conversation;
+  - 320–1440px with no overflow, plus axe serious/critical checks;
+  - reset;
+  - v3 migration.
+- **Guards.** `node scripts/check-design-tokens.mjs` passed, with `engagement.css` now strict. `node scripts/check-visual-density.mjs` passed every screen; the Agentix baseline was updated to the v4 screens and adds `agentix-results`.
+- **Independent audits.** There were three read-only rounds by separate agents. Every blocker and major now has a regression test; minor findings (copy, focus, contrast, target size) were fixed and re-checked in the next round.
+  - Round 1 found two blockers: chat could reach production without approval, and Reset from inside a separate engagement crashed. It also found seven majors: a change during reconciliation, a decision resuming paused work, steering misreads, provenance, the notification outage, results claims and demo clock jumps.
+  - Round 2 found one blocker, where stop/resume under the window policy released early, and two majors: a stranded dashboard release and review wording.
+  - Round 3 found one major: a dashboard change waited for a kept-in-test pipeline release. It also found two minors: release-card wording, and a row that lagged one tick after Stop. All three were fixed afterwards, with a regression test for the major; no fourth round was run.
+- **Visual review.** Desktop (1440×900, 1280×720) and phone (390×844) renders of the landing, review, Work, item detail, Results previews, Activity, the conversation (overlay, pinned and phone sheet), the Details and Demo sheets, and the other three engagements were inspected. The platform shell stays light under a dark colour-scheme preference (pre-existing).

@@ -1,25 +1,15 @@
 import {
-	ChartBar,
 	CaretLeft,
 	CaretRight,
 	Command,
-	Compass,
-	Cube,
-	FlowArrow,
-	GearSix,
 	List,
-	Plug,
-	Question,
-	ShieldCheck,
+	MagnifyingGlass,
 	SignOut,
-	Pulse,
-	SquaresFour,
-	Stack,
 	X,
 } from "@phosphor-icons/react"
 import { useId, useState, type ReactNode } from "react"
 
-import { publicAsset } from "@/lib/publicAsset"
+import { NavGlyph, type NavGlyphName } from "./NavGlyphs"
 
 import { WORKSPACE_UNITS_PERCENT, type MaxionModuleId } from "./model"
 
@@ -66,29 +56,28 @@ export function MaxionSpiralMark({
 type NavigationItem = {
 	id: MaxionModuleId
 	label: string
-	icon?: typeof SquaresFour
+	glyph?: NavGlyphName
 	spiral?: boolean
 	badge?: number
 }
 
 export const PRIMARY_NAVIGATION: NavigationItem[] = [
-	{ id: "dashboard", label: "Dashboard", icon: SquaresFour },
-	{ id: "projects", label: "Projects", icon: Stack },
-	{ id: "discovery", label: "Discover", icon: Compass },
-	{ id: "plan", label: "Plan", icon: FlowArrow },
-	{ id: "execute", label: "Execute", icon: Cube, badge: 1 },
-	{ id: "agentix", label: "Agentix", icon: Pulse, badge: 2 },
+	{ id: "dashboard", label: "Dashboard", glyph: "dashboard" },
+	{ id: "projects", label: "Projects", glyph: "projects" },
+	{ id: "discovery", label: "Discover", glyph: "discovery" },
+	// Plan and Execute are disabled: a Discovery's package goes straight to Agentix, which runs the work.
+	{ id: "agentix", label: "Agentix", glyph: "agentix", badge: 2 },
 	{ id: "consult", label: "Consult Max", spiral: true },
 ]
 
-const ACCOUNT_NAVIGATION: NavigationItem[] = [
-	{ id: "settings", label: "Settings", icon: GearSix },
-	{ id: "integrations", label: "Integrations", icon: Plug },
+export const ACCOUNT_NAVIGATION: NavigationItem[] = [
+	{ id: "settings", label: "Settings", glyph: "settings" },
+	{ id: "integrations", label: "Integrations", glyph: "integrations" },
 	// No seeded number here: the approvals badge is only ever the count the approvals
 	// surface itself can show, passed down as a live badge override.
-	{ id: "approvals", label: "My approvals", icon: ShieldCheck },
-	{ id: "usage", label: "Usage", icon: ChartBar },
-	{ id: "help", label: "Help", icon: Question },
+	{ id: "approvals", label: "My approvals", glyph: "approvals" },
+	{ id: "usage", label: "Usage", glyph: "usage" },
+	{ id: "help", label: "Help", glyph: "help" },
 ]
 
 type PortalSidebarProps = {
@@ -102,6 +91,8 @@ type PortalSidebarProps = {
 	// Live module attention, lifted into the shell. A module that reports its own count
 	// overrides the seeded badge; everything else keeps the static one.
 	badges?: Partial<Record<MaxionModuleId, number>>
+	// The customer demo's presenter row, under the modules; absent everywhere else.
+	demo?: ReactNode
 }
 
 export function PortalSidebar({
@@ -113,6 +104,7 @@ export function PortalSidebar({
 	collapsed,
 	onCollapsedChange,
 	badges,
+	demo,
 }: PortalSidebarProps) {
 	const [notice, setNotice] = useState("")
 	const navigate = (module: MaxionModuleId) => {
@@ -120,24 +112,23 @@ export function PortalSidebar({
 		onMobileOpenChange(false)
 	}
 	const renderItem = (item: NavigationItem, compact = false) => {
-		const Icon = item.icon
 		const isActive = item.id === active
 		const badge = badges?.[item.id] ?? item.badge
 		return (
 			<li key={item.id}>
 				<button
 					type="button"
-					className={`mxp-portal-nav-item${compact ? " is-compact" : ""}${isActive ? " is-active" : ""}`}
+					className={`mxp-portal-nav-item ds-nav-item${compact ? " is-compact" : ""}${isActive ? " is-active" : ""}`}
 					aria-current={isActive ? "page" : undefined}
 					title={collapsed ? item.label : undefined}
 					onClick={() => navigate(item.id)}>
 					{item.spiral ? (
-						<MaxionSpiralMark variant={isActive ? "gradient" : "current"} className="mxp-portal-nav-icon" />
-					) : Icon ? (
-						<Icon className="mxp-portal-nav-icon" weight={isActive ? "fill" : "regular"} aria-hidden="true" />
+						<MaxionSpiralMark variant="current" className="mxp-portal-nav-icon" />
+					) : item.glyph ? (
+						<NavGlyph name={item.glyph} className="mxp-portal-nav-icon" />
 					) : null}
 					<span>{item.label}</span>
-					{badge ? <b aria-label={`${badge} pending`}>{badge}</b> : null}
+					{badge ? <b className="ds-count" aria-label={`${badge} pending`}>{badge}</b> : null}
 				</button>
 			</li>
 		)
@@ -163,12 +154,12 @@ export function PortalSidebar({
 			) : null}
 			<aside
 				id="portal-sidebar"
-				className={`mxp-portal-sidebar${mobileOpen ? " is-mobile-open" : ""}${collapsed ? " is-collapsed" : ""}`}
+				className={`mxp-portal-sidebar ds-scope ds-sidebar${mobileOpen ? " is-mobile-open" : ""}${collapsed ? " is-collapsed" : ""}`}
 				aria-label="Main navigation">
 				<div className="mxp-portal-brand">
 					<button type="button" onClick={() => navigate("dashboard")} aria-label="Open MAXION dashboard" title="Open MAXION dashboard">
-						<img src={publicAsset("maxion-logo-lockup-white.svg")} alt="MAXION" width="176" height="51" />
 						<MaxionSpiralMark variant="current" className="mxp-portal-brand-mark" />
+						<strong className="mxp-brand-word">MAXION</strong>
 					</button>
 					<button
 						type="button"
@@ -184,15 +175,17 @@ export function PortalSidebar({
 					</button>
 				</div>
 
+				<button type="button" className="ws-sidebar-search" aria-label="Search workspace" onClick={onCommand}><MagnifyingGlass size={16} /><span>Search workspace</span><kbd>⌘K</kbd></button>
 				<nav className="mxp-portal-sidebar-scroll" aria-label="Portal sections">
-					<ul>{PRIMARY_NAVIGATION.map((item) => renderItem(item))}</ul>
+					<ul className="ds-nav">{PRIMARY_NAVIGATION.map((item) => renderItem(item))}</ul>
+					{demo}
 					<div className="mxp-account-nav">
-						<div className="mxp-account-divider"><span>Account</span><i /></div>
+						<div className="mxp-account-divider ds-sidebar-section"><span>Account</span></div>
 						<button type="button" className="mxp-unit-balance" onClick={() => navigate("usage")}>
 							<span><strong>Workspace units</strong><small>{WORKSPACE_UNITS_PERCENT}% used this cycle</small></span>
 							<span className="mxp-unit-track"><i style={{ width: `${WORKSPACE_UNITS_PERCENT}%` }} /></span>
 						</button>
-						<ul>{ACCOUNT_NAVIGATION.map((item) => renderItem(item, true))}</ul>
+						<ul className="ds-nav">{ACCOUNT_NAVIGATION.map((item) => renderItem(item, true))}</ul>
 					</div>
 				</nav>
 

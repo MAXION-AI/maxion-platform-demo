@@ -55,6 +55,15 @@ export type DeliverableSection = {
 	exhibit?: Exhibit
 }
 
+// The owner's decision at the exception changes what a document may say about
+// it. Each body is written for the conservative path (the boundary was kept, or
+// nothing is decided yet); an approval replaces only the passages that describe
+// what happened at the decision, keyed by section heading and finding label.
+export type DeliverableRevision = {
+	sections?: Record<string, string[]>
+	findings?: Record<string, { label: string; detail: string }>
+}
+
 export type DeliverableBody = {
 	// The governing thought: the one sentence the rest of the document supports.
 	heading: string
