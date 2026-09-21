@@ -1,12 +1,12 @@
 {
-  "sourceCommit": "384b88088a401b30565f8492aa707558d118fad8",
+  "sourceCommit": "f7745fc4a1b7351d57ba64db2573a3bcf0e59f42",
   "sourceBranch": "codex/agentix-deployed-agents-20260911",
   "builtLocally": true,
-  "javascript": "assets/index-BAA3ZmQx.js",
-  "stylesheet": "assets/index-CxjbTGs2.css",
-  "previousSourceCommit": "0dfd3c45373c552fa486aa84ba567f1cadddd3cb",
-  "previousPagesCommit": "a14944c298a4a7bd0e9ad4649303749c863b26aa",
-  "deploymentMethod": "locally built with GITHUB_PAGES=true; the preceding release's hashed assets retained for CDN propagation, older ones pruned",
+  "javascript": "assets/index-Cs_oXTKb.js",
+  "stylesheet": "assets/index-6N31yp4R.css",
+  "previousSourceCommit": "384b88088a401b30565f8492aa707558d118fad8",
+  "previousPagesCommit": "56b924ad731ed1997480c79b7ab612aa844a1c70",
+  "deploymentMethod": "locally built with GITHUB_PAGES=true; the preceding release's hashed assets retained for CDN propagation",
   "contains": [
     "revenue",
     "servicenow",
