@@ -1,12 +1,15 @@
 {
-  "sourceCommit": "76018f6ce9c39df8f65381ca85d4fff07baa9388",
-  "sourceBranch": "main",
+  "sourceCommit": "0dfd3c45373c552fa486aa84ba567f1cadddd3cb",
+  "sourceBranch": "codex/agentix-deployed-agents-20260911",
   "builtLocally": true,
-  "javascript": "assets/index-6nEgZh6d.js",
-  "stylesheet": "assets/index-D9BG62WO.css",
-  "previousSourceCommit": "d85b082b9c9207fa9423d27523cdf9182093d828",
-  "buildSourceCommit": "c381e7e50b6cc7e71138fbf4b9c348efc2194df9",
-  "rollbackOfPagesCommit": "0c70f271f983db07640be44a8525739fbb444924",
-  "restoredPagesCommit": "971dd239e79e2ca4630c26e7042aee080c00e154",
-  "deploymentMethod": "locally reproduced and byte-verified September 11 artifacts; forward rollback commit"
+  "javascript": "assets/index-BsZ6Xg1P.js",
+  "stylesheet": "assets/index-Bq4oF41C.css",
+  "previousSourceCommit": "76018f6ce9c39df8f65381ca85d4fff07baa9388",
+  "previousPagesCommit": "daac7b77a3b841948b70609abaf13e53bf5fe25e",
+  "deploymentMethod": "locally built with GITHUB_PAGES=true; previous release's hashed assets retained for CDN propagation",
+  "contains": [
+    "revenue",
+    "servicenow",
+    "salesforce-sap"
+  ]
 }
