@@ -7,8 +7,9 @@ import {
 	SignOut,
 	X,
 } from "@phosphor-icons/react"
-import { useId, useState, type ReactNode } from "react"
+import { useId, useState, type CSSProperties, type ReactNode } from "react"
 
+import { publicAsset } from "@/lib/publicAsset"
 import { NavGlyph, type NavGlyphName } from "./NavGlyphs"
 
 import { WORKSPACE_UNITS_PERCENT, type MaxionModuleId } from "./model"
@@ -158,8 +159,22 @@ export function PortalSidebar({
 				aria-label="Main navigation">
 				<div className="mxp-portal-brand">
 					<button type="button" onClick={() => navigate("dashboard")} aria-label="Open MAXION dashboard" title="Open MAXION dashboard">
-						<MaxionSpiralMark variant="current" className="mxp-portal-brand-mark" />
-						<strong className="mxp-brand-word">MAXION</strong>
+						{/*
+						 * The brand lockup itself, the same artwork the platform's own side panel carries.
+						 * It is drawn in one colour, so it is painted through a mask and takes the sidebar's
+						 * foreground: white on the platform's dark rail, ink here. Collapsed to the rail there
+						 * is no room for the wordmark, so the mark stands alone.
+						 */}
+						{collapsed ? (
+							<MaxionSpiralMark variant="current" className="mxp-portal-brand-mark" />
+						) : (
+							<span
+								className="mxp-brand-lockup"
+								style={{ "--mxp-lockup": `url(${publicAsset("maxion-logo-lockup-white.svg")})` } as CSSProperties}
+								role="img"
+								aria-label="MAXION"
+							/>
+						)}
 					</button>
 					<button
 						type="button"

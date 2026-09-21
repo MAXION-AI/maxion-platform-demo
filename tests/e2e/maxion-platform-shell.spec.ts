@@ -40,7 +40,8 @@ test("keeps the canonical MAXION shell functional across core modules", async ({
 
 	await page.goto("/maxion-prototype")
 	await expect(page.getByRole("heading", { name: "Good afternoon, Root Admin" })).toBeVisible()
-	await expect(page.getByRole("button", { name: "Open MAXION dashboard", exact: true })).toContainText("MAXION")
+	// The brand anchor carries the lockup artwork itself, the same one the platform's side panel uses.
+	await expect(page.getByRole("button", { name: "Open MAXION dashboard", exact: true }).getByRole("img", { name: "MAXION" })).toBeVisible()
 
 	const navigation = page.getByRole("navigation", { name: "Portal sections" })
 	for (const name of ["Dashboard", "Projects", "Discover", "Consult Max", "Integrations"]) {

@@ -22,7 +22,8 @@ describe("MaxionPlatformPrototypePage", () => {
 
 		expect(screen.getByRole("heading", { name: "Good afternoon, Root Admin" })).toBeInTheDocument()
 		expect(screen.getByRole("complementary", { name: "Main navigation" })).toBeInTheDocument()
-		expect(screen.getByRole("button", { name: "Open MAXION dashboard" })).toHaveTextContent("MAXION")
+		// The brand anchor carries the lockup artwork, not a typed word.
+		expect(within(screen.getByRole("button", { name: "Open MAXION dashboard" })).getByRole("img", { name: "MAXION" })).toBeInTheDocument()
 		for (const module of ["Dashboard", "Projects", "Discover", "Consult Max", "Integrations"]) {
 			expect(screen.getByRole("button", { name: module })).toBeInTheDocument()
 		}
