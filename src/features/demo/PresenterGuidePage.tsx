@@ -3,8 +3,9 @@ import { useEffect, useRef, useState } from "react"
 import { useDocumentTitle } from "@/app/hooks/useDocumentTitle"
 import { Button as DsButton, TextButton } from "@/design/primitives"
 import { nextAnswer } from "./progress"
+import { SCENARIOS } from "@/features/discovery-autonomous/model"
 import { demoScript } from "./scripts"
-import { demoStorageAvailable, demoUrl, guideDemo, openGuideChannel, type DemoCommand, type DemoStart, type GuidePresence } from "./session"
+import { demoStorageAvailable, demoUrl, guideDemo, openGuideChannel, stakeholderUrl, type DemoCommand, type DemoStart, type GuidePresence } from "./session"
 import { useDemoProgress } from "./useDemoProgress"
 import "./demo.css"
 
@@ -22,6 +23,7 @@ export function PresenterGuidePage() {
 	const [script] = useState(() => demoScript(guideDemo()))
 	useDocumentTitle(`Presenter guide · ${script.name} demo`)
 	const { snapshot, steps, current } = useDemoProgress(script)
+	const scenario = SCENARIOS[script.scenarioKey]
 	const [copied, setCopied] = useState<string | null>(null)
 	const [notice, setNotice] = useState<string | null>(null)
 	const [confirmRestart, setConfirmRestart] = useState(false)
@@ -115,6 +117,19 @@ export function PresenterGuidePage() {
 						))}
 					</ol>
 					<p className="mxd-detail">Charter approval reason: “{script.charterReason}” <TextButton onClick={() => copy(script.charterReason)}><Copy size={12} />{copied === script.charterReason ? "Copied" : "Copy"}</TextButton></p>
+				</section>
+
+				<section className="mxd-guide-current" aria-label="Stakeholder interview">
+					<h2>Show a stakeholder's side</h2>
+					{/* MAX interviews the owner in the Discovery; everyone else gets a link of their own. */}
+					<p className="mxd-detail">MAX interviews the owner inside the Discovery. Every other stakeholder receives a link instead, and this is the page at the end of it. It opens in its own window and never touches the demo.</p>
+					<div className="mxd-actions">
+						{scenario.people.slice(0, 3).map(person => (
+							<DsButton key={person.id} size="sm" onClick={() => window.open(stakeholderUrl(script.id, person.id), `maxion-stakeholder-${script.id}-${person.id}`, "popup,width=900,height=900,noopener")}>
+								{person.name}
+							</DsButton>
+						))}
+					</div>
 				</section>
 
 				<footer className="mxd-guide-foot">

@@ -20,7 +20,9 @@ product has two implementations, the one that actually renders is the target.
 | 7 | Stakeholder interview | same route, chat state | Public, token-gated |
 
 Screens 6 and 7 are a separate public surface reached by an emailed link, not part of
-the owner's own journey.
+the owner's own journey. The prototype carries them at `/stakeholder-interview?demo=<id>&who=<person>`:
+no token service exists here, so the address names the demo and the stakeholder instead. Like the
+presenter guide it is a window beside the demo and never takes the demo's saved state.
 
 ## 1. Hub
 

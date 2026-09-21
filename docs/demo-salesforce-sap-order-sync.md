@@ -11,6 +11,7 @@ Everything is simulated in the browser. No Salesforce, SAP, integration platform
 | Full demo, from a new Discovery | `http://127.0.0.1:4317/maxion-prototype?demo=salesforce-sap` | `https://maxion-ai.github.io/maxion-platform-demo/#/maxion-prototype?demo=salesforce-sap` |
 | Short demo, from the finished Discovery package | `http://127.0.0.1:4317/maxion-prototype?demo=salesforce-sap&start=package` | `…/#/maxion-prototype?demo=salesforce-sap&start=package` |
 | Presenter guide (second screen) | `http://127.0.0.1:4317/demo-guide?demo=salesforce-sap` | `…/#/demo-guide?demo=salesforce-sap` |
+| Stakeholder interview (what a stakeholder receives) | `http://127.0.0.1:4317/stakeholder-interview?demo=salesforce-sap` | `…/#/stakeholder-interview?demo=salesforce-sap` |
 
 The demo behaves exactly like the other two, because all three run on the same harness: a new tab starts clean, a reload keeps your place, one tab owns the demo at a time, Exit demo is safe to undo, and the everyday prototype is untouched. Its storage is namespaced `…::demo-salesforce-sap`, so the three demos never mix — you can have all three open in three tabs.
 
@@ -24,7 +25,7 @@ The demo behaves exactly like the other two, because all three run on the same h
 
 ## The story
 
-The number on each heading matches the sidebar count.
+The number on each heading matches the sidebar count. To show a stakeholder's side at any point, open **Stakeholder interview** from the sidebar row or the presenter window: it opens in its own window, carries this demo's own Discovery, and never touches the run.
 
 ### Discovery
 

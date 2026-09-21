@@ -58,7 +58,9 @@ export function demoRequest(location: Pick<Location, "search" | "hash" | "pathna
 	// The presenter guide names the demo it follows in its own address, but it is a window BESIDE
 	// the demo, not a demo tab: if it started a session it would take the demo's saved state over
 	// and the real demo tab would read "Continues in another tab" the moment the guide opened.
-	if (/\/demo-guide\/?$/.test(path)) return null
+	// The stakeholder interview is the same: a window beside the demo showing what a stakeholder
+	// receives, never a demo tab of its own.
+	if (/\/(demo-guide|stakeholder-interview)\/?$/.test(path)) return null
 	const shorthand = /\/demo\/?$/.test(path)
 	// An unregistered id is not a demo: it opens the everyday prototype rather than a half-built one.
 	const id: DemoId | null = isDemoId(asked) ? asked : asked === null && shorthand ? DEFAULT_DEMO : null
@@ -412,6 +414,19 @@ export function guideUrl(id: DemoId = session?.id ?? DEFAULT_DEMO) {
 	// Deployed builds route inside the hash under their base path; the dev server routes on the path.
 	if (import.meta.env.BASE_URL !== "/" || url.hash.startsWith("#/")) { url.search = ""; url.hash = `#/demo-guide${query}`; return url.toString() }
 	return `${url.origin}/demo-guide${query}`
+}
+
+/* What a stakeholder receives: the interview MAX sends them, as its own window. */
+export function stakeholderUrl(id: DemoId = session?.id ?? DEFAULT_DEMO, who?: string) {
+	const url = new URL(window.location.href)
+	const query = `?demo=${id}${who ? `&who=${who}` : ""}`
+	if (import.meta.env.BASE_URL !== "/" || url.hash.startsWith("#/")) { url.search = ""; url.hash = `#/stakeholder-interview${query}`; return url.toString() }
+	return `${url.origin}/stakeholder-interview${query}`
+}
+
+/* Which stakeholder an interview address is for; absent means the first one MAX would write to. */
+export function stakeholderWho(location: Pick<Location, "search" | "hash"> = window.location) {
+	return params(location as Pick<Location, "search" | "hash" | "pathname">).get("who") ?? undefined
 }
 
 /* Which demo a presenter-guide address follows; the bare address follows the first demo. */

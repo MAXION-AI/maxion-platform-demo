@@ -5,6 +5,7 @@ import { BrowserRouter, HashRouter, Navigate, Route, Routes, useLocation } from 
 
 import { MaxionPlatformPrototypePage } from "@/features/platform-prototype/MaxionPlatformPrototypePage"
 import { PresenterGuidePage } from "@/features/demo/PresenterGuidePage"
+import { StakeholderInterviewPage } from "@/features/demo/StakeholderInterviewPage"
 import { dropFreshFlag, prepareDemo, startDemoPresence, watchDemoAddress } from "@/features/demo/session"
 
 import "./styles.css"
@@ -43,6 +44,7 @@ createRoot(root).render(
           <Route path="/discovery-prototype" element={<MaxionPlatformPrototypePage />} />
           <Route path="/demo" element={<DemoRedirect />} />
           <Route path="/demo-guide" element={<PresenterGuidePage />} />
+          <Route path="/stakeholder-interview" element={<StakeholderInterviewPage />} />
           <Route path="/" element={<Navigate to="/maxion-prototype" replace />} />
           <Route path="*" element={<Navigate to="/maxion-prototype" replace />} />
         </Routes>

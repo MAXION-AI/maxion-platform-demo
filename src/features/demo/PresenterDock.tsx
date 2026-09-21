@@ -4,7 +4,7 @@ import { createPortal } from "react-dom"
 import { Button as DsButton, TextButton } from "@/design/primitives"
 import type { DemoAction, DemoSnapshot, DemoStep } from "./progress"
 import type { DemoScript } from "./scripts"
-import { demoStorageAvailable, exitDemo, guideUrl, onDemoCommand, restartDemo, takeOverDemo, type DemoStart } from "./session"
+import { demoStorageAvailable, exitDemo, guideUrl, onDemoCommand, restartDemo, stakeholderUrl, takeOverDemo, type DemoStart } from "./session"
 import { useDemoOwnership } from "./useDemoOwnership"
 import { useDemoProgress } from "./useDemoProgress"
 import "./demo.css"
@@ -166,6 +166,8 @@ export function PresenterDock({ script, collapsed, onRun }: { script: DemoScript
 			<footer className="mxd-panel-foot">
 				{restarting ? restartChoice : <>
 					<TextButton onClick={() => window.open(guideUrl(script.id), `maxion-demo-guide-${script.id}`, "popup,width=520,height=860,noopener")}>Presenter window<ArrowSquareOut size={12} /></TextButton>
+					{/* What a stakeholder receives. Its own window, so the demo tab keeps the demo. */}
+					<TextButton onClick={() => window.open(stakeholderUrl(script.id), `maxion-stakeholder-${script.id}`, "popup,width=900,height=900,noopener")}>Stakeholder interview<ArrowSquareOut size={12} /></TextButton>
 					<TextButton ref={restartButton} onClick={() => showRestart(true)}>Restart…</TextButton>
 					<TextButton onClick={exitDemo} title="Leaves this run; going back to its address in this tab resumes it">Exit</TextButton>
 				</>}

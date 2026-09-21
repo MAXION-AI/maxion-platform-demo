@@ -11,6 +11,7 @@ Everything is simulated in the browser. No ledger, AWS, ERP, Teams or email acti
 | Full demo, from a new Discovery | `http://127.0.0.1:4317/maxion-prototype?demo=revenue` (or `/demo`) | `https://maxion-ai.github.io/maxion-platform-demo/#/maxion-prototype?demo=revenue` |
 | Short demo, from the finished Discovery package | `http://127.0.0.1:4317/maxion-prototype?demo=revenue&start=package` | `…/#/maxion-prototype?demo=revenue&start=package` |
 | Presenter guide (second screen) | `http://127.0.0.1:4317/demo-guide` | `…/#/demo-guide` |
+| Stakeholder interview (what a stakeholder receives) | `http://127.0.0.1:4317/stakeholder-interview?demo=revenue` | `…/#/stakeholder-interview?demo=revenue` |
 
 The hosted addresses work once a build containing the demo has been published; see Deploy in the README.
 
@@ -25,8 +26,9 @@ The hosted addresses work once a build containing the demo has been published; s
 
 1. Open the demo address in a new tab. Use a window around 1440 × 900 at 100% zoom.
 2. Open the presenter guide. Either open `/demo-guide` yourself or use **Revenue demo → Presenter window** in the sidebar, then move that window to your second screen. It shows **Connected to the demo tab** once it finds the demo; its **Open the full demo** buttons always start a clean demo.
-3. Share only the demo tab.
-4. Leave the operating system's reduced-motion setting off, so replies stream and documents land one by one.
+3. If you want to show a stakeholder's side, open **Stakeholder interview** from the sidebar row or the presenter window. It opens in its own window and never touches the demo. Grace Chen (Billing Systems Manager) is a good one to show: MAX asks her about the ledger, the region codes and the credit notes.
+4. Share only the demo tab.
+5. Leave the operating system's reduced-motion setting off, so replies stream and documents land one by one.
 
 The **Revenue demo** row in the sidebar shows the current step, for example `3/12`. Open it for what to do and what to say, and for the one button that moves the story on (**Fill answer**, **Open the decision**, **Open the proposal** and so on). It also has **Restart…** and **Exit demo**. It is small and quiet, but the customer can see it on a shared screen. If you'd rather they didn't, keep it closed and work from the presenter window.
 

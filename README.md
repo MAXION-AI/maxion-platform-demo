@@ -32,6 +32,8 @@ The complete autonomous Discovery experience is also available directly at [http
 
 Each demo runs one story end to end, from a new Discovery to an Agentix agent team that builds, releases and runs the work. They share one harness, so each starts clean in a new tab, keeps your place on reload, never touches the everyday prototype, and keeps its own storage — you can run two of them in two tabs at once.
 
+MAX interviews the owner inside the Discovery; every other stakeholder receives a link of their own. `/stakeholder-interview?demo=<id>` is the page at the end of that link, so a presenter can show a stakeholder's side of the same Discovery. It opens in its own window and never touches the demo's saved state.
+
 ### Revenue reconciliation
 
 One repeatable demo runs the whole story, from a new revenue Discovery to an Agentix agent team that builds, releases and runs the daily reconciliation:

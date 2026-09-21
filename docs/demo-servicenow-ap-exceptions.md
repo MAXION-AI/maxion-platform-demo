@@ -11,6 +11,7 @@ Everything is simulated in the browser. No ServiceNow, Ariba, SAP, Teams or emai
 | Full demo, from a new Discovery | `http://127.0.0.1:4317/maxion-prototype?demo=servicenow` | `https://maxion-ai.github.io/maxion-platform-demo/#/maxion-prototype?demo=servicenow` |
 | Short demo, from the finished Discovery package | `http://127.0.0.1:4317/maxion-prototype?demo=servicenow&start=package` | `…/#/maxion-prototype?demo=servicenow&start=package` |
 | Presenter guide (second screen) | `http://127.0.0.1:4317/demo-guide?demo=servicenow` | `…/#/demo-guide?demo=servicenow` |
+| Stakeholder interview (what a stakeholder receives) | `http://127.0.0.1:4317/stakeholder-interview?demo=servicenow` | `…/#/stakeholder-interview?demo=servicenow` |
 
 The demo behaves exactly like the revenue demo, because both run on the same harness: a new tab starts clean, a reload keeps your place, one tab owns the demo at a time, Exit demo is safe to undo, and the everyday prototype is untouched. Its storage is namespaced `…::demo-servicenow`, so the two demos never mix — you can have a revenue demo open in one tab and this one in another.
 
@@ -20,8 +21,9 @@ The demo behaves exactly like the revenue demo, because both run on the same har
 
 1. Open the demo address in a new tab. Use a window around 1440 × 900 at 100% zoom.
 2. Open the presenter guide, either at `/demo-guide?demo=servicenow` or from **AP exceptions demo → Presenter window** in the sidebar, and move it to your second screen.
-3. Share only the demo tab.
-4. Leave the operating system's reduced-motion setting off.
+3. To show a stakeholder's side, open **Stakeholder interview** from the sidebar row or the presenter window. It opens in its own window and never touches the demo, and MAX asks each stakeholder only about the ground they hold.
+4. Share only the demo tab.
+5. Leave the operating system's reduced-motion setting off.
 
 ## Timing
 

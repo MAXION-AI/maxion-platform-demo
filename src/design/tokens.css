@@ -94,6 +94,8 @@
   --ds-rail-count-lift: 3px;   /* how far that bubble rises above its item, clear of the glyph */
   --ds-drawer-w: min(286px, 88vw);
   --ds-topbar-h: 48px;
+  /* The brand lockup's height in the sidebar, as the platform's own side panel sets it. */
+  --ds-brand-h: 44px;
   --ds-control-h: 36px;
   --ds-control-h-sm: 28px;
   --ds-control-h-lg: 44px;   /* create-flow inputs, measured */
