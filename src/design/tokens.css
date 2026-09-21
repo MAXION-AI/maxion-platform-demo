@@ -96,6 +96,26 @@
   --ds-topbar-h: 48px;
   /* The brand lockup's height in the sidebar, as the platform's own side panel sets it. */
   --ds-brand-h: 44px;
+
+  /*
+   * The brand, and the side panel drawn from it. The ramp is the logo's own
+   * (maxion-logo-gradient.svg); the panel's surfaces and text are the MAXION design tokens the
+   * marketing site derives from that same swirl, so the panel and the mark agree by construction
+   * rather than by eye. Nothing outside the panel reads these.
+   */
+  --ds-brand-teal: #107070;
+  --ds-brand-teal-light: #5fd3cf;
+  --ds-brand-ramp: linear-gradient(180deg, #5fd3cf 0%, #107070 42%);
+  --ds-sidebar-surface: #f5fafa;
+  --ds-sidebar-raised: #ffffff;
+  --ds-sidebar-selected: #eaf4f4;
+  --ds-sidebar-hover: rgba(16, 112, 112, 0.06);
+  --ds-sidebar-line: #bee0e0;
+  --ds-sidebar-line-strong: #93cccc;
+  --ds-sidebar-text: #061e1e;
+  --ds-sidebar-nav: #1c4848;
+  --ds-sidebar-muted: #3a6868;
+  --ds-sidebar-dim: #5e8e8e;
   --ds-control-h: 36px;
   --ds-control-h-sm: 28px;
   --ds-control-h-lg: 44px;   /* create-flow inputs, measured */
@@ -197,6 +217,17 @@
     --ds-fg-on-primary: #0f0f10;
     --ds-bg: #0f0f10;
     --ds-bg-sidebar: #151516;
+    --ds-brand-ramp: linear-gradient(180deg, #9ad3cf 0%, #5fd3cf 42%);
+    --ds-sidebar-surface: #0b1313;
+    --ds-sidebar-raised: #0f1a1a;
+    --ds-sidebar-selected: rgba(95, 211, 207, 0.1);
+    --ds-sidebar-hover: rgba(95, 211, 207, 0.06);
+    --ds-sidebar-line: rgba(95, 211, 207, 0.16);
+    --ds-sidebar-line-strong: rgba(95, 211, 207, 0.3);
+    --ds-sidebar-text: #d9e6e6;
+    --ds-sidebar-nav: #b6cccc;
+    --ds-sidebar-muted: #7d9a9a;
+    --ds-sidebar-dim: #6b8888;
     --ds-bg-hover: rgba(255, 255, 255, 0.05);
     --ds-bg-selected: rgba(255, 255, 255, 0.08);
     --ds-bg-muted: rgba(255, 255, 255, 0.08);

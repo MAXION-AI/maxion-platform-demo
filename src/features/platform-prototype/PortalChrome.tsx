@@ -166,7 +166,9 @@ export function PortalSidebar({
 						 * is no room for the wordmark, so the mark stands alone.
 						 */}
 						{collapsed ? (
-							<MaxionSpiralMark variant="current" className="mxp-portal-brand-mark" />
+							// Collapsed to the rail the mark stands alone, so it keeps its own colour rather
+							// than the panel's text colour. Nav glyphs stay monochrome; this is the logo.
+							<MaxionSpiralMark variant="gradient" className="mxp-portal-brand-mark" />
 						) : (
 							<span
 								className="mxp-brand-lockup"

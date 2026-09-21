@@ -6,7 +6,28 @@
  */
 .maxion-platform-prototype.mxp-root { grid-template-columns: var(--ds-sidebar-w) minmax(0, 1fr); background: var(--ds-bg); }
 .maxion-platform-prototype .mxp-stage { background: var(--ds-bg); }
-.mxp-portal-sidebar { position: relative; z-index: 60; overflow: hidden; transition: width 200ms var(--ds-ease), transform 200ms var(--ds-ease); }
+/*
+ * The panel takes its colour from the mark. Everything inside it reads the design system's own
+ * tokens, so redefining them here re-themes the panel and nothing else: the main area, the
+ * Discovery and the Agentix surfaces keep the neutral treatment they had.
+ */
+.mxp-portal-sidebar { position: relative; z-index: 60; overflow: hidden; transition: width 200ms var(--ds-ease), transform 200ms var(--ds-ease);
+	--ds-bg-sidebar: var(--ds-sidebar-surface);
+	--ds-bg: var(--ds-sidebar-raised);
+	--ds-fg: var(--ds-sidebar-text);
+	--ds-fg-nav: var(--ds-sidebar-nav);
+	--ds-fg-subtle: var(--ds-sidebar-muted);
+	--ds-border: var(--ds-sidebar-line);
+	--ds-border-strong: var(--ds-sidebar-line-strong);
+	--ds-bg-hover: var(--ds-sidebar-hover);
+	--ds-bg-selected: var(--ds-sidebar-selected);
+	--ds-bg-muted: var(--ds-sidebar-hover);
+}
+/* The current section is the one place the panel says the brand colour outright. */
+.mxp-portal-sidebar .ds-nav-item[aria-current], .mxp-portal-sidebar .ds-nav-item[aria-pressed="true"] { color: var(--ds-brand-teal); }
+.mxp-portal-sidebar .ds-nav-item[aria-current] svg, .mxp-portal-sidebar .ds-nav-item[aria-pressed="true"] svg { color: var(--ds-brand-teal); }
+.mxp-portal-sidebar .mxp-portal-nav-item[aria-current] .mxp-nav-glyph { color: var(--ds-brand-teal); }
+.mxp-portal-sidebar .mxp-unit-track i { background: var(--ds-brand-teal); }
 
 /* Brand row */
 /* The lockup sits 20px below the panel edge and 12px above the nav, as it does in the platform's
@@ -15,7 +36,8 @@
 .mxp-portal-brand > button:first-child { display: flex; align-items: center; gap: var(--ds-space-2); min-width: 0; padding: 0; border: 0; background: transparent; color: var(--ds-fg); cursor: pointer; }
 .mxp-portal-brand img { display: none; }
 .mxp-portal-brand-mark { display: block; width: var(--ds-space-5); height: var(--ds-space-5); flex-shrink: 0; }
-.mxp-brand-lockup { display: block; height: var(--ds-brand-h); aspect-ratio: 662 / 190; background-color: var(--ds-fg); -webkit-mask: var(--mxp-lockup) center / contain no-repeat; mask: var(--mxp-lockup) center / contain no-repeat; }
+/* The lockup is drawn in one colour, so the mask paints it in the logo's own ramp. */
+.mxp-brand-lockup { display: block; height: var(--ds-brand-h); aspect-ratio: 662 / 190; background: var(--ds-brand-ramp); -webkit-mask: var(--mxp-lockup) center / contain no-repeat; mask: var(--mxp-lockup) center / contain no-repeat; }
 .mxp-sidebar-collapse { display: grid; place-items: center; width: var(--ds-control-h-sm); height: var(--ds-control-h-sm); flex-shrink: 0; border: 0; border-radius: var(--ds-radius-sm); background: transparent; color: var(--ds-fg-subtle); cursor: pointer; }
 .mxp-sidebar-collapse:hover { background: var(--ds-bg-hover); color: var(--ds-fg); }
 .mxp-mobile-nav-close { display: none; }

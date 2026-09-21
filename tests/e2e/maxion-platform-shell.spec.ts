@@ -106,3 +106,39 @@ test("keeps the full MAXION navigation usable on mobile", async ({ page }) => {
 	}))
 	expect(dimensions.scrollWidth).toBe(dimensions.clientWidth)
 })
+
+/*
+ * The side panel takes its colour from the mark: the lockup is painted in the logo's own ramp, and
+ * the panel's surface, hairline, text and current-section colour are the MAXION tokens drawn from
+ * that same swirl. The rule that keeps it contained is that nothing to the right of the panel
+ * changes, so this pins both halves.
+ */
+test("the side panel is coloured from the logo, and nothing beyond it is", async ({ page }) => {
+	await page.goto("/maxion-prototype")
+	const sidebar = page.locator(".mxp-portal-sidebar")
+
+	const panel = await sidebar.evaluate(node => {
+		const style = getComputedStyle(node)
+		const lockup = node.querySelector(".mxp-brand-lockup")
+		const current = node.querySelector('.mxp-portal-nav-item[aria-current]')
+		return {
+			surface: style.backgroundColor,
+			border: style.borderRightColor,
+			text: style.getPropertyValue("--ds-fg").trim(),
+			lockup: lockup ? getComputedStyle(lockup).backgroundImage : "",
+			current: current ? getComputedStyle(current).color : "",
+		}
+	})
+	expect(panel.surface).toBe("rgb(245, 250, 250)")
+	expect(panel.border).toBe("rgb(190, 224, 224)")
+	expect(panel.text).toBe("#061e1e")
+	// The lockup is painted through its mask in the logo's ramp, not in flat ink.
+	expect(panel.lockup).toContain("linear-gradient")
+	expect(panel.lockup).toContain("rgb(95, 211, 207)")
+	expect(panel.lockup).toContain("rgb(16, 112, 112)")
+	expect(panel.current).toBe("rgb(16, 112, 112)")
+
+	// Everything to the right of it keeps the neutral treatment.
+	const main = await page.locator(".mxp-portal-main, main").first().evaluate(node => getComputedStyle(node).getPropertyValue("--ds-fg").trim())
+	expect(main).not.toBe("#061e1e")
+})
