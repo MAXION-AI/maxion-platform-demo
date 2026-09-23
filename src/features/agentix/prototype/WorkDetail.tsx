@@ -1,9 +1,9 @@
-import { Bell, BellSlash, CaretRight, ChatCircleText, CheckCircle, Circle, FlagBanner, LinkSimple, Minus, MinusCircle, Pause, PauseCircle, Play, Receipt, WarningCircle, XCircle } from "@phosphor-icons/react"
+import { Bell, BellSlash, CaretRight, ChatCircleText, CheckCircle, Circle, FlagBanner, LinkSimple, MinusCircle, Pause, PauseCircle, Play, Receipt, WarningCircle, XCircle } from "@phosphor-icons/react"
 import { Button as DsButton, Mark } from "@/design/primitives"
 import { ShimmerText } from "@/components/motion/MotionKit"
 import { useEffect, useRef, type ReactNode } from "react"
 import { artifactBy, artifactSpec, isTerminal, itemBy, latest, releaseBy, releaseWindowFor, scenarioOf, templateOf, type ReleaseAction, type WorkAction } from "./engine/engine"
-import { itemSentence, memberName, releaseSentence, releaseStatusLabel, shortTime, statusOf } from "./engine/selectors"
+import { boundaryRules, itemSentence, memberName, releaseSentence, releaseStatusLabel, shortTime, statusOf } from "./engine/selectors"
 import type { AgentixState, Artifact, Tone, WorkItem } from "./engine/types"
 import { DecisionCard, FailedStep, HumanFulfillment, ReleaseCard } from "./Decisions"
 import { Status, WorkStatus } from "./OperationsViews"
@@ -45,6 +45,7 @@ export function WorkDetail({ state, workId, callbacks }: { state: AgentixState; 
 	const produced = item.artifactIds.map(id => artifactBy(state, id)).filter((entry): entry is NonNullable<typeof entry> => !!entry)
 	const dependencies = item.dependsOn.map(dependency => ({ dependency, other: itemBy(state, dependency.id) })).filter(entry => entry.other)
 	const lead = template.steps.find(step => step.owner !== "owner")?.owner ?? "coordinator"
+	const startingIndex = live && !item.steps.some(step => step.status === "working" || step.status === "waiting") ? item.steps.findIndex(step => step.status === "pending") : -1
 	// The milestone question shows the artifact it is about, whatever this scenario named that decision.
 	const decisionTemplate = decision ? state.decisions.find(entry => entry.id === decision)?.template : undefined
 	const mapping = decisionTemplate && scenarioOf(state, item.engagementId).decisions[decisionTemplate]?.artifact === "mapping" ? state.artifacts.find(entry => entry.id === `${item.engagementId}:mapping`) : undefined
@@ -98,7 +99,10 @@ export function WorkDetail({ state, workId, callbacks }: { state: AgentixState; 
 					{template.steps.map((spec, index) => {
 						const step = item.steps[index]
 						if (step.status === "skipped") return null
-						const current = step.status === "working" || step.status === "waiting"
+						// A working item names its next step as what it is doing now (itemSentence), even in the
+						// tick before that step formally starts. The list agrees, so the banner above never
+						// says "Reading the ledger" over a step still drawn as not started.
+						const current = step.status === "working" || step.status === "waiting" || (index === startingIndex)
 						const artifact = spec.artifact ? artifactBy(state, `${item.engagementId}:${spec.artifact}`) : undefined
 						const repairs = artifact?.versions.filter(version => version.source === "repair").length ?? 0
 						const effect = item.effects.find(entry => entry.id === `${item.id}:${spec.id}`)
@@ -110,7 +114,7 @@ export function WorkDetail({ state, workId, callbacks }: { state: AgentixState; 
 						const mark: ReactNode = step.status === "done" ? <CheckCircle size={16} weight="fill" /> : step.status === "failed" ? <XCircle size={16} weight="fill" /> : view && view.tone !== "live" ? <WarningCircle size={16} weight="fill" /> : current ? <span className="aop-live-dot" /> : isTerminal(item) ? <MinusCircle size={16} /> : <Circle size={16} />
 						const text = step.status === "done" ? spec.done : stepRelease ? releaseSentence(state, stepRelease) : waitingHere ? itemSentence(state, item) : current ? spec.doing : spec.owner === "owner" ? "Needs a person when reached" : spec.doing
 						return (
-							<li key={spec.id} className={`is-${tone}${step.status === "pending" ? " is-future" : ""}`}>
+							<li key={spec.id} className={`is-${tone}${step.status === "pending" && !current ? " is-future" : ""}`}>
 								<span className="aop-timeline-mark" aria-hidden="true">{mark}</span>
 								<div className="aop-timeline-body">
 									<p className="aop-timeline-title"><strong>{spec.title}</strong>{step.doneAt ? <span className="aop-subtle">{shortTime(step.doneAt)}</span> : null}</p>
@@ -118,8 +122,15 @@ export function WorkDetail({ state, workId, callbacks }: { state: AgentixState; 
 										<p>{text.replace(/\.$/, "")}.</p>
 										{spec.kind === "test" && artifact && step.status !== "pending" ? <TestHistory state={state} artifact={artifact} /> : null}
 										<p className="aop-chips">
-											<Status label={view?.label ?? (step.status === "done" ? "Done" : step.status === "failed" ? "Failed" : current ? "In progress" : isTerminal(item) ? "Not started" : "Pending")} tone={tone} icon={step.status === "pending" && isTerminal(item) ? <Minus size={12} weight="bold" /> : undefined} />
-											<span className="aop-chip is-outline">{spec.owner === "owner" ? <FlagBanner size={12} /> : <Mark seed={`${engagement.workflowId}:${spec.owner}`} size="xs" />}{memberName(state, item.engagementId, spec.owner)}</span>
+											{/*
+											 * The mark already says done, pending, in progress or failed, so a chip that
+											 * repeats it on every step only buries the one that differs. A chip earns its
+											 * place when it says something the mark can't: what a step is waiting on, or a
+											 * release's state. The words stay for assistive tech either way.
+											 */}
+											{view ? <Status label={view.label} tone={tone} /> : <span className="sr-only">{step.status === "done" ? "Done" : step.status === "failed" ? "Failed" : current ? "In progress" : isTerminal(item) ? "Not started" : "Pending"}</span>}
+											{/* The milestone's lead is named in the header; a step names its owner only when it is someone else. */}
+											{spec.owner !== lead ? <span className="aop-chip is-outline">{spec.owner === "owner" ? <FlagBanner size={12} /> : <Mark seed={`${engagement.workflowId}:${spec.owner}`} size="xs" />}{memberName(state, item.engagementId, spec.owner)}</span> : null}
 											{spec.kind === "test" && artifact ? <span className="aop-chip is-outline">{artifact.title} v{latest(artifact).version}{repairs ? ` · repaired ${repairs}×` : ""}</span> : null}
 											{effect ? <span className="aop-chip is-outline"><Receipt size={12} />{effect.status === "unknown" ? "Outcome unknown · reconciling" : `${effect.sends} dispatch${effect.sends === 1 ? "" : "es"}${effect.reference ? ` · ${effect.reference}` : ""}${item.flags.reconciled ? " · reconciled, no duplicate" : ""}`}</span> : null}
 											{spec.system ? <span className="aop-chip is-outline">{spec.system}</span> : null}
@@ -160,7 +171,7 @@ export function WorkDetail({ state, workId, callbacks }: { state: AgentixState; 
 			<details className="aop-case-disclosure">
 				<summary><span>Authority for this work</span><CaretRight size={14} /></summary>
 				<dl className="aop-rows is-stacked">
-					<div><dt>May</dt><dd>{scenarioOf(state, item.engagementId).boundary}</dd></div>
+					{boundaryRules(scenarioOf(state, item.engagementId).boundary).map(rule => <div key={rule.kind} className={`aop-boundary-row is-${rule.kind}`}><dt>{rule.label}</dt><dd>{rule.text}</dd></div>)}
 					{produced.map(artifact => { const spec = artifactSpec(state, artifact); return spec?.release ? <div key={artifact.id}><dt>{artifact.title} releases</dt><dd>{spec.release.policy ?? (engagement.answers.release === "window" ? `In the ${releaseWindowFor(engagement.workflowId).label} window under your policy.` : "Only after your approval, with target, checks and recovery limits.")}</dd></div> : null })}
 					{item.notes.length ? <div><dt>Record</dt><dd>{item.notes.join(" ")}</dd></div> : null}
 				</dl>

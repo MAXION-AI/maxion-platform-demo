@@ -266,6 +266,27 @@ export function measures(state: AgentixState, engagementId: string) {
 
 /* ---- Readiness, split by what it permits -------------------------------- */
 export type ReadinessRow = { id: "read" | "build" | "production"; label: string; state: "ready" | "attention" | "blocked" | "none"; detail: string }
+/*
+ * An engagement's boundary is written as prose -- what the team does on its own, what it asks a
+ * person first, and what it never does -- and the conversation quotes it that way. Read on a
+ * screen, the three run together into one paragraph, so they are split into rows by what each
+ * sentence says. Every sentence lands in exactly one row; nothing is dropped or reworded beyond
+ * the leading "May", "No" or "Cannot" the row label now carries.
+ */
+export type BoundaryRule = { kind: "does" | "asks" | "never"; label: string; text: string }
+const BOUNDARY_LABEL: Record<BoundaryRule["kind"], string> = { does: "On its own", asks: "Asks first", never: "Never" }
+const capitalise = (text: string) => text.charAt(0).toUpperCase() + text.slice(1)
+export function boundaryRules(boundary: string): BoundaryRule[] {
+	const groups: Record<BoundaryRule["kind"], string[]> = { does: [], asks: [], never: [] }
+	for (const sentence of boundary.split(/(?<=\.)\s+(?=[A-Z])/).map(entry => entry.trim()).filter(Boolean)) {
+		if (/^(No|Cannot)\b/.test(sentence)) groups.never.push(capitalise(sentence.replace(/^(No|Cannot)\s+/, "").replace(/\b(and |, )no /g, "$1")))
+		else if (/^May\b/.test(sentence)) groups.does.push(capitalise(sentence.replace(/^May\s+/, "")))
+		else if (/\b(needs?|blocked for|held for|waits? for)\b/.test(sentence)) groups.asks.push(sentence)
+		else groups.does.push(sentence)
+	}
+	return (["does", "asks", "never"] as const).filter(kind => groups[kind].length).map(kind => ({ kind, label: BOUNDARY_LABEL[kind], text: groups[kind].join(" ") }))
+}
+
 /* Releases a policy pre-authorizes, named wherever release authority is described. */
 export function policyNote(engagement: Engagement) {
 	const policies = Object.values(SCENARIOS[engagement.workflowId].artifacts).filter(spec => spec.release?.authority === "policy").map(spec => spec.release!.policy).filter(Boolean)
@@ -290,7 +311,9 @@ export function readinessSplit(state: AgentixState, engagement: Engagement): { r
 		: { id: "production", label: "Change production", state: "attention", detail: "Decide how production releases are authorized" }
 	const rows = [read, build, production]
 	const full = rows.every(row => row.state === "ready" || row.state === "none")
-	const summary = full ? (production.state === "ready" && answers.release === "approval" ? `Ready to start. Build and test begin at once; each pipeline release still waits for your approval. ${policyNote(engagement)}`.trim() : "Ready to start within the approved boundary.")
+	// The verdict only. What production needs is the third row, policy and all; saying it here as
+	// well put the same policy sentence on the page three times.
+	const summary = full ? (production.state === "ready" && answers.release === "approval" ? "Ready to start. Build and test begin at once." : "Ready to start within the approved boundary.")
 		: production.state === "blocked" && build.state !== "blocked" ? `${build.state === "none" ? "Reading can start" : "Build and test can start"}. Production changes are blocked, so the full outcome isn't ready.`
 		: "Answer the open questions before activation. Nothing runs yet."
 	return { rows, summary, full }

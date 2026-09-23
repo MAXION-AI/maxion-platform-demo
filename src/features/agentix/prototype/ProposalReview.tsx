@@ -3,7 +3,7 @@ import { Button as DsButton, Mark, TextButton } from "@/design/primitives"
 import { useId } from "react"
 import { activationBlockers, type DefinitionPatch } from "./engine/engine"
 import { packageFor, SCENARIOS } from "./engine/scenarios"
-import { readinessSplit, shortTime, teamOf } from "./engine/selectors"
+import { boundaryRules, readinessSplit, shortTime, teamOf } from "./engine/selectors"
 import type { AgentixState, Engagement } from "./engine/types"
 import { EngagementSteps } from "./EngagementStart"
 import { ReadinessRows, Status } from "./OperationsViews"
@@ -63,7 +63,7 @@ export function ProposalReview({ state, engagement, onAnswer, onEdit, onAction, 
 					<header className="aop-section-head"><div><h2>What activation starts</h2><p>The outcome, the boundary and the systems involved. Detailed duties and coverage are below.</p></div></header>
 					<dl className="aop-terms">
 						<div><dt>Outcome</dt><dd>{pkg?.outcome ?? scenario.outcome}</dd></div>
-						<div><dt>Boundary</dt><dd>{scenario.boundary}</dd></div>
+						{boundaryRules(scenario.boundary).map(rule => <div key={rule.kind} className={`aop-boundary-row is-${rule.kind}`}><dt>{rule.label}</dt><dd>{rule.text}</dd></div>)}
 						<div><dt>Systems</dt><dd><span className="aop-chips">{systems.map(system => <span key={system.id} className="aop-chip is-outline"><Mark seed={system.name} size="xs" />{system.name} · {CAPABILITY[system.capability]}</span>)}</span></dd></div>
 						{pkg?.milestones.length ? <div><dt>Starts</dt><dd>{pkg.milestones.map(milestone => milestone.title).join(", ")}{scenario.delivery ? `; then a daily ${scenario.delivery.cycle.noun} at ${String(scenario.delivery.cycle.hour).padStart(2, "0")}:00 London once delivery is verified.` : "."}</dd></div> : <div><dt>Starts</dt><dd>New work from activation onward. An existing backlog is only processed if you assign it.</dd></div>}
 					</dl>
@@ -115,7 +115,7 @@ export function ProposalReview({ state, engagement, onAnswer, onEdit, onAction, 
 						<div className="aop-section-foot">
 							{engagement.checking ? <p className="aop-hint" role="status"><span className="aop-live-dot" aria-hidden="true" /> Checking connections and read-back…</p>
 								: engagement.checked ? <p className="aop-hint"><CheckCircle size={12} weight="fill" /> Read-only check passed. Nothing was written.</p>
-								: <p className="aop-hint">The read-only check runs from the action bar below.</p>}
+								: needsCheck ? <p className="aop-hint">The read-only check runs from the action bar below.</p> : null}
 							<small>A read-only check, not a live provider certification.</small>
 						</div>
 					) : null}

@@ -318,7 +318,7 @@ function createFinishedDemoRecord(script: DemoScript): DiscoveryRecord {
 	const key = script.scenarioKey
 	const scenario = SCENARIOS[key]
 	const id = script.id
-	const interview: ChatMessage[] = initialInterviewMessages(key, scenario.brief).map((message) => ({ ...message, id: `demo-${id}-q1` }))
+	const interview: ChatMessage[] = initialInterviewMessages(key, scenario.brief, scenario.title).map((message) => ({ ...message, id: `demo-${id}-q1` }))
 	script.answers.forEach((answer, index) => {
 		interview.push({ id: `demo-${id}-a${index + 1}`, actor: "user", text: answer })
 		const topic = scenario.ownerInterview[index].topic.toLowerCase()
@@ -417,11 +417,14 @@ function interviewMessage(scenarioKey: ScenarioKey, index: number, prefix?: stri
 	}
 }
 
-function initialInterviewMessages(scenarioKey: ScenarioKey, missionBrief = ""): ChatMessage[] {
+function initialInterviewMessages(scenarioKey: ScenarioKey, missionBrief = "", missionTitle = ""): ChatMessage[] {
 	const scenario = SCENARIOS[scenarioKey]
-	const missionContext = missionBrief.trim()
-		? `I’ve captured your mission: “${conciseAnswer(missionBrief)}”. `
-		: ""
+	// MAX echoes the owner's own words when their first sentence fits. A longer one would be clipped
+	// mid-phrase ("…and give finance a…"), which reads as a mistake, so it is named by its mission.
+	const quotable = firstSentence(missionBrief).length <= 120 || !missionTitle.trim()
+	const missionContext = !missionBrief.trim() ? ""
+		: quotable ? `I’ve captured your mission: “${conciseAnswer(missionBrief)}”. `
+		: `I’ve captured your mission, “${missionTitle.trim()}”. `
 	return [interviewMessage(
 		scenarioKey,
 		0,
@@ -1172,7 +1175,7 @@ export function DiscoveryAutonomousPrototypePage({ embedded = false, active = tr
 		// The brief decides the investigation, so resolve it before anything is
 		// seeded from a scenario the person did not describe.
 		const nextScenario = scenarioForBrief(missionBrief).key
-		const startingMessages = initialInterviewMessages(nextScenario, missionBrief)
+		const startingMessages = initialInterviewMessages(nextScenario, missionBrief, draft?.title)
 		// What the owner confirmed at Review is the mission; the scenario only fills a blank decision.
 		const nextDecision = draft?.decision.trim() || SCENARIOS[nextScenario].objective
 		const nextDeadline = draft ? draft.deadline.trim() : SCENARIOS[nextScenario].deadline
@@ -2686,7 +2689,7 @@ function SetupScreen({
 		{ icon: <Target size={16} />, label: "Business outcome", value: firstSentence(outcomeBrief || missionBrief) },
 		{ icon: <EnvelopeSimple size={16} />, label: "External sends", value: "Up to 3, each approved by you" },
 		{ icon: <ChatsCircle size={16} />, label: "Interview modalities", value: "Text · Voice · Workshop" },
-		{ icon: <ShieldCheck size={16} />, label: "Approval topology", value: "You approve exceptions; routine work runs" },
+		{ icon: <ShieldCheck size={16} />, label: "Approvals", value: "You approve exceptions; routine work runs" },
 		{ icon: <Database size={16} />, label: "Evidence sources", value: `${scenario.sources.length} connected · ${scenario.sources.map(source => source.system).join(", ")}` },
 		// The workspace MAX may contact is the one its stakeholders are in, not a fixed name.
 		{ icon: <Globe size={16} />, label: "Recipient domains", value: recipientDomains(scenario) },
@@ -2812,7 +2815,7 @@ function SetupScreen({
 								</div>
 								<ul>
 									{authority.map(item => (
-										<li key={item.label}>{item.icon}<span className="authority-label">{item.label}</span><span className="authority-value" title={item.value}>{item.value}</span></li>
+										<li key={item.label}>{item.icon}<span className="authority-label">{item.label}</span><span className="authority-value">{item.value}</span></li>
 									))}
 								</ul>
 							</section>
@@ -3058,8 +3061,11 @@ function WorkspaceShell({
 							interviewClosed={interviewClosed}
 							interviewIndex={interviewIndex}
 							handoffId={handoffId}
+							charterPending={complete && handoffBlocked && !handoffId}
+							showJourney={view !== "autonomy"}
 							onJumpToDecision={onJumpToDecision}
 							onOpenThread={() => onViewChange("thread")}
+							onOpenHandoff={onContinueToAgentix}
 							onOpenSources={onOpenSources} />
 					) : null}
 				</div>
@@ -3439,7 +3445,8 @@ function Overview({
 	const metrics: Array<{ key: MetricKey; label: string; value: React.ReactNode; unit?: string }> = [
 		{ key: "actions", label: "Verified actions", value: <AnimatedStat value={autonomousActions} />, unit: autonomousActions === null ? undefined : "actions" },
 		{ key: "records", label: "Records screened", value: <AnimatedStat value={sourcesRead ? sourceRecords : null} />, unit: sourcesRead ? "records" : undefined },
-		{ key: "interviews", label: "Interviews and follow-ups", value: <><AnimatedStat value={interviewed} /> + <AnimatedStat value={followUps} /></> },
+		// Read like its neighbours ("18 actions"): a count and its unit, not "0 + 0".
+		{ key: "interviews", label: "Interviews and follow-ups", value: <AnimatedStat value={interviewed} />, unit: followUps ? `interviews · ${followUps} follow-ups` : interviewed === 1 ? "interview" : "interviews" },
 		{ key: "interruptions", label: "Owner interruptions", value: <AnimatedStat value={interruptions} /> },
 	]
 	// A tablist moves with the arrow keys and holds one tab stop (the selected tab).
@@ -3557,8 +3564,10 @@ function Overview({
 							<h1 className="ds-page-title">{complete ? "MAX ran the Discovery." : paused ? "The Discovery is paused." : interviewClosed ? "MAX is running the Discovery." : "MAX is forming the mission with you."}</h1>
 							<p className="ds-page-desc">{journeyNextAction(phase, journey)}</p>
 						</div>
-						<div className="autonomy-progress-summary" role="progressbar" aria-label="Autonomous Discovery progress" aria-valuemin={0} aria-valuemax={100} aria-valuenow={progress} aria-valuetext={`${stage.label}, ${progress}%`}>
-							<span className="autonomy-progress-label"><span>{stage.label}</span><strong>{progress}%</strong></span>
+						{/* One measure in words: the stage count. A percentage of operations beside it ("3 of 6 · 38%")
+						    read as two numbers that disagree, so the bar keeps the finer fill and the words keep the count. */}
+						<div className="autonomy-progress-summary" role="progressbar" aria-label="Autonomous Discovery progress" aria-valuemin={0} aria-valuemax={100} aria-valuenow={progress} aria-valuetext={stage.label}>
+							<span className="autonomy-progress-label"><span>{stage.label}</span></span>
 							<div><motion.span initial={false} animate={{ width: `${progress}%` }} transition={{ duration: 0.6, ease: REVEAL_EASE }} /></div>
 						</div>
 					</header>
@@ -4483,10 +4492,20 @@ function MaxMessageBody({
 		return () => window.clearTimeout(timer)
 	}, [done, finalize])
 	useEffect(() => { if (!done) onGrow() }, [revealed, done, onGrow])
+	// An interview turn often opens with what MAX just did with the last answer. The question itself
+	// is what the owner has to act on, so it sits on its own line rather than ending a long paragraph.
+	const question = message.prompt && message.text.length > message.prompt.length && message.text.endsWith(message.prompt) ? message.prompt : null
+	const lead = question ? message.text.slice(0, message.text.length - question.length).trim() : ""
+	const leadWords = lead ? lead.split(" ").length : 0
 	return (
 		<>
 			<div className="message-body turn-bubble">
-				<p>{settled ? linkifyMentions(message.text, targets, onJump) : <GeneratedWords text={message.text} revealed={revealed} />}</p>
+				{question ? (
+					<>
+						<p>{settled ? linkifyMentions(lead, targets, onJump) : <GeneratedWords text={lead} revealed={Math.min(revealed, leadWords)} />}</p>
+						{settled || revealed > leadWords ? <p className="turn-question">{settled ? linkifyMentions(question, targets, onJump) : <GeneratedWords text={question} revealed={revealed - leadWords} />}</p> : null}
+					</>
+				) : <p>{settled ? linkifyMentions(message.text, targets, onJump) : <GeneratedWords text={message.text} revealed={revealed} />}</p>}
 			</div>
 			<AnimatePresence initial={false}>
 				{message.trace && settled ? <motion.div key="trace" {...riseIn} className="message-trace-wrap"><MessageTrace steps={message.trace} /></motion.div> : null}
@@ -6015,7 +6034,7 @@ function needsYouItems({ scenarioKey, phase, decision, interviewClosed, intervie
  * owner's outstanding items and the health of the bound sources, so the owner
  * never has to change tab to learn whether anything is waiting on them.
  */
-function NeedsYouDock({ scenarioKey, phase, paused, decision, interviewClosed, interviewIndex, handoffId, onJumpToDecision, onOpenThread, onOpenSources }: {
+function NeedsYouDock({ scenarioKey, phase, paused, decision, interviewClosed, interviewIndex, handoffId, charterPending, showJourney = true, onJumpToDecision, onOpenThread, onOpenHandoff, onOpenSources }: {
 	scenarioKey: ScenarioKey
 	phase: number
 	paused: boolean
@@ -6023,12 +6042,17 @@ function NeedsYouDock({ scenarioKey, phase, paused, decision, interviewClosed, i
 	interviewClosed: boolean
 	interviewIndex: number
 	handoffId: string | null
+	/* The package is ready and the charter still needs the owner, so the rail must say so. */
+	charterPending?: boolean
+	/* The Autonomy tab draws the journey as its canvas, so the rail does not repeat it there. */
+	showJourney?: boolean
 	onJumpToDecision: () => void
 	onOpenThread: () => void
+	onOpenHandoff?: () => void
 	onOpenSources: () => void
 }) {
 	const scenario = SCENARIOS[scenarioKey]
-	const items = needsYouItems({ scenarioKey, phase, decision, interviewClosed, interviewIndex, onJumpToDecision, onOpenThread })
+	const items = needsYouItems({ scenarioKey, phase, decision, interviewClosed, interviewIndex, charterPending, onJumpToDecision, onOpenThread, onOpenHandoff })
 	const journey = runJourney({ scenarioKey, phase, paused, decision, interviewClosed, handoffId })
 	const sourceState = !interviewClosed ? "Bound" : phase >= 2 ? "Read" : "Reading"
 	// The same rail as the Thread's Details panel: one width, one inset, one title.
@@ -6036,7 +6060,7 @@ function NeedsYouDock({ scenarioKey, phase, paused, decision, interviewClosed, i
 		<aside className="needs-you-dock" aria-label="Needs you">
 			<header className="panel-head"><h2>Details</h2></header>
 			<NeedsYouGroup items={items} headingId="dock-needs-you" />
-			<JourneyGroup phase={phase} context={journey} headingId="dock-journey" />
+			{showJourney ? <JourneyGroup phase={phase} context={journey} headingId="dock-journey" /> : null}
 			<section className="panel-group" aria-labelledby="dock-sources">
 				<h3 id="dock-sources">Sources</h3>
 				<p className="panel-desc">Read automatically within the approved scopes.</p>

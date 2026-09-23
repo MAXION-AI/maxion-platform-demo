@@ -4,7 +4,7 @@ import { useState, type ReactNode } from "react"
 import type { WorkflowId } from "./initiatives"
 import { releaseWindowFor } from "./engine/engine"
 import { SCENARIOS, packageFor, scheduleLabel } from "./engine/scenarios"
-import { describeClock, policyNote, shortTime, teamOf, teamPresence } from "./engine/selectors"
+import { boundaryRules, describeClock, policyNote, shortTime, teamOf, teamPresence } from "./engine/selectors"
 import type { AgentixState } from "./engine/types"
 import { Status } from "./OperationsViews"
 
@@ -120,7 +120,7 @@ export function DetailsSheet({ state, engagementId, section, titleId, onSection,
 				{section === "rules" ? (
 					<section className="aop-sheet-section" aria-label="Operating rules">
 						<dl className="aop-rows is-stacked">
-							<div><dt>Boundary</dt><dd>{scenario.boundary}</dd></div>
+							{boundaryRules(scenario.boundary).map(rule => <div key={rule.kind} className={`aop-boundary-row is-${rule.kind}`}><dt>{rule.label}</dt><dd>{rule.text}</dd></div>)}
 							{engagement.answers.release ? <div><dt>Production releases</dt><dd>{engagement.answers.release === "window" ? `Pipeline releases go out in the ${releaseWindowFor(engagement.workflowId).label} window under policy.` : "Each pipeline release waits for your approval, with its target, checks and recovery limits."} {policyNote(engagement)}</dd></div> : null}
 							{engagement.answers.testdata ? <div><dt>Test data</dt><dd>{engagement.answers.testdata === "synthetic" ? "Synthetic 30-day sample, redacted. No production credentials in tests." : "Masked production extract (needs the data owner's approval)."}</dd></div> : null}
 							<div><dt>Intake</dt><dd>{engagement.status === "paused" ? "Paused by you. Admitted work continues." : `Active · ${scenario.trigger}`}</dd></div>

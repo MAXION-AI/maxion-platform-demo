@@ -5,8 +5,6 @@ import { health, teamOf } from "./engine/selectors"
 import type { AgentixState, Engagement } from "./engine/types"
 import { Status } from "./OperationsViews"
 
-export const engagementCode = (engagement: Engagement) => `agx_${engagement.id.replace(/^eng-/, "").replace(/-/g, "").slice(0, 14)}`
-
 /* Where the engagement's current scope came from, stated exactly: the Discovery that handed it over, a Discovery package and its version, or the owner's own brief. */
 export function provenance(engagement: Engagement) {
 	if (engagement.origin.kind === "discovery" && engagement.origin.discovery) return `From Discovery · ${engagement.origin.discovery.title} · packet ${engagement.origin.discovery.packetId}`
@@ -31,7 +29,8 @@ export function EngagementHeader({ state, engagement, onToggleIntake, onDetails,
 				<Mark seed={engagement.id} />
 				<div>
 					<h1 tabIndex={-1}>{engagement.name}</h1>
-					<p><span className="aop-mono">{engagementCode(engagement)}</span> · {provenance(engagement)}{pending ? ` · v${pending.version} in review` : ""}</p>
+					{/* Where the work came from is what a viewer needs here; an internal slug ("agx_invoice") only read as noise. */}
+					<p>{provenance(engagement)}{pending ? ` · v${pending.version} in review` : ""}</p>
 				</div>
 			</div>
 			<div className="aop-actions aop-engagement-actions">

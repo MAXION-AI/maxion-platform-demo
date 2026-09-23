@@ -96,6 +96,8 @@
 .prototype .turn-chip { display: inline-flex; align-items: center; gap: var(--ds-space-1); height: var(--ds-lh-sm); padding: 0 var(--ds-space-2); border-radius: var(--ds-radius-full); background: var(--ds-bg-callout); color: var(--ds-fg); font-size: var(--ds-text-xs); line-height: var(--ds-lh-xs); font-weight: var(--ds-weight-medium); }
 .prototype .turn-bubble { max-width: min(100%, 72%); margin-left: var(--ds-space-6); padding: var(--ds-space-3) var(--ds-space-4); border: 1px solid var(--ds-border); border-radius: var(--ds-radius-xl); background: var(--ds-bg); color: var(--ds-fg); }
 .prototype .turn-bubble p { margin: 0; font-size: var(--ds-text-sm); line-height: var(--ds-lh-sm); white-space: pre-wrap; overflow-wrap: anywhere; }
+.prototype .turn-bubble p + p { margin-top: var(--ds-space-2); }
+.prototype .turn-bubble .turn-question { color: var(--ds-fg); font-weight: var(--ds-weight-medium); }
 .prototype .thread-turn.is-owner { align-self: flex-end; align-items: flex-end; max-width: 72%; }
 .prototype .thread-turn.is-owner .turn-bubble { max-width: 100%; margin-left: 0; background: var(--ds-bg-callout); }
 .prototype .thread-turn.is-thinking .turn-bubble { display: flex; align-items: center; gap: var(--ds-space-3); color: var(--ds-fg-subtle); }
@@ -994,8 +996,8 @@
 .prototype .authority-review li + li { border-top: 1px solid var(--ds-border); }
 .prototype .authority-review li > svg { margin-top: 2px; color: var(--ds-fg); }
 .prototype .authority-label { color: var(--ds-fg); }
-/* A long outcome reads in two lines; the full sentence is in its title. */
-.prototype .authority-value { display: -webkit-box; overflow: hidden; color: var(--ds-fg-subtle); -webkit-box-orient: vertical; -webkit-line-clamp: 2; line-clamp: 2; }
+/* Shown in full: the owner ticks "I have reviewed what MAX may do" against these, so none is cut short. */
+.prototype .authority-value { color: var(--ds-fg-subtle); }
 .prototype .create-confirm { display: flex; align-items: flex-start; gap: var(--ds-space-3); padding: var(--ds-space-3) var(--ds-space-4); border-radius: var(--ds-radius-lg); background: var(--ds-bg-inset); color: var(--ds-fg-subtle); font-size: var(--ds-text-xs); line-height: var(--ds-lh-xs); cursor: pointer; }
 .prototype .create-confirm strong { display: block; color: var(--ds-fg); font-size: var(--ds-text-sm); line-height: var(--ds-lh-sm); font-weight: var(--ds-weight-medium); }
 .prototype .create-confirm input { flex-shrink: 0; width: var(--ds-space-4); height: var(--ds-space-4); margin: calc(var(--ds-space-1) / 2) 0 0; accent-color: var(--ds-fg); }

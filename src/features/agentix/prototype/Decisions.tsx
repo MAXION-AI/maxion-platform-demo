@@ -90,13 +90,14 @@ export function releaseFacts(state: AgentixState, release: Release) {
 	const spec = artifact ? artifactSpec(state, artifact) : undefined
 	const version = artifact?.versions.find(entry => entry.version === release.version)
 	const passed = version?.checks.filter(check => check.status === "passed").length ?? 0
-	const scope = spec?.checks[0]?.scope.replace(/^Isolated test · |^Test schema · /, "") ?? "isolated test"
+	// "Isolated test · synthetic 30-day sample (4,812 invoices)" -> the sample itself, whatever the prefix.
+	const scope = spec?.checks[0]?.scope.replace(/^[^·]+·\s*/, "")
 	const engagement = state.engagements[release.engagementId]
 	return [
 		{ label: "Target", value: release.target },
 		{ label: "Changes", value: spec?.release?.changes(release.version, version?.variant ?? []).join(" · ") ?? `${artifact?.title} v${release.version}` },
 		{ label: "Impact", value: spec?.release?.impact ?? "—" },
-		{ label: "Checks", value: version?.checks.length ? `${passed} of ${version.checks.length} passed in isolation (${scope}). A passed test isn't a production result.` : "No checks recorded" },
+		{ label: "Checks", value: version?.checks.length ? `${passed} of ${version.checks.length} passed in isolation${scope ? ` on the ${scope}` : ""}. A passed test isn't a production result.` : "No checks recorded" },
 		{ label: "Authority", value: release.authority === "approval" ? "Your policy: approval before each pipeline release" : spec?.release?.policy ?? (engagement.answers.release === "window" ? `Your policy: release in the ${releaseWindowOf(state, release.engagementId).label} window` : "Preauthorized") },
 		{ label: "Recovery", value: spec?.release?.recovery ?? "—" },
 	]

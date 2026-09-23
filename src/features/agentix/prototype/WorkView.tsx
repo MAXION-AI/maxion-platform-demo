@@ -1,9 +1,9 @@
-import { ArrowRight, CaretDown, CaretRight, CheckCircle, Clock, Hourglass, LinkSimple, Pulse, RocketLaunch, UserCircle, Warning, WarningCircle } from "@phosphor-icons/react"
+import { ArrowRight, CaretDown, CaretRight, CheckCircle, Clock, Hourglass, Pulse, RocketLaunch, UserCircle, Warning, WarningCircle } from "@phosphor-icons/react"
 import { AnimatePresence, motion } from "motion/react"
 import { Button as DsButton, Mark, TextButton } from "@/design/primitives"
 import { ShimmerText, useRiseIn } from "@/components/motion/MotionKit"
 import { forwardRef, useState } from "react"
-import { artifactBy, isTerminal, itemBy, latest, releaseBy } from "./engine/engine"
+import { artifactBy, isTerminal, latest, releaseBy } from "./engine/engine"
 import { achievements, dayLabel, itemSentence, measures, needsYou, releaseStatusLabel, shortTime, teamPresence, workSummary, type NeedsYouItem } from "./engine/selectors"
 import { scopeKey, type AgentixState, type WorkItem } from "./engine/types"
 import { DecisionCard } from "./Decisions"
@@ -27,7 +27,6 @@ export const WorkRow = forwardRef<HTMLButtonElement, { state: AgentixState; item
 	const artifact = item.artifactIds.map(id => artifactBy(state, id)).find(Boolean)
 	const version = artifact ? latest(artifact) : undefined
 	const release = item.releaseIds.map(id => releaseBy(state, id)).filter(Boolean).at(-1)
-	const dependency = item.wait?.kind === "dependency" ? itemBy(state, item.wait.on) : undefined
 	const passed = version?.checks.filter(check => check.status === "passed").length ?? 0
 	const draft = !!state.drafts[scopeKey(item.engagementId, { kind: "work", id: item.id })]
 	return (
@@ -37,7 +36,6 @@ export const WorkRow = forwardRef<HTMLButtonElement, { state: AgentixState; item
 				<strong>{item.title}</strong>
 				<small><span className="aop-mono">{item.reference}</span> · {live ? <ShimmerText>{itemSentence(state, item)}</ShimmerText> : itemSentence(state, item)}</small>
 				<span className="aop-work-chips">
-					{dependency ? <span className="aop-chip is-outline"><LinkSimple size={12} />After {dependency.reference}</span> : null}
 					{version && item.kind === "milestone" ? <span className="aop-chip is-outline">{artifact!.title} v{version.version}{version.checks.length ? ` · ${passed}/${version.checks.length} checks` : ""}</span> : null}
 					{release && release.status !== "superseded" ? <span className="aop-chip is-outline"><RocketLaunch size={12} />{release.reference} · {releaseStatusLabel[release.status].label}</span> : null}
 					{item.priority === "High" && !isTerminal(item) ? <span className="aop-chip">High priority</span> : null}
@@ -148,10 +146,13 @@ export function WorkView({ state, engagementId, callbacks, showHistory, onHistor
 				{milestones.length || deliveredCount ? <WorkSection title="Delivery" note={`${deliveredCount} of ${deliveredCount + milestones.length} milestones verified`} items={milestones} state={state} onOpen={callbacks.onOpenWork} empty="Every delivery milestone is verified. The engagement now runs as a daily operation." /> : null}
 				{operating || cycles.length ? <WorkSection title={SCENARIOS[engagement.workflowId].delivery ? `Daily ${SCENARIOS[engagement.workflowId].delivery!.cycle.noun}` : "Scheduled reviews"} note={`Next ${shortTime(Date.parse(engagement.nextOccurrence))}`} items={cycles} state={state} onOpen={callbacks.onOpenWork} empty={figures.lastCycle ? `Last cycle ${figures.lastCycle.reference} verified ${shortTime(figures.lastCycle.finished ?? figures.lastCycle.started)}. The next one starts on schedule.` : "The first cycle starts on schedule."} /> : null}
 				<WorkSection title={SCENARIOS[engagement.workflowId].caseLabel} note={`${cases.length} open`} items={cases} state={state} onOpen={callbacks.onOpenWork} empty={engagement.status === "paused" ? "Intake is paused. Admitted work continues; new work waits until you resume." : "No open cases. New work arrives through the approved trigger; you don't need to keep a conversation open."} />
-				<section className="aop-work-section" aria-label="History">
-					<button type="button" className="aop-history-toggle" aria-expanded={showHistory} onClick={() => onHistory(!showHistory)}>{showHistory ? <CaretDown size={14} /> : <CaretRight size={14} />}History<span className="aop-tab-count">{finished.length}</span></button>
-					{showHistory ? <div className="aop-work-list">{finished.slice(0, 20).map(item => <WorkRow key={item.id} state={state} item={item} onOpen={() => callbacks.onOpenWork(item.id)} />)}{finished.length > 20 ? <p className="aop-quiet">Showing the latest 20 of {finished.length}. Older records are kept.</p> : null}</div> : null}
-				</section>
+				{/* A disclosure with nothing in it ("History 0") only asks to be opened for no reason. */}
+				{finished.length ? (
+					<section className="aop-work-section" aria-label="History">
+						<button type="button" className="aop-history-toggle" aria-expanded={showHistory} onClick={() => onHistory(!showHistory)}>{showHistory ? <CaretDown size={14} /> : <CaretRight size={14} />}History<span className="aop-tab-count">{finished.length}</span></button>
+						{showHistory ? <div className="aop-work-list">{finished.slice(0, 20).map(item => <WorkRow key={item.id} state={state} item={item} onOpen={() => callbacks.onOpenWork(item.id)} />)}{finished.length > 20 ? <p className="aop-quiet">Showing the latest 20 of {finished.length}. Older records are kept.</p> : null}</div> : null}
+					</section>
+				) : null}
 			</div>
 			<aside className="aop-work-aside" aria-label="Team and operation">
 				<section className="aop-aside-section" aria-label="Team">
