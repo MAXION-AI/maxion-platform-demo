@@ -29,11 +29,15 @@ test("the global command menu filters, arrow-navigates, and runs the active item
 	await expect(menu).toBeVisible()
 
 	// Pinned survivors of the rebuild: navigation, Integrations, and both quick actions.
-	for (const name of ["Dashboard", "Projects", "Discover", "Plan", "Execute", "Agentix", "Consult Max", "Integrations"]) {
+	for (const name of ["Dashboard", "Projects", "Discover", "Agentix", "Consult Max", "Integrations"]) {
 		await expect(menu.getByRole("button", { name: new RegExp(`^${name}`) }).first()).toBeVisible()
 	}
+	// Plan and Execute are disabled, so the menu offers no way into them.
+	for (const name of ["Plan", "Execute"]) {
+		await expect(menu.getByRole("button", { name: new RegExp(`^${name}`) })).toHaveCount(0)
+	}
 	await expect(menu.getByRole("button", { name: /Start a Discovery/ })).toBeVisible()
-	await expect(menu.getByRole("button", { name: /New Agentix work/ })).toBeVisible()
+	await expect(menu.getByRole("button", { name: /New Agentix engagement/ })).toBeVisible()
 	await expect(menu.getByText("navigate")).toBeVisible()
 
 	const search = menu.getByRole("textbox", { name: "Search MAXION commands" })
@@ -47,19 +51,22 @@ test("the global command menu filters, arrow-navigates, and runs the active item
 	await search.fill("zzzz-nothing-here")
 	await expect(menu.getByText(/Nothing in MAXION matches/)).toBeVisible()
 
-	// Filter → ArrowDown → Enter runs the second match, not the first.
-	await search.fill("Open Workspace")
-	await expect(menu.locator("button.is-active")).toContainText("Open Workspace 01")
+	// Filter → ArrowDown → Enter runs the second match, not the first. The saved Discoveries are
+	// the multi-match group now that Plan and Execute are gone from the menu.
+	await search.fill("Resume")
+	const matches = menu.getByRole("button")
+	expect(await matches.count()).toBeGreaterThanOrEqual(3)
+	const firstMatch = (await matches.first().textContent()) ?? ""
+	const secondMatch = (await matches.nth(1).textContent()) ?? ""
+	expect(firstMatch).not.toBe(secondMatch)
+	await expect(menu.locator("button.is-active")).toHaveText(firstMatch)
 	await search.press("ArrowDown")
-	await expect(menu.locator("button.is-active")).toContainText("Open Workspace 02")
+	await expect(menu.locator("button.is-active")).toHaveText(secondMatch)
 	await search.press("ArrowUp")
-	await expect(menu.locator("button.is-active")).toContainText("Open Workspace 01")
+	await expect(menu.locator("button.is-active")).toHaveText(firstMatch)
 	await search.press("ArrowDown")
-	await search.press("ArrowDown")
-	await expect(menu.locator("button.is-active")).toContainText("Open Workspace 03")
 	await search.press("Enter")
 	await expect(shellMenu(page)).toHaveCount(0)
-	await expect(page.getByRole("heading", { name: "MuleSoft" })).toBeVisible()
 
 	// Escape closes the menu from anywhere it can be opened.
 	await openShellMenu(page)
@@ -78,27 +85,11 @@ test("jumps across modules from wherever the viewer already is", async ({ page }
 
 	await page.goto("/maxion-prototype")
 	const navigation = page.getByRole("navigation", { name: "Portal sections" })
-	await navigation.getByRole("button", { name: "Agentix", exact: true }).click()
+	await navigation.getByRole("button", { name: /^Agentix/ }).click()
 	await expect(page.getByRole("main", { name: "Agentix workspace" })).toBeVisible()
 
-	// From Agentix, "INT-02" lands on the Plan contract — the plan opens itself at L3.
+	// A saved Discovery that needs input is registered, and resumes at its decision.
 	let menu = await openShellMenu(page)
-	await menu.getByRole("textbox", { name: "Search MAXION commands" }).fill("INT-02")
-	await expect(menu.locator("button.is-active")).toContainText("INT-02")
-	await menu.getByRole("textbox", { name: "Search MAXION commands" }).press("Enter")
-	await expect(page.getByRole("heading", { name: "See the flow. Understand the behavior. Know what to build." })).toBeVisible()
-	await expect(page.getByRole("group", { name: "L3 diagram for ServiceNow to Workday financial integration" })).toBeVisible()
-	await expect(page.getByRole("region", { name: "L3 executable handoff" }).getByText("INT-01")).toBeVisible()
-
-	// From Plan, an Execute workspace opens directly into its agent session.
-	menu = await openShellMenu(page)
-	await menu.getByRole("textbox", { name: "Search MAXION commands" }).fill("Workspace 03")
-	await menu.getByRole("textbox", { name: "Search MAXION commands" }).press("Enter")
-	await expect(page.getByRole("heading", { name: "MuleSoft" })).toBeVisible()
-	await expect(page.getByRole("textbox", { name: "Steer MuleSoft agent" })).toBeVisible()
-
-	// A saved Discovery that needs input is registered too, and resumes at its decision.
-	menu = await openShellMenu(page)
 	await menu.getByRole("textbox", { name: "Search MAXION commands" }).fill("Review decision")
 	await expect(menu.locator("button.is-active")).toContainText("Third-party onboarding control redesign")
 	await menu.getByRole("textbox", { name: "Search MAXION commands" }).press("Enter")
@@ -110,7 +101,7 @@ test("jumps across modules from wherever the viewer already is", async ({ page }
 	expect(runtimeErrors).toEqual([])
 })
 
-test("gives the newly visible stage its own entrance and clears the Execute scrim", async ({ page }) => {
+test("gives the newly visible stage its own entrance", async ({ page }) => {
 	await page.goto("/maxion-prototype")
 	const entering = page.locator(".mxp-stage-view.is-entering")
 	await expect(entering).toHaveCount(1)
@@ -121,32 +112,28 @@ test("gives the newly visible stage its own entrance and clears the Execute scri
 	await expect(entering).toHaveCount(1)
 	await expect(entering).toContainText("3 active projects · 1 archived")
 
-	await navigation.getByRole("button", { name: /^Execute/ }).click()
-	await expect(page.locator(".mxp-stage-view--execute.is-entering")).toHaveCount(1)
-	// The dark scrim is theater only: it must not stay painted over the module.
-	await expect
-		.poll(async () => page.locator(".mxp-stage-view--execute").evaluate((element) => getComputedStyle(element, "::before").opacity))
-		.toBe("0")
-	await expect(page.getByRole("heading", { name: "What do you want built?", exact: true })).toBeVisible()
+	await navigation.getByRole("button", { name: /^Agentix/ }).click()
+	await expect(entering).toHaveCount(1)
+	await expect(page.getByRole("main", { name: "Agentix workspace" })).toBeVisible()
 })
 
 test("reports live Agentix attention to the shell badge and the jump registry", async ({ page }) => {
 	await page.emulateMedia({ reducedMotion: "reduce" })
 	await page.goto("/maxion-prototype")
 	const navigation = page.getByRole("navigation", { name: "Portal sections" })
-	await expect(navigation.getByRole("button", { name: "Agentix", exact: true })).toBeVisible()
+	await expect(navigation.getByRole("button", { name: /^Agentix/ })).toBeVisible()
 	let menu = await openShellMenu(page)
-	await expect(menu.getByRole("button", { name: /Review invoice variance/ })).toHaveCount(0)
+	await expect(menu.getByRole("button", { name: /Review invoice variance/ })).toBeVisible()
 	await page.keyboard.press("Escape")
-	await navigation.getByRole("button", { name: "Agentix", exact: true }).click()
-	await expect(page.getByRole("heading", { name: "Approve the $240 price variance?" })).toBeVisible({ timeout: 15000 })
-	await expect(navigation.getByRole("button", { name: "Agentix 1 pending" })).toBeVisible()
+	await navigation.getByRole("button", { name: /^Agentix/ }).click()
+	await expect(page.getByRole("heading", { name: "Engagements", exact: true })).toBeVisible()
+	await expect(navigation.getByRole("button", { name: "Agentix 2 pending" })).toBeVisible()
 	menu = await openShellMenu(page)
 	await menu.getByRole("button", { name: /Review invoice variance/ }).click()
 	await expect(page.getByRole("heading", { name: "Approve the $240 price variance?" })).toBeVisible()
 	await page.getByRole("button", { name: "Approve $240 variance" }).click()
-	await expect(navigation.getByRole("button", { name: "Agentix", exact: true })).toBeVisible()
-	await expect(navigation.getByRole("button", { name: /Agentix \d pending/ })).toHaveCount(0)
+	await page.getByRole("button", { name: "Work", exact: true }).click()
+	await expect(navigation.getByRole("button", { name: "Agentix 1 pending" })).toBeVisible()
 })
 
 test("keeps the global command menu accessible", async ({ page }) => {

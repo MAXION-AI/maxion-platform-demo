@@ -16,7 +16,6 @@ import {
 	ListChecks,
 	LockKey,
 	MagnifyingGlass,
-	Paperclip,
 	Pause,
 	Play,
 	RocketLaunch,
@@ -33,6 +32,7 @@ import {
 } from "@phosphor-icons/react"
 import { AnimatePresence, motion } from "motion/react"
 import { Fragment, useEffect, useMemo, useRef, useState } from "react"
+import { WorkspaceComposer } from "@/components/workspace/WorkspaceComposer"
 
 import { MaxionSpiralMark } from "./PortalChrome"
 import type {
@@ -654,6 +654,12 @@ export function ExecuteDeliveryWorkspace({
 								</div>
 							</header>
 
+							<section className="ws-release-controls" aria-label="Staging and production controls">
+								<button type="button" onClick={() => setView("environments")}><Stack /><span>Staging <small>{platformStaged}/{implementationTotal} workspaces</small></span><CaretRight /></button>
+								<button type="button" onClick={() => { openWorkspace("orchestrator"); setView("environments") }}><Globe /><span>Production <small>{releaseState === "released" ? "Live" : deployApproved ? "Approved" : "Approval required"}</small></span><CaretRight /></button>
+								{(workspace.kind ?? "system") === "system" ? <button type="button" disabled={workspaceState.agentState !== "verified" || workspaceState.stage !== "development"} onClick={() => setPromotionTarget(workspace.id)} title={workspaceState.agentState !== "verified" ? "Verify this workspace before promoting its artifact" : undefined}><ArrowRight />{workspaceState.stage === "development" ? "Push to staging" : "Staged"}</button> : null}
+								{workspace.kind === "orchestrator" ? <button type="button" disabled={!deployApproved || releaseState !== "ready"} onClick={runRelease} title="Requires a passed release candidate and production approval"><RocketLaunch />{releaseState === "released" ? "Deployed" : "Deploy to production"}</button> : null}
+							</section>
 							<button type="button" className="exd-plan-strip" onClick={() => setView("plan")}><FlowArrow /><span><strong>Bound to approved Plan snapshot {planSnapshot}</strong><small>{workspace.packages?.join(" + ") ?? blueprint.scope} · architecture and contracts are read-only here</small></span><CaretRight /></button>
 
 							<section className="exd-autonomy" aria-label="Autonomous workspace status">
@@ -682,11 +688,11 @@ export function ExecuteDeliveryWorkspace({
 							{workspaceState.agentState === "verified" ? <article className="exd-result"><CheckCircle weight="fill" /><div><strong>{workspace.profile.result}</strong><p>{workspace.id === "mulesoft" && workspaceState.artifact.endsWith("2.4.2") ? `52 tests passed · ${workspaceState.artifact} · duplicate replay repaired` : workspace.profile.resultMeta}</p><span>{workspaceState.receipts.map((receipt) => <small key={receipt}><Check />{receipt}</small>)}</span></div><button type="button" onClick={() => setView("tests")}>Inspect evidence<ArrowRight /></button></article> : null}
 						</div>
 
-						<form className="exd-composer" onSubmit={(event) => { event.preventDefault(); send() }}>
-							<div className="exd-composer-scope"><span className={`exd-workspace-icon is-${workspace.kind ?? "system"}`}>{workspaceIcon(workspace)}</span><p><small>Steering</small><strong>{workspace.title}</strong></p><span><LockKey />{workspace.packages?.join(" + ") ?? "Approved scope"}</span></div>
-							<textarea ref={composerRef} aria-label={`Steer ${workspace.title} agent`} value={draft} onChange={(event) => setDrafts((current) => ({ ...current, [workspace.id]: event.target.value }))} onKeyDown={(event) => { if (event.key === "Enter" && !event.shiftKey) { event.preventDefault(); send() } }} rows={1} placeholder={workspace.kind === "orchestrator" ? "Ask for delivery status, route a concern, pause a workspace, or propose a change…" : "Steer this workspace agent or ask why it changed something…"} />
-							<footer><button type="button" aria-label="Attach implementation context"><Paperclip /></button><span><ShieldCheck />Questions answer immediately · mutations preview impact</span><button type="submit" aria-label="Send direction" disabled={!draft.trim()}><ArrowRight /></button></footer>
-						</form>
+						<WorkspaceComposer inputRef={composerRef} value={draft} onChange={(value) => setDrafts((current) => ({ ...current, [workspace.id]: value }))} onSubmit={send}
+							label={`Steer ${workspace.title} agent`} sendLabel="Send direction"
+							placeholder={workspace.kind === "orchestrator" ? "Ask for delivery status, direct a workspace, or propose a change…" : "Ask about the implementation or direct this workspace…"}
+							context={<>{workspaceIcon(workspace)}<strong>{workspace.title}</strong><span>{workspace.packages?.join(" + ") ?? "Approved scope"}</span></>}
+							tools={<><button type="button" aria-label="Open workspace repositories" onClick={() => setView("repositories")}><GitBranch />Repositories</button><button type="button" aria-label="Open approved Plan context" onClick={() => setView("plan")}><FlowArrow />Plan context</button></>} />
 					</main>
 
 					<aside className="exd-inspector" aria-label={`${workspace.title} inspector`}>

@@ -25,11 +25,14 @@ test("runs an autonomous Discovery from brief to verified package", async ({ pag
 
 	await page.getByRole("textbox", { name: "Discovery brief" }).fill("Redesign third-party onboarding controls so MAX can return a defensible decision package.")
 	await page.getByRole("button", { name: "Start autonomous Discovery" }).click()
-	await expect(page.getByText("Establishing the mission")).toBeVisible()
+	// Intake drafts the mission, then the authority review gates creation.
+	await page.getByRole("checkbox", { name: "Mission authority reviewed" }).check()
+	await page.getByRole("button", { name: "Create Discovery" }).click()
+	await expect(page.getByRole("heading", { name: /MAX is preparing/ })).toBeVisible()
 	await expect(page.getByRole("textbox", { name: "Message MAX" })).toBeVisible({ timeout: 8_000 })
 	await expect(page.getByRole("button", { name: "Thread" })).toHaveClass(/active/)
-	await expect(page.getByRole("heading", { name: "Interview with MAX" })).toBeVisible()
-	await expect(page.getByRole("button", { name: "Package", exact: true })).toBeDisabled()
+	await expect(page.getByRole("heading", { name: "Your next step: answer MAX’s question" })).toBeVisible()
+	await expect(page.getByRole("button", { name: "Package", exact: true })).toBeEnabled()
 	await expect(page.getByText(/what vendor-onboarding failure is most costly today/i)).toBeVisible()
 
 	const composer = page.getByRole("textbox", { name: "Message MAX" })
@@ -65,20 +68,23 @@ test("runs an autonomous Discovery from brief to verified package", async ({ pag
 	await composer.fill("End the owner interview")
 	await composer.press("Enter")
 	await expect(page.getByText(/That gives me enough owner context for this pass/)).toBeVisible()
-	await expect(page.getByText(/keep the work visible in Autonomy and won’t ask another interview question unless you reopen it/)).toBeVisible()
+	// The close says what MAX does next and when it will come back (written to be heard on a call too).
+	await expect(page.getByText(/I’ll only come back to you if something needs your call\. You can follow all of it in Autonomy\./)).toBeVisible()
 	await expect(page.getByRole("region", { name: "Autonomous work summary" })).toBeVisible()
 	await expect(page.getByRole("button", { name: "Open autonomy" })).toBeVisible()
 
 	await expect(page.getByRole("heading", { name: SCENARIO_EXCEPTION_TITLE })).toBeVisible({ timeout: 15_000 })
 	await expect(page.getByText("Discovery is internal by default")).toBeVisible()
+	// The evidence MAX checked is one disclosure away, beside the two options.
+	await page.getByText("What MAX already checked").click()
 	await expect(page.getByText(/Neither source contains the vendor’s retention commitment/)).toBeVisible()
 	await expect(page.getByText(/No internal evidence or attachments leave the workspace/)).toBeVisible()
 	await page.getByRole("button", { name: "Allow one external interview" }).click()
 	await expect(page.getByRole("heading", { name: "Final plan and recommendations" })).toBeVisible({ timeout: 12_000 })
 	await expect(page.getByRole("button", { name: "Thread" })).toHaveClass(/active/)
-	await page.getByRole("button", { name: /Open package/ }).first().click()
+	await page.getByRole("button", { name: /Review deliverables/ }).first().click()
 	await expect(page.getByRole("heading", { name: "Final plan and recommendations" })).toBeVisible({ timeout: 12_000 })
-	await expect(page.getByText("Generated automatically from readiness snapshot v7 and manifest v4.")).toBeVisible()
+	await expect(page.getByText("Start with the decision brief, then inspect the supporting documents.")).toBeVisible()
 	await expect(page.getByRole("button", { name: /Executive decision brief Current/ })).toBeVisible()
 
 	await page.getByRole("button", { name: "Autonomy" }).click()
@@ -97,9 +103,10 @@ test("runs an autonomous Discovery from brief to verified package", async ({ pag
 	await expect(page.getByRole("dialog", { name: "Deliverable manifest" })).toBeVisible()
 	await page.getByTitle("Close panel").click()
 	await page.getByRole("button", { name: "All discoveries", exact: true }).click()
-	await expect(page.getByRole("button", { name: /Resume Redesign third-party onboarding controls so MAX can return a defensible decision package\., Completed/ })).toBeVisible()
+	// The saved name is a short noun phrase drafted from the brief, not the whole brief.
+	await expect(page.getByRole("button", { name: "Resume Redesign third-party onboarding controls, Completed", exact: true })).toBeVisible()
 	await page.reload()
-	await expect(page.getByRole("button", { name: /Resume Redesign third-party onboarding controls so MAX can return a defensible decision package\., Completed/ })).toBeVisible()
+	await expect(page.getByRole("button", { name: "Resume Redesign third-party onboarding controls, Completed", exact: true })).toBeVisible()
 
 	const terminalAccessibility = await new AxeBuilder({ page }).analyze()
 	expect(terminalAccessibility.violations.filter((violation) => violation.impact === "critical" || violation.impact === "serious")).toEqual([])
@@ -115,8 +122,13 @@ test("uses the written brief as the mission context without preset scenarios", a
 	await expect(missionBrief).toHaveValue(brief)
 	await expect(page.getByRole("tab", { name: "TPRM" })).toHaveCount(0)
 	await page.getByRole("button", { name: "Start autonomous Discovery" }).click()
-	await expect(page.getByText(/I’ve captured your mission: “Decide whether the finance controls operating model can safely automate month-end reconciliation.”/i)).toBeVisible({ timeout: 8_000 })
-	await expect(page.getByText(brief, { exact: true }).first()).toBeVisible()
+	// Intake drafts the mission, then the authority review gates creation.
+	await page.getByRole("checkbox", { name: "Mission authority reviewed" }).check()
+	await page.getByRole("button", { name: "Create Discovery" }).click()
+	// The quoted brief keeps its words and drops its own full stop, so the sentence never ends in `.”.`
+	await expect(page.getByText(/I’ve captured your mission: “Decide whether the finance controls operating model can safely automate month-end reconciliation”\. /i)).toBeVisible({ timeout: 8_000 })
+	// The details panel shows the brief; the phone-only copy under the composer stays hidden on desktop.
+	await expect(page.getByRole("region", { name: "Discovery brief" }).getByText(brief, { exact: true })).toBeVisible()
 })
 
 test("continues the owner interview through the voice agent", async ({ page }) => {
@@ -124,6 +136,9 @@ test("continues the owner interview through the voice agent", async ({ page }) =
 	await page.getByRole("button", { name: "New Discovery", exact: true }).click()
 	await page.getByRole("textbox", { name: "Discovery brief" }).fill("Resolve the highest-risk vendor onboarding decision with evidence.")
 	await page.getByRole("button", { name: "Start autonomous Discovery" }).click()
+	// Intake drafts the mission, then the authority review gates creation.
+	await page.getByRole("checkbox", { name: "Mission authority reviewed" }).check()
+	await page.getByRole("button", { name: "Create Discovery" }).click()
 	await expect(page.getByRole("button", { name: "Voice" })).toBeVisible({ timeout: 8_000 })
 
 	await page.getByRole("button", { name: "Voice" }).click()
@@ -133,19 +148,22 @@ test("continues the owner interview through the voice agent", async ({ page }) =
 	await expect(voiceDialog.getByText(/does not retain the original audio/i)).toBeVisible()
 
 	await voiceDialog.getByRole("button", { name: "Continue with voice" }).click()
-	await expect(voiceDialog.getByText("Ready when you are")).toBeVisible()
+	// MAX speaks first on a call: a greeting, how long it is, then the open question.
+	await expect(voiceDialog.getByText(/Hi, I’m MAX\./).first()).toBeVisible()
 	const transcript = voiceDialog.getByRole("textbox", { name: "Your response" })
 	await transcript.fill("Delaying strategic vendors is most costly because teams bypass controls after ten days and the audit trail breaks down.")
 	await voiceDialog.getByRole("button", { name: "Send response" }).click()
-	const ownerThread = page.getByLabel("Discovery owner chat messages")
-	await expect(ownerThread.getByText(/working position on decision pressure/i)).toBeVisible({ timeout: 5_000 })
-	await expect(ownerThread.getByText("Risk segmentation · 2 of 6")).toBeVisible()
+	// The call's transcript shows MAX's reply; the Thread it covers gets the same messages.
+	await expect(voiceDialog.getByRole("complementary", { name: "Voice transcript" }).getByText(/working position on decision pressure/i)).toBeVisible({ timeout: 5_000 })
 
 	const accessibility = await new AxeBuilder({ page }).analyze()
 	expect(accessibility.violations.filter((violation) => violation.impact === "critical" || violation.impact === "serious")).toEqual([])
 	await voiceDialog.getByRole("button", { name: "Close voice session" }).click()
 	await expect(voiceDialog).toBeHidden()
 	await expect(page.getByRole("button", { name: "Voice" })).toBeFocused()
+	const ownerThread = page.getByLabel("Discovery owner chat messages")
+	await expect(ownerThread.getByText(/working position on decision pressure/i)).toBeVisible()
+	await expect(ownerThread.getByText("Risk segmentation · 2 of 6")).toBeVisible()
 })
 
 test("keeps the launch experience usable at a mobile viewport", async ({ page }) => {
@@ -164,6 +182,9 @@ test("keeps the launch experience usable at a mobile viewport", async ({ page })
 	expect(dimensions.scrollWidth).toBe(dimensions.clientWidth)
 
 	await page.getByRole("button", { name: "Start autonomous Discovery" }).click()
+	// Intake drafts the mission, then the authority review gates creation.
+	await page.getByRole("checkbox", { name: "Mission authority reviewed" }).check()
+	await page.getByRole("button", { name: "Create Discovery" }).click()
 	await expect(page.getByRole("button", { name: "Thread" })).toBeVisible({ timeout: 8_000 })
 	await page.getByRole("button", { name: "Thread" }).click()
 	await expect(page.getByRole("textbox", { name: "Message MAX" })).toBeVisible()
@@ -186,14 +207,17 @@ test("keeps the launch experience usable at a mobile viewport", async ({ page })
 	}))
 	expect(voiceDimensions.scrollWidth).toBe(voiceDimensions.clientWidth)
 	expect(voiceDimensions.scrollHeight).toBeLessThanOrEqual(voiceDimensions.clientHeight)
+	expect(await voiceDialog.evaluate(node => node.scrollWidth - node.clientWidth)).toBeLessThanOrEqual(1)
 })
 
 const SCENARIO_EXCEPTION_TITLE = "One external interview needs your approval"
 
 test("preserves readable contrast in dark mode", async ({ page }) => {
+	// Discovery always runs inside the shell, which owns the theme and offers no
+	// Discovery-only switch; a viewer who prefers dark still gets readable contrast.
+	await page.emulateMedia({ colorScheme: "dark" })
 	await page.goto("/discovery-prototype")
-	await page.getByRole("button", { name: "Use dark theme" }).click()
-	await expect(page.locator(".prototype.dark")).toBeVisible()
+	await expect(page.getByRole("heading", { name: "Continue where MAX left off." })).toBeVisible()
 
 	const accessibility = await new AxeBuilder({ page }).analyze()
 	expect(accessibility.violations.filter((violation) => violation.impact === "critical" || violation.impact === "serious")).toEqual([])

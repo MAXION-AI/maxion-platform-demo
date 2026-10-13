@@ -15,6 +15,8 @@ export default defineConfig({
 	use: {
 		baseURL: "http://127.0.0.1:4317",
 		headless: true,
+		// The voice call speaks; a test run must never talk through the speakers.
+		launchOptions: { args: ["--mute-audio"] },
 		trace: "retain-on-failure",
 	},
 	projects: [

@@ -1,0 +1,16 @@
+/* Agentix glyphs (glyphs.tsx): the sidebar's grammar. Outline strokes, a solid accent, a faded back
+ * layer; seals carry a soft disc in their status colour. Tokens only. */
+.ax-glyph { flex-shrink: 0; overflow: visible; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; vertical-align: middle; }
+.ax-glyph .ax-solid { fill: currentColor; stroke: none; }
+.ax-glyph .ax-back { opacity: 0.42; }
+.ax-glyph .ax-disc { fill: currentColor; stroke: none; opacity: 0.14; }
+.ax-glyph.is-fill .ax-disc { opacity: 0.24; }
+/* Small sizes need more weight: at 14px and under the back layer and the seal's disc come forward. */
+.ax-glyph:is([width="12"], [width="13"], [width="14"]) .ax-back { opacity: 0.62; }
+.ax-glyph:is([width="12"], [width="13"], [width="14"]) .ax-disc { opacity: 0.2; }
+.ax-glyph.is-fill:is([width="12"], [width="13"], [width="14"]) .ax-disc { opacity: 0.3; }
+/* The accent can take a tint of its own (a result's icon, a working seat); by default it follows the ink. */
+.ax-glyph .ax-accent { color: var(--ax-accent, currentColor); }
+/* A shape drawn in front of another clears what is under it. */
+.ax-glyph .ax-paper { fill: var(--ax-paper, var(--ds-bg)); }
+.ax-glyph .ax-cut { stroke: var(--ax-paper, var(--ds-bg)); stroke-width: 2px; paint-order: stroke; }

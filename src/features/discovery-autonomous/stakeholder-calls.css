@@ -1,0 +1,46 @@
+/* MAX's stakeholder calls in Autonomy. Tokens only; see StakeholderCalls.tsx. Columns, not cards:
+ * whitespace and one hairline group them, and the conflict is the only drawn line. */
+.prototype .sc { display: grid; gap: var(--ds-space-4); padding-top: var(--ds-space-5); border-top: 1px solid var(--ds-border); }
+.prototype .sc-head { display: flex; align-items: flex-end; justify-content: space-between; gap: var(--ds-space-4); }
+.prototype .sc-head h2 { margin: 0; color: var(--ds-fg); font-size: var(--ds-text-md); line-height: var(--ds-lh-md); font-weight: var(--ds-weight-semibold); }
+.prototype .sc-head p { margin: 2px 0 0; color: var(--ds-fg-subtle); font-size: var(--ds-text-sm); line-height: var(--ds-lh-sm); }
+.prototype .sc-grid { display: grid; grid-template-columns: repeat(var(--sc-cols), minmax(0, 1fr)); gap: var(--ds-space-6); margin: 0; padding: 0; list-style: none; }
+.prototype .sc-call { display: flex; flex-direction: column; gap: var(--ds-space-2); min-width: 0; }
+/* Waiting reads quieter by ink, never by opacity, so its text keeps its contrast. */
+.prototype .sc-call.is-waiting .sc-who strong { color: var(--ds-fg-subtle); }
+.prototype .sc-who { display: flex; align-items: center; gap: var(--ds-space-3); min-width: 0; }
+.prototype .sc-who > div { display: grid; min-width: 0; }
+.prototype .sc-who strong { overflow: hidden; color: var(--ds-fg); font-size: var(--ds-text-sm); line-height: var(--ds-lh-sm); font-weight: var(--ds-weight-semibold); text-overflow: ellipsis; white-space: nowrap; }
+.prototype .sc-who span { overflow: hidden; color: var(--ds-fg-subtle); font-size: var(--ds-text-xs); line-height: var(--ds-lh-xs); text-overflow: ellipsis; white-space: nowrap; }
+.prototype .sc-channel { display: inline-flex; align-items: center; gap: var(--ds-space-1); margin: 0; color: var(--ds-fg-subtle); font-size: var(--ds-text-xs); line-height: var(--ds-lh-xs); }
+.prototype .sc-call.is-talking .sc-channel { color: var(--ds-brand-teal); }
+.prototype .sc-lines { display: grid; gap: var(--ds-space-1); margin: 0; padding: 0; list-style: none; }
+.prototype .sc-lines li { margin: 0; font-size: var(--ds-text-sm); line-height: var(--ds-lh-sm); animation: sc-line-in 420ms var(--ds-ease) both; }
+.prototype .sc-lines li.is-max { color: var(--ds-fg-subtle); }
+.prototype .sc-lines li.is-them { color: var(--ds-fg); }
+.prototype .sc-lines li.is-them::before { content: "“"; }
+.prototype .sc-lines li.is-them::after { content: "”"; }
+@keyframes sc-line-in { from { filter: blur(var(--ds-blur-word)); transform: translateY(var(--ds-space-1)); } to { filter: blur(0); transform: none; } }
+.prototype .sc-focus { margin: 0; color: var(--ds-fg-subtle); font-size: var(--ds-text-sm); line-height: var(--ds-lh-sm); }
+.prototype .sc-insight { display: flex; gap: var(--ds-space-2); margin: var(--ds-space-1) 0 0; color: var(--ds-fg); font-size: var(--ds-text-sm); line-height: var(--ds-lh-sm); font-weight: var(--ds-weight-medium); }
+.prototype .sc-insight svg { flex-shrink: 0; margin-top: 2px; color: var(--ds-positive-fg); }
+.prototype .sc-call.is-conflict .sc-insight svg { color: var(--ds-warning-fg); }
+
+/* The disagreement: a bracket under the two people, then what they disagree on. */
+.prototype .sc-conflict { position: relative; display: flex; align-items: center; justify-content: space-between; gap: var(--ds-space-4); padding-top: var(--ds-space-5); animation: sc-line-in 420ms var(--ds-ease) both; }
+.prototype .sc-bracket { position: absolute; top: 0; left: calc((var(--sc-from) + 0.5) / var(--sc-cols) * 100%); width: calc((var(--sc-to) - var(--sc-from)) / var(--sc-cols) * 100%); height: var(--ds-space-3); border: 2px solid var(--ds-warning-fg); border-top: 0; border-radius: 0 0 var(--ds-radius-md) var(--ds-radius-md); }
+.prototype .sc-conflict p { margin: 0; color: var(--ds-fg); font-size: var(--ds-text-sm); line-height: var(--ds-lh-sm); text-wrap: pretty; }
+.prototype .sc-conflict strong { color: var(--ds-warning-fg); font-weight: var(--ds-weight-semibold); }
+
+@media (max-width: 900px) {
+	.prototype .sc-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+	.prototype .sc-bracket { display: none; }
+	.prototype .sc-conflict { flex-direction: column; align-items: flex-start; padding-top: 0; }
+}
+@media (max-width: 600px) {
+	.prototype .sc-grid { grid-template-columns: minmax(0, 1fr); }
+	.prototype .sc-head { flex-direction: column; align-items: flex-start; }
+}
+@media (prefers-reduced-motion: reduce) {
+	.prototype .sc-lines li, .prototype .sc-conflict { animation: none; }
+}

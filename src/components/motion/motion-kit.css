@@ -1,0 +1,53 @@
+/* Motion kit. Tokens only; see src/components/motion/MotionKit.tsx. */
+.mk-word { display: inline; animation: mk-word-in 460ms var(--ds-ease) both; }
+@keyframes mk-word-in { from { color: var(--ds-fg-subtle); filter: blur(var(--ds-blur-word)); } to { color: var(--ds-fg); filter: blur(0); } }
+
+.mk-shimmer { background: linear-gradient(90deg, var(--ds-fg-subtle) 30%, var(--ds-fg) 50%, var(--ds-fg-subtle) 70%); background-size: 240% 100%; -webkit-background-clip: text; background-clip: text; color: transparent; animation: mk-shimmer 2000ms linear infinite; }
+@keyframes mk-shimmer { from { background-position: 120% 0; } to { background-position: -120% 0; } }
+
+/* Orb: a turning conic pinwheel, as on the ElevenLabs agent and voice screens. */
+.mk-orb { position: relative; display: grid; place-items: center; width: var(--ds-orb); height: var(--ds-orb); flex-shrink: 0; transition: filter 400ms var(--ds-ease); }
+.mk-orb--sm { width: var(--ds-orb-sm); height: var(--ds-orb-sm); }
+.mk-orb--lg { width: var(--ds-orb-lg); height: var(--ds-orb-lg); }
+.mk-orb-glow { position: absolute; inset: -24%; border-radius: var(--ds-radius-full); background: radial-gradient(closest-side, var(--ds-orb-glow), transparent 70%); filter: blur(var(--ds-orb-blur)); }
+.mk-orb-core { position: relative; display: block; width: 100%; height: 100%; overflow: hidden; border-radius: var(--ds-radius-full); isolation: isolate; }
+.mk-orb-wheel { position: absolute; inset: -12%; background: repeating-conic-gradient(from 0deg at 50% 50%, var(--ds-orb-2) 0deg, var(--ds-orb-4) 16deg, var(--ds-orb-1) 34deg, var(--ds-orb-3) 52deg, var(--ds-orb-1) 68deg, var(--ds-orb-2) 90deg); filter: blur(2px); animation: mk-orb-turn 16s linear infinite; }
+.mk-orb-sheen { position: absolute; inset: 0; border-radius: var(--ds-radius-full); background: radial-gradient(circle at 50% 50%, transparent 38%, var(--ds-orb-edge) 100%), radial-gradient(circle at 32% 24%, var(--ds-orb-sheen), transparent 46%); }
+@keyframes mk-orb-turn { to { transform: rotate(360deg); } }
+/* A still orb: nothing is listening or speaking (an error, an unsupported browser). */
+.mk-orb--still { filter: grayscale(1) contrast(0.45) brightness(1.3); }
+.mk-orb--still .mk-orb-wheel { animation: none; }
+
+/* Step loader: filled checks, a ring for the step in flight, a hairline between. */
+.mk-steps { display: grid; margin: 0; padding: 0; list-style: none; text-align: left; }
+.mk-step { position: relative; display: grid; grid-template-columns: var(--ds-step-dot) minmax(0, 1fr); column-gap: var(--ds-space-3); padding-bottom: var(--ds-space-5); }
+.mk-step:last-child { padding-bottom: 0; }
+.mk-step.is-pending .mk-step-text strong { color: var(--ds-fg-subtle); font-weight: var(--ds-weight-regular); }
+.mk-step::before { position: absolute; top: calc(var(--ds-step-dot) + var(--ds-space-1)); bottom: var(--ds-space-1); left: calc(var(--ds-step-dot) / 2); width: 1px; background: var(--ds-border); content: ""; }
+.mk-step:last-child::before { display: none; }
+.mk-step.is-complete::before { background: var(--ds-fg); }
+.mk-step-mark { position: relative; display: grid; place-items: center; width: var(--ds-step-dot); height: var(--ds-step-dot); }
+.mk-step-check { display: grid; place-items: center; width: 100%; height: 100%; border-radius: var(--ds-radius-full); background: var(--ds-fg); color: var(--ds-bg); }
+.mk-step-ring { display: grid; place-items: center; width: 100%; height: 100%; border: var(--ds-space-1) solid var(--ds-bg-muted); border-radius: var(--ds-radius-full); background: var(--ds-bg); }
+.mk-step-ring::after { width: var(--ds-space-2); height: var(--ds-space-2); border-radius: var(--ds-radius-full); background: var(--ds-fg); content: ""; animation: mk-pulse 1400ms ease-in-out infinite; }
+.mk-step-dot { width: var(--ds-space-2); height: var(--ds-space-2); border-radius: var(--ds-radius-full); background: var(--ds-border-strong); }
+.mk-step-text { min-width: 0; padding-top: 1px; }
+.mk-step-text strong { display: block; color: var(--ds-fg); font-size: var(--ds-text-md); line-height: var(--ds-lh-md); font-weight: var(--ds-weight-semibold); }
+.mk-step-text small { display: block; color: var(--ds-fg-subtle); font-size: var(--ds-text-sm); line-height: var(--ds-lh-sm); }
+@keyframes mk-pulse { 0%, 100% { transform: scale(1); } 50% { transform: scale(0.72); } }
+
+.mk-placeholder { position: absolute; inset: 0; color: var(--ds-fg-placeholder); pointer-events: none; }
+.mk-placeholder-line { display: block; overflow: hidden; }
+.mk-placeholder-line > span { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* Moving border: a teal arc that travels the edge of the element in flight. */
+@property --mk-angle { syntax: "<angle>"; inherits: false; initial-value: 0deg; }
+.mk-moving-border { position: relative; }
+.mk-moving-border.is-active::after { position: absolute; inset: -1px; padding: 1px; border-radius: inherit; background: conic-gradient(from var(--mk-angle), transparent 0deg, var(--ds-orb-1) 50deg, var(--ds-orb-2) 80deg, transparent 130deg); content: ""; pointer-events: none; -webkit-mask: linear-gradient(var(--ds-fg) 0 0) content-box, linear-gradient(var(--ds-fg) 0 0); -webkit-mask-composite: xor; mask-composite: exclude; animation: mk-sweep 2800ms linear infinite; }
+@keyframes mk-sweep { to { --mk-angle: 360deg; } }
+
+@media (prefers-reduced-motion: reduce) {
+	.mk-shimmer { animation: none; background: none; color: var(--ds-fg-subtle); }
+	.mk-word { animation: none; }
+	.mk-orb-wheel, .mk-step-ring::after, .mk-moving-border.is-active::after { animation: none; }
+}

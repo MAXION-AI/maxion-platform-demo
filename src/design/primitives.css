@@ -1,0 +1,290 @@
+/*
+ * Primitive layer. Every rule here consumes tokens from tokens.css; the only
+ * literal sizes allowed are 0, 1px and 2px (hairlines and focus rings).
+ * Modules compose these classes and add layout only.
+ */
+
+/* ---- Scope: apply once on a surface root ---------------------------------- */
+.ds-scope { font-family: var(--ds-font); font-size: var(--ds-text-sm); line-height: var(--ds-lh-sm); font-weight: var(--ds-weight-regular); font-feature-settings: normal; letter-spacing: normal; color: var(--ds-fg); background: var(--ds-bg); -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale; }
+.ds-scope *, .ds-scope *::before, .ds-scope *::after { box-sizing: border-box; }
+/* Resets use :where() so they never outrank a primitive class. */
+.ds-scope :where(h1, h2, h3, h4, p, dl, dd, ul, ol, figure, blockquote) { margin: 0; }
+:where(.ds-scope) :where(button, input, textarea, select) { font: inherit; letter-spacing: inherit; color: inherit; }
+.ds-scope button { cursor: pointer; }
+.ds-scope svg { flex-shrink: 0; }
+/* The ring rule stays at class weight so a component that draws its own indicator
+ * (a search field, a composer) can switch the inner control's ring off. */
+.ds-scope :where(a, button, input, textarea, select, summary, [tabindex]:not([tabindex="-1"])):focus-visible { outline: 2px solid var(--ds-ring); outline-offset: 2px; }
+.ds-scope h1:focus { outline: none; }
+.ds-scope summary { list-style: none; cursor: pointer; }
+.ds-scope summary::-webkit-details-marker { display: none; }
+.ds-scope ::placeholder { color: var(--ds-fg-placeholder); opacity: 1; }
+
+/* ---- Type roles ----------------------------------------------------------- */
+.ds-scope .ds-title { font-size: var(--ds-text-xl); line-height: var(--ds-lh-xl); font-weight: var(--ds-weight-semibold); letter-spacing: var(--ds-track-xl); color: var(--ds-fg); }
+.ds-scope .ds-heading { font-size: var(--ds-text-md); line-height: var(--ds-lh-md); font-weight: var(--ds-weight-semibold); color: var(--ds-fg); }
+.ds-scope .ds-label { font-size: var(--ds-text-sm); line-height: var(--ds-lh-sm); font-weight: var(--ds-weight-medium); color: var(--ds-fg); }
+.ds-scope .ds-body { font-size: var(--ds-text-sm); line-height: var(--ds-lh-sm); font-weight: var(--ds-weight-regular); color: var(--ds-fg); }
+.ds-scope .ds-subtle { color: var(--ds-fg-subtle); }
+.ds-scope .ds-meta { font-size: var(--ds-text-xs); line-height: var(--ds-lh-xs); font-weight: var(--ds-weight-regular); color: var(--ds-fg-subtle); }
+.ds-scope .ds-num { font-variant-numeric: tabular-nums; }
+
+/* ---- Top bar -------------------------------------------------------------- */
+.ds-scope .ds-topbar { display: flex; align-items: center; justify-content: space-between; gap: var(--ds-space-4); height: var(--ds-topbar-h); flex-shrink: 0; padding: 0 var(--ds-space-4) 0 var(--ds-space-3); border-bottom: 1px solid var(--ds-border); background: var(--ds-bg); }
+.ds-scope .ds-topbar-start, .ds-scope .ds-topbar-end { display: flex; align-items: center; gap: var(--ds-space-2); min-width: 0; }
+.ds-scope .ds-topbar-title { font-size: var(--ds-text-sm); font-weight: var(--ds-weight-medium); color: var(--ds-fg); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+/* Breadcrumb: the parent reads grey and links back, the current page reads ink. */
+.ds-scope .ds-crumb { display: inline-flex; flex-shrink: 0; align-items: center; gap: var(--ds-space-1); height: var(--ds-control-h-sm); padding: 0 var(--ds-space-1); border: 0; border-radius: var(--ds-radius-md); background: none; color: var(--ds-fg-subtle); font-size: var(--ds-text-sm); font-weight: var(--ds-weight-medium); white-space: nowrap; transition: background var(--ds-duration) var(--ds-ease), color var(--ds-duration) var(--ds-ease); }
+.ds-scope .ds-crumb svg { width: var(--ds-icon); height: var(--ds-icon); }
+.ds-scope button.ds-crumb:hover, .ds-scope a.ds-crumb:hover { background: var(--ds-bg-hover); color: var(--ds-fg); }
+.ds-scope .ds-crumb-sep { color: var(--ds-fg-subtle); }
+.ds-scope .ds-crumb-current { color: var(--ds-fg); font-size: var(--ds-text-sm); font-weight: var(--ds-weight-medium); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+/* ---- Page ----------------------------------------------------------------- */
+.ds-scope .ds-page { padding: var(--ds-page-y) var(--ds-page-x); }
+.ds-scope .ds-page > * { max-width: var(--ds-page-max); margin-left: auto; margin-right: auto; }
+.ds-scope .ds-page-header { display: flex; align-items: center; justify-content: space-between; gap: var(--ds-space-6); margin-bottom: var(--ds-space-4); }
+.ds-scope .ds-page-header > div:first-child { min-width: 0; }
+.ds-scope .ds-page-title { font-size: var(--ds-text-xl); line-height: var(--ds-lh-xl); font-weight: var(--ds-weight-semibold); letter-spacing: var(--ds-track-xl); color: var(--ds-fg); }
+.ds-scope .ds-page-desc { margin-top: var(--ds-space-1); font-size: var(--ds-text-sm); line-height: var(--ds-lh-sm); color: var(--ds-fg-subtle); }
+.ds-scope .ds-page-actions { display: flex; align-items: center; gap: var(--ds-space-2); flex-shrink: 0; }
+.ds-scope .ds-stack > * + * { margin-top: var(--ds-space-4); }
+.ds-scope .ds-section-title { display: flex; align-items: center; gap: var(--ds-space-2); font-size: var(--ds-text-md); line-height: var(--ds-lh-md); font-weight: var(--ds-weight-semibold); color: var(--ds-fg); }
+
+/* ---- Button --------------------------------------------------------------- */
+.ds-scope .ds-button { display: inline-flex; align-items: center; justify-content: center; gap: var(--ds-space-1); height: var(--ds-control-h); padding: 0 var(--ds-space-3); border: 1px solid var(--ds-border); border-radius: var(--ds-radius-md); background: var(--ds-bg); color: var(--ds-fg); font-size: var(--ds-text-sm); line-height: var(--ds-lh-sm); font-weight: var(--ds-weight-medium); white-space: nowrap; cursor: pointer; transition: background var(--ds-duration) var(--ds-ease), border-color var(--ds-duration) var(--ds-ease), color var(--ds-duration) var(--ds-ease); }
+.ds-scope .ds-button svg { width: var(--ds-icon); height: var(--ds-icon); }
+.ds-scope .ds-button:hover:not(:disabled) { background: var(--ds-bg-hover); }
+.ds-scope .ds-button:active:not(:disabled) { background: var(--ds-bg-selected); }
+.ds-scope .ds-button:disabled { cursor: not-allowed; opacity: 0.5; }
+.ds-scope .ds-button--primary { background: var(--ds-primary); border-color: var(--ds-primary); color: var(--ds-fg-on-primary); }
+/* Measured: a disabled filled button is solid #a1a1aa with white text, not a faded black one. */
+.ds-scope .ds-button--primary:disabled { opacity: 1; border-color: transparent; background: var(--ds-primary-disabled); color: var(--ds-fg-on-primary); }
+.ds-scope .ds-button--primary:hover:not(:disabled) { background: var(--ds-primary-hover); border-color: var(--ds-primary-hover); }
+.ds-scope .ds-button--primary:active:not(:disabled) { background: var(--ds-primary); }
+.ds-scope .ds-button--ghost { border-color: transparent; background: transparent; }
+.ds-scope .ds-button--sm { height: var(--ds-control-h-sm); padding: 0 var(--ds-space-2); font-size: var(--ds-text-xs); line-height: var(--ds-lh-xs); border-radius: var(--ds-radius-sm); }
+.ds-scope .ds-button--icon { width: var(--ds-control-h); padding: 0; }
+.ds-scope .ds-button--icon.ds-button--sm { width: var(--ds-control-h-sm); }
+.ds-scope .ds-text-button { display: inline-flex; align-items: center; gap: var(--ds-space-1); min-height: var(--ds-control-h-sm); padding: 0; border: 0; background: transparent; color: var(--ds-fg); font-size: var(--ds-text-sm); line-height: var(--ds-lh-sm); font-weight: var(--ds-weight-medium); cursor: pointer; }
+.ds-scope .ds-text-button:hover { text-decoration: underline; text-underline-offset: 2px; }
+.ds-scope .ds-text-button:disabled { cursor: not-allowed; color: var(--ds-fg-subtle); text-decoration: none; }
+
+/* ---- Inputs --------------------------------------------------------------- */
+.ds-scope .ds-input { display: block; width: 100%; height: var(--ds-control-h); padding: 0 var(--ds-space-3); border: 1px solid var(--ds-border); border-radius: var(--ds-radius-md); background: var(--ds-bg); color: var(--ds-fg); font-size: var(--ds-text-sm); }
+.ds-scope .ds-input:hover { border-color: var(--ds-border-strong); }
+.ds-scope .ds-input:focus-visible { outline: 2px solid var(--ds-ring); outline-offset: 0; border-color: transparent; }
+.ds-scope .ds-textarea { display: block; width: 100%; min-height: calc(var(--ds-control-h) * 2); padding: var(--ds-space-2) var(--ds-space-3); border: 1px solid var(--ds-border); border-radius: var(--ds-radius-md); background: var(--ds-bg); color: var(--ds-fg); font-size: var(--ds-text-sm); line-height: var(--ds-lh-sm); resize: none; }
+.ds-scope .ds-textarea:hover { border-color: var(--ds-border-strong); }
+.ds-scope .ds-textarea:focus-visible { outline: 2px solid var(--ds-ring); outline-offset: 0; border-color: transparent; }
+/* A field that failed validation keeps a danger edge until it is fixed. */
+.ds-scope :is(.ds-input, .ds-textarea)[aria-invalid="true"], .ds-scope .ds-search:has(input[aria-invalid="true"]) { border-color: var(--ds-danger-fg); }
+.ds-scope .ds-search { display: flex; align-items: center; gap: var(--ds-space-2); width: 100%; height: var(--ds-control-h); padding: 0 var(--ds-space-3); border: 1px solid var(--ds-border); border-radius: var(--ds-radius-md); background: var(--ds-bg); color: var(--ds-fg-subtle); cursor: text; }
+.ds-scope .ds-search:hover { border-color: var(--ds-border-strong); }
+.ds-scope .ds-search:focus-within { outline: 2px solid var(--ds-ring); outline-offset: 0; border-color: transparent; }
+.ds-scope .ds-search svg { width: var(--ds-icon); height: var(--ds-icon); }
+.ds-scope .ds-search input { flex: 1; min-width: 0; height: 100%; padding: 0; border: 0; background: transparent; color: var(--ds-fg); font-size: var(--ds-text-sm); }
+.ds-scope .ds-search input:focus, .ds-scope .ds-search input:focus-visible { outline: none; }
+.ds-scope .ds-search input::-webkit-search-cancel-button, .ds-scope .ds-search input::-webkit-search-decoration { -webkit-appearance: none; appearance: none; }
+.ds-scope .ds-search-clear { display: inline-grid; flex-shrink: 0; place-items: center; width: var(--ds-control-h-xs); height: var(--ds-control-h-xs); margin-right: calc(-1 * var(--ds-space-1)); padding: 0; border: 0; border-radius: var(--ds-radius-sm); background: none; color: var(--ds-fg-subtle); cursor: pointer; }
+.ds-scope .ds-search-clear:hover { background: var(--ds-bg-hover); color: var(--ds-fg); }
+.ds-scope .ds-search-clear:focus-visible { outline-offset: 0; }
+.ds-scope .ds-field { display: grid; gap: var(--ds-space-1); }
+.ds-scope .ds-field > label { font-size: var(--ds-text-sm); font-weight: var(--ds-weight-medium); color: var(--ds-fg); }
+.ds-scope .ds-field > small { font-size: var(--ds-text-xs); line-height: var(--ds-lh-xs); color: var(--ds-fg-subtle); }
+
+/* ---- Tabs and chips ------------------------------------------------------- */
+.ds-scope .ds-tabs { display: inline-flex; align-items: center; gap: var(--ds-space-1); }
+.ds-scope .ds-tabs > button { display: inline-flex; align-items: center; gap: var(--ds-space-1); height: var(--ds-control-h-sm); padding: 0 var(--ds-space-2); border: 1px solid transparent; border-radius: var(--ds-radius-sm); background: transparent; color: var(--ds-fg-subtle); font-size: var(--ds-text-sm); font-weight: var(--ds-weight-medium); white-space: nowrap; transition: background var(--ds-duration) var(--ds-ease), color var(--ds-duration) var(--ds-ease); }
+.ds-scope .ds-tabs > button:hover { color: var(--ds-fg); background: var(--ds-bg-hover); }
+.ds-scope .ds-tabs > button[aria-pressed="true"], .ds-scope .ds-tabs > button[aria-current] { color: var(--ds-fg); background: var(--ds-bg-selected); }
+.ds-scope .ds-tabs > button .ds-count { margin-left: var(--ds-space-1); }
+/* On the selected segment's fill the count needs full-strength text to stay legible. */
+.ds-scope .ds-tabs > button[aria-pressed="true"] .ds-count, .ds-scope .ds-tabs > button[aria-current] .ds-count { background: var(--ds-bg); color: var(--ds-fg); }
+.ds-scope .ds-tabstrip { display: flex; align-items: center; gap: var(--ds-space-5); border-bottom: 1px solid var(--ds-border); }
+.ds-scope .ds-tabstrip > button { height: var(--ds-control-h); padding: 0; border: 0; border-bottom: 2px solid transparent; margin-bottom: -1px; background: transparent; color: var(--ds-fg-subtle); font-size: var(--ds-text-sm); font-weight: var(--ds-weight-medium); white-space: nowrap; }
+.ds-scope .ds-tabstrip > button:hover { color: var(--ds-fg); }
+.ds-scope .ds-tabstrip > button[aria-current], .ds-scope .ds-tabstrip > button[aria-selected="true"] { color: var(--ds-fg); border-bottom-color: var(--ds-fg); }
+.ds-scope .ds-chip { display: inline-flex; align-items: center; gap: var(--ds-space-1); height: var(--ds-control-h-xs); padding: 0 var(--ds-space-2); border: 1px solid var(--ds-border); border-radius: var(--ds-radius-full); background: var(--ds-bg); color: var(--ds-fg); font-size: var(--ds-text-xs); line-height: var(--ds-lh-xs); font-weight: var(--ds-weight-medium); white-space: nowrap; }
+.ds-scope .ds-chip:hover { background: var(--ds-bg-hover); }
+.ds-scope .ds-chip[aria-pressed="true"] { background: var(--ds-bg-selected); border-color: var(--ds-border-strong); }
+.ds-scope .ds-toolbar { display: flex; align-items: center; justify-content: space-between; gap: var(--ds-space-3); }
+
+/* ---- Table ---------------------------------------------------------------- */
+.ds-scope .ds-table { --ds-table-cols: minmax(0, 1fr); display: block; width: 100%; }
+.ds-scope .ds-table-head { display: grid; grid-template-columns: var(--ds-table-cols); align-items: center; gap: var(--ds-space-4); min-height: calc(var(--ds-control-h) + var(--ds-space-1)); padding: 0 var(--ds-space-3); border-bottom: 1px solid var(--ds-border); color: var(--ds-fg-subtle); font-size: var(--ds-text-sm); line-height: var(--ds-lh-sm); font-weight: var(--ds-weight-regular); }
+.ds-scope .ds-table-head > span { display: flex; align-items: center; gap: var(--ds-space-1); min-width: 0; white-space: nowrap; }
+.ds-scope .ds-table-row { display: grid; grid-template-columns: var(--ds-table-cols); align-items: center; gap: var(--ds-space-4); width: 100%; min-height: var(--ds-row-h); padding: var(--ds-space-2) var(--ds-space-3); border: 0; border-bottom: 1px solid var(--ds-border); border-radius: 0; background: transparent; color: var(--ds-fg); font-size: var(--ds-text-sm); line-height: var(--ds-lh-sm); text-align: left; transition: background var(--ds-duration) var(--ds-ease); }
+.ds-scope button.ds-table-row:hover { background: var(--ds-bg-hover); }
+.ds-scope button.ds-table-row:focus-visible { outline-offset: -2px; }
+.ds-scope .ds-cell { min-width: 0; }
+.ds-scope .ds-cell-primary { display: flex; flex-direction: column; gap: 0; min-width: 0; }
+.ds-scope .ds-cell-primary > strong { font-weight: var(--ds-weight-medium); color: var(--ds-fg); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ds-scope .ds-cell-primary > small { font-size: var(--ds-text-xs); line-height: var(--ds-lh-xs); color: var(--ds-fg-subtle); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ds-scope .ds-cell-num { font-variant-numeric: tabular-nums; color: var(--ds-fg); }
+.ds-scope .ds-cell-num > small { display: none; }
+.ds-scope .ds-cell-end { display: flex; justify-content: flex-end; color: var(--ds-fg-subtle); }
+/* Empty states start on the content edge; inside a table they share the rows' inset. */
+.ds-scope .ds-empty { padding: var(--ds-space-8) 0; color: var(--ds-fg-subtle); }
+.ds-scope .ds-table > .ds-empty { padding-inline: var(--ds-space-3); }
+.ds-scope .ds-empty > strong { display: block; margin-bottom: var(--ds-space-1); font-weight: var(--ds-weight-medium); color: var(--ds-fg); }
+.ds-scope .ds-empty-icon { display: grid; place-items: center; width: var(--ds-icon-tile); height: var(--ds-icon-tile); margin-bottom: var(--ds-space-3); border-radius: var(--ds-radius-md); background: var(--ds-bg-muted); color: var(--ds-fg-subtle); }
+.ds-scope .ds-empty-icon svg { width: var(--ds-icon); height: var(--ds-icon); }
+.ds-scope .ds-empty-action { display: flex; flex-wrap: wrap; align-items: center; gap: var(--ds-space-2); margin-top: var(--ds-space-3); }
+
+/* ---- Mark: a generated abstract logo in a tinted tile --------------------- */
+.ds-scope .ds-mark { display: grid; place-items: center; width: var(--ds-mark); height: var(--ds-mark); flex-shrink: 0; border-radius: var(--ds-radius-md); background: var(--ds-mark-bg, var(--ds-bg-selected)); color: var(--ds-mark-fg, var(--ds-fg)); }
+.ds-scope .ds-mark > svg { width: 60%; height: 60%; fill: currentColor; }
+.ds-scope .ds-mark-back { opacity: 0.34; }
+.ds-scope .ds-mark[data-tint="0"] { --ds-mark-bg: var(--ds-tint-0-bg); --ds-mark-fg: var(--ds-tint-0-fg); }
+.ds-scope .ds-mark[data-tint="1"] { --ds-mark-bg: var(--ds-tint-1-bg); --ds-mark-fg: var(--ds-tint-1-fg); }
+.ds-scope .ds-mark[data-tint="2"] { --ds-mark-bg: var(--ds-tint-2-bg); --ds-mark-fg: var(--ds-tint-2-fg); }
+.ds-scope .ds-mark[data-tint="3"] { --ds-mark-bg: var(--ds-tint-3-bg); --ds-mark-fg: var(--ds-tint-3-fg); }
+.ds-scope .ds-mark[data-tint="4"] { --ds-mark-bg: var(--ds-tint-4-bg); --ds-mark-fg: var(--ds-tint-4-fg); }
+.ds-scope .ds-mark[data-tint="5"] { --ds-mark-bg: var(--ds-tint-5-bg); --ds-mark-fg: var(--ds-tint-5-fg); }
+.ds-scope .ds-mark--sm { width: var(--ds-control-h); height: var(--ds-control-h); border-radius: var(--ds-radius-sm); }
+.ds-scope .ds-mark--xs { width: var(--ds-mark-xs); height: var(--ds-mark-xs); border-radius: var(--ds-radius-sm); }
+.ds-scope .ds-mark--xs > svg { width: 64%; height: 64%; }
+
+/* ---- Tile grid ------------------------------------------------------------ */
+.ds-scope .ds-tile-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(var(--ds-tile-min), 1fr)); gap: var(--ds-space-3); }
+.ds-scope .ds-tile-grid > .ds-empty { grid-column: 1 / -1; }
+.ds-scope .ds-tile { display: flex; flex-direction: column; align-items: stretch; gap: var(--ds-space-3); width: 100%; min-width: 0; padding: var(--ds-space-4); border: 1px solid var(--ds-border); border-radius: var(--ds-radius-lg); background: var(--ds-bg); color: var(--ds-fg); font-size: var(--ds-text-sm); line-height: var(--ds-lh-sm); text-align: left; transition: background var(--ds-duration) var(--ds-ease), border-color var(--ds-duration) var(--ds-ease); }
+.ds-scope button.ds-tile:hover { background: var(--ds-bg-hover); border-color: var(--ds-border-strong); }
+.ds-scope .ds-tile-top { display: flex; align-items: center; justify-content: space-between; gap: var(--ds-space-2); min-width: 0; }
+.ds-scope .ds-tile-heading { display: flex; flex-direction: column; min-width: 0; }
+.ds-scope .ds-tile-heading > strong { font-weight: var(--ds-weight-medium); color: var(--ds-fg); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ds-scope .ds-tile-heading > small { font-size: var(--ds-text-xs); line-height: var(--ds-lh-xs); color: var(--ds-fg-subtle); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ds-scope .ds-tile-footer { display: flex; align-items: center; gap: var(--ds-space-3); min-width: 0; margin-top: auto; }
+.ds-scope .ds-tile-stats { display: flex; align-items: center; gap: var(--ds-space-3); flex-shrink: 0; color: var(--ds-fg-subtle); font-size: var(--ds-text-xs); line-height: var(--ds-lh-xs); white-space: nowrap; }
+.ds-scope .ds-tile-stats b { font-weight: var(--ds-weight-medium); color: var(--ds-fg); font-variant-numeric: tabular-nums; }
+
+/* ---- Card and list rows --------------------------------------------------- */
+.ds-scope .ds-card { border: 1px solid var(--ds-border); border-radius: var(--ds-radius-lg); background: var(--ds-bg); padding: var(--ds-space-5); }
+.ds-scope .ds-card-header { display: flex; align-items: flex-start; justify-content: space-between; gap: var(--ds-space-4); }
+.ds-scope .ds-card-title { display: flex; align-items: center; gap: var(--ds-space-2); }
+.ds-scope .ds-card-heading { font-size: var(--ds-text-md); line-height: var(--ds-lh-md); font-weight: var(--ds-weight-semibold); color: var(--ds-fg); }
+.ds-scope .ds-card-desc { margin-top: var(--ds-space-1); font-size: var(--ds-text-sm); line-height: var(--ds-lh-sm); color: var(--ds-fg-subtle); }
+.ds-scope .ds-card-header + .ds-card-body { margin-top: var(--ds-space-4); }
+.ds-scope .ds-card-body:empty { display: none; }
+.ds-scope .ds-list { display: grid; gap: var(--ds-space-2); }
+.ds-scope .ds-list-row { display: flex; align-items: center; gap: var(--ds-space-3); width: 100%; min-height: var(--ds-row-h); padding: var(--ds-space-2) var(--ds-space-3); border: 1px solid var(--ds-border); border-radius: var(--ds-radius-md); background: var(--ds-bg); color: var(--ds-fg); text-align: left; transition: background var(--ds-duration) var(--ds-ease); }
+.ds-scope button.ds-list-row:hover { background: var(--ds-bg-hover); }
+.ds-scope .ds-list-row-mark { display: inline-flex; flex-shrink: 0; }
+.ds-scope .ds-list-row-main { flex: 1; display: flex; flex-direction: column; min-width: 0; }
+.ds-scope .ds-list-row-main > strong { font-weight: var(--ds-weight-medium); }
+.ds-scope .ds-list-row-main > small { font-size: var(--ds-text-xs); line-height: var(--ds-lh-xs); color: var(--ds-fg-subtle); }
+.ds-scope .ds-list-row-action { display: inline-flex; align-items: center; gap: var(--ds-space-1); flex-shrink: 0; font-weight: var(--ds-weight-medium); color: var(--ds-fg); white-space: nowrap; }
+.ds-scope .ds-list-row-action svg { color: var(--ds-fg-subtle); }
+
+/* ---- Badge ---------------------------------------------------------------- */
+.ds-scope .ds-badge { display: inline-flex; align-items: center; gap: var(--ds-space-1); height: var(--ds-space-5); padding: 0 var(--ds-space-2); border: 1px solid transparent; border-radius: var(--ds-radius-full); background: var(--ds-bg-muted); color: var(--ds-fg-subtle); font-size: var(--ds-text-xs); line-height: var(--ds-lh-xs); font-weight: var(--ds-weight-medium); white-space: nowrap; }
+.ds-scope .ds-badge svg { width: var(--ds-text-xs); height: var(--ds-text-xs); }
+.ds-scope .ds-badge--positive { background: var(--ds-positive-bg); color: var(--ds-positive-fg); }
+.ds-scope .ds-badge--warning { background: var(--ds-warning-bg); color: var(--ds-warning-fg); }
+.ds-scope .ds-badge--danger { background: var(--ds-danger-bg); color: var(--ds-danger-fg); }
+.ds-scope .ds-badge--outline { background: transparent; border-color: var(--ds-border); color: var(--ds-fg); }
+.ds-scope .ds-badge-dot { width: var(--ds-space-1); height: var(--ds-space-1); border-radius: var(--ds-radius-full); background: currentColor; }
+.ds-scope .ds-count { display: inline-flex; align-items: center; justify-content: center; min-width: var(--ds-lh-xs); height: var(--ds-lh-xs); padding: 0 var(--ds-space-1); border-radius: var(--ds-radius-full); background: var(--ds-bg-muted); color: var(--ds-fg-subtle); font-size: var(--ds-text-xs); line-height: var(--ds-lh-xs); font-weight: var(--ds-weight-medium); font-variant-numeric: tabular-nums; }
+
+/* ---- Banner --------------------------------------------------------------- */
+.ds-scope .ds-banner { display: flex; align-items: flex-start; gap: var(--ds-space-2); padding: var(--ds-space-2) var(--ds-space-3); border: 1px solid var(--ds-border); border-radius: var(--ds-radius-md); background: var(--ds-bg); color: var(--ds-fg); font-size: var(--ds-text-sm); line-height: var(--ds-lh-sm); }
+.ds-scope .ds-banner > svg { width: var(--ds-icon); height: var(--ds-icon); margin-top: 2px; color: var(--ds-fg-subtle); }
+.ds-scope .ds-banner--warning { border-color: var(--ds-warning-fg); background: var(--ds-warning-bg); color: var(--ds-warning-fg); }
+.ds-scope .ds-banner--warning > svg { color: currentColor; }
+.ds-scope .ds-banner > span { flex: 1; min-width: 0; }
+.ds-scope .ds-banner-dismiss { display: inline-grid; flex-shrink: 0; place-items: center; width: var(--ds-control-h-xs); height: var(--ds-control-h-xs); margin: calc(-1 * 2px) calc(-1 * var(--ds-space-1)) calc(-1 * 2px) 0; padding: 0; border: 0; border-radius: var(--ds-radius-sm); background: none; color: inherit; cursor: pointer; }
+.ds-scope .ds-banner-dismiss svg { width: var(--ds-icon); height: var(--ds-icon); }
+.ds-scope .ds-banner-dismiss:hover { background: var(--ds-bg-hover); }
+
+/* ---- Disclosure ----------------------------------------------------------- */
+.ds-scope .ds-disclosure > summary { display: inline-flex; align-items: center; gap: var(--ds-space-1); min-height: var(--ds-control-h-sm); color: var(--ds-fg-subtle); font-size: var(--ds-text-sm); font-weight: var(--ds-weight-medium); }
+.ds-scope .ds-disclosure > summary:hover { color: var(--ds-fg); }
+.ds-scope .ds-disclosure > summary svg { width: var(--ds-icon); height: var(--ds-icon); transition: transform var(--ds-duration) var(--ds-ease); }
+.ds-scope .ds-disclosure[open] > summary svg:last-child { transform: rotate(180deg); }
+.ds-scope .ds-disclosure > :not(summary) { margin-top: var(--ds-space-2); }
+.ds-scope .ds-disclosure p { max-width: 72ch; color: var(--ds-fg-subtle); }
+
+/* ---- Side panel ----------------------------------------------------------- */
+.ds-scope .ds-panel { display: flex; flex-direction: column; width: var(--ds-panel-w); max-width: 100%; min-height: 0; border-left: 1px solid var(--ds-border); background: var(--ds-bg); color: var(--ds-fg); }
+.ds-scope .ds-panel-header { display: flex; align-items: center; justify-content: space-between; gap: var(--ds-space-3); height: var(--ds-topbar-h); flex-shrink: 0; padding: 0 var(--ds-space-3) 0 var(--ds-space-4); border-bottom: 1px solid var(--ds-border); }
+.ds-scope .ds-panel-title { font-size: var(--ds-text-md); font-weight: var(--ds-weight-semibold); }
+.ds-scope .ds-panel-body { flex: 1; min-height: 0; overflow-y: auto; padding: var(--ds-space-4); }
+.ds-scope .ds-panel-footer { flex-shrink: 0; padding: var(--ds-space-3) var(--ds-space-4); border-top: 1px solid var(--ds-border); }
+
+/* ---- Composer ------------------------------------------------------------- */
+.ds-scope .ds-composer { border: 1px solid var(--ds-border); border-radius: var(--ds-radius-lg); background: var(--ds-bg); padding: var(--ds-space-3); transition: border-color var(--ds-duration) var(--ds-ease); }
+.ds-scope .ds-composer:focus-within { border-color: var(--ds-border-strong); }
+.ds-scope .ds-composer textarea { display: block; width: 100%; min-height: var(--ds-control-h); padding: 0; border: 0; background: transparent; color: var(--ds-fg); font-size: var(--ds-text-sm); line-height: var(--ds-lh-sm); resize: none; }
+.ds-scope .ds-composer textarea:focus { outline: none; }
+.ds-scope .ds-composer-bar { display: flex; align-items: center; justify-content: space-between; gap: var(--ds-space-2); margin-top: var(--ds-space-2); }
+.ds-scope .ds-composer-tools { display: flex; align-items: center; gap: var(--ds-space-1); min-width: 0; color: var(--ds-fg-subtle); font-size: var(--ds-text-xs); }
+
+/* ---- Sidebar and navigation ----------------------------------------------
+ * A primitive that sits ON the scope root needs both forms: `.ds-scope` alone is
+ * a descendant combinator and would never match the root element itself. */
+.ds-scope.ds-sidebar, .ds-scope .ds-sidebar { display: flex; flex-direction: column; width: var(--ds-sidebar-w); flex-shrink: 0; min-height: 0; padding: var(--ds-space-3); border-right: 1px solid var(--ds-border); background: var(--ds-bg-sidebar); color: var(--ds-fg-nav); }
+.ds-scope .ds-sidebar-section { padding: var(--ds-space-4) var(--ds-space-2) var(--ds-space-1); font-size: var(--ds-text-sm); color: var(--ds-fg-subtle); }
+.ds-scope .ds-nav { display: grid; gap: var(--ds-space-1); }
+.ds-scope .ds-nav-item { display: flex; align-items: center; gap: var(--ds-space-2); width: 100%; height: var(--ds-nav-h); padding: 0 var(--ds-space-2); border: 0; border-radius: var(--ds-radius-sm); background: transparent; color: var(--ds-fg-nav); font-size: var(--ds-text-sm); font-weight: var(--ds-weight-medium); text-align: left; white-space: nowrap; transition: background var(--ds-duration) var(--ds-ease), color var(--ds-duration) var(--ds-ease); }
+.ds-scope .ds-nav-item svg { width: var(--ds-icon); height: var(--ds-icon); color: var(--ds-fg-subtle); }
+.ds-scope .ds-nav-item:hover { background: var(--ds-bg-hover); color: var(--ds-fg); }
+.ds-scope .ds-nav-item[aria-current], .ds-scope .ds-nav-item[aria-pressed="true"] { background: var(--ds-bg-selected); color: var(--ds-fg); }
+.ds-scope .ds-nav-item[aria-current] svg, .ds-scope .ds-nav-item[aria-pressed="true"] svg { color: var(--ds-fg); }
+.ds-scope .ds-nav-item > span { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ds-scope .ds-nav-item > .ds-count, .ds-scope .ds-nav-item > .ds-badge { margin-left: auto; flex-shrink: 0; }
+.ds-scope .ds-sidebar-footer { margin-top: auto; padding-top: var(--ds-space-3); }
+.ds-scope .ds-workspace-switch { display: flex; align-items: center; gap: var(--ds-space-2); width: 100%; height: var(--ds-control-h); padding: 0 var(--ds-space-2); border: 1px solid var(--ds-border); border-radius: var(--ds-radius-md); background: var(--ds-bg); color: var(--ds-fg); font-size: var(--ds-text-sm); font-weight: var(--ds-weight-medium); text-align: left; }
+
+/* ---- Responsive ----------------------------------------------------------- */
+@media (max-width: 900px) {
+  .ds-scope .ds-page-header { flex-direction: column; align-items: flex-start; gap: var(--ds-space-3); }
+  .ds-scope .ds-toolbar { flex-wrap: wrap; }
+}
+@media (max-width: 700px) {
+  .ds-scope .ds-table-head { display: none; }
+  /* One shape for every row: the primary cell on top with the action or chevron in a
+   * right column beside it, then every middle cell on one meta line that runs the full
+   * width and truncates at its end. Table supplies the column list. */
+  .ds-scope .ds-table-row { grid-template-columns: var(--ds-table-phone-cols, minmax(0, 1fr)); gap: var(--ds-space-1) var(--ds-space-3); padding: var(--ds-space-3); }
+  .ds-scope .ds-table-row > .ds-cell-primary { grid-row: 1; grid-column: 1 / -1; }
+  .ds-scope .ds-table-row:has(> .ds-cell-end) > .ds-cell-primary { grid-column: 1 / -2; }
+  .ds-scope .ds-table-row > .ds-cell-end { grid-row: 1; grid-column: -2 / -1; align-self: center; justify-content: flex-end; }
+  .ds-scope .ds-table-row > .ds-cell:not(.ds-cell-primary, .ds-cell-end) { display: flex; align-items: center; grid-row: 2; min-width: max-content; }
+  .ds-scope .ds-table-row > .ds-cell:not(.ds-cell-primary, .ds-cell-end):is(:has(+ .ds-cell-end), :last-child) { display: block; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .ds-scope .ds-table-row > .ds-cell:not(.ds-cell-primary, .ds-cell-end):has(+ .ds-cell-end) { grid-column: var(--ds-table-phone-last, auto) / -1; }
+  .ds-scope .ds-cell-num > small { display: inline; margin-right: var(--ds-space-1); color: var(--ds-fg-subtle); }
+  .ds-scope .ds-list-row { flex-wrap: wrap; }
+  .ds-scope .ds-list-row-main { flex-basis: 100%; }
+  .ds-scope .ds-list-row:has(> .ds-list-row-mark) { display: grid; grid-template-columns: auto minmax(0, 1fr); row-gap: var(--ds-space-1); }
+  .ds-scope .ds-list-row:has(> .ds-list-row-mark) > .ds-list-row-action { grid-column: 2; }
+  .ds-scope .ds-tile-footer { flex-wrap: wrap; row-gap: var(--ds-space-2); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .ds-scope *, .ds-scope *::before, .ds-scope *::after { transition-duration: 0s !important; animation: none !important; }
+}
+
+/* Dialog (mobbin ff16450b): a 20px panel over a blurred white scrim. */
+.ds-scope .ds-dialog-layer { position: fixed; inset: 0; z-index: 60; display: grid; place-items: center; padding: var(--ds-space-4); }
+.ds-scope .ds-dialog-scrim { position: absolute; inset: 0; padding: 0; border: 0; background: var(--ds-scrim-dialog); -webkit-backdrop-filter: blur(var(--ds-scrim-blur)); backdrop-filter: blur(var(--ds-scrim-blur)); cursor: default; }
+.ds-scope .ds-dialog { position: relative; display: flex; flex-direction: column; width: var(--ds-dialog-w-sm); max-height: calc(100% - var(--ds-space-8)); overflow: hidden; border: 1px solid var(--ds-border); border-radius: var(--ds-radius-2xl); background: var(--ds-bg); box-shadow: var(--ds-shadow-dialog); outline: 0; }
+.ds-scope .ds-dialog--lg { width: var(--ds-dialog-w); }
+.ds-scope .ds-dialog-head { display: flex; align-items: flex-start; justify-content: space-between; gap: var(--ds-space-4); padding: var(--ds-space-5) var(--ds-space-5) var(--ds-space-4); }
+.ds-scope .ds-dialog-head h2 { margin: 0; color: var(--ds-fg); font-size: var(--ds-text-title); line-height: var(--ds-lh-title); font-weight: var(--ds-weight-semibold); letter-spacing: normal; }
+.ds-scope .ds-dialog-head p { max-width: 60ch; margin: var(--ds-space-1) 0 0; color: var(--ds-fg-subtle); font-size: var(--ds-text-sm); line-height: var(--ds-lh-sm); text-wrap: pretty; }
+.ds-scope .ds-dialog--lg .ds-dialog-head p { max-width: none; }
+.ds-scope .ds-dialog-close { display: inline-grid; flex-shrink: 0; place-items: center; width: var(--ds-control-h-sm); height: var(--ds-control-h-sm); padding: 0; border: 0; border-radius: var(--ds-radius-md); background: none; color: var(--ds-fg-subtle); cursor: pointer; }
+.ds-scope .ds-dialog-close:hover { background: var(--ds-bg-hover); color: var(--ds-fg); }
+.ds-scope .ds-dialog-body { display: grid; gap: var(--ds-space-4); min-height: 0; overflow-y: auto; padding: 0 var(--ds-space-5) var(--ds-space-4); }
+.ds-scope .ds-dialog-foot { display: flex; align-items: center; justify-content: space-between; gap: var(--ds-space-2); padding: var(--ds-space-2) var(--ds-space-5) var(--ds-space-5); }
+.ds-scope .ds-dialog-foot > :only-child { margin-left: auto; }
+
+/* A counted field, as "0/50" inside the create-agent name input. */
+.ds-scope .ds-field-count { justify-self: end; color: var(--ds-fg-subtle); font-size: var(--ds-text-xs); line-height: var(--ds-lh-xs); font-variant-numeric: tabular-nums; }
+.ds-scope .ds-field-count.is-short { color: var(--ds-warning-fg); }
+
+/* Switch: the widget tab's toggles, ink when on. */
+.ds-scope .ds-switch { position: relative; flex-shrink: 0; width: var(--ds-switch-w); height: var(--ds-switch-h); margin: 0; border-radius: var(--ds-radius-full); background: var(--ds-border-strong); cursor: pointer; transition: background var(--ds-duration) var(--ds-ease); -webkit-appearance: none; appearance: none; }
+.ds-scope .ds-switch::after { position: absolute; top: 2px; left: 2px; width: var(--ds-switch-knob); height: var(--ds-switch-knob); border-radius: var(--ds-radius-full); background: var(--ds-bg); content: ""; transition: transform var(--ds-duration) var(--ds-ease); }
+.ds-scope .ds-switch:checked { background: var(--ds-fg); }
+.ds-scope .ds-switch:checked::after { transform: translateX(calc(var(--ds-switch-w) - var(--ds-switch-knob) - var(--ds-space-1))); }

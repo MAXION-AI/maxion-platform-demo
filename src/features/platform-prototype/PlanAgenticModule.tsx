@@ -25,6 +25,8 @@ import {
 	X,
 } from "@phosphor-icons/react"
 import { useEffect, useRef, useState, type CSSProperties } from "react"
+import { WorkspaceComposer } from "@/components/workspace/WorkspaceComposer"
+import type { HandoffPacket } from "@/features/discovery-autonomous/DiscoveryAutonomousPrototypePage"
 
 import { MaxionSpiralMark } from "./PortalChrome"
 import { PlanLibraryModule } from "./PortalReplicaModules"
@@ -661,8 +663,26 @@ type PlanThreadEntry =
 
 const PLAN_EXPLANATION_PATTERN = /^(explain|why|what|how|show|summarize|which|where|who|does|is|can)\b|\?\s*$/
 
+const planReadingDetail = (from: string) => `Grounded the plan in 124 verified claims from ${from}, project decisions, ServiceNow, Workday, integration standards, and policy.`
+
+// The Discovery evidence a plan stands on: the frozen handoff packet when Plan was opened
+// from one, otherwise the verified snapshot the plan of record was derived from.
+function planDiscoveryEvidence(packet: HandoffPacket | null) {
+	if (!packet) return { chip: "Verified Discovery", from: "Discovery", subject: "the verified Discovery package", reading: "Reading the verified context", ingested: null, sourceDetail: null, note: "" }
+	return {
+		chip: `Discovery ${packet.id}`,
+		from: `Discovery packet ${packet.id}`,
+		subject: `Discovery packet ${packet.id}`,
+		reading: `Reading Discovery packet ${packet.id}`,
+		ingested: { label: `Discovery packet ${packet.id} ingested`, detail: "124 claims · frozen at handoff · decision source" },
+		sourceDetail: `Packet ${packet.id} · frozen at handoff`,
+		note: packet.note.trim(),
+	}
+}
+type PlanDiscoveryEvidence = ReturnType<typeof planDiscoveryEvidence>
+
 const PLAN_RUN_STAGES = [
-	{ key: "reading", live: "Reading the operating context", done: "Read the operating context", detail: "Grounded the plan in 124 verified claims from Discovery, project decisions, ServiceNow, Workday, integration standards, and policy.", duration: 2400 },
+	{ key: "reading", live: "Reading the operating context", done: "Read the operating context", detail: planReadingDetail("Discovery"), duration: 2400 },
 	{ key: "reconciling", live: "Reconciling conflicts against authoritative sources", done: "Reconciled three conflicts without interrupting you", detail: "Resolved field ownership, callback responsibility, and retry-policy differences against authoritative sources and recorded the rationale.", duration: 2200 },
 	{ key: "interviewing", live: "Interviewing the domain owners", done: "Interviewed the domain owners", detail: "Asked the Workday and MuleSoft owners two targeted questions, incorporated their answers, and preserved the transcripts with the affected contracts.", duration: 2200 },
 	{ key: "designing", live: "Designing and challenging the implementation", done: "Designed and challenged the implementation", detail: `Generated five executable behavior flows, ${PLAN_VIEW_COUNT} FLOW/L2/L3/L4 views, and ${PLAN_PACKAGE_COUNT} owned work packages; security, reliability, and delivery critics repaired three gaps.`, duration: 4200 },
@@ -790,6 +810,8 @@ const PLAN_EVIDENCE_SOURCES: ReadonlyArray<{ name: string; coverage: string; use
 		],
 	},
 ]
+// Discovery is the decision source every plan stands on; a handoff packet re-labels it.
+const PLAN_DISCOVERY_SOURCE = PLAN_EVIDENCE_SOURCES[0]
 
 type PlanJumpTarget = { kind: "design"; flowId: string; level: PlanArchitectureLevel } | { kind: "ledger"; section: PlanLedgerSection }
 
@@ -950,14 +972,36 @@ export function PlanModule({
 	onSendToExecute,
 	onNavigate,
 	jumpSignal = null,
+	packet = null,
 }: {
 	projects: PortalProject[]
 	onCommand: () => void
 	onSendToExecute: (snapshot: string) => void
 	onNavigate: (module: MaxionModuleId) => void
 	jumpSignal?: PlanJumpSignal | null
+	// The Discovery handoff packet the shell received, shown where Plan lands.
+	packet?: HandoffPacket | null
 }) {
 	const [workspace, setWorkspace] = useState<"closed" | "live" | "resume">("closed")
+	// The packet the open workspace was built from; null is the plan of record.
+	const [workspacePacket, setWorkspacePacket] = useState<HandoffPacket | null>(null)
+	// Once MAX has landed a pass from a packet, reopening that plan shows the result.
+	const [landedPacketId, setLandedPacketId] = useState<string | null>(null)
+	// Discovery opens Plan with each new packet, so a fresh one always lands on the library
+	// where it is announced, never behind whichever workspace was left open.
+	const [arrivedPacketId, setArrivedPacketId] = useState(packet?.id ?? null)
+	if ((packet?.id ?? null) !== arrivedPacketId) {
+		setArrivedPacketId(packet?.id ?? null)
+		if (packet) {
+			setWorkspace("closed")
+			setWorkspacePacket(null)
+		}
+	}
+	const openWorkspace = (mode: "live" | "resume", source: HandoffPacket | null = null) => {
+		setWorkspacePacket(source)
+		setWorkspace(mode)
+	}
+	const packetLanded = packet !== null && landedPacketId === packet.id
 	// A shell jump opens the plan of record if the library is showing, then hands the
 	// artifact to the workspace. The pending jump is cleared once consumed, so re-opening
 	// the plan later never replays it.
@@ -970,12 +1014,34 @@ export function PlanModule({
 		setWorkspace((current) => current === "closed" ? "resume" : current)
 	}, [jumpSignal])
 	if (workspace === "closed") {
-		return <PlanLibraryModule projects={projects} onOpenPlan={() => setWorkspace("resume")} onStartPlan={() => setWorkspace("live")} onNavigate={onNavigate} />
+		return (
+			<PlanLibraryModule
+				projects={projects}
+				packet={packet}
+				packetLanded={packetLanded}
+				onOpenPlan={() => openWorkspace("resume")}
+				onOpenPacketPlan={() => { if (packet) openWorkspace(packetLanded ? "resume" : "live", packet) }}
+				onStartPlan={() => openWorkspace("live")}
+				onNavigate={onNavigate}
+			/>
+		)
 	}
-	return <PlanWorkspaceModule key={workspace} live={workspace === "live"} onBack={() => setWorkspace("closed")} onCommand={onCommand} onSendToExecute={onSendToExecute} jump={pendingJump} onJumpConsumed={() => setPendingJump(null)} />
+	return (
+		<PlanWorkspaceModule
+			key={`${workspace}-${workspacePacket?.id ?? "record"}`}
+			live={workspace === "live"}
+			packet={workspacePacket}
+			onLanded={workspacePacket ? () => setLandedPacketId(workspacePacket.id) : undefined}
+			onBack={() => { setWorkspace("closed"); setWorkspacePacket(null) }}
+			onCommand={onCommand}
+			onSendToExecute={onSendToExecute}
+			jump={pendingJump}
+			onJumpConsumed={() => setPendingJump(null)}
+		/>
+	)
 }
 
-function PlanWorkspaceModule({ live, onBack, onCommand, onSendToExecute, jump = null, onJumpConsumed }: { live: boolean; onBack: () => void; onCommand: () => void; onSendToExecute: (snapshot: string) => void; jump?: PlanJumpSignal | null; onJumpConsumed?: () => void }) {
+function PlanWorkspaceModule({ live, packet = null, onLanded, onBack, onCommand, onSendToExecute, jump = null, onJumpConsumed }: { live: boolean; packet?: HandoffPacket | null; onLanded?: () => void; onBack: () => void; onCommand: () => void; onSendToExecute: (snapshot: string) => void; jump?: PlanJumpSignal | null; onJumpConsumed?: () => void }) {
 	const [view, setView] = useState<PlanView>("plan")
 	const [stage, setStage] = useState(live ? 0 : PLAN_RUN_STAGES.length)
 	const [approved, setApproved] = useState(false)
@@ -1009,6 +1075,12 @@ function PlanWorkspaceModule({ live, onBack, onCommand, onSendToExecute, jump = 
 	const passCount = revisions[0].pass
 	const unresolvedCount = Number(!clarificationResolved) + Number(!approved)
 	const readyForExecute = complete && approved && clarificationResolved
+	const evidence = planDiscoveryEvidence(packet)
+	const onLandedRef = useRef(onLanded)
+	onLandedRef.current = onLanded
+	useEffect(() => {
+		if (complete) onLandedRef.current?.()
+	}, [complete])
 	const defaultSteeringTarget: Record<PlanView, string> = {
 		plan: "Entire implementation plan",
 		design: selectedFlowId === "packages" ? "Implementation packages" : selectedFlowId === "system" ? "System blueprint" : selectedFlow ? `${level} · ${selectedFlow.title}` : `${level} architecture`,
@@ -1199,7 +1271,7 @@ function PlanWorkspaceModule({ live, onBack, onCommand, onSendToExecute, jump = 
 		<div className="apn-shell" ref={shellRef}>
 			<section className="apn-workspace">
 				<header className="apn-topbar">
-					<div><button type="button" className="apn-back" onClick={onBack}><ArrowLeft size={15} /><span>All plans</span></button><button type="button" className="apn-mobile-back" onClick={onBack}><ArrowLeft size={14} />Plans</button><div className="apn-topbar-title"><span>ERP modernization delivery plan</span><button type="button" className="apn-snapshot" onClick={() => { if (complete) openLedger("history") }}>Verified Discovery · snapshot {snapshot}</button></div></div>
+					<div><button type="button" className="apn-back" onClick={onBack}><ArrowLeft size={15} /><span>All plans</span></button><button type="button" className="apn-mobile-back" onClick={onBack}><ArrowLeft size={14} />Plans</button><div className="apn-topbar-title"><span>ERP modernization delivery plan</span><button type="button" className="apn-snapshot" onClick={() => { if (complete) openLedger("history") }}>{evidence.chip} · snapshot {snapshot}</button></div></div>
 					<div>
 						<button type="button" className="apn-search-btn" aria-label="Search plan" title={complete ? "Search the plan · ⌘K" : "Pass commands · ⌘K"} onClick={() => setPaletteOpen(true)}><MagnifyingGlass size={15} /></button>
 						<span className={`apn-autonomy${!complete ? " is-working" : ""}`}><i />{complete ? "MAX maintaining this plan" : `MAX working · ${PLAN_RUN_STAGES[stage].live.toLowerCase()}`}</span>
@@ -1245,9 +1317,9 @@ function PlanWorkspaceModule({ live, onBack, onCommand, onSendToExecute, jump = 
 					})}
 				</nav>
 
-				{view === "plan" ? <PlanHomeView live={live} stage={stage} complete={complete} passCount={passCount} onSkip={() => setStage(PLAN_RUN_STAGES.length)} clarificationResolved={clarificationResolved} approved={approved} onResolve={resolveClarification} onApprove={() => setApproved(true)} thread={thread} onJump={jumpToArtifact} maintenanceEntry={maintenanceEntry} onOpenDesign={() => openFlow("system", "L2")} onOpenDecisions={() => openLedger("decisions")} onOpenRevisions={() => openLedger("history")} onOpenContract={() => openFlow("adapter", "L3")} /> : null}
+				{view === "plan" ? <PlanHomeView live={live} evidence={evidence} stage={stage} complete={complete} passCount={passCount} onSkip={() => setStage(PLAN_RUN_STAGES.length)} clarificationResolved={clarificationResolved} approved={approved} onResolve={resolveClarification} onApprove={() => setApproved(true)} thread={thread} onJump={jumpToArtifact} maintenanceEntry={maintenanceEntry} onOpenDesign={() => openFlow("system", "L2")} onOpenDecisions={() => openLedger("decisions")} onOpenRevisions={() => openLedger("history")} onOpenContract={() => openFlow("adapter", "L3")} /> : null}
 				{view === "design" ? <PlanDesignView selectedFlowId={selectedFlowId} level={level} preview={designPreview} recheck={recheck} onLevelChange={setLevel} onSelectFlow={setSelectedFlowId} onSteerNode={steerOnNode} /> : null}
-				{view === "ledger" ? <PlanLedgerView section={ledgerSection} onSectionChange={setLedgerSection} revisions={revisions} clarificationResolved={clarificationResolved} approved={approved} onResolve={resolveClarification} onApprove={() => setApproved(true)} onOpenContract={() => openFlow("adapter", "L3")} /> : null}
+				{view === "ledger" ? <PlanLedgerView evidence={evidence} section={ledgerSection} onSectionChange={setLedgerSection} revisions={revisions} clarificationResolved={clarificationResolved} approved={approved} onResolve={resolveClarification} onApprove={() => setApproved(true)} onOpenContract={() => openFlow("adapter", "L3")} /> : null}
 				<PlanSteeringDock
 					view={view}
 					target={activeSteeringTarget}
@@ -1325,15 +1397,16 @@ const PLAN_ASSEMBLY_STEPS = [
 	{ minStage: 4, icon: "routing", label: "Decisions routed to named approvers", detail: "Architecture · security · program — via project RACI" },
 ] as const
 
-function PlanAssemblyStream({ stage }: { stage: number }) {
+function PlanAssemblyStream({ stage, evidence }: { stage: number; evidence: PlanDiscoveryEvidence }) {
 	return (
 		<div className="apn-assembly" aria-label="MAX is assembling the plan">
 			{PLAN_ASSEMBLY_STEPS.filter((step) => stage >= step.minStage).map((step) => {
 				const working = stage === step.minStage
+				const { label, detail } = step.icon === "claims" && evidence.ingested ? evidence.ingested : step
 				return (
-					<div key={step.label} className={`apn-assembly-item${working ? " is-working" : ""}`}>
+					<div key={step.icon} className={`apn-assembly-item${working ? " is-working" : ""}`}>
 						<span>{working ? <SpinnerGap className="apn-spin" size={13} /> : <CheckCircle size={13} weight="fill" />}</span>
-						<div><strong>{step.label}</strong><small>{step.detail}</small></div>
+						<div><strong>{label}</strong><small>{detail}</small></div>
 					</div>
 				)
 			})}
@@ -1383,7 +1456,7 @@ function PlanSpineDecision({ onResolve, onOpenContract, onOpenDecisions, onJump 
 	)
 }
 
-function PlanHomeView({ live, stage, complete, passCount, onSkip, clarificationResolved, approved, onResolve, onApprove, thread, onJump, maintenanceEntry, onOpenDesign, onOpenDecisions, onOpenRevisions, onOpenContract }: { live: boolean; stage: number; complete: boolean; passCount: number; onSkip: () => void; clarificationResolved: boolean; approved: boolean; onResolve: () => void; onApprove: () => void; thread: PlanThreadEntry[]; onJump: (id: string) => void; maintenanceEntry: string; onOpenDesign: () => void; onOpenDecisions: () => void; onOpenRevisions: () => void; onOpenContract: () => void }) {
+function PlanHomeView({ live, evidence, stage, complete, passCount, onSkip, clarificationResolved, approved, onResolve, onApprove, thread, onJump, maintenanceEntry, onOpenDesign, onOpenDecisions, onOpenRevisions, onOpenContract }: { live: boolean; evidence: PlanDiscoveryEvidence; stage: number; complete: boolean; passCount: number; onSkip: () => void; clarificationResolved: boolean; approved: boolean; onResolve: () => void; onApprove: () => void; thread: PlanThreadEntry[]; onJump: (id: string) => void; maintenanceEntry: string; onOpenDesign: () => void; onOpenDecisions: () => void; onOpenRevisions: () => void; onOpenContract: () => void }) {
 	const approvals = planApprovalRequests(approved)
 	const pendingApprovals = approvals.filter((request) => request.status === "Decision needed")
 	const recordedApprovals = approvals.filter((request) => request.status === "Approved")
@@ -1394,7 +1467,7 @@ function PlanHomeView({ live, stage, complete, passCount, onSkip, clarificationR
 				<div>
 					<span className="apn-home-badge"><i />{complete ? "MAX is maintaining this plan" : "MAX is running pass 1"}</span>
 					<h1>{complete ? "MAX built the implementation plan." : "MAX is building the implementation plan."}</h1>
-					<small className="apn-home-meta">{complete ? `${passCount} passes · 18m · 124 claims · 3 conflicts resolved · 2 owners interviewed` : "Reading the verified context, reconciling conflicts, and decomposing the work."}</small>
+					<small className="apn-home-meta">{complete ? `${passCount} passes · 18m · 124 claims · 3 conflicts resolved · 2 owners interviewed` : `${evidence.reading}, reconciling conflicts, and decomposing the work.`}</small>
 				</div>
 				<div className="apn-home-status-actions">
 					{!complete ? <button type="button" className="apn-skip-run" onClick={onSkip}>Skip to the finished plan<ArrowRight size={13} /></button> : null}
@@ -1406,7 +1479,7 @@ function PlanHomeView({ live, stage, complete, passCount, onSkip, clarificationR
 				<section className="apn-home-col apn-needs-you" aria-label="Work that needs you">
 					<header><span>{openCount === 0 ? "Nothing needs you" : "Needs you first"}</span>{openCount ? <small>{openCount} open</small> : null}</header>
 					<div className="apn-home-col-body">
-						{!complete ? <PlanAssemblyStream stage={stage} /> : null}
+						{!complete ? <PlanAssemblyStream stage={stage} evidence={evidence} /> : null}
 						{complete && !clarificationResolved ? <PlanSpineDecision onResolve={onResolve} onOpenContract={onOpenContract} onOpenDecisions={onOpenDecisions} onJump={onJump} /> : null}
 						{complete ? pendingApprovals.map((request) => <PlanSpineApproval key={request.id} request={request} onApprove={onApprove} onOpenDecisions={onOpenDecisions} />) : null}
 						{complete && openCount === 0 ? (
@@ -1422,7 +1495,7 @@ function PlanHomeView({ live, stage, complete, passCount, onSkip, clarificationR
 					<header><span>Conversation with MAX</span><small>{complete ? "Every direction is previewed first" : PLAN_RUN_STAGES[stage].live}</small></header>
 					{complete ? <PlanMaintenanceLine entry={maintenanceEntry} onJump={onJump} variant="strip" /> : null}
 					<div className="apn-home-col-body apn-convo-thread" aria-live="polite">
-						<div className="apn-agent-message"><MaxionSpiralMark /><div><strong>MAX</strong><p>{complete ? "I compared the verified Discovery package with connected-system metadata and project governance. I used the safest reversible assumption where the evidence agreed, contacted domain owners where they held the answer, and isolated one remaining decision that changes financial posting behavior." : "I'm comparing the verified Discovery package with connected-system metadata and project governance. Where the evidence agrees I take the safest reversible assumption; where a domain owner holds the answer I ask them directly."}</p></div></div>
+						<div className="apn-agent-message"><MaxionSpiralMark /><div><strong>MAX</strong><p>{complete ? `I compared ${evidence.subject} with connected-system metadata and project governance. I used the safest reversible assumption where the evidence agreed, contacted domain owners where they held the answer, and isolated one remaining decision that changes financial posting behavior.` : `I'm comparing ${evidence.subject} with connected-system metadata and project governance. Where the evidence agrees I take the safest reversible assumption; where a domain owner holds the answer I ask them directly.`}{evidence.note ? ` Your handoff note is part of the brief: “${evidence.note}”` : ""}</p></div></div>
 						<details className="apn-agent-thread apn-convo-passes" open={!complete}>
 							<summary><span>How this pass ran</span><small>{complete ? "5 stages" : PLAN_RUN_STAGES[stage].live}</small><CaretDown size={14} /></summary>
 							<ol>
@@ -1432,7 +1505,7 @@ function PlanHomeView({ live, stage, complete, passCount, onSkip, clarificationR
 									return (
 										<li key={step.key} className={working ? "is-working" : "apn-step-entered"}>
 											<span>{working ? <SpinnerGap className="apn-spin" size={12} /> : <Check size={12} />}</span>
-											<div><strong>{working ? step.live : step.done}</strong>{working ? null : <p>{step.detail}</p>}</div>
+											<div><strong>{working ? step.live : step.done}</strong>{working ? null : <p>{step.key === "reading" ? planReadingDetail(evidence.from) : step.detail}</p>}</div>
 											<time>{live ? PLAN_LIVE_TIMES[index] : PLAN_STAGE_TIMES[index]}</time>
 										</li>
 									)
@@ -1515,12 +1588,11 @@ function PlanSteeringDock({ view, target, complete, value, focusTick, entry, onC
 					<header><X size={14} /><span><strong>Direction discarded</strong><small>No plan artifacts changed.</small></span><button type="button" aria-label="Dismiss" onClick={() => onDismiss(entry.id)}><X size={14} /></button></header>
 				</div>
 			) : null}
-			<form onSubmit={(event) => { event.preventDefault(); onSubmit() }}>
-				<div className="apn-steering-target"><Crosshair size={14} /><span><small>Steering</small><strong>{target}</strong></span></div>
-				<textarea ref={composerRef} aria-label="Steer the Plan agent" value={value} onChange={(event) => onChange(event.target.value)} onKeyDown={(event) => { if (event.key === "Enter" && !event.shiftKey) { event.preventDefault(); onSubmit() } }} placeholder={complete ? "Tell MAX what to explain, challenge, or change…" : "Add direction while MAX works — MAX folds it into this pass before it lands…"} rows={1} />
-				<button type="submit" disabled={!value.trim()} aria-label="Send Plan direction"><ArrowRight size={16} /></button>
-			</form>
-			<footer><div aria-label="Steering suggestions"><span>Try</span>{quickPrompts.map((prompt) => <button type="button" key={prompt} onClick={() => onPrime(prompt)}>{prompt}</button>)}</div><span>Enter to send · impact is previewed first</span></footer>
+			<WorkspaceComposer inputRef={composerRef} value={value} onChange={onChange} onSubmit={onSubmit}
+				label="Steer the Plan agent" sendLabel="Send Plan direction"
+				placeholder={complete ? "Ask about the plan, challenge an assumption, or describe a change…" : "Add direction while MAX works…"}
+				context={<><Crosshair size={14} /><strong>{target}</strong><span>Changes previewed before applying</span></>}
+				tools={<div aria-label="Steering suggestions">{quickPrompts.map((prompt) => <button type="button" key={prompt} onClick={() => onPrime(prompt)}>{prompt}</button>)}</div>} />
 		</section>
 	)
 }
@@ -1550,25 +1622,10 @@ const PLAN_COMPILE_SEGMENTS = ["FLOW", "→", "L2", "→", "L3", "→", "L4"] as
 function PlanBehaviorFlowView({ flow, brief, recheck, onOpenLevel, onSteerStep }: { flow: PlanFlow; brief: PlanExecutionBrief; recheck: PlanRecheck | null; onOpenLevel: (level: PlanArchitectureLevel) => void; onSteerStep: (context: string) => void }) {
 	const behaviorFlow = PLAN_BEHAVIOR_FLOWS[flow.id]
 	const [selectedStepId, setSelectedStepId] = useState(behaviorFlow.steps[0]?.id ?? "")
-	const advanceRef = useRef(0)
-	// The flow executes itself once on entry: selection walks the sequence so the behavior is
-	// watched rather than read. Reduced motion gets the resting first step and no walk, and
-	// any click hands control back for good — MAX never fights the viewer for the selection.
 	useEffect(() => {
 		setSelectedStepId(behaviorFlow.steps[0]?.id ?? "")
-		if (prefersReducedMotion()) return
-		let index = 0
-		advanceRef.current = window.setInterval(() => {
-			index += 1
-			if (index >= behaviorFlow.steps.length) { window.clearInterval(advanceRef.current); advanceRef.current = 0; return }
-			setSelectedStepId(behaviorFlow.steps[index].id)
-		}, 1100)
-		return () => { window.clearInterval(advanceRef.current); advanceRef.current = 0 }
 	}, [behaviorFlow])
-	const selectStep = (stepId: string) => {
-		if (advanceRef.current) { window.clearInterval(advanceRef.current); advanceRef.current = 0 }
-		setSelectedStepId(stepId)
-	}
+	const selectStep = setSelectedStepId
 	const selectedIndex = Math.max(0, behaviorFlow.steps.findIndex((step) => step.id === selectedStepId))
 	const selectedStep = behaviorFlow.steps[selectedIndex] ?? behaviorFlow.steps[0]
 	const ownedPackages = selectedStep ? brief.workPackages.filter((item) => selectedStep.packageRefs.includes(item.id)) : []
@@ -1609,7 +1666,6 @@ function PlanBehaviorFlowView({ flow, brief, recheck, onOpenLevel, onSteerStep }
 						)
 					})}
 				</ol>
-				<i className="apn-behavior-pulse" key={flow.id} aria-hidden="true" />
 			</div>
 
 			<div className="apn-behavior-detail-row">
@@ -1658,13 +1714,13 @@ function PlanArchitectureDiagram({ level, flow, brief, selectedNodeTitle, rechec
 		const width = node.width ?? 18.5
 		const available = 92 - width
 		const x = node.x ?? (nodes.length === 1 ? 4 : 4 + (available * index) / (nodes.length - 1))
-		const y = node.y ?? (level === "L4" ? 23 : 42)
+		const y = Math.max(36, node.y ?? 42)
 		return { ...node, x, y, width }
 	})
 	const edgeLabels = diagram.edges ?? positionedNodes.slice(1).map(() => "")
 	const laneLayout = diagram.lanes ?? brief.teams.map((team, index) => ({ x: 2 + (96 / brief.teams.length) * index, width: 94 / brief.teams.length, label: team.name.toUpperCase() }))
 	return (
-		<div className="apn-diagram-viewport">
+		<div className="apn-diagram-viewport" tabIndex={0} role="region" aria-label={`${level} architecture canvas. Scroll horizontally to explore.`}>
 			<div className={`apn-architecture-diagram is-${level.toLowerCase()}`} role="group" aria-label={`${level} diagram for ${flow.title}`}>
 				<svg viewBox="0 0 1000 360" preserveAspectRatio="none" aria-hidden="true">
 					<defs>
@@ -1677,10 +1733,10 @@ function PlanArchitectureDiagram({ level, flow, brief, selectedNodeTitle, rechec
 						const next = positionedNodes[index + 1]
 						const startX = (node.x + node.width) * 10
 						const endX = next.x * 10 - 5
-						const startY = node.y * 3.6 + 45
-						const endY = next.y * 3.6 + 45
+						const startY = node.y * 3.6 + 55
+						const endY = next.y * 3.6 + 55
 						const midX = (startX + endX) / 2
-						return <g key={`${node.title}-${next.title}`}><path className="apn-diagram-link" d={`M ${startX} ${startY} C ${midX} ${startY}, ${midX} ${endY}, ${endX} ${endY}`} markerEnd="url(#apn-arrow)" />{edgeLabels[index] ? <text className="apn-diagram-edge-label" textAnchor="middle" x={midX} y={Math.min(startY, endY) - 9}>{edgeLabels[index]}</text> : null}</g>
+						return <g key={`${node.title}-${next.title}`}><path className="apn-diagram-link" d={`M ${startX} ${startY} C ${midX} ${startY}, ${midX} ${endY}, ${endX} ${endY}`} markerEnd="url(#apn-arrow)" />{edgeLabels[index] ? <text className="apn-diagram-edge-label" textAnchor="middle" x={midX} y={Math.min(node.y, next.y) * 3.6 - 12}>{edgeLabels[index]}</text> : null}</g>
 					})}
 					{diagram.returnEdge ? <><path className="apn-diagram-return" d="M 925 286 C 760 318, 250 318, 80 286" markerEnd="url(#apn-arrow)" /><text className="apn-diagram-edge-label" textAnchor="middle" x="500" y="306">{diagram.returnEdge}</text></> : null}
 				</svg>
@@ -1842,7 +1898,7 @@ function PlanDesignView({ selectedFlowId, level, preview = false, recheck = null
 	}
 	return (
 		<main className="apn-main apn-architecture-view apn-design-shell">
-			<header className="apn-view-heading apn-design-toolbar"><div><span>Design</span><h1>See the flow. Understand the behavior. Know what to build.</h1></div><div><strong>{PLAN_VIEW_COUNT} / {PLAN_VIEW_COUNT}</strong><small>traceable design views</small></div></header>
+			<header className="apn-view-heading apn-design-toolbar"><div><h1>Architecture & flows</h1></div><div><strong>{PLAN_VIEW_COUNT} / {PLAN_VIEW_COUNT}</strong><small>traceable design views</small></div></header>
 			<div className="apn-architecture-layout apn-design-layout">
 				<nav aria-label="Architecture flows">
 					<span>Implementation flows</span>
@@ -1909,7 +1965,7 @@ function PlanRevisionsView({ revisions, onOpenArchitecture }: { revisions: reado
 	)
 }
 
-function PlanEvidenceView() {
+function PlanEvidenceView({ evidence }: { evidence: PlanDiscoveryEvidence }) {
 	const [openSource, setOpenSource] = useState<string | null>(PLAN_EVIDENCE_SOURCES[0].name)
 	return (
 		<section className="apn-ledger-section apn-evidence-view">
@@ -1924,7 +1980,7 @@ function PlanEvidenceView() {
 							<button type="button" aria-expanded={open} onClick={() => setOpenSource(open ? null : source.name)}>
 								<span><Database size={15} /><strong>{source.name}</strong></span>
 								<span>{source.coverage}</span>
-								<span><strong>{source.usedBy}</strong><small>{source.detail}</small></span>
+								<span><strong>{source.usedBy}</strong><small>{source === PLAN_DISCOVERY_SOURCE && evidence.sourceDetail ? evidence.sourceDetail : source.detail}</small></span>
 								<span><Check size={12} />Current<CaretDown size={13} className="apn-evidence-caret" /></span>
 							</button>
 							{open ? (
@@ -1977,7 +2033,7 @@ function PlanDecisionsSection({ resolved, approved, onResolve, onApprove, onOpen
 	)
 }
 
-function PlanLedgerView({ section, onSectionChange, revisions, clarificationResolved, approved, onResolve, onApprove, onOpenContract }: { section: PlanLedgerSection; onSectionChange: (section: PlanLedgerSection) => void; revisions: readonly PlanRevision[]; clarificationResolved: boolean; approved: boolean; onResolve: () => void; onApprove: () => void; onOpenContract: () => void }) {
+function PlanLedgerView({ evidence, section, onSectionChange, revisions, clarificationResolved, approved, onResolve, onApprove, onOpenContract }: { evidence: PlanDiscoveryEvidence; section: PlanLedgerSection; onSectionChange: (section: PlanLedgerSection) => void; revisions: readonly PlanRevision[]; clarificationResolved: boolean; approved: boolean; onResolve: () => void; onApprove: () => void; onOpenContract: () => void }) {
 	const segments = [
 		["decisions", "Decisions"],
 		["history", "History"],
@@ -1990,7 +2046,7 @@ function PlanLedgerView({ section, onSectionChange, revisions, clarificationReso
 			</nav>
 			{section === "decisions" ? <PlanDecisionsSection resolved={clarificationResolved} approved={approved} onResolve={onResolve} onApprove={onApprove} onOpenContract={onOpenContract} /> : null}
 			{section === "history" ? <PlanRevisionsView revisions={revisions} onOpenArchitecture={onOpenContract} /> : null}
-			{section === "sources" ? <PlanEvidenceView /> : null}
+			{section === "sources" ? <PlanEvidenceView evidence={evidence} /> : null}
 		</main>
 	)
 }

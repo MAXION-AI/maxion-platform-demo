@@ -9,6 +9,9 @@ async function startServiceNowDiscovery(page: import("@playwright/test").Page) {
 	await expect(page.getByRole("heading", { name: "What should MAX accomplish?" })).toBeVisible()
 	await page.getByRole("textbox", { name: "Discovery brief" }).fill(SERVICENOW_BRIEF)
 	await page.getByRole("button", { name: "Start autonomous Discovery" }).click()
+	// Intake drafts the mission, then the authority review gates creation.
+	await page.getByRole("checkbox", { name: "Mission authority reviewed" }).check()
+	await page.getByRole("button", { name: "Create Discovery" }).click()
 	const composer = page.getByRole("textbox", { name: "Message MAX" })
 	await expect(composer).toBeVisible({ timeout: 10_000 })
 	return composer
@@ -87,6 +90,9 @@ test("a vendor brief still runs the TPRM scenario", async ({ page }) => {
 	await page.getByRole("button", { name: "New Discovery", exact: true }).click()
 	await page.getByRole("textbox", { name: "Discovery brief" }).fill("Redesign third-party vendor onboarding controls so MAX can return a defensible decision package.")
 	await page.getByRole("button", { name: "Start autonomous Discovery" }).click()
+	// Intake drafts the mission, then the authority review gates creation.
+	await page.getByRole("checkbox", { name: "Mission authority reviewed" }).check()
+	await page.getByRole("button", { name: "Create Discovery" }).click()
 	await expect(page.getByRole("textbox", { name: "Message MAX" })).toBeVisible({ timeout: 10_000 })
 	await expect(page.getByText(/what vendor-onboarding failure is most costly today/i)).toBeVisible()
 })

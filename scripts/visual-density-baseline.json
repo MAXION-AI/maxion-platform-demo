@@ -1,0 +1,204 @@
+{
+	"agentix-engagements": {
+		"containers": 6,
+		"shadowed": 0,
+		"uppercase": 0,
+		"under12": 0,
+		"textNodes": 63,
+		"distinctSizes": 3,
+		"sizes": [
+			12,
+			13,
+			22
+		]
+	},
+	"discovery-hub": {
+		"containers": 9,
+		"shadowed": 0,
+		"uppercase": 0,
+		"under12": 0,
+		"textNodes": 89,
+		"distinctSizes": 4,
+		"sizes": [
+			12,
+			13,
+			14,
+			22
+		]
+	},
+	"discovery-cockpit": {
+		"containers": 12,
+		"shadowed": 0,
+		"uppercase": 0,
+		"under12": 0,
+		"textNodes": 167,
+		"distinctSizes": 5,
+		"sizes": [
+			12,
+			13,
+			14,
+			17,
+			22
+		]
+	},
+	"discovery-thread": {
+		"containers": 7,
+		"shadowed": 1,
+		"uppercase": 0,
+		"under12": 0,
+		"textNodes": 74,
+		"distinctSizes": 3,
+		"sizes": [
+			12,
+			13,
+			17
+		]
+	},
+	"discovery-package": {
+		"containers": 10,
+		"shadowed": 0,
+		"uppercase": 0,
+		"under12": 0,
+		"textNodes": 175,
+		"distinctSizes": 6,
+		"sizes": [
+			12,
+			13,
+			14,
+			15,
+			17,
+			22
+		]
+	},
+	"agentix-workspace": {
+		"containers": 3,
+		"shadowed": 1,
+		"uppercase": 0,
+		"under12": 0,
+		"textNodes": 97,
+		"distinctSizes": 4,
+		"sizes": [
+			12,
+			13,
+			14,
+			22
+		]
+	},
+	"agentix-case": {
+		"containers": 2,
+		"shadowed": 1,
+		"uppercase": 0,
+		"under12": 0,
+		"textNodes": 127,
+		"distinctSizes": 5,
+		"sizes": [
+			12,
+			13,
+			14,
+			17,
+			22
+		]
+	},
+	"agentix-results": {
+		"containers": 2,
+		"shadowed": 1,
+		"uppercase": 0,
+		"under12": 0,
+		"textNodes": 63,
+		"distinctSizes": 4,
+		"sizes": [
+			12,
+			13,
+			17,
+			22
+		]
+	},
+	"agentix-review": {
+		"containers": 7,
+		"shadowed": 0,
+		"uppercase": 0,
+		"under12": 0,
+		"textNodes": 186,
+		"distinctSizes": 5,
+		"sizes": [
+			12,
+			13,
+			14,
+			16,
+			22
+		]
+	},
+	"agentix-start": {
+		"containers": 6,
+		"shadowed": 0,
+		"uppercase": 0,
+		"under12": 0,
+		"textNodes": 72,
+		"distinctSizes": 5,
+		"sizes": [
+			12,
+			13,
+			15,
+			16,
+			22
+		]
+	},
+	"agentix-floor": {
+		"containers": 4,
+		"shadowed": 1,
+		"uppercase": 0,
+		"under12": 0,
+		"textNodes": 65,
+		"distinctSizes": 4,
+		"sizes": [
+			12,
+			13,
+			14,
+			22
+		]
+	},
+	"discovery-call": {
+		"containers": 0,
+		"shadowed": 1,
+		"uppercase": 0,
+		"under12": 0,
+		"textNodes": 168,
+		"distinctSizes": 5,
+		"sizes": [
+			12,
+			13,
+			14,
+			17,
+			22
+		]
+	},
+	"dashboard": {
+		"containers": 5,
+		"shadowed": 0,
+		"uppercase": 0,
+		"under12": 0,
+		"textNodes": 56,
+		"distinctSizes": 5,
+		"sizes": [
+			12,
+			13,
+			17,
+			22,
+			26
+		]
+	},
+	"projects": {
+		"containers": 4,
+		"shadowed": 0,
+		"uppercase": 0,
+		"under12": 0,
+		"textNodes": 59,
+		"distinctSizes": 4,
+		"sizes": [
+			12,
+			13,
+			17,
+			22
+		]
+	}
+}

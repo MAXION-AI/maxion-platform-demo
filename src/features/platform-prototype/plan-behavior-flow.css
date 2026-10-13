@@ -38,15 +38,15 @@
 .apn-behavior-step-detail small,
 .apn-workspace-context small {
 	color: var(--portal-muted);
-	font-size: 9px;
+	font-size: var(--ds-text-xs);
 	font-weight: 700;
-	letter-spacing: .08em;
-	text-transform: uppercase;
+	letter-spacing: normal;
+	text-transform: none;
 }
 
 .apn-behavior-boundary strong {
 	color: var(--portal-text);
-	font-size: 11px;
+	font-size: var(--ds-text-xs);
 	font-weight: 620;
 	line-height: 1.5;
 }
@@ -95,7 +95,7 @@
 
 .apn-behavior-sequence button:hover {
 	border-color: var(--portal-border-strong);
-	box-shadow: var(--portal-shadow-sm);
+	box-shadow: none;
 	transform: translateY(-1px);
 }
 
@@ -108,7 +108,7 @@
 
 .apn-behavior-sequence button[aria-pressed="true"] {
 	border-color: var(--portal-brand);
-	box-shadow: 0 0 0 2px color-mix(in srgb, var(--portal-brand) 12%, transparent);
+	box-shadow: none;
 }
 
 .apn-behavior-sequence button > span {
@@ -119,28 +119,28 @@
 	border-radius: 6px;
 	background: var(--portal-brand-soft);
 	color: var(--portal-brand-strong);
-	font-size: 9px;
+	font-size: var(--ds-text-xs);
 	font-weight: 760;
 }
 
 .apn-behavior-sequence button small {
 	overflow: hidden;
 	color: var(--portal-muted);
-	font-size: 8px;
+	font-size: var(--ds-text-xs);
 	font-weight: 650;
 	text-overflow: ellipsis;
 	white-space: nowrap;
 }
 
 .apn-behavior-sequence button strong {
-	font-size: 10px;
+	font-size: var(--ds-text-xs);
 	font-weight: 680;
 	line-height: 1.35;
 }
 
 .apn-behavior-sequence button em {
 	color: var(--portal-subtle);
-	font-size: 8px;
+	font-size: var(--ds-text-xs);
 	font-style: normal;
 	line-height: 1.35;
 }
@@ -150,7 +150,7 @@
 	overflow: hidden;
 	margin-top: auto;
 	color: var(--portal-brand-strong);
-	font-size: 8px;
+	font-size: var(--ds-text-xs);
 	text-overflow: ellipsis;
 	white-space: nowrap;
 }
@@ -161,7 +161,7 @@
 	border: 1px solid var(--portal-border);
 	border-radius: var(--portal-radius);
 	background: var(--portal-card);
-	box-shadow: var(--portal-shadow-sm);
+	box-shadow: none;
 }
 
 .apn-behavior-step-detail > header,
@@ -178,7 +178,7 @@
 .apn-workspace-context h3 {
 	margin: 4px 0 0;
 	color: var(--portal-text);
-	font-size: 14px;
+	font-size: var(--ds-text-md);
 	font-weight: 690;
 	letter-spacing: -.015em;
 }
@@ -187,7 +187,7 @@
 	max-width: 780px;
 	margin: 5px 0 0;
 	color: var(--portal-muted);
-	font-size: 10px;
+	font-size: var(--ds-text-xs);
 	line-height: 1.5;
 }
 
@@ -199,7 +199,7 @@
 	border-radius: 999px;
 	background: var(--portal-success-soft);
 	color: var(--portal-success);
-	font-size: 8px;
+	font-size: var(--ds-text-xs);
 	font-weight: 700;
 	white-space: nowrap;
 }
@@ -239,7 +239,7 @@
 	display: block;
 	margin-top: 5px;
 	color: var(--portal-text);
-	font-size: 10px;
+	font-size: var(--ds-text-xs);
 	font-weight: 620;
 	line-height: 1.45;
 }
@@ -247,7 +247,7 @@
 .apn-behavior-detail-grid p {
 	margin: 3px 0 0;
 	color: var(--portal-muted);
-	font-size: 9px;
+	font-size: var(--ds-text-xs);
 }
 
 .apn-behavior-step-detail > footer,
@@ -271,7 +271,7 @@
 .apn-behavior-step-detail > footer span {
 	margin-left: 7px;
 	color: var(--portal-muted);
-	font-size: 8px;
+	font-size: var(--ds-text-xs);
 	font-weight: 650;
 }
 
@@ -285,7 +285,7 @@
 	border-radius: 5px;
 	background: var(--portal-card);
 	color: var(--portal-brand-strong);
-	font-size: 8px;
+	font-size: var(--ds-text-xs);
 }
 
 .apn-behavior-step-detail footer button,
@@ -298,7 +298,7 @@
 	border-radius: 7px;
 	background: var(--portal-card);
 	color: var(--portal-text);
-	font-size: 9px;
+	font-size: var(--ds-text-xs);
 	font-weight: 650;
 	cursor: pointer;
 }
@@ -316,7 +316,7 @@
 	border: 1px solid color-mix(in srgb, var(--portal-brand) 20%, var(--portal-border));
 	border-radius: 999px;
 	color: var(--portal-brand-strong);
-	font-size: 8px;
+	font-size: var(--ds-text-xs);
 	font-style: normal;
 	font-weight: 700;
 }
@@ -344,7 +344,7 @@
 	display: block;
 	margin-top: 5px;
 	color: var(--portal-text);
-	font-size: 10px;
+	font-size: var(--ds-text-xs);
 	font-weight: 650;
 	line-height: 1.45;
 }
@@ -352,7 +352,7 @@
 .apn-workspace-context > div p {
 	margin: 4px 0 0;
 	color: var(--portal-muted);
-	font-size: 9px;
+	font-size: var(--ds-text-xs);
 	line-height: 1.45;
 }
 
@@ -361,7 +361,7 @@
 	align-items: center;
 	gap: 5px;
 	color: var(--portal-success);
-	font-size: 9px;
+	font-size: var(--ds-text-xs);
 	font-weight: 650;
 }
 
@@ -437,12 +437,6 @@
 	to { opacity: 1; transform: none; }
 }
 
-@keyframes apn-flow-token {
-	0% { opacity: 0; transform: translateX(0); }
-	9% { opacity: 1; }
-	84% { opacity: 1; }
-	100% { opacity: 0; transform: translateX(calc((100% + 8px) * (var(--apn-flow-step-count, 5) - 1))); }
-}
 
 @keyframes apn-state-tick-in {
 	from { opacity: 0; transform: translateY(3px); }
@@ -468,17 +462,17 @@
 
 .apn-behavior-head > span {
 	color: var(--portal-brand-strong);
-	font-size: 8px;
+	font-size: var(--ds-text-xs);
 	font-weight: 730;
-	letter-spacing: .07em;
-	text-transform: uppercase;
+	letter-spacing: normal;
+	text-transform: none;
 }
 
 .apn-behavior-head p {
 	overflow: hidden;
 	margin: 0;
 	color: var(--portal-muted);
-	font-size: 9px;
+	font-size: var(--ds-text-xs);
 	text-overflow: ellipsis;
 	white-space: nowrap;
 }
@@ -488,7 +482,7 @@
 	align-items: center;
 	gap: 4px;
 	color: var(--portal-brand-strong);
-	font-size: 8px;
+	font-size: var(--ds-text-xs);
 	font-style: normal;
 	font-weight: 650;
 	white-space: nowrap;
@@ -504,21 +498,6 @@
 	animation-delay: calc(var(--apn-step-index, 0) * 70ms);
 }
 
-.apn-behavior-pulse {
-	position: absolute;
-	z-index: 3;
-	top: 0;
-	bottom: 0;
-	left: 0;
-	width: calc((100% - (var(--apn-flow-step-count, 5) - 1) * 8px) / var(--apn-flow-step-count, 5));
-	border-bottom: 2px solid var(--portal-brand);
-	border-radius: var(--portal-radius-sm);
-	background: linear-gradient(180deg, color-mix(in srgb, var(--portal-brand) 17%, transparent), transparent 76%);
-	box-shadow: 0 8px 20px color-mix(in srgb, var(--portal-brand) 13%, transparent);
-	animation: apn-flow-token 1600ms cubic-bezier(.45, 0, .2, 1) both;
-	animation-delay: 420ms;
-	pointer-events: none;
-}
 
 /* Master and detail sit side by side: the sequence stays visible while the
    step it selected is read, and only the panes scroll. */
@@ -580,7 +559,7 @@
 
 .apn-state-tick i {
 	color: var(--portal-brand);
-	font-size: 9px;
+	font-size: var(--ds-text-xs);
 	font-style: normal;
 }
 
@@ -590,7 +569,7 @@
 	border-radius: 999px;
 	background: var(--portal-brand-soft);
 	color: var(--portal-brand-strong);
-	font-size: 9px;
+	font-size: var(--ds-text-xs);
 	font-weight: 640;
 }
 
@@ -608,7 +587,7 @@
 	border: 1px solid color-mix(in srgb, var(--portal-brand) 20%, var(--portal-border));
 	border-radius: 999px;
 	color: var(--portal-brand-strong);
-	font-size: 8px;
+	font-size: var(--ds-text-xs);
 	font-style: normal;
 	font-weight: 700;
 	white-space: nowrap;
@@ -616,7 +595,7 @@
 
 .apn-compile-chip em {
 	color: var(--portal-muted);
-	font-size: 8px;
+	font-size: var(--ds-text-xs);
 	font-style: normal;
 	font-weight: 650;
 }
@@ -665,7 +644,7 @@
 	border-radius: 999px;
 	background: var(--portal-brand-soft);
 	color: var(--portal-brand-strong);
-	font-size: 7.5px;
+	font-size: var(--ds-text-xs);
 	font-weight: 720;
 	letter-spacing: .02em;
 }
@@ -703,7 +682,7 @@
 
 	.apn-design-layout > .apn-diagram-panel.is-flow-level > .apn-level-question strong {
 		overflow: hidden;
-		font-size: 11.5px;
+		font-size: var(--ds-text-xs);
 		text-overflow: ellipsis;
 		white-space: nowrap;
 	}
@@ -758,7 +737,7 @@
 	}
 
 	.apn-design-layout > .apn-diagram-panel.is-flow-level > header h2 {
-		font-size: 15px;
+		font-size: var(--ds-text-md);
 	}
 
 	.apn-design-layout > .apn-diagram-panel.is-flow-level .apn-behavior-sequence button em {
@@ -774,9 +753,6 @@
 	}
 
 	/* The token traverses a single row of equal columns; the wrapped grid is not one. */
-	.apn-behavior-pulse {
-		display: none;
-	}
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -797,7 +773,4 @@
 		animation: none !important;
 	}
 
-	.apn-behavior-flow .apn-behavior-pulse {
-		display: none;
-	}
 }

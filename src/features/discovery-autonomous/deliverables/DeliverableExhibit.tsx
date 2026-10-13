@@ -1,12 +1,17 @@
-import type { CSSProperties } from "react"
+import { useLayoutEffect, useMemo, useRef, useState, type CSSProperties } from "react"
 
-import type { ArchitectureEdge, ArchitectureNode, Exhibit, ExhibitTone } from "./types"
+import { ARCHITECTURE_TEXT, BAR_GUTTER, BAR_VALUE_GAP, EXHIBIT_FRAME_MAX, EXHIBIT_FRAME_MIN, EXHIBIT_LINE, EXHIBIT_TEXT, barPlotEnd, formatValue, layoutArchitecture, layoutQuadrantLabels, layoutTimeline, lineAxis, roundValue as round, waterfallLabelLines } from "./exhibitLayout"
+import { figures, textWidth, wrapText } from "./textMetrics"
+import type { Exhibit, ExhibitTone } from "./types"
 
 // Exhibits are drawn as inline SVG against the workspace tokens so they stay
-// legible in both themes, scale with the reader column, and never depend on a
-// charting library. Every exhibit is announced as a single labelled image with
-// its finding in the accessible name, and every numeric series is also written
-// out in text so the analysis survives without the picture.
+// legible in both themes and never depend on a charting library. Each plot is
+// laid out at its own width in CSS pixels, one viewBox unit to a pixel, so its
+// text renders at exactly the design system's 12px; a plot narrower than
+// EXHIBIT_FRAME_MIN keeps that frame and scrolls inside its card. Every exhibit
+// is announced as a single labelled image with its finding in the accessible
+// name, and every numeric series is also written out in text so the analysis
+// survives without the picture.
 
 const TONE_FILL: Record<ExhibitTone, string> = {
 	brand: "var(--exh-a)",
@@ -18,27 +23,12 @@ const TONE_FILL: Record<ExhibitTone, string> = {
 
 const toneFill = (tone: ExhibitTone | undefined, fallback: ExhibitTone = "brand") => TONE_FILL[tone ?? fallback]
 
-const round = (value: number) => Math.round(value * 100) / 100
+type Frame = { width: number }
 
-// Currency reads as a prefix ($8.4m), ratios and percentages as a suffix with no
-// space (2.6×, 32%), and everything else as a value with its unit after it.
-const CURRENCY_UNIT = /^([$€£])(k|m|bn)?$/
-
-const formatValue = (value: number, unit?: string) => {
-	const body = Number.isInteger(value) ? value.toLocaleString() : value.toFixed(1)
-	if (!unit) return body
-	if (unit === "%") return `${body}%`
-	if (unit === "×") return `${body}×`
-	const currency = CURRENCY_UNIT.exec(unit)
-	if (currency) return `${currency[1]}${body}${currency[2] ?? ""}`
-	return `${body} ${unit}`
-}
-
-function BarExhibit({ exhibit }: { exhibit: Extract<Exhibit, { kind: "bar" }> }) {
+function BarExhibit({ exhibit, width }: Frame & { exhibit: Extract<Exhibit, { kind: "bar" }> }) {
 	const rowHeight = 38
-	const labelWidth = 214
-	const plotEnd = 636
-	const width = 720
+	const labelWidth = BAR_GUTTER
+	const plotEnd = barPlotEnd(exhibit, width)
 	const height = exhibit.data.length * rowHeight + 12
 	const max = Math.max(...exhibit.data.map((item) => item.value), 1)
 	return (
@@ -50,10 +40,10 @@ function BarExhibit({ exhibit }: { exhibit: Extract<Exhibit, { kind: "bar" }> })
 				return (
 					<g key={item.label}>
 						<text x={labelWidth - 12} y={y + 16} textAnchor="end" className={item.emphasis ? "exh-label is-emphasis" : "exh-label"}>{item.label}</text>
-						{item.note ? <text x={labelWidth - 12} y={y + 29} textAnchor="end" className="exh-sub">{item.note}</text> : null}
+						{item.note ? <text x={labelWidth - 12} y={y + 31} textAnchor="end" className="exh-sub">{item.note}</text> : null}
 						<rect x={labelWidth + 1} y={y + 4} width={plotEnd - labelWidth} height={17} rx={3} fill="var(--exh-track)" />
 						<rect x={labelWidth + 1} y={y + 4} width={barWidth} height={17} rx={3} fill={item.emphasis ? "var(--exh-a)" : "var(--exh-b)"} />
-						<text x={labelWidth + barWidth + 10} y={y + 17} className={item.emphasis ? "exh-value is-emphasis" : "exh-value"}>{formatValue(item.value, exhibit.unit)}</text>
+						<text x={labelWidth + barWidth + BAR_VALUE_GAP} y={y + 17} className={item.emphasis ? "exh-value is-emphasis" : "exh-value"}>{formatValue(item.value, exhibit.unit)}</text>
 					</g>
 				)
 			})}
@@ -61,11 +51,10 @@ function BarExhibit({ exhibit }: { exhibit: Extract<Exhibit, { kind: "bar" }> })
 	)
 }
 
-function StackExhibit({ exhibit }: { exhibit: Extract<Exhibit, { kind: "stack" }> }) {
+function StackExhibit({ exhibit, width }: Frame & { exhibit: Extract<Exhibit, { kind: "stack" }> }) {
 	const rowHeight = 46
 	const labelWidth = 176
-	const plotEnd = 700
-	const width = 720
+	const plotEnd = width - 20
 	const height = exhibit.rows.length * rowHeight + 10
 	return (
 		<>
@@ -80,7 +69,7 @@ function StackExhibit({ exhibit }: { exhibit: Extract<Exhibit, { kind: "stack" }
 					return (
 						<g key={row.label}>
 							<text x={labelWidth - 12} y={y + 18} textAnchor="end" className="exh-label">{row.label}</text>
-							{row.note ? <text x={labelWidth - 12} y={y + 31} textAnchor="end" className="exh-sub">{row.note}</text> : null}
+							{row.note ? <text x={labelWidth - 12} y={y + 34} textAnchor="end" className="exh-sub">{row.note}</text> : null}
 							{row.values.map((value, index) => {
 								const segmentWidth = (value / total) * (plotEnd - labelWidth)
 								const x = cursor
@@ -100,15 +89,17 @@ function StackExhibit({ exhibit }: { exhibit: Extract<Exhibit, { kind: "stack" }
 	)
 }
 
-function WaterfallExhibit({ exhibit }: { exhibit: Extract<Exhibit, { kind: "waterfall" }> }) {
-	const width = 720
-	const height = 268
+function WaterfallExhibit({ exhibit, width }: Frame & { exhibit: Extract<Exhibit, { kind: "waterfall" }> }) {
 	const top = 26
 	const bottom = 206
 	const left = 24
-	const right = 700
+	const right = width - 20
 	const slot = (right - left) / exhibit.steps.length
 	const barWidth = Math.min(78, slot - 22)
+	// Each category label wraps inside its own column, so neighbours never meet.
+	const labels = exhibit.steps.map((step) => waterfallLabelLines(step.label, slot))
+	const labelTop = bottom + 22
+	const height = labelTop + (Math.max(...labels.map((lines) => lines.length)) - 1) * EXHIBIT_LINE + 10
 
 	let running = 0
 	const columns = exhibit.steps.map((step) => {
@@ -147,8 +138,9 @@ function WaterfallExhibit({ exhibit }: { exhibit: Extract<Exhibit, { kind: "wate
 						<text x={x + barWidth / 2} y={topY - 8} textAnchor="middle" className={column.role === "delta" ? "exh-value" : "exh-value is-emphasis"}>
 							{column.role === "delta" && column.value > 0 ? "+" : ""}{formatValue(column.role === "delta" ? column.value : column.to, exhibit.unit)}
 						</text>
-						<text x={x + barWidth / 2} y={bottom + 22} textAnchor="middle" className="exh-axis">{column.label.split(" ").slice(0, 2).join(" ")}</text>
-						{column.label.split(" ").length > 2 ? <text x={x + barWidth / 2} y={bottom + 35} textAnchor="middle" className="exh-axis">{column.label.split(" ").slice(2).join(" ")}</text> : null}
+						<text x={x + barWidth / 2} y={labelTop} textAnchor="middle" className="exh-axis">
+							{labels[index].map((line, position) => <tspan key={line} x={x + barWidth / 2} dy={position ? EXHIBIT_LINE : 0}>{line}</tspan>)}
+						</text>
 					</g>
 				)
 			})}
@@ -156,20 +148,19 @@ function WaterfallExhibit({ exhibit }: { exhibit: Extract<Exhibit, { kind: "wate
 	)
 }
 
-function LineExhibit({ exhibit }: { exhibit: Extract<Exhibit, { kind: "line" }> }) {
-	const width = 720
+function LineExhibit({ exhibit, width }: Frame & { exhibit: Extract<Exhibit, { kind: "line" }> }) {
 	const height = 264
-	const left = 58
-	const right = 702
+	const { min, span, grid, left } = lineAxis(exhibit)
+	const right = width - 18
 	const top = 20
 	const bottom = 208
-	const allPoints = exhibit.series.flatMap((series) => series.points).concat(exhibit.band ? [exhibit.band.value] : [])
-	const max = Math.max(...allPoints)
-	const min = Math.min(...allPoints, 0)
-	const span = max - min || 1
 	const x = (index: number) => left + (index / Math.max(1, exhibit.ticks.length - 1)) * (right - left)
 	const y = (value: number) => bottom - ((value - min) / span) * (bottom - top)
-	const gridValues = [0, 0.25, 0.5, 0.75, 1].map((step) => min + step * span)
+	// A tick label keeps its point's centre unless that would run it past the frame.
+	const tickX = (tick: string, index: number) => {
+		const half = textWidth(tick, EXHIBIT_TEXT, figures(400)) / 2
+		return Math.min(width - half, Math.max(half, x(index)))
+	}
 
 	return (
 		<>
@@ -177,10 +168,10 @@ function LineExhibit({ exhibit }: { exhibit: Extract<Exhibit, { kind: "line" }> 
 				{exhibit.series.map((series) => <li key={series.label}><i style={{ background: toneFill(series.tone) }} />{series.label}</li>)}
 			</ul>
 			<svg viewBox={`0 0 ${width} ${height}`} className="exhibit-svg" role="img" aria-label={exhibit.title}>
-				{gridValues.map((value) => (
+				{grid.map(({ value, label }) => (
 					<g key={value}>
 						<line x1={left} y1={y(value)} x2={right} y2={y(value)} stroke="var(--exh-grid)" strokeWidth={1} />
-						<text x={left - 10} y={y(value) + 4} textAnchor="end" className="exh-axis">{formatValue(round(value), exhibit.unit)}</text>
+						<text x={left - 10} y={y(value) + 4} textAnchor="end" className="exh-axis">{label}</text>
 					</g>
 				))}
 				{exhibit.band ? (
@@ -203,21 +194,23 @@ function LineExhibit({ exhibit }: { exhibit: Extract<Exhibit, { kind: "line" }> 
 						{series.points.map((point, index) => <circle key={`${series.label}-${index}`} cx={x(index)} cy={y(point)} r={3} fill="var(--exh-plot-bg)" stroke={toneFill(series.tone)} strokeWidth={2} />)}
 					</g>
 				))}
-				{exhibit.ticks.map((tick, index) => <text key={tick} x={x(index)} y={bottom + 26} textAnchor="middle" className="exh-axis">{tick}</text>)}
+				{exhibit.ticks.map((tick, index) => <text key={tick} x={tickX(tick, index)} y={bottom + 26} textAnchor="middle" className="exh-axis">{tick}</text>)}
 			</svg>
 		</>
 	)
 }
 
-function QuadrantExhibit({ exhibit }: { exhibit: Extract<Exhibit, { kind: "quadrant" }> }) {
-	const width = 720
+function QuadrantExhibit({ exhibit, width }: Frame & { exhibit: Extract<Exhibit, { kind: "quadrant" }> }) {
 	const height = 392
 	const left = 96
-	const right = 660
+	const right = width - 60
 	const top = 32
 	const bottom = 320
 	const x = (value: number) => left + (value / 100) * (right - left)
 	const y = (value: number) => bottom - (value / 100) * (bottom - top)
+	const labels = useMemo(() => layoutQuadrantLabels(exhibit.points, { left, right, top, bottom }), [exhibit.points, right])
+	// The impact axis labels wrap to the margin rather than running off the frame.
+	const [lowImpact, highImpact] = exhibit.yAxis.map((label) => wrapText(label, left - 20, EXHIBIT_TEXT, figures(400)))
 	return (
 		<svg viewBox={`0 0 ${width} ${height}`} className="exhibit-svg" role="img" aria-label={exhibit.title}>
 			<rect x={left} y={top} width={right - left} height={bottom - top} rx={4} fill="var(--exh-track)" stroke="var(--exh-grid)" />
@@ -226,34 +219,41 @@ function QuadrantExhibit({ exhibit }: { exhibit: Extract<Exhibit, { kind: "quadr
 			<line x1={left} y1={y(50)} x2={right} y2={y(50)} stroke="var(--exh-grid-strong)" strokeDasharray="4 4" />
 			<text x={left} y={bottom + 24} className="exh-axis">{exhibit.xAxis[0]}</text>
 			<text x={right} y={bottom + 24} textAnchor="end" className="exh-axis">{exhibit.xAxis[1]}</text>
-			<text x={left - 14} y={bottom} textAnchor="end" className="exh-axis">{exhibit.yAxis[0]}</text>
-			<text x={left - 14} y={top + 10} textAnchor="end" className="exh-axis">{exhibit.yAxis[1]}</text>
-			{exhibit.points.map((point) => {
-				// Near an edge the label anchors inward so it stays on the plot.
-				const anchor = point.x > 80 ? "end" : point.x < 20 ? "start" : "middle"
-				const labelX = x(point.x) + (anchor === "end" ? 9 : anchor === "start" ? -9 : 0)
-				return (
-					<g key={point.label}>
-						<circle cx={x(point.x)} cy={y(point.y)} r={point.emphasis ? 8 : 6} fill={point.emphasis ? "var(--exh-a)" : "var(--exh-b)"} stroke="var(--exh-plot-bg)" strokeWidth={2} />
-						<text x={labelX} y={y(point.y) - 14} textAnchor={anchor} className={point.emphasis ? "exh-point is-emphasis" : "exh-point"}>{point.label}</text>
-					</g>
-				)
-			})}
+			<text x={left - 14} y={bottom - (lowImpact.length - 1) * EXHIBIT_LINE} textAnchor="end" className="exh-axis">
+				{lowImpact.map((line, position) => <tspan key={line} x={left - 14} dy={position ? EXHIBIT_LINE : 0}>{line}</tspan>)}
+			</text>
+			<text x={left - 14} y={top + 10} textAnchor="end" className="exh-axis">
+				{highImpact.map((line, position) => <tspan key={line} x={left - 14} dy={position ? EXHIBIT_LINE : 0}>{line}</tspan>)}
+			</text>
+			{exhibit.points.map((point) => <circle key={point.label} cx={x(point.x)} cy={y(point.y)} r={point.emphasis ? 8 : 6} fill={point.emphasis ? "var(--exh-a)" : "var(--exh-b)"} stroke="var(--exh-plot-bg)" strokeWidth={2} />)}
+			{exhibit.points.map((point, index) => (
+				<text key={point.label} x={labels[index].x} y={labels[index].y} textAnchor={labels[index].anchor} className={point.emphasis ? "exh-point is-emphasis" : "exh-point"}>{point.label}</text>
+			))}
 		</svg>
 	)
 }
 
-function HeatmapExhibit({ exhibit }: { exhibit: Extract<Exhibit, { kind: "heatmap" }> }) {
-	const width = 720
+function HeatmapExhibit({ exhibit, width }: Frame & { exhibit: Extract<Exhibit, { kind: "heatmap" }> }) {
 	const labelWidth = 218
 	const cellHeight = 38
-	const headerHeight = 30
+	const cellWidth = (width - 20 - labelWidth) / exhibit.columns.length
+	// A header wraps inside its column; every header sits on the same bottom line.
+	const headers = exhibit.columns.map((column) => wrapText(column, cellWidth - 8, EXHIBIT_TEXT, figures(400)))
+	const headerLines = Math.max(...headers.map((lines) => lines.length))
+	const headerHeight = 30 + (headerLines - 1) * EXHIBIT_LINE
 	const height = headerHeight + exhibit.rows.length * cellHeight + 10
-	const cellWidth = (700 - labelWidth) / exhibit.columns.length
 	return (
 		<>
 			<svg viewBox={`0 0 ${width} ${height}`} className="exhibit-svg" role="img" aria-label={exhibit.title}>
-				{exhibit.columns.map((column, index) => <text key={column} x={labelWidth + index * cellWidth + cellWidth / 2} y={18} textAnchor="middle" className="exh-axis">{column}</text>)}
+				{exhibit.columns.map((column, index) => {
+					const x = labelWidth + index * cellWidth + cellWidth / 2
+					const lines = headers[index]
+					return (
+						<text key={column} x={x} y={18 + (headerLines - lines.length) * EXHIBIT_LINE} textAnchor="middle" className="exh-axis">
+							{lines.map((line, position) => <tspan key={line} x={x} dy={position ? EXHIBIT_LINE : 0}>{line}</tspan>)}
+						</text>
+					)
+				})}
 				{exhibit.rows.map((row, rowIndex) => (
 					<g key={row.label}>
 						<text x={labelWidth - 12} y={headerHeight + rowIndex * cellHeight + 24} textAnchor="end" className="exh-label">{row.label}</text>
@@ -306,47 +306,15 @@ function TableExhibit({ exhibit }: { exhibit: Extract<Exhibit, { kind: "table" }
 	)
 }
 
-const LANE_WIDTH = 164
-const LANE_GAP = 62
-const NODE_HEIGHT = 64
-const ROW_GAP = 26
+const TONE_CLASS: Record<ExhibitTone, string> = { brand: "is-brand", muted: "is-muted", neutral: "is-neutral", warn: "is-warn", danger: "is-warn" }
+const isWarn = (tone: ExhibitTone | undefined) => tone === "warn" || tone === "danger"
 
-const nodeX = (node: ArchitectureNode) => 16 + node.lane * (LANE_WIDTH + LANE_GAP)
-const nodeY = (node: ArchitectureNode) => 56 + node.row * (NODE_HEIGHT + ROW_GAP)
-
-function ArchitectureExhibit({ exhibit }: { exhibit: Extract<Exhibit, { kind: "architecture" }> }) {
-	const rows = Math.max(...exhibit.nodes.map((node) => node.row)) + 1
-	const width = 16 + exhibit.lanes.length * (LANE_WIDTH + LANE_GAP) - LANE_GAP + 16
-	const height = 56 + rows * (NODE_HEIGHT + ROW_GAP) + 8
-	const byId = new Map(exhibit.nodes.map((node) => [node.id, node]))
-
-	const edgePath = (edge: ArchitectureEdge) => {
-		const from = byId.get(edge.from)
-		const to = byId.get(edge.to)
-		if (!from || !to) return null
-		const fromY = nodeY(from) + NODE_HEIGHT / 2
-		const toY = nodeY(to) + NODE_HEIGHT / 2
-		if (from.lane === to.lane) {
-			const x = nodeX(from) + LANE_WIDTH / 2
-			const startY = fromY < toY ? nodeY(from) + NODE_HEIGHT : nodeY(from)
-			const endY = fromY < toY ? nodeY(to) - 7 : nodeY(to) + NODE_HEIGHT + 7
-			return { d: `M ${x} ${startY} L ${x} ${endY}`, labelX: x, labelY: (startY + endY) / 2 }
-		}
-		const forward = to.lane > from.lane
-		const startX = forward ? nodeX(from) + LANE_WIDTH : nodeX(from)
-		const endX = forward ? nodeX(to) - 7 : nodeX(to) + LANE_WIDTH + 7
-		const midX = (startX + endX) / 2
-		return { d: `M ${startX} ${fromY} H ${midX} V ${toY} H ${endX}`, labelX: midX, labelY: (fromY + toY) / 2 }
-	}
-
-	const routed = exhibit.edges.flatMap((edge) => {
-		const path = edgePath(edge)
-		if (!path) return []
-		return [{ edge, path, sameLane: byId.get(edge.from)?.lane === byId.get(edge.to)?.lane }]
-	})
-
+// Cards in lanes, joined by routed edges whose labels are pills in the channels
+// between rows. All geometry, every wrap included, comes from layoutArchitecture.
+function ArchitectureExhibit({ exhibit, width }: Frame & { exhibit: Extract<Exhibit, { kind: "architecture" }> }) {
+	const layout = useMemo(() => layoutArchitecture(exhibit, width), [exhibit, width])
 	return (
-		<svg viewBox={`0 0 ${width} ${height}`} className="exhibit-svg" role="img" aria-label={exhibit.title}>
+		<svg viewBox={`0 0 ${layout.width} ${layout.height}`} className="exhibit-svg" role="img" aria-label={exhibit.title}>
 			<defs>
 				<marker id="exh-arrow" viewBox="0 0 10 10" refX={8} refY={5} markerWidth={7} markerHeight={7} orient="auto-start-reverse">
 					<path d="M 0 0 L 10 5 L 0 10 z" fill="var(--exh-edge)" />
@@ -355,62 +323,56 @@ function ArchitectureExhibit({ exhibit }: { exhibit: Extract<Exhibit, { kind: "a
 					<path d="M 0 0 L 10 5 L 0 10 z" fill="var(--exh-d)" />
 				</marker>
 			</defs>
-			{exhibit.lanes.map((lane, index) => (
-				<g key={lane}>
-					<rect x={16 + index * (LANE_WIDTH + LANE_GAP) - 12} y={30} width={LANE_WIDTH + 24} height={height - 36} rx={6} fill="var(--exh-track)" />
-					<text x={16 + index * (LANE_WIDTH + LANE_GAP) + LANE_WIDTH / 2} y={20} textAnchor="middle" className="exh-lane">{lane}</text>
+			{layout.lanes.map((lane) => (
+				<g key={lane.label}>
+					<rect className="exh-lane-band" x={lane.x} y={lane.y} width={lane.width} height={lane.height} rx={8} />
+					<text x={lane.x + lane.width / 2} y={ARCHITECTURE_TEXT.laneTitle} textAnchor="middle" className="exh-lane">{lane.label}</text>
 				</g>
 			))}
-			{routed.map(({ edge, path }) => (
+			{layout.edges.map(({ edge, d }) => (
 				<path
-					key={`path-${edge.from}-${edge.to}-${edge.label ?? ""}`}
-					d={path.d}
-					fill="none"
-					stroke={edge.tone === "warn" || edge.tone === "danger" ? "var(--exh-d)" : "var(--exh-edge)"}
-					strokeWidth={1.5}
+					key={`path-${edge.from}-${edge.to}`}
+					d={d}
+					className={isWarn(edge.tone) ? "exh-edge is-warn" : "exh-edge"}
 					strokeDasharray={edge.dashed ? "5 4" : undefined}
-					markerEnd={edge.tone === "warn" || edge.tone === "danger" ? "url(#exh-arrow-warn)" : "url(#exh-arrow)"}
+					markerEnd={isWarn(edge.tone) ? "url(#exh-arrow-warn)" : "url(#exh-arrow)"}
 				/>
 			))}
-			{exhibit.nodes.map((node) => {
-				const x = nodeX(node)
-				const y = nodeY(node)
+			{layout.nodes.map(({ node, x, y, width: nodeWidth, height, title, detail }) => {
 				const tone = node.tone ?? "neutral"
+				const textX = x + ARCHITECTURE_TEXT.padLeft
+				const titleY = y + ARCHITECTURE_TEXT.padTop + 12
 				return (
-					<g key={node.id}>
-						<rect
-							x={x}
-							y={y}
-							width={LANE_WIDTH}
-							height={NODE_HEIGHT}
-							rx={7}
-							fill="var(--exh-node-bg)"
-							stroke={tone === "brand" ? "var(--exh-a)" : tone === "warn" ? "var(--exh-d)" : "var(--exh-grid-strong)"}
-							strokeWidth={tone === "neutral" ? 1 : 1.6}
-						/>
-						<rect x={x} y={y} width={4} height={NODE_HEIGHT} rx={2} fill={tone === "neutral" ? "var(--exh-c)" : toneFill(tone)} />
-						<text x={x + 16} y={node.detail ? y + 26 : y + 37} className="exh-node">{node.label}</text>
-						{node.detail ? <text x={x + 16} y={y + 43} className="exh-node-sub">{node.detail}</text> : null}
+					<g key={node.id} data-node={node.id} className={`exh-node-card ${TONE_CLASS[tone]}`}>
+						<rect className="exh-node-box" x={x} y={y} width={nodeWidth} height={height} rx={8} />
+						{tone === "neutral" ? null : <rect className="exh-node-accent" x={x + 4} y={y + 10} width={3} height={height - 20} rx={1.5} />}
+						<text x={textX} y={titleY} className="exh-node">
+							{title.map((line, position) => <tspan key={line} x={textX} dy={position ? EXHIBIT_LINE : 0}>{line}</tspan>)}
+						</text>
+						{detail.length ? (
+							<text x={textX} y={titleY + title.length * EXHIBIT_LINE + 2} className="exh-node-sub">
+								{detail.map((line, position) => <tspan key={line} x={textX} dy={position ? EXHIBIT_LINE : 0}>{line}</tspan>)}
+							</text>
+						) : null}
 					</g>
 				)
 			})}
-			{routed.map(({ edge, path, sameLane }) => edge.label ? (
-				<text
-					key={`label-${edge.from}-${edge.to}-${edge.label}`}
-					x={path.labelX}
-					y={path.labelY - 7}
-					textAnchor="middle"
-					className={sameLane ? "exh-edge-label is-inlane" : "exh-edge-label"}
-				>
-					{edge.label}
-				</text>
+			{layout.edges.map(({ edge, pill }) => pill ? (
+				<g key={`pill-${edge.from}-${edge.to}`} className={isWarn(edge.tone) ? "exh-pill is-warn" : "exh-pill"}>
+					<rect x={pill.x} y={pill.y} width={pill.width} height={pill.height} rx={pill.height / 2} />
+					<text x={pill.x + pill.width / 2} y={pill.y + pill.height / 2 + 4} textAnchor="middle" className="exh-edge-label">{pill.label}</text>
+				</g>
 			) : null)}
 		</svg>
 	)
 }
 
-function SequenceExhibit({ exhibit }: { exhibit: Extract<Exhibit, { kind: "sequence" }> }) {
-	const width = 720
+// A self-call's loop and label run right of its lifeline, or left of it when the frame has no room.
+const SELF_CALL_LABEL = 42
+const selfCallOnLeft = (step: { label: string; note?: string; tone?: ExhibitTone }, lifeline: number, width: number) =>
+	lifeline + SELF_CALL_LABEL + Math.max(textWidth(step.label, EXHIBIT_TEXT, isWarn(step.tone) ? 600 : 400), step.note ? textWidth(step.note, EXHIBIT_TEXT) : 0) > width - 4
+
+function SequenceExhibit({ exhibit, width }: Frame & { exhibit: Extract<Exhibit, { kind: "sequence" }> }) {
 	const stepHeight = 52
 	const headTop = 8
 	const headHeight = 40
@@ -442,15 +404,18 @@ function SequenceExhibit({ exhibit }: { exhibit: Extract<Exhibit, { kind: "seque
 				const stroke = warn ? "var(--exh-d)" : "var(--exh-edge)"
 				const marker = warn ? "url(#exh-seq-arrow-warn)" : "url(#exh-seq-arrow)"
 				const selfCall = step.from === step.to
+				const side = selfCall && selfCallOnLeft(step, x(step.from), width) ? -1 : 1
+				const labelX = selfCall ? x(step.from) + side * SELF_CALL_LABEL : (x(step.from) + x(step.to)) / 2
+				const anchor = selfCall ? (side > 0 ? "start" : "end") : "middle"
 				return (
 					<g key={`${step.label}-${index}`}>
 						{selfCall ? (
-							<path d={`M ${x(step.from)} ${y - 8} h 30 v 22 h -26`} fill="none" stroke={stroke} strokeWidth={1.5} markerEnd={marker} />
+							<path d={`M ${x(step.from)} ${y - 8} h ${side * 30} v 22 h ${side * -26}`} fill="none" stroke={stroke} strokeWidth={1.5} markerEnd={marker} />
 						) : (
 							<line x1={x(step.from)} y1={y} x2={x(step.to) + (step.to > step.from ? -6 : 6)} y2={y} stroke={stroke} strokeWidth={1.5} markerEnd={marker} strokeDasharray={step.tone === "muted" ? "5 4" : undefined} />
 						)}
-						<text x={selfCall ? x(step.from) + 42 : (x(step.from) + x(step.to)) / 2} y={y - 11} textAnchor={selfCall ? "start" : "middle"} className={warn ? "exh-step is-warn" : "exh-step"}>{step.label}</text>
-						{step.note ? <text x={selfCall ? x(step.from) + 42 : (x(step.from) + x(step.to)) / 2} y={y + 20} textAnchor={selfCall ? "start" : "middle"} className="exh-step-note">{step.note}</text> : null}
+						<text x={labelX} y={y - 11} textAnchor={anchor} className={warn ? "exh-step is-warn" : "exh-step"}>{step.label}</text>
+						{step.note ? <text x={labelX} y={y + 20} textAnchor={anchor} className="exh-step-note">{step.note}</text> : null}
 					</g>
 				)
 			})}
@@ -458,49 +423,48 @@ function SequenceExhibit({ exhibit }: { exhibit: Extract<Exhibit, { kind: "seque
 	)
 }
 
-function TimelineExhibit({ exhibit }: { exhibit: Extract<Exhibit, { kind: "timeline" }> }) {
-	const width = 720
+function TimelineExhibit({ exhibit, width }: Frame & { exhibit: Extract<Exhibit, { kind: "timeline" }> }) {
 	const labelWidth = 150
-	const plotEnd = 700
-	const laneHeight = 46
+	const plotEnd = width - 20
 	const headerHeight = 28
-	const hasMarkers = Boolean(exhibit.markers?.length)
-	const height = headerHeight + exhibit.lanes.length * laneHeight + (hasMarkers ? 46 : 8)
 	const unit = (plotEnd - labelWidth) / exhibit.ticks.length
+	const layout = useMemo(() => layoutTimeline(exhibit, { labelWidth, plotEnd, top: headerHeight, width }), [exhibit, plotEnd, width])
+	const hasMarkers = Boolean(exhibit.markers?.length)
+	const height = layout.bottom + (hasMarkers ? 46 : 8)
 	return (
 		<svg viewBox={`0 0 ${width} ${height}`} className="exhibit-svg" role="img" aria-label={exhibit.title}>
 			{exhibit.ticks.map((tick, index) => (
 				<g key={tick}>
 					<text x={labelWidth + index * unit + unit / 2} y={16} textAnchor="middle" className="exh-axis">{tick}</text>
-					<line x1={labelWidth + index * unit} y1={headerHeight - 6} x2={labelWidth + index * unit} y2={headerHeight + exhibit.lanes.length * laneHeight} stroke="var(--exh-grid)" />
+					<line x1={labelWidth + index * unit} y1={headerHeight - 6} x2={labelWidth + index * unit} y2={layout.bottom} stroke="var(--exh-grid)" />
 				</g>
 			))}
-			{exhibit.lanes.map((lane, laneIndex) => (
-				<g key={lane.label}>
-					<text x={labelWidth - 12} y={headerHeight + laneIndex * laneHeight + 28} textAnchor="end" className="exh-label">{lane.label}</text>
-					{lane.bars.map((bar) => {
-						const barWidth = Math.max(10, bar.span * unit - 4)
-						const barX = labelWidth + bar.start * unit + 2
-						const baseline = headerHeight + laneIndex * laneHeight + 28
-						// A label that will not fit inside the bar is written beside it in
-						// ink; the inset colour is only legible against the bar fill.
-						const fits = bar.label.length * 5.4 + 18 <= barWidth
-						return (
-							<g key={`${lane.label}-${bar.label}`}>
-								<rect x={barX} y={headerHeight + laneIndex * laneHeight + 12} width={barWidth} height={24} rx={4} fill={toneFill(bar.tone, "muted")} />
-								<text x={fits ? barX + 10 : barX + barWidth + 8} y={baseline} className={fits ? "exh-inset" : "exh-value"}>{bar.label}</text>
-							</g>
-						)
-					})}
-				</g>
-			))}
+			{exhibit.lanes.map((lane, laneIndex) => {
+				const laid = layout.lanes[laneIndex]
+				return (
+					<g key={lane.label}>
+						<text x={labelWidth - 12} y={laid.top + 28} textAnchor="end" className="exh-label">{lane.label}</text>
+						{lane.bars.map((bar, barIndex) => {
+							const { x, y, width: barWidth, label } = laid.bars[barIndex]
+							// Inside the bar the label takes the inset ink; outside it reads in ink.
+							return (
+								<g key={`${lane.label}-${bar.label}`}>
+									<rect x={x} y={y} width={barWidth} height={24} rx={4} fill={toneFill(bar.tone, "muted")} />
+									<text x={label.x} y={label.y} textAnchor={label.anchor} className={label.inside ? "exh-inset" : "exh-value"}>{bar.label}</text>
+								</g>
+							)
+						})}
+					</g>
+				)
+			})}
 			{exhibit.markers?.map((marker) => {
 				const x = labelWidth + marker.at * unit
-				const y = headerHeight + exhibit.lanes.length * laneHeight
+				const y = layout.bottom
 				return (
 					<g key={marker.label}>
 						<path d={`M ${x} ${y + 8} l 7 8 l -7 8 l -7 -8 z`} fill="var(--exh-a)" />
-						<text x={x} y={y + 38} textAnchor="middle" className="exh-axis is-strong">{marker.label}</text>
+						{/* The last gate sits on the frame's edge, so its label ends at the diamond. */}
+						<text x={x > width - 30 ? x + 7 : x} y={y + 38} textAnchor={x > width - 30 ? "end" : "middle"} className="exh-axis is-strong">{marker.label}</text>
 					</g>
 				)
 			})}
@@ -508,33 +472,60 @@ function TimelineExhibit({ exhibit }: { exhibit: Extract<Exhibit, { kind: "timel
 	)
 }
 
-function ExhibitGraphic({ exhibit }: { exhibit: Exhibit }) {
+function ExhibitGraphic({ exhibit, width }: Frame & { exhibit: Exhibit }) {
 	switch (exhibit.kind) {
-		case "bar": return <BarExhibit exhibit={exhibit} />
-		case "stack": return <StackExhibit exhibit={exhibit} />
-		case "waterfall": return <WaterfallExhibit exhibit={exhibit} />
-		case "line": return <LineExhibit exhibit={exhibit} />
-		case "quadrant": return <QuadrantExhibit exhibit={exhibit} />
-		case "heatmap": return <HeatmapExhibit exhibit={exhibit} />
+		case "bar": return <BarExhibit exhibit={exhibit} width={width} />
+		case "stack": return <StackExhibit exhibit={exhibit} width={width} />
+		case "waterfall": return <WaterfallExhibit exhibit={exhibit} width={width} />
+		case "line": return <LineExhibit exhibit={exhibit} width={width} />
+		case "quadrant": return <QuadrantExhibit exhibit={exhibit} width={width} />
+		case "heatmap": return <HeatmapExhibit exhibit={exhibit} width={width} />
 		case "table": return <TableExhibit exhibit={exhibit} />
-		case "architecture": return <ArchitectureExhibit exhibit={exhibit} />
-		case "sequence": return <SequenceExhibit exhibit={exhibit} />
-		case "timeline": return <TimelineExhibit exhibit={exhibit} />
+		case "architecture": return <ArchitectureExhibit exhibit={exhibit} width={width} />
+		case "sequence": return <SequenceExhibit exhibit={exhibit} width={width} />
+		case "timeline": return <TimelineExhibit exhibit={exhibit} width={width} />
 	}
 }
 
+// The plot's own width, floored to whole pixels so text never scales below 12px.
+// Before the first measurement (and without layout, as under test) it is the widest frame.
+function usePlotFrame() {
+	const ref = useRef<HTMLDivElement>(null)
+	const [width, setWidth] = useState(EXHIBIT_FRAME_MAX)
+	useLayoutEffect(() => {
+		const plot = ref.current
+		if (!plot) return
+		const measure = () => {
+			const available = Math.floor(plot.clientWidth)
+			if (available > 0) setWidth(Math.min(EXHIBIT_FRAME_MAX, Math.max(EXHIBIT_FRAME_MIN, available)))
+		}
+		measure()
+		if (typeof ResizeObserver === "undefined") return
+		const observer = new ResizeObserver(measure)
+		observer.observe(plot)
+		return () => observer.disconnect()
+	}, [])
+	return [ref, width] as const
+}
+
+// Evidence identifiers read in mono; the rest of the source line is prose.
+function sourceParts(source: string) {
+	return source.split(/(\[[^\]]+\])/).filter(Boolean).map((part, position) => /^\[[^\]]+\]$/.test(part) ? <code key={position} className="exhibit-id">{part}</code> : part)
+}
+
 export function DeliverableExhibit({ exhibit, index }: { exhibit: Exhibit; index: number }) {
+	const [plotRef, width] = usePlotFrame()
 	return (
 		<figure className="exhibit">
 			<figcaption className="exhibit-head">
 				<p className="exhibit-number">Exhibit {index}</p>
 				<h5>{exhibit.title}</h5>
 			</figcaption>
-			<div className={`exhibit-plot is-${exhibit.kind}`}>
-				<ExhibitGraphic exhibit={exhibit} />
+			<div ref={plotRef} className={`exhibit-plot is-${exhibit.kind}`} style={{ "--exh-frame-min": `${EXHIBIT_FRAME_MIN}px` } as CSSProperties}>
+				<ExhibitGraphic exhibit={exhibit} width={width} />
 			</div>
 			<p className="exhibit-caption">{exhibit.caption}</p>
-			<p className="exhibit-source">Source · {exhibit.source}</p>
+			<p className="exhibit-source">Source · {sourceParts(exhibit.source)}</p>
 		</figure>
 	)
 }

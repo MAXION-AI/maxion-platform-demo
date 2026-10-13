@@ -25,9 +25,9 @@
 	min-width: 0;
 	color: var(--ax3-ink);
 	background: var(--ax3-bg);
-	font-family: "Geist Variable", var(--font-sans);
-	font-size: 14px;
-	font-feature-settings: "cv02", "cv03", "cv04", "cv11";
+	font-family: var(--ds-font);
+	font-size: var(--ds-text-md);
+	font-feature-settings: normal;
 	-webkit-font-smoothing: antialiased;
 }
 
@@ -123,7 +123,7 @@
 .ax3-platform nav > div.is-active {
 	color: oklch(0.92 0.026 174);
 	background: oklch(0.28 0.025 174);
-	box-shadow: inset 0 0 0 1px oklch(0.54 0.04 174 / 0.28);
+	box-shadow: none;
 }
 
 .ax3-platform-profile {
@@ -135,7 +135,7 @@
 	border-radius: 50%;
 	color: oklch(0.24 0.01 155);
 	background: oklch(0.9 0.018 160);
-	font-size: 10px;
+	font-size: var(--ds-text-xs);
 	font-weight: 600;
 }
 
@@ -169,7 +169,7 @@
 }
 
 .ax3-agent-brand strong {
-	font-size: 14px;
+	font-size: var(--ds-text-md);
 	font-weight: 620;
 	letter-spacing: -0.015em;
 }
@@ -192,8 +192,8 @@
 	border: 1px solid var(--ax3-line-strong);
 	border-radius: 9px;
 	background: var(--ax3-surface);
-	box-shadow: 0 1px 2px oklch(0.2 0.01 73 / 0.04);
-	font-size: 12px;
+	box-shadow: none;
+	font-size: var(--ds-text-xs);
 	font-weight: 580;
 	text-align: left;
 	transition: border-color 130ms var(--ax3-ease-out), background 130ms var(--ax3-ease-out), transform 100ms var(--ax3-ease-out), box-shadow 160ms var(--ax3-ease-out);
@@ -202,7 +202,7 @@
 .ax3-new-agent:hover {
 	border-color: color-mix(in oklch, var(--ax3-accent) 35%, var(--ax3-line));
 	background: white;
-	box-shadow: 0 1px 2px oklch(0.2 0.01 73 / 0.05), 0 5px 14px oklch(0.2 0.01 73 / 0.04);
+	box-shadow: none;
 }
 
 .ax3-new-agent:active {
@@ -212,7 +212,7 @@
 .ax3-new-agent span {
 	margin-left: auto;
 	color: var(--ax3-subtle);
-	font-size: 10px;
+	font-size: var(--ds-text-xs);
 	font-weight: 500;
 }
 
@@ -239,7 +239,7 @@
 	padding: 0 9px;
 	border-radius: 7px;
 	color: var(--ax3-muted);
-	font-size: 12px;
+	font-size: var(--ds-text-xs);
 	font-weight: 520;
 }
 
@@ -257,7 +257,7 @@
 .ax3-agent-list button.is-active {
 	color: var(--ax3-ink);
 	background: var(--ax3-surface);
-	box-shadow: inset 0 0 0 1px oklch(0.84 0.008 73), 0 1px 2px oklch(0.2 0.01 73 / 0.035);
+	box-shadow: none;
 }
 
 .ax3-primary-nav button b {
@@ -270,7 +270,7 @@
 	border-radius: 999px;
 	color: oklch(0.41 0.08 72);
 	background: var(--ax3-warning-soft);
-	font-size: 9px;
+	font-size: var(--ds-text-xs);
 	font-variant-numeric: tabular-nums;
 }
 
@@ -280,10 +280,10 @@
 	justify-content: space-between;
 	margin: 24px 8px 8px;
 	color: var(--ax3-subtle);
-	font-size: 9px;
+	font-size: var(--ds-text-xs);
 	font-weight: 650;
-	letter-spacing: 0.08em;
-	text-transform: uppercase;
+	letter-spacing: normal;
+	text-transform: none;
 }
 
 .ax3-rail-label button {
@@ -325,7 +325,7 @@
 .ax3-user strong,
 .ax3-connection-state strong {
 	overflow: hidden;
-	font-size: 11px;
+	font-size: var(--ds-text-xs);
 	font-weight: 570;
 	text-overflow: ellipsis;
 	white-space: nowrap;
@@ -338,7 +338,7 @@
 	align-items: center;
 	gap: 5px;
 	color: var(--ax3-subtle);
-	font-size: 9.5px;
+	font-size: var(--ds-text-xs);
 	font-weight: 450;
 }
 
@@ -352,7 +352,7 @@
 	border-radius: 8px;
 	color: var(--ax3-muted);
 	background: var(--ax3-surface);
-	font-size: 9px;
+	font-size: var(--ds-text-xs);
 	font-weight: 650;
 	letter-spacing: 0.02em;
 }
@@ -361,7 +361,7 @@
 	width: 38px;
 	height: 38px;
 	border-radius: 11px;
-	font-size: 11px;
+	font-size: var(--ds-text-xs);
 }
 
 .ax3-mini-dot {
@@ -440,7 +440,7 @@
 
 .ax3-header > div:first-child {
 	gap: 9px;
-	font-size: 11px;
+	font-size: var(--ds-text-xs);
 	font-weight: 580;
 }
 
@@ -473,7 +473,7 @@
 	justify-content: flex-start;
 	border: 1px solid transparent;
 	background: oklch(0.94 0.005 92);
-	font-size: 10px;
+	font-size: var(--ds-text-xs);
 }
 
 .ax3-header-actions button:first-child kbd {
@@ -481,7 +481,7 @@
 	/* Subtle alone sits at 4.35:1 on the muted chip at 9px — mix toward ink for AA. */
 	color: color-mix(in oklch, var(--ax3-muted) 70%, var(--ax3-ink));
 	font-family: inherit;
-	font-size: 9px;
+	font-size: var(--ds-text-xs);
 }
 
 .ax3-header-actions button:hover,
@@ -547,7 +547,7 @@
 .ax3-today-lead > span,
 .ax3-history > header > span {
 	color: var(--ax3-subtle);
-	font-size: 10px;
+	font-size: var(--ds-text-xs);
 	font-weight: 560;
 	letter-spacing: 0.025em;
 }
@@ -569,7 +569,7 @@
 	max-width: 62ch;
 	margin: 11px 0 0;
 	color: var(--ax3-muted);
-	font-size: 13px;
+	font-size: var(--ds-text-sm);
 	line-height: 1.55;
 }
 
@@ -589,21 +589,21 @@
 
 .ax3-section-heading h2 {
 	margin: 0;
-	font-size: 13px;
+	font-size: var(--ds-text-sm);
 	font-weight: 630;
 	letter-spacing: -0.01em;
 }
 
 .ax3-section-heading span {
 	color: var(--ax3-subtle);
-	font-size: 10.5px;
+	font-size: var(--ds-text-xs);
 }
 
 .ax3-section-heading > button {
 	border: 0;
 	color: var(--ax3-muted);
 	background: transparent;
-	font-size: 10px;
+	font-size: var(--ds-text-xs);
 }
 
 .ax3-section-heading > button:hover {
@@ -650,15 +650,15 @@
 
 .ax3-attention-item small {
 	color: var(--ax3-warning);
-	font-size: 8.5px;
+	font-size: var(--ds-text-xs);
 	font-weight: 680;
-	letter-spacing: 0.045em;
-	text-transform: uppercase;
+	letter-spacing: normal;
+	text-transform: none;
 }
 
 .ax3-attention-item strong {
 	margin-top: 3px;
-	font-size: 13px;
+	font-size: var(--ds-text-sm);
 	font-weight: 600;
 }
 
@@ -666,7 +666,7 @@
 	margin: 3px 0 0;
 	overflow: hidden;
 	color: var(--ax3-muted);
-	font-size: 11.5px;
+	font-size: var(--ds-text-xs);
 	line-height: 1.45;
 	text-overflow: ellipsis;
 	white-space: nowrap;
@@ -689,7 +689,7 @@
 	border-radius: 8px;
 	color: white;
 	background: var(--ax3-accent);
-	font-size: 10px;
+	font-size: var(--ds-text-xs);
 	font-weight: 590;
 	transition: background 130ms var(--ax3-ease-out), transform 100ms var(--ax3-ease-out), box-shadow 150ms var(--ax3-ease-out);
 }
@@ -698,7 +698,7 @@
 .ax3-root .ax3-decision-actions button:first-child:hover,
 .ax3-root .ax3-primary-action:hover {
 	background: var(--ax3-accent-hover);
-	box-shadow: 0 4px 12px oklch(0.25 0.05 182 / 0.15);
+	box-shadow: none;
 }
 
 .ax3-root .ax3-attention-item > button:active,
@@ -725,12 +725,12 @@
 }
 
 .ax3-clear-state strong {
-	font-size: 11px;
+	font-size: var(--ds-text-xs);
 }
 
 .ax3-clear-state span {
 	color: var(--ax3-muted);
-	font-size: 10px;
+	font-size: var(--ds-text-xs);
 }
 
 .ax3-live-work {
@@ -792,17 +792,17 @@
 	border: 2px solid var(--ax3-bg);
 	border-radius: 50%;
 	background: var(--ax3-subtle);
-	box-shadow: 0 0 0 1px var(--ax3-line-strong);
+	box-shadow: none;
 }
 
 .ax3-stream-dot--live {
 	background: var(--ax3-success);
-	box-shadow: 0 0 0 1px color-mix(in oklch, var(--ax3-success) 40%, var(--ax3-line));
+	box-shadow: none;
 }
 
 .ax3-stream-dot--attention {
 	background: var(--ax3-warning);
-	box-shadow: 0 0 0 1px color-mix(in oklch, var(--ax3-warning) 40%, var(--ax3-line));
+	box-shadow: none;
 }
 
 .ax3-stream-copy {
@@ -816,14 +816,14 @@
 }
 
 .ax3-stream-copy strong {
-	font-size: 12px;
+	font-size: var(--ds-text-xs);
 	font-weight: 590;
 }
 
 .ax3-stream-copy p {
 	margin: 2px 0 0;
 	overflow: hidden;
-	font-size: 12px;
+	font-size: var(--ds-text-xs);
 	text-overflow: ellipsis;
 	white-space: nowrap;
 }
@@ -832,7 +832,7 @@
 	display: block;
 	margin-top: 3px;
 	color: var(--ax3-subtle);
-	font-size: 10px;
+	font-size: var(--ds-text-xs);
 }
 
 .ax3-status {
@@ -844,7 +844,7 @@
 	border-radius: 999px;
 	color: var(--ax3-muted);
 	background: var(--ax3-surface-muted);
-	font-size: 8.5px;
+	font-size: var(--ds-text-xs);
 	font-weight: 600;
 	line-height: 1;
 	white-space: nowrap;
@@ -934,14 +934,14 @@
 }
 
 .ax3-outcomes strong {
-	font-size: 12px;
+	font-size: var(--ds-text-xs);
 	font-weight: 570;
 }
 
 .ax3-outcomes small,
 .ax3-outcomes time {
 	color: var(--ax3-subtle);
-	font-size: 10px;
+	font-size: var(--ds-text-xs);
 }
 
 .ax3-outcomes time {
@@ -963,13 +963,13 @@
 	border: 1px solid var(--ax3-line-strong);
 	border-radius: 15px;
 	background: var(--ax3-surface);
-	box-shadow: 0 1px 2px oklch(0.2 0.01 73 / 0.06), 0 8px 28px oklch(0.2 0.01 73 / 0.055);
+	box-shadow: none;
 	transition: border-color 160ms var(--ax3-ease-out), box-shadow 180ms var(--ax3-ease-out), transform 180ms var(--ax3-ease-out);
 }
 
 .ax3-composer:focus-within {
 	border-color: color-mix(in oklch, var(--ax3-accent) 55%, var(--ax3-line));
-	box-shadow: 0 1px 2px oklch(0.2 0.01 73 / 0.05), 0 10px 30px oklch(0.2 0.01 73 / 0.075), 0 0 0 3px color-mix(in oklch, var(--ax3-accent) 9%, transparent);
+	box-shadow: none;
 	transform: translateY(-1px);
 }
 
@@ -984,7 +984,7 @@
 	outline: 0;
 	color: var(--ax3-ink);
 	background: transparent;
-	font-size: 13px;
+	font-size: var(--ds-text-sm);
 	line-height: 1.45;
 }
 
@@ -1025,7 +1025,7 @@
 	align-items: center;
 	gap: 5px;
 	color: var(--ax3-subtle);
-	font-size: 9px;
+	font-size: var(--ds-text-xs);
 }
 
 .ax3-composer-bar .ax3-send {
@@ -1050,7 +1050,7 @@
 .ax3-composer-hint {
 	margin: 6px auto 0;
 	color: var(--ax3-subtle);
-	font-size: 8.5px;
+	font-size: var(--ds-text-xs);
 	text-align: center;
 }
 
@@ -1070,7 +1070,7 @@
 	border: 1px solid var(--ax3-line-strong);
 	border-radius: 14px;
 	background: var(--ax3-surface);
-	box-shadow: 0 2px 6px oklch(0.2 0.01 73 / 0.07), 0 18px 48px oklch(0.2 0.01 73 / 0.14);
+	box-shadow: none;
 }
 
 .ax3-root .ax3-cmd-pop-list {
@@ -1092,7 +1092,7 @@
 	border-radius: 9px;
 	background: transparent;
 	color: var(--ax3-ink);
-	font-size: 12px;
+	font-size: var(--ds-text-xs);
 	text-align: left;
 	cursor: pointer;
 	transition: background 110ms var(--ax3-ease-out), box-shadow 110ms var(--ax3-ease-out);
@@ -1102,7 +1102,7 @@
    accent rail, a tinted surface, and the ↵ chip — so Enter is never a guess. */
 .ax3-root .ax3-cmd-pop-list button.is-active {
 	background: color-mix(in oklch, var(--ax3-accent) 8%, var(--ax3-surface));
-	box-shadow: inset 2px 0 0 var(--ax3-accent);
+	box-shadow: none;
 }
 
 .ax3-root .ax3-cmd-pop-list button kbd {
@@ -1116,7 +1116,7 @@
 	color: var(--ax3-accent);
 	background: var(--ax3-surface);
 	font-family: inherit;
-	font-size: 9px;
+	font-size: var(--ds-text-xs);
 	opacity: 0;
 	transition: opacity 110ms var(--ax3-ease-out);
 }
@@ -1127,11 +1127,11 @@
 
 .ax3-root .ax3-cmd-pop-list button i {
 	color: var(--ax3-subtle);
-	font-size: 9px;
+	font-size: var(--ds-text-xs);
 	font-style: normal;
 	font-weight: 560;
-	letter-spacing: 0.08em;
-	text-transform: uppercase;
+	letter-spacing: normal;
+	text-transform: none;
 }
 
 .ax3-root .ax3-cmd-pop-list button span {
@@ -1149,7 +1149,7 @@
 	overflow: hidden;
 	justify-self: end;
 	color: var(--ax3-subtle);
-	font-size: 10px;
+	font-size: var(--ds-text-xs);
 	text-align: right;
 	text-overflow: ellipsis;
 	white-space: nowrap;
@@ -1159,7 +1159,7 @@
 	margin: 0;
 	padding: 14px;
 	color: var(--ax3-muted);
-	font-size: 12px;
+	font-size: var(--ds-text-xs);
 }
 
 .ax3-root .ax3-cmd-pop footer {
@@ -1169,7 +1169,7 @@
 	padding: 7px 12px;
 	border-top: 1px solid var(--ax3-line);
 	color: var(--ax3-subtle);
-	font-size: 9.5px;
+	font-size: var(--ds-text-xs);
 }
 
 .ax3-root .ax3-cmd-pop footer kbd {
@@ -1178,7 +1178,7 @@
 	border-radius: 4px;
 	background: var(--ax3-surface-muted);
 	font-family: inherit;
-	font-size: 9px;
+	font-size: var(--ds-text-xs);
 }
 
 .ax3-session {
@@ -1218,7 +1218,7 @@
 
 .ax3-session-head h1 {
 	margin: 0;
-	font-size: 18px;
+	font-size: var(--ds-text-md);
 	font-weight: 610;
 	letter-spacing: -0.025em;
 }
@@ -1227,7 +1227,7 @@
 	max-width: 58ch;
 	margin: 5px 0 0;
 	color: var(--ax3-muted);
-	font-size: 11.5px;
+	font-size: var(--ds-text-xs);
 	line-height: 1.5;
 }
 
@@ -1248,7 +1248,7 @@
 	border-radius: 8px;
 	color: var(--ax3-muted);
 	background: var(--ax3-surface);
-	font-size: 9.5px;
+	font-size: var(--ds-text-xs);
 	transition: color 120ms var(--ax3-ease-out), border-color 120ms var(--ax3-ease-out), transform 100ms var(--ax3-ease-out);
 }
 
@@ -1277,9 +1277,9 @@
 	gap: 10px;
 	margin-bottom: 20px;
 	color: var(--ax3-subtle);
-	font-size: 9px;
-	text-transform: uppercase;
-	letter-spacing: 0.07em;
+	font-size: var(--ds-text-xs);
+	text-transform: none;
+	letter-spacing: normal;
 }
 
 .ax3-thread-date::before,
@@ -1305,20 +1305,20 @@
 	display: flex;
 	align-items: center;
 	gap: 7px;
-	font-size: 9.5px;
+	font-size: var(--ds-text-xs);
 	font-weight: 620;
 }
 
 .ax3-message time {
 	color: var(--ax3-subtle);
-	font-size: 8.5px;
+	font-size: var(--ds-text-xs);
 	font-weight: 450;
 }
 
 .ax3-message p {
 	max-width: 66ch;
 	margin: 5px 0 0;
-	font-size: 13px;
+	font-size: var(--ds-text-sm);
 	line-height: 1.58;
 }
 
@@ -1379,13 +1379,13 @@
 }
 
 .ax3-activity-group > summary strong {
-	font-size: 10.5px;
+	font-size: var(--ds-text-xs);
 	font-weight: 590;
 }
 
 .ax3-activity-group > summary > span:last-child {
 	color: var(--ax3-subtle);
-	font-size: 9px;
+	font-size: var(--ds-text-xs);
 }
 
 .ax3-spin {
@@ -1429,14 +1429,14 @@
 }
 
 .ax3-activity-step strong {
-	font-size: 11.5px;
+	font-size: var(--ds-text-xs);
 	font-weight: 560;
 }
 
 .ax3-activity-step small {
 	overflow: hidden;
 	color: var(--ax3-subtle);
-	font-size: 10px;
+	font-size: var(--ds-text-xs);
 	text-overflow: ellipsis;
 	white-space: nowrap;
 }
@@ -1445,7 +1445,7 @@
 	margin: -1px 0 10px 28px;
 	padding: 0 0 0 1px;
 	color: var(--ax3-muted);
-	font-size: 10px;
+	font-size: var(--ds-text-xs);
 	line-height: 1.5;
 }
 
@@ -1458,7 +1458,7 @@
 	border: 0;
 	color: var(--ax3-accent);
 	background: transparent;
-	font-size: 9px;
+	font-size: var(--ds-text-xs);
 }
 
 .ax3-inline-decision {
@@ -1470,7 +1470,7 @@
 	border: 1px solid color-mix(in oklch, var(--ax3-warning) 25%, var(--ax3-line));
 	border-radius: 13px;
 	background: color-mix(in oklch, var(--ax3-warning-soft) 50%, var(--ax3-surface));
-	box-shadow: 0 1px 2px oklch(0.2 0.01 73 / 0.035);
+	box-shadow: none;
 }
 
 .ax3-inline-decision > div:last-child > span,
@@ -1479,15 +1479,15 @@
 .ax3-inspector section > span,
 .ax3-drawer-layer aside section > span {
 	color: var(--ax3-warning);
-	font-size: 8.5px;
+	font-size: var(--ds-text-xs);
 	font-weight: 680;
-	letter-spacing: 0.055em;
-	text-transform: uppercase;
+	letter-spacing: normal;
+	text-transform: none;
 }
 
 .ax3-inline-decision h2 {
 	margin: 5px 0 0;
-	font-size: 14px;
+	font-size: var(--ds-text-md);
 	font-weight: 620;
 	letter-spacing: -0.018em;
 }
@@ -1495,7 +1495,7 @@
 .ax3-inline-decision p {
 	margin: 6px 0 0;
 	color: var(--ax3-muted);
-	font-size: 11.5px;
+	font-size: var(--ds-text-xs);
 	line-height: 1.55;
 }
 
@@ -1516,7 +1516,7 @@
 }
 
 .ax3-recommendation span {
-	font-size: 9.5px;
+	font-size: var(--ds-text-xs);
 	line-height: 1.45;
 }
 
@@ -1533,7 +1533,7 @@
 	border: 1px solid var(--ax3-line-strong);
 	border-radius: 8px;
 	background: var(--ax3-surface);
-	font-size: 10px;
+	font-size: var(--ds-text-xs);
 	font-weight: 550;
 }
 
@@ -1546,7 +1546,7 @@
 	display: block;
 	margin-top: 10px;
 	color: var(--ax3-subtle);
-	font-size: 9px;
+	font-size: var(--ds-text-xs);
 }
 
 .ax3-effect-facts {
@@ -1562,13 +1562,13 @@
 }
 
 .ax3-effect-facts strong {
-	font-size: 13px;
+	font-size: var(--ds-text-sm);
 	font-variant-numeric: tabular-nums;
 }
 
 .ax3-effect-facts small {
 	color: var(--ax3-subtle);
-	font-size: 8.5px;
+	font-size: var(--ds-text-xs);
 }
 
 .ax3-resumed {
@@ -1589,12 +1589,12 @@
 }
 
 .ax3-resumed strong {
-	font-size: 10px;
+	font-size: var(--ds-text-xs);
 }
 
 .ax3-resumed small {
 	color: var(--ax3-muted);
-	font-size: 9px;
+	font-size: var(--ds-text-xs);
 }
 
 .ax3-result {
@@ -1617,15 +1617,15 @@
 }
 
 .ax3-result-heading small {
-	font-size: 8px;
+	font-size: var(--ds-text-xs);
 	font-weight: 650;
-	letter-spacing: 0.05em;
-	text-transform: uppercase;
+	letter-spacing: normal;
+	text-transform: none;
 }
 
 .ax3-result-heading strong {
 	color: var(--ax3-ink);
-	font-size: 13px;
+	font-size: var(--ds-text-sm);
 	font-weight: 590;
 }
 
@@ -1633,7 +1633,7 @@
 	max-width: 66ch;
 	margin: 8px 0 0 26px;
 	color: var(--ax3-muted);
-	font-size: 11.5px;
+	font-size: var(--ds-text-xs);
 	line-height: 1.55;
 }
 
@@ -1683,13 +1683,13 @@
 }
 
 .ax3-result button strong {
-	font-size: 9.5px;
+	font-size: var(--ds-text-xs);
 	font-weight: 570;
 }
 
 .ax3-result button small {
 	color: var(--ax3-subtle);
-	font-size: 8.5px;
+	font-size: var(--ds-text-xs);
 }
 
 .ax3-inspector {
@@ -1710,7 +1710,7 @@
 }
 
 .ax3-inspector > header strong {
-	font-size: 11px;
+	font-size: var(--ds-text-xs);
 	font-weight: 610;
 }
 
@@ -1743,7 +1743,7 @@
 
 .ax3-inspector h2 {
 	margin: 7px 0 0;
-	font-size: 12px;
+	font-size: var(--ds-text-xs);
 	font-weight: 590;
 	line-height: 1.4;
 }
@@ -1751,7 +1751,7 @@
 .ax3-inspector section > p {
 	margin: 5px 0 0;
 	color: var(--ax3-muted);
-	font-size: 9.5px;
+	font-size: var(--ds-text-xs);
 	line-height: 1.5;
 }
 
@@ -1774,7 +1774,7 @@
 .ax3-drawer-layer dt,
 .ax3-drawer-layer dd {
 	margin: 0;
-	font-size: 9.5px;
+	font-size: var(--ds-text-xs);
 }
 
 .ax3-inspector dt,
@@ -1804,7 +1804,7 @@
 .ax3-authority-note p {
 	margin: 0;
 	color: var(--ax3-muted);
-	font-size: 9.5px;
+	font-size: var(--ds-text-xs);
 	line-height: 1.5;
 }
 
@@ -1830,13 +1830,13 @@
 }
 
 .ax3-inspector-row strong {
-	font-size: 9.5px;
+	font-size: var(--ds-text-xs);
 	font-weight: 550;
 }
 
 .ax3-inspector-row small {
 	color: var(--ax3-subtle);
-	font-size: 8.5px;
+	font-size: var(--ds-text-xs);
 }
 
 .ax3-create {
@@ -1861,7 +1861,7 @@
 
 .ax3-create--empty h1 {
 	margin: 16px 0 0;
-	font-size: 29px;
+	font-size: var(--ds-text-xl);
 	font-weight: 570;
 	letter-spacing: -0.035em;
 }
@@ -1870,17 +1870,17 @@
 	max-width: 58ch;
 	margin: 10px 0 0;
 	color: var(--ax3-muted);
-	font-size: 12px;
+	font-size: var(--ds-text-xs);
 	line-height: 1.58;
 }
 
 .ax3-create--empty > div > span {
 	margin-top: 28px;
 	color: var(--ax3-subtle);
-	font-size: 9px;
+	font-size: var(--ds-text-xs);
 	font-weight: 620;
-	letter-spacing: 0.06em;
-	text-transform: uppercase;
+	letter-spacing: normal;
+	text-transform: none;
 }
 
 .ax3-create-examples {
@@ -1900,7 +1900,7 @@
 	border: 1px solid var(--ax3-line);
 	border-radius: 8px;
 	background: var(--ax3-surface);
-	font-size: 9.5px;
+	font-size: var(--ds-text-xs);
 	font-weight: 540;
 	transition: border-color 130ms var(--ax3-ease-out), background 130ms var(--ax3-ease-out), transform 100ms var(--ax3-ease-out);
 }
@@ -1923,14 +1923,14 @@
 
 .ax3-create > header > div > span {
 	color: var(--ax3-subtle);
-	font-size: 9px;
+	font-size: var(--ds-text-xs);
 	font-weight: 600;
-	text-transform: uppercase;
-	letter-spacing: 0.06em;
+	text-transform: none;
+	letter-spacing: normal;
 }
 
 .ax3-create header h1 {
-	font-size: 28px;
+	font-size: var(--ds-text-xl);
 }
 
 .ax3-research-line,
@@ -1954,13 +1954,13 @@
 
 .ax3-research-line strong,
 .ax3-ready strong {
-	font-size: 10px;
+	font-size: var(--ds-text-xs);
 }
 
 .ax3-research-line small,
 .ax3-ready small {
 	color: var(--ax3-muted);
-	font-size: 9px;
+	font-size: var(--ds-text-xs);
 }
 
 /* .ax3-root prefix: survives the later `.mxp-root button { color: inherit; font: inherit }` reset. */
@@ -1969,7 +1969,7 @@
 	border: 0;
 	color: var(--ax3-accent);
 	background: transparent;
-	font-size: 9px;
+	font-size: var(--ds-text-xs);
 	font-weight: 550;
 }
 
@@ -1988,7 +1988,7 @@
 .ax3-interview h2,
 .ax3-proposal h2 {
 	margin: 6px 0 18px;
-	font-size: 16px;
+	font-size: var(--ds-text-md);
 	font-weight: 610;
 	letter-spacing: -0.02em;
 }
@@ -2014,13 +2014,13 @@
 }
 
 .ax3-question-row strong {
-	font-size: 10px;
+	font-size: var(--ds-text-xs);
 	font-weight: 580;
 }
 
 .ax3-question-row small {
 	color: var(--ax3-subtle);
-	font-size: 8.5px;
+	font-size: var(--ds-text-xs);
 }
 
 .ax3-question-row label {
@@ -2032,7 +2032,7 @@
 	border: 1px solid var(--ax3-line);
 	border-radius: 8px;
 	background: var(--ax3-surface);
-	font-size: 9px;
+	font-size: var(--ds-text-xs);
 	cursor: pointer;
 	transition: border-color 120ms var(--ax3-ease-out), background 120ms var(--ax3-ease-out);
 }
@@ -2064,7 +2064,7 @@
 	max-width: 58ch;
 	margin: 4px 0 0;
 	color: var(--ax3-muted);
-	font-size: 10px;
+	font-size: var(--ds-text-xs);
 	line-height: 1.5;
 }
 
@@ -2080,10 +2080,10 @@
 
 .ax3-proposal-grid section > span {
 	color: var(--ax3-subtle);
-	font-size: 8.5px;
+	font-size: var(--ds-text-xs);
 	font-weight: 650;
-	letter-spacing: 0.06em;
-	text-transform: uppercase;
+	letter-spacing: normal;
+	text-transform: none;
 }
 
 .ax3-proposal-grid ul,
@@ -2101,7 +2101,7 @@
 	align-items: center;
 	gap: 7px;
 	color: var(--ax3-muted);
-	font-size: 9.5px;
+	font-size: var(--ds-text-xs);
 }
 
 .ax3-history {
@@ -2120,10 +2120,10 @@
 	display: block;
 	margin-bottom: 7px;
 	color: var(--ax3-subtle);
-	font-size: 9px;
+	font-size: var(--ds-text-xs);
 	font-weight: 620;
-	text-transform: uppercase;
-	letter-spacing: 0.06em;
+	text-transform: none;
+	letter-spacing: normal;
 }
 
 /* .ax3-history-row is the non-interactive variant: a ledger entry for an Agent that has no
@@ -2150,7 +2150,7 @@
 
 .ax3-history-day time {
 	color: var(--ax3-subtle);
-	font-size: 9px;
+	font-size: var(--ds-text-xs);
 	font-variant-numeric: tabular-nums;
 }
 
@@ -2176,14 +2176,14 @@
 }
 
 .ax3-history-day strong {
-	font-size: 10.5px;
+	font-size: var(--ds-text-xs);
 	font-weight: 570;
 }
 
 .ax3-history-day small {
 	overflow: hidden;
 	color: var(--ax3-subtle);
-	font-size: 9px;
+	font-size: var(--ds-text-xs);
 	text-overflow: ellipsis;
 	white-space: nowrap;
 }
@@ -2210,7 +2210,7 @@
 	overflow-y: auto;
 	border-left: 1px solid oklch(0.82 0.008 73);
 	background: var(--ax3-surface);
-	box-shadow: -2px 0 8px oklch(0.2 0.01 73 / 0.05), -18px 0 48px oklch(0.2 0.01 73 / 0.1);
+	box-shadow: none;
 }
 
 .ax3-drawer-layer aside > header {
@@ -2230,7 +2230,7 @@
 
 .ax3-drawer-layer h2 {
 	margin: 0;
-	font-size: 18px;
+	font-size: var(--ds-text-md);
 	font-weight: 610;
 	letter-spacing: -0.025em;
 }
@@ -2257,7 +2257,7 @@
 .ax3-drawer-layer aside section > p {
 	margin: 8px 0 0;
 	color: var(--ax3-muted);
-	font-size: 10.5px;
+	font-size: var(--ds-text-xs);
 	line-height: 1.55;
 }
 
@@ -2282,7 +2282,7 @@
 
 .ax3-effect-row strong,
 .ax3-effect-row b {
-	font-size: 10px;
+	font-size: var(--ds-text-xs);
 	font-weight: 580;
 }
 
@@ -2292,7 +2292,7 @@
 
 .ax3-effect-row small {
 	color: var(--ax3-subtle);
-	font-size: 9px;
+	font-size: var(--ds-text-xs);
 }
 
 .ax3-drawer-layer li svg {
@@ -2320,7 +2320,7 @@
 	border: 1px solid var(--ax3-line-strong);
 	border-radius: 8px;
 	background: var(--ax3-surface);
-	font-size: 10px;
+	font-size: var(--ds-text-xs);
 	font-weight: 560;
 }
 
@@ -2349,8 +2349,8 @@
 	border-radius: 10px;
 	color: var(--ax3-ink);
 	background: var(--ax3-surface);
-	box-shadow: 0 2px 6px oklch(0.2 0.01 73 / 0.07), 0 14px 38px oklch(0.2 0.01 73 / 0.12);
-	font-size: 10px;
+	box-shadow: none;
+	font-size: var(--ds-text-xs);
 }
 
 .ax3-toast svg {
@@ -2378,7 +2378,7 @@
 		bottom: 0;
 		left: 64px;
 		width: 236px;
-		box-shadow: 12px 0 32px oklch(0.2 0.01 73 / 0.12);
+		box-shadow: none;
 		transform: translateX(calc(-100% - 64px));
 		transition: transform 240ms var(--ax3-ease-out);
 	}
@@ -2413,7 +2413,7 @@
 		right: 0;
 		bottom: 100px;
 		width: 284px;
-		box-shadow: -12px 0 32px oklch(0.2 0.01 73 / 0.1);
+		box-shadow: none;
 	}
 }
 
@@ -2459,7 +2459,7 @@
 	.ax3-today-lead h1,
 	.ax3-history h1,
 	.ax3-create header h1 {
-		font-size: 28px;
+		font-size: var(--ds-text-xl);
 	}
 
 	.ax3-section-heading > div {
@@ -2591,7 +2591,7 @@
 	.ax3-today-lead h1,
 	.ax3-history h1,
 	.ax3-create header h1 {
-		font-size: 25px;
+		font-size: var(--ds-text-xl);
 	}
 
 	.ax3-inline-decision {
@@ -2650,7 +2650,7 @@
 	align-items: center;
 	gap: 7px;
 	color: var(--ax3-accent);
-	font-size: 10px;
+	font-size: var(--ds-text-xs);
 	font-weight: 630;
 	letter-spacing: 0.01em;
 }
@@ -2662,7 +2662,7 @@
 	min-height: 24px;
 	margin-top: 8px;
 	color: var(--ax3-muted);
-	font-size: 11px;
+	font-size: var(--ds-text-xs);
 }
 
 .ax3-research-row svg {
@@ -2673,7 +2673,7 @@
 .ax3-research-row strong {
 	min-width: 20px;
 	color: var(--ax3-ink);
-	font-size: 11.5px;
+	font-size: var(--ds-text-xs);
 	font-variant-numeric: tabular-nums;
 	text-align: right;
 }
@@ -2681,7 +2681,7 @@
 .ax3-research-row small {
 	overflow: hidden;
 	color: var(--ax3-subtle);
-	font-size: 9.5px;
+	font-size: var(--ds-text-xs);
 	text-overflow: ellipsis;
 	white-space: nowrap;
 }
@@ -2708,7 +2708,7 @@
 	align-items: center;
 	gap: 7px;
 	color: var(--ax3-accent);
-	font-size: 10px;
+	font-size: var(--ds-text-xs);
 	font-weight: 630;
 }
 
@@ -2719,13 +2719,13 @@
 }
 
 .ax3-receipts > header strong {
-	font-size: 12.5px;
+	font-size: var(--ds-text-xs);
 	font-variant-numeric: tabular-nums;
 }
 
 .ax3-receipts > header small {
 	color: var(--ax3-subtle);
-	font-size: 9.5px;
+	font-size: var(--ds-text-xs);
 	font-variant-numeric: tabular-nums;
 }
 
@@ -2752,20 +2752,20 @@
 
 .ax3-receipt-row strong {
 	color: var(--ax3-ink);
-	font-size: 11.5px;
+	font-size: var(--ds-text-xs);
 	font-weight: 570;
 }
 
 .ax3-receipt-row small {
 	overflow: hidden;
 	color: var(--ax3-subtle);
-	font-size: 9.5px;
+	font-size: var(--ds-text-xs);
 	text-overflow: ellipsis;
 	white-space: nowrap;
 }
 
 .ax3-receipt-row > b {
-	font-size: 11px;
+	font-size: var(--ds-text-xs);
 	font-variant-numeric: tabular-nums;
 	font-weight: 590;
 }
@@ -2781,7 +2781,7 @@
 	gap: 6px;
 	margin-top: 2px;
 	color: var(--ax3-subtle);
-	font-size: 9.5px;
+	font-size: var(--ds-text-xs);
 	animation: ax3-ambient-in 200ms var(--ax3-ease-out);
 }
 
@@ -2841,13 +2841,13 @@
 	align-items: center;
 	gap: 7px;
 	color: var(--ax3-accent);
-	font-size: 10px;
+	font-size: var(--ds-text-xs);
 	font-weight: 630;
 }
 
 .ax3-live-strip > header small {
 	color: var(--ax3-subtle);
-	font-size: 9px;
+	font-size: var(--ds-text-xs);
 }
 
 .ax3-root .ax3-live-strip > button {
@@ -2861,7 +2861,7 @@
 	border: 0;
 	background: transparent;
 	color: var(--ax3-ink);
-	font-size: 12px;
+	font-size: var(--ds-text-xs);
 	text-align: left;
 	transition: background 130ms var(--ax3-ease-out);
 }
@@ -2882,7 +2882,7 @@
 }
 
 .ax3-live-strip strong {
-	font-size: 11px;
+	font-size: var(--ds-text-xs);
 	font-weight: 570;
 }
 
@@ -2908,7 +2908,7 @@
 }
 
 .ax3-interview-ask p {
-	font-size: 12.5px;
+	font-size: var(--ds-text-xs);
 }
 
 /* G2: the three choices arrive in sequence under the question. The delay is zeroed by the
@@ -2932,13 +2932,13 @@
 	border-left: 2px solid var(--ax3-accent);
 	border-radius: 0 9px 9px 0;
 	background: var(--ax3-surface-muted);
-	font-size: 11px;
+	font-size: var(--ds-text-xs);
 	line-height: 1.5;
 }
 
 .ax3-proposal-echo > span {
 	color: var(--ax3-subtle);
-	font-size: 9px;
+	font-size: var(--ds-text-xs);
 }
 
 @media (prefers-reduced-motion: reduce) {

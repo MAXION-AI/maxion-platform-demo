@@ -1,4 +1,4 @@
-import type { DeliverableBody } from "./types"
+import type { DeliverableBody, DeliverableRevision } from "./types"
 
 // Third-party onboarding control redesign · Northstar
 // Evidence base: 43 policy documents, 126 backlog issues, 284 register records,
@@ -715,7 +715,7 @@ const BUSINESS_CASE: DeliverableBody = {
 				source: "Benefits model · [SRC-031] · [SRC-088] · loaded internal rate $92/hour",
 				unit: "$k",
 				data: [
-					{ label: "Released review capacity", value: 214, note: "1,240 hours · 150 vendors off heavy path", emphasis: true },
+					{ label: "Released review capacity", value: 214, note: "1,240 hours · 150 Tier 3 vendors", emphasis: true },
 					{ label: "Avoided audit remediation", value: 136, note: "Risk-weighted at 40%" },
 					{ label: "Exception handling removed", value: 89, note: "48 fewer exceptions × 6 hours", emphasis: true },
 					{ label: "Faster vendor value realisation", value: 92, note: "11 in-flight vendors only" },
@@ -1067,3 +1067,20 @@ const PROCESS_ANALYSIS: DeliverableBody = {
 }
 
 export const TPRM_DELIVERABLES: DeliverableBody[] = [EXECUTIVE_BRIEF, BUSINESS_CASE, PROJECT_CHARTER, PROCESS_ANALYSIS, REQUIREMENTS, TECHNICAL_ASSESSMENT, TARGET_OPERATING_MODEL, RAID_REGISTER, ROADMAP]
+
+// With the owner's approval the vendor's privacy counsel is asked for the
+// retention terms, so the brief reports a pending confirmation instead of a
+// recorded limitation.
+export const TPRM_APPROVED_REVISIONS: Partial<Record<number, DeliverableRevision>> = {
+	0: {
+		sections: {
+			"What this package does not claim": [
+				"The vendor's data-retention commitment is not yet evidenced. No internal source holds it: the policy library, the register, and the contract record were all searched. With your approval, MAX requested one scoped interview with the vendor's privacy counsel, so retention is pending confirmation rather than inferred from the contract template. Until that interview is recorded, REQ-09 keeps a Tier 1 vendor from signature without either the artifact or a time-bound, named exception.",
+				"The modelled cycle times are replays of historical decisions through the target design, not forecasts. They assume review capacity holds at current levels; if Security capacity falls, the parallel design degrades gracefully to today's timing rather than failing, but the 18-day figure would not hold.",
+			],
+		},
+		findings: {
+			"Unresolved exposure": { label: "Pending confirmation", detail: "Vendor counsel interview requested with your approval. Retention stays pending confirmation until the interview is recorded, and REQ-09 fails closed without it." },
+		},
+	},
+}

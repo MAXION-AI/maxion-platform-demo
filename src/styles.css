@@ -1,16 +1,13 @@
-@font-face {
-  font-family: "Geist";
-  src: url("/fonts/geist-variable.woff2") format("woff2");
-  font-style: normal;
-  font-weight: 100 900;
-  font-display: swap;
-}
-
+/* One typeface for the whole product. The face itself is declared with the
+ * design tokens; see docs/visual-spec.md. */
 :root {
   color-scheme: light;
-  font-family: Geist, Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  font-family: var(--ds-font);
   font-synthesis: none;
+  font-feature-settings: normal;
   text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
 
 html,
@@ -24,7 +21,7 @@ body,
 
 body {
   overflow: hidden;
-  background: #f7f7f4;
+  background: var(--ds-bg);
 }
 
 /*
@@ -46,8 +43,27 @@ body {
 
 button,
 textarea,
-input {
+input,
+select {
   font: inherit;
+}
+
+/* Disabled controls read as unavailable everywhere; components that style their own
+ * disabled state override this, because :where() carries no specificity. */
+:where(button:disabled) {
+  cursor: not-allowed;
+  opacity: 0.46;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    scroll-behavior: auto !important;
+    animation-duration: 1ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 1ms !important;
+  }
 }
 
 .sr-only {
