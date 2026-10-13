@@ -31,7 +31,7 @@ The number on each heading matches the sidebar count. To show a stakeholder's si
 
 **1 · Start the Discovery.** In Discover, choose the **Salesforce–SAP order sync** template and **Start autonomous Discovery**. Tick the authority review and choose **Create Discovery**.
 
-**2 · Answer the owner interview.** Six questions, filled from the sidebar with **Fill answer**, sent with Enter.
+**2 · Answer the owner interview.** Six questions, filled from the sidebar with **Fill answer**, sent with Enter. Or make it a call: choose **Start the call** in the sidebar row (or in the Thread), then **Continue with voice**. On the call, **Fill answer** arrives as speech and sends itself after the pause; **What MAX heard** fills on the right, and on the second answer MAX reads the source during the call (an early signal, verified later). The call ends on a summary: choose **Watch MAX work** to open the stakeholder calls.
 
 **3 · Let MAX investigate, then decide.** MAX reads the four sources and interviews the four owners, then stops at one decision: 187 active accounts carry a different address and tax jurisdiction in Salesforce than in SAP, and tax was determined by whichever system posted first — $612,480.90 of orders. Choose **Make the SAP business partner authoritative**.
 *Say:* Each system is internally consistent; which one is the master is finance policy, so MAX stops and asks.
@@ -42,9 +42,9 @@ The number on each heading matches the sidebar count. To show a stakeholder's si
 
 ### Agentix
 
-**6 · Create the engagement in Agentix.** Nothing existed in Agentix for this until the handoff. Answer the two questions (**Ask me before each pipeline release**, **The synthetic 30-day order sample**), choose **Run the read-only check**, then **Activate engagement**.
+**6 · Create the engagement in Agentix.** Nothing existed in Agentix for this until the handoff. Answer the two questions (**Ask me before each pipeline release**, **The synthetic 30-day order sample**), choose **Run the read-only check**, then **Activate engagement**. The engagement opens on its **Floor**: the team assembles, with the Discovery package going to the coordinator and each milestone to the specialist who takes it first.
 
-**7 · Decide the unmapped-SKU rule.** MS-1 asks about 94 Salesforce SKUs with no SAP material. Choose **Block the order and raise it to product ops**.
+**7 · Decide the unmapped-SKU rule.** MS-1 asks about 94 Salesforce SKUs with no SAP material. Choose **Block the order and raise it to product ops**. On the Floor, the specialist's packet climbs to **You** and your room opens with the decision; decide it there, or in **Work**.
 *Say:* Posting them against a placeholder would bill the wrong thing, so the specialist asks rather than choosing.
 
 **8 · Watch a check fail and the repair.** In MS-2, pipeline v1 resolves customers from Salesforce, so two of its twelve checks fail: tax determination and pricing. Open v1 to show the 187 accounts. The integration specialist repairs the resolution, and v2 passes all twelve.

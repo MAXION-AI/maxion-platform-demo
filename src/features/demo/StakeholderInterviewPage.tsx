@@ -1,4 +1,4 @@
-import { ArrowSquareOut, Briefcase, CheckCircle, Clock, PaperPlaneRight, ShieldCheck } from "@phosphor-icons/react"
+import { ArrowSquareOut, Briefcase, CheckCircle, Clock, Microphone, PaperPlaneRight, ShieldCheck } from "@phosphor-icons/react"
 import { useEffect, useMemo, useRef, useState, type CSSProperties } from "react"
 import { useDocumentTitle } from "@/app/hooks/useDocumentTitle"
 import { publicAsset } from "@/lib/publicAsset"
@@ -6,6 +6,8 @@ import { Button as DsButton, TextButton } from "@/design/primitives"
 import { SCENARIOS, type Person } from "@/features/discovery-autonomous/model"
 import { demoScript } from "./scripts"
 import { guideDemo, stakeholderWho } from "./session"
+import { greetingFor, questionFor, stakeholderClosing, suggestionFor, topicsFor } from "./stakeholderLines"
+import { StakeholderVoice } from "./StakeholderVoice"
 import "./demo.css"
 
 /*
@@ -32,30 +34,7 @@ const Lockup = () => (
 )
 
 
-/* Each phrase of a stakeholder's focus is one thing MAX has to cover with them. */
-function topicsFor(person: Person) {
-	return person.focus.split(/,\s*/).map(topic => topic.trim()).filter(Boolean)
-}
-
-/* MAX says why it is here once, not before every question. */
-function greetingFor(person: Person, title: string, count: number) {
-	const first = person.name.split(" ")[0]
-	return `${first}, thank you for the time. I am MAX, running the Discovery on ${title}. ${count} question${count === 1 ? "" : "s"} on your ground, then I will leave you to it. Nothing here is attributed to you by name.`
-}
-
-/* The topic is written as the scenario wrote it: a proper noun stays a proper noun. */
-function questionFor(topic: string, index: number, last: boolean) {
-	if (index === 0) return `Start with ${topic}. How does it work today, and where does it go wrong?`
-	if (last) return `Last one: ${topic}. Who decides when it is contested, and what would you change?`
-	return `Now ${topic}. What does the record not show that I would need to know?`
-}
-
-/* A plausible answer in the stakeholder's own voice, so a presenter is never stuck for words. */
-function suggestionFor(topic: string, index: number, last: boolean) {
-	if (index === 0) return `It works until month-end. Volume triples, we go from a rule to memory, and that is where ${topic} slips.`
-	if (last) return `It comes to me informally today. I would rather it were written down and owned by one named person, rather than whoever happens to be on the close.`
-	return `The record shows what was decided, never why. Nobody writes the judgement down, so it reads cleaner than it is.`
-}
+/* What MAX says here (topics, greeting, questions, suggestions) lives in ./stakeholderLines, shared with the voice render. */
 
 export function StakeholderInterviewPage() {
 	// Unlike the presenter guide, this page follows its address rather than fixing to the window it
@@ -76,7 +55,7 @@ export function StakeholderInterviewPage() {
 	const topics = useMemo(() => topicsFor(person), [person])
 	useDocumentTitle(`Stakeholder interview · ${scenario.title}`)
 
-	const [view, setView] = useState<"landing" | "interview" | "closed">("landing")
+	const [view, setView] = useState<"landing" | "interview" | "voice" | "closed">("landing")
 	const [closing, setClosing] = useState<{ title: string; detail: string } | null>(null)
 	const [consent, setConsent] = useState(false)
 	const [turns, setTurns] = useState<Turn[]>([])
@@ -91,7 +70,7 @@ export function StakeholderInterviewPage() {
 
 	// MAX opens with its first question, then asks the next one after each answer.
 	useEffect(() => {
-		if (view !== "interview") return
+		if (view !== "interview" && view !== "voice") return
 		if (turns.length && turns.at(-1)!.from === "max") return
 		if (answered >= topics.length) return
 		const index = answered
@@ -164,7 +143,9 @@ export function StakeholderInterviewPage() {
 					</label>
 
 					<div className="mxd-actions">
-						<DsButton variant="primary" disabled={!consent} onClick={() => setView("interview")}>Start the interview</DsButton>
+						{/* A stakeholder MAX reaches by voice is offered the call first; typing is always there. */}
+						{person.channel === "Voice" ? <DsButton variant="primary" disabled={!consent} onClick={() => setView("voice")}><Microphone size={14} />Start by voice</DsButton> : null}
+						<DsButton variant={person.channel === "Voice" ? "secondary" : "primary"} disabled={!consent} onClick={() => setView("interview")}>Start the interview</DsButton>
 						<DsButton onClick={() => close("Saved for later", "Your place is kept. The same link brings you back to where you stopped.")}>Save for later</DsButton>
 						<TextButton onClick={() => close("Thank you for saying so", "MAX will ask the Discovery owner who holds this instead. Nothing else is needed from you.")}>I am not the right person</TextButton>
 					</div>
@@ -185,7 +166,19 @@ export function StakeholderInterviewPage() {
 					<p className="mxd-si-progress" role="status">{Math.min(answered, topics.length)} of {topics.length} topics{done ? " · ready to submit" : current ? ` · on ${current.toLowerCase()}` : ""}</p>
 				</header>
 
-				<div className="mxd-si-thread" ref={thread}>
+				{view === "voice" ? (
+					<StakeholderVoice
+						closing={stakeholderClosing(person)}
+						topics={topics}
+						turns={turns}
+						done={done}
+						onAnswer={send}
+						suggest={() => suggestionFor(current, asking, asking === topics.length - 1)}
+						onTypeInstead={() => setView("interview")}
+						onSubmit={() => close("Submitted", "Thank you. Your answers went to MAX, anonymised, and the Discovery continues without you having to chase it.")} />
+				) : null}
+
+				<div className={`mxd-si-thread${view === "voice" ? " is-transcript" : ""}`} ref={thread} role={view === "voice" ? "region" : undefined} aria-label={view === "voice" ? "Transcript" : undefined}>
 					{turns.map((turn, index) => (
 						<div key={turn.id} className={`mxd-si-turn is-${turn.from}`}>
 							{/* One name per run of turns: the same speaker twice does not introduce itself twice. */}
@@ -196,7 +189,7 @@ export function StakeholderInterviewPage() {
 					{done ? <p className="mxd-si-complete"><CheckCircle size={14} weight="fill" aria-hidden="true" /> That covers everything MAX needed from you. Submit when you are ready.</p> : null}
 				</div>
 
-				<form className="mxd-si-composer" onSubmit={event => { event.preventDefault(); send(draft) }}>
+				{view === "voice" ? null : <form className="mxd-si-composer" onSubmit={event => { event.preventDefault(); send(draft) }}>
 					<textarea
 						ref={composer}
 						aria-label="Your answer"
@@ -214,7 +207,7 @@ export function StakeholderInterviewPage() {
 							<DsButton variant="primary" disabled={!answered} onClick={() => close("Submitted", "Thank you. Your answers went to MAX, anonymised, and the Discovery continues without you having to chase it.")}>Finish and submit</DsButton>
 						</div>
 					</div>
-				</form>
+				</form>}
 			</main>
 		</div>
 	)

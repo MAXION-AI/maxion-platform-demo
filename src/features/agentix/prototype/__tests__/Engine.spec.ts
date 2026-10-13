@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it } from "vitest"
 import { activate, activationBlockers, actOnEngagement, actOnRelease, actOnWork, addIncoming, advanceSchedule, advanceToWindow, answerQuestion, decide, fulfill, itemBy, latest, receivePackage, tick } from "../engine/engine"
 import { initialState } from "../engine/seed"
 import { achievements, needsYou, readinessSplit, statusOf, teamPresence } from "../engine/selectors"
-import { acceptOffer, sendInstruction } from "../engine/steering"
+import { acceptOffer, sendInstruction, sendToAgent } from "../engine/steering"
 import type { AgentixState, WorkItem } from "../engine/types"
 
 const REV = "invoice"
@@ -231,6 +231,22 @@ describe("amendments", () => {
 		state = run(state, s => s.work.find(entry => entry.id === followUps[0].id)!.status === "verified")
 		expect(latest(artifact(state, "runbook")).summary).toBe(`Updated for revenue dashboard v${latest(changed).version}`)
 		expect(artifact(state, "runbook").productionVersion).toBe(latest(artifact(state, "runbook")).version)
+	})
+
+	it("applies a change written in a specialist's room once, through the accountable agent", () => {
+		let state = delivered()
+		state = sendToAgent(state, REV, "dashboard", "Add regional drill-down to the revenue dashboard")
+		const owner = state.messages.filter(m => m.role === "owner").at(-1)!
+		expect(owner.agentId).toBe("dashboard")
+		expect(owner.instruction?.status).toBe("queued")
+		expect(state.messages.at(-1)!.text).toMatch(/^From your message to the dashboard specialist: Queued/)
+		state = tick(state)
+		expect(state.messages.find(m => m.id === owner.id)!.instruction?.status).toBe("applied")
+		expect(latest(artifact(state, "dashboard")).variant).toContain("region-drilldown")
+		for (let i = 0; i < 6; i++) state = tick(state)
+		// Applied once: one follow-up, and one amended dashboard version from the message.
+		expect(state.work.filter(entry => entry.reference.startsWith("CHG-"))).toHaveLength(1)
+		expect(artifact(state, "dashboard").versions.filter(v => v.source === "amendment" && v.instructionId === owner.id)).toHaveLength(1)
 	})
 
 	it("invalidates the dependent pipeline checks when the mapping changes before release", () => {

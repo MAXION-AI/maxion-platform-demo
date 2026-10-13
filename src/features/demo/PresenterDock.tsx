@@ -1,4 +1,4 @@
-import { ArrowSquareOut, CaretRight, CheckCircle, Circle, PresentationChart, WarningCircle, X } from "@phosphor-icons/react"
+import { ArrowSquareOut, CaretRight, CheckCircle, Circle, Microphone, PresentationChart, WarningCircle, X } from "@phosphor-icons/react"
 import { useCallback, useEffect, useId, useLayoutEffect, useRef, useState, type CSSProperties, type FocusEvent, type KeyboardEvent as ReactKeyboardEvent } from "react"
 import { createPortal } from "react-dom"
 import { Button as DsButton, TextButton } from "@/design/primitives"
@@ -151,7 +151,12 @@ export function PresenterDock({ script, collapsed, onRun }: { script: DemoScript
 				<div><dt>Do</dt><dd>{step.does}</dd></div>
 				<div><dt>Say</dt><dd className="mxd-say">{step.says}</dd></div>
 			</dl>
-			{step.action ? <div className="mxd-actions"><DsButton size="sm" variant="primary" onClick={() => step.action && act(step.action.run)}>{step.action.label}<CaretRight size={12} /></DsButton></div> : null}
+			{step.action || step.secondary ? (
+				<div className="mxd-actions">
+					{step.action ? <DsButton size="sm" variant="primary" onClick={() => step.action && act(step.action.run)}>{step.action.label}<CaretRight size={12} /></DsButton> : null}
+					{step.secondary ? <DsButton size="sm" onClick={() => step.secondary && act(step.secondary.run)}><Microphone size={12} />{step.secondary.label}</DsButton> : null}
+				</div>
+			) : null}
 			<details className="mxd-steps">
 				<summary><CaretRight size={12} className="mxd-caret" aria-hidden="true" />All steps</summary>
 				<ol>

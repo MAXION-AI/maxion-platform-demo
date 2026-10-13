@@ -1,4 +1,5 @@
 import type { WorkflowId } from "@/features/agentix/prototype/initiatives"
+import type { HeardSpec } from "@/features/discovery-autonomous/interview"
 import type { ScenarioKey } from "@/features/discovery-autonomous/model"
 
 /*
@@ -33,6 +34,11 @@ export type DemoStepCopy = {
 	says: string
 }
 
+/* One line on a stakeholder call MAX runs after the owner interview. */
+export type CallLine = { by: "max" | "them"; text: string }
+/* MAX's call with one stakeholder, as Autonomy replays it: a few lines, and what MAX took from it. */
+export type StakeholderCall = { person: string; lines: readonly CallLine[]; insight: string }
+
 export type DemoScript = {
 	id: DemoId
 	/* The sidebar row: "Revenue demo". */
@@ -65,6 +71,18 @@ export type DemoScript = {
 	replacesLabel: string
 	/* What the presenter types during the owner interview, in order. */
 	answers: readonly string[]
+	/*
+	 * What MAX says back to each scripted answer before its next question. Written to be heard as
+	 * well as read: the call speaks them, and they are fixed so they can be pre-rendered. The
+	 * second keeps the Thread's source-check sentence; the last closes the interview.
+	 */
+	replies: readonly string[]
+	/* What MAX heard in each answer, for "What MAX heard". A `check` is read during the call; `open` stays a gap. */
+	heard: readonly HeardSpec[]
+	/* MAX's stakeholder calls after the owner interview, replayed in Autonomy. */
+	calls: readonly StakeholderCall[]
+	/* Where two stakeholders' answers disagree. It becomes the Discovery's one decision. */
+	conflict: { between: readonly [string, string]; summary: string }
 	charterReason: string
 	handoffNote: string
 	steps: Record<DemoStepId, DemoStepCopy>

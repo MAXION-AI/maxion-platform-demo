@@ -1,4 +1,5 @@
-import { ArrowRight, CaretDown, CaretRight, Flask, Lock, WarningCircle } from "@phosphor-icons/react"
+import { ArrowRight, CaretDown, CaretRight } from "@phosphor-icons/react"
+import { Flask, Lock, WarningCircle } from "./glyphs"
 import { motion, useReducedMotion } from "motion/react"
 import { Button as DsButton, Mark } from "@/design/primitives"
 import { CyclingPlaceholder, riseIn, StepLoader } from "@/components/motion/MotionKit"

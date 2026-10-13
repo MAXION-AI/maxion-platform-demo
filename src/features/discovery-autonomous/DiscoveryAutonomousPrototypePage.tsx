@@ -50,8 +50,8 @@ import {
 } from "@phosphor-icons/react"
 
 import { publicAsset } from "@/lib/publicAsset"
-import { DEMO_FILL_EVENT, DEMO_OWNER_EVENT, DEMO_SAVE_EVENT, demoSession, moduleStorage, notifyDemoChange, resetDemoAgentix, storageKey } from "@/features/demo/session"
-import { DEMO_SCRIPTS, demoScript, type DemoScript } from "@/features/demo/scripts"
+import { DEMO_CALL_EVENT, DEMO_FILL_EVENT, DEMO_OWNER_EVENT, DEMO_SAVE_EVENT, demoSession, moduleStorage, notifyDemoChange, resetDemoAgentix, storageKey } from "@/features/demo/session"
+import { DEMO_SCRIPTS, demoScript, scriptForScenario, type DemoScript } from "@/features/demo/scripts"
 import { CyclingPlaceholder, GeneratedWords, MovingBorder, Orb, ShimmerText, StepLoader, riseIn, useRiseIn, useSheetMotion, useWordStream } from "@/components/motion/MotionKit"
 import {
 	Badge as DsBadge,
@@ -97,47 +97,16 @@ import {
 	handoffDestination,
 	type HandoffDestination,
 } from "./model"
+import { callOpener, closingText, conciseAnswer, echoOwner, firstSentence, heardFrom, initialInterviewMessages, interviewMessage, isOwnerFact, isUncertainAnswer, referencedSource, settleFacts, topicRing, type ChatMessage, type OwnerFact } from "./interview"
+import { VoiceCall, type CallCheck, type CallFill } from "./VoiceCall"
+import { StakeholderCalls } from "./StakeholderCalls"
+import { VoiceOrb } from "@/components/voice/VoiceOrb"
 import "./deliverable-reader.css"
 import "./cockpit.css"
 
 type View = "thread" | "autonomy" | "workshop" | "package"
 type Drawer = "setup" | "people" | "sources" | "package" | null
 type DecisionState = "pending" | "approved" | "modified"
-type VoiceState = "consent" | "ready" | "listening" | "thinking" | "speaking" | "error"
-
-type BrowserSpeechRecognitionEvent = {
-	results: ArrayLike<ArrayLike<{ transcript: string }> & { isFinal: boolean }>
-}
-
-type BrowserSpeechRecognition = {
-	continuous: boolean
-	interimResults: boolean
-	lang: string
-	onresult: ((event: BrowserSpeechRecognitionEvent) => void) | null
-	onerror: ((event: { error: string }) => void) | null
-	onend: (() => void) | null
-	start: () => void
-	stop: () => void
-	abort: () => void
-}
-
-type BrowserSpeechRecognitionConstructor = new () => BrowserSpeechRecognition
-
-type ChatMessage = {
-	id: string
-	actor: "max" | "user"
-	text: string
-	trace?: string[]
-	// The bare question inside the message, without MAX's acknowledgement
-	// preamble — the voice surface reads and shows this, not the paragraph.
-	prompt?: string
-	question?: {
-		current: number
-		total: number
-		topic: string
-	}
-}
-
 type DiscoveryStatus = "needs-input" | "active" | "completed" | "handed-off"
 
 type DiscoveryRecord = {
@@ -169,6 +138,8 @@ type DiscoveryRecord = {
 	// Create kept them (and the seeds) read the scenario's own.
 	missionDecision?: string
 	deadline?: string
+	// What MAX heard in the owner interview; records saved before the call lack it.
+	facts?: OwnerFact[]
 	createdAt: string
 	updatedAt: string
 }
@@ -188,6 +159,10 @@ type ToastNote = { id: number; text: string }
 export type HandoffPacket = { id: string; createdAt: string; note: string; target: "agentix"; packageId?: string; recordId?: string; title?: string; brief?: string }
 
 const DISCOVERY_STORAGE_KEY = "maxion.prototype.discovery-records.v1"
+/* Stakeholder interviews finished by a run phase: half while the inquiry runs, all once conflicts are being resolved. */
+const interviewsDone = (phase: number, people: number) => phase >= 4 ? people : phase >= 3 ? Math.min(people, Math.ceil(people / 2)) : 0
+/* How long the demo's stakeholder stage runs, so its four calls can be watched (StakeholderCalls). */
+const STAKEHOLDER_STAGE_MS = 7_500
 // The completed seed was approved before the prototype recorded approvals.
 const SEED_CHARTER_APPROVAL: CharterApproval = { reason: "Charter scope and owners confirmed in the committee pre-read.", approvedAt: "2026-09-14T16:20:00.000Z" }
 const MAX_SAVED_DISCOVERIES = 50
@@ -323,12 +298,12 @@ function createFinishedDemoRecord(script: DemoScript): DiscoveryRecord {
 		interview.push({ id: `demo-${id}-a${index + 1}`, actor: "user", text: answer })
 		const topic = scenario.ownerInterview[index].topic.toLowerCase()
 		if (index < scenario.ownerInterview.length - 1) {
-			interview.push({ ...interviewMessage(key, index + 1, `I’m treating “${echoOwner(answer)}” as the working position on ${topic}.`), id: `demo-${id}-q${index + 2}` })
+			interview.push({ ...interviewMessage(key, index + 1, script.replies[index] ?? `I’m treating “${echoOwner(answer)}” as the working position on ${topic}.`), id: `demo-${id}-q${index + 2}` })
 		}
 	})
 	const messages: ChatMessage[] = [
 		...interview,
-		{ id: `demo-${id}-closed`, actor: "max", text: `I’ve captured “${echoOwner(script.answers.at(-1) ?? "")}” as the owner position on success measure. That gives me enough owner context for this pass. I’ve closed the interview and started source verification and stakeholder coordination.`, trace: ["Saved the owner interview as a versioned context snapshot", "Replanned the inquiry map from the captured answers", "Started the autonomous work graph"] },
+		{ id: `demo-${id}-closed`, actor: "max", text: closingText(scenario, scenario.people, script.replies.at(-1)), trace: ["Saved the owner interview as a versioned context snapshot", "Replanned the inquiry map from the captured answers", "Started the autonomous work graph"] },
 		{ id: `demo-${id}-decision`, actor: "max", text: scenario.exception.approvedConfirmation, trace: ["Recorded the exact bounded authority", "Opened only the approved action", "Verified the action and resumed the affected branch"] },
 		{ id: `demo-${id}-complete`, actor: "max", text: `The Discovery is complete. I verified the evidence set, recorded the decisions, generated all ${DELIVERABLES.length} deliverables, and prepared the operating package for Agentix.`, trace: ["Froze readiness snapshot v7", "Generated manifest v4", "Verified package routing"] },
 	]
@@ -355,6 +330,12 @@ function createFinishedDemoRecord(script: DemoScript): DiscoveryRecord {
 		excludedOutputs: [],
 		missionDecision: scenario.objective,
 		deadline: scenario.deadline,
+		// The finished run heard what the long demo would have, and its checks are verified.
+		facts: script.answers.map((answer, index) => {
+			const fact = heardFrom(key, index, answer, `demo-${id}-a${index + 1}`, script.heard[index])
+			const finding = script.heard[index]?.check?.finding
+			return fact.status === "checking" ? { ...fact, status: "verified" as const, finding } : fact
+		}),
 		createdAt: minutesAgo(52),
 		updatedAt: minutesAgo(4),
 	}
@@ -398,58 +379,16 @@ function readDiscoveryRecords(): DiscoveryRecord[] {
 				&& typeof record.updatedAt === "string" && Number.isFinite(new Date(record.updatedAt).getTime())
 		})
 		// Autonomy used to be called "overview"; migrate saved records on read.
-		const migrated = records.map(record => (record.view as string) === "overview" ? { ...record, view: "autonomy" as View } : record)
+		const migrated = records.map(record => ({
+			...record,
+			view: (record.view as string) === "overview" ? "autonomy" as View : record.view,
+			// A fact that doesn't read is dropped, never the record it belongs to.
+			facts: Array.isArray(record.facts) ? record.facts.filter(isOwnerFact) : undefined,
+		}))
 		return migrated.length ? migrated.slice(0, MAX_SAVED_DISCOVERIES) : seedRecords()
 	} catch {
 		return seedRecords()
 	}
-}
-
-function interviewMessage(scenarioKey: ScenarioKey, index: number, prefix?: string): ChatMessage {
-	const scenario = SCENARIOS[scenarioKey]
-	const prompt = scenario.ownerInterview[index]
-	return {
-		id: `interview-${index}-${Date.now()}`,
-		actor: "max",
-		text: `${prefix ? `${prefix} ` : ""}${prompt.question}`,
-		prompt: prompt.question,
-		question: { current: index + 1, total: scenario.ownerInterview.length, topic: prompt.topic },
-	}
-}
-
-function initialInterviewMessages(scenarioKey: ScenarioKey, missionBrief = "", missionTitle = ""): ChatMessage[] {
-	const scenario = SCENARIOS[scenarioKey]
-	// MAX echoes the owner's own words when their first sentence fits. A longer one would be clipped
-	// mid-phrase ("…and give finance a…"), which reads as a mistake, so it is named by its mission.
-	const quotable = firstSentence(missionBrief).length <= 120 || !missionTitle.trim()
-	const missionContext = !missionBrief.trim() ? ""
-		: quotable ? `I’ve captured your mission: “${conciseAnswer(missionBrief)}”. `
-		: `I’ve captured your mission, “${missionTitle.trim()}”. `
-	return [interviewMessage(
-		scenarioKey,
-		0,
-		`${missionContext}I’ll lead this as the ${scenario.interviewer}. I’ve already bound ${scenario.sources.length} permitted sources, so I’ll ask only for judgment the records can’t supply.`,
-	)]
-}
-
-function isUncertainAnswer(text: string) {
-	return /^(not sure|i(?:'|’)m not sure|i do not know|i don(?:'|’)t know|don(?:'|’)t know|no idea|unsure|idk)\b/i.test(text.trim()) || text.trim().split(/\s+/).length < 3
-}
-
-// Echoes of what the owner wrote must never cut a word in half — trim back to
-// the last word boundary before appending the ellipsis. The sentence's own end
-// mark goes, so a quote never closes as `.”.`
-function conciseAnswer(text: string, limit = 120) {
-	const sentence = firstSentence(text)
-	if (sentence.length <= limit) return sentence
-	const clipped = sentence.slice(0, limit - 3)
-	const lastBreak = clipped.lastIndexOf(" ")
-	const stem = (lastBreak > limit * 0.5 ? clipped.slice(0, lastBreak) : clipped).replace(/[\s,;:—-]+$/, "")
-	return `${stem}…`
-}
-
-function firstSentence(text: string) {
-	return text.trim().split(/[.!?]\s/)[0].replace(/\s+/g, " ").replace(/[.!?]+$/, "")
 }
 
 /*
@@ -516,13 +455,6 @@ function draftDecision(answer: string) {
 	return sentence ? `${sentence[0].toUpperCase()}${sentence.slice(1)}.` : ""
 }
 
-function referencedSource(text: string, scenarioKey: ScenarioKey) {
-	const normalized = text.toLowerCase()
-	const scenario = SCENARIOS[scenarioKey]
-	return scenario.sources.find((source) => normalized.includes(source.system.toLowerCase()) || normalized.includes(source.name.toLowerCase()))
-		?? (/\b(check|look|verify|source|records?|documents?)\b/i.test(text) ? scenario.sources[0] : undefined)
-}
-
 // What MAX shows while it is composing the reply — topic-aware during the owner
 // interview, operation-aware afterwards. Never a bare spinner.
 function thinkingLine(topic: string | null, phase: number) {
@@ -533,12 +465,6 @@ function thinkingLine(topic: string | null, phase: number) {
 function isInterviewCloseIntent(text: string) {
 	const normalized = text.trim().toLowerCase().replace(/[.!?]+$/g, "")
 	return /^(?:please\s+)?(?:end|finish|close|stop|wrap up)(?:\s+(?:the|this|my))?(?:\s+owner)?(?:\s+(?:interview|conversation|session))?(?:\s+now)?$/.test(normalized)
-}
-
-/* The owner's words inside MAX's reply, quoted without their own closing
- * punctuation so the sentence never ends in `.”.` */
-function echoOwner(text: string) {
-	return conciseAnswer(text, 90).replace(/[.!?]+$/, "")
 }
 
 function isQuestionIntent(text: string) {
@@ -563,14 +489,6 @@ function formatPacketTime(timestamp: string) {
 	return sameDay
 		? `Today, ${date.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" })}`
 		: date.toLocaleDateString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })
-}
-
-function getSpeechRecognitionConstructor() {
-	const voiceWindow = window as typeof window & {
-		SpeechRecognition?: BrowserSpeechRecognitionConstructor
-		webkitSpeechRecognition?: BrowserSpeechRecognitionConstructor
-	}
-	return voiceWindow.SpeechRecognition ?? voiceWindow.webkitSpeechRecognition
 }
 
 // jsdom has no matchMedia — treat that environment like reduced motion so
@@ -1000,6 +918,13 @@ export function DiscoveryAutonomousPrototypePage({ embedded = false, active = tr
 	const [interviewIndex, setInterviewIndex] = useState(0)
 	const [interviewClosed, setInterviewClosed] = useState(false)
 	const [clarificationPending, setClarificationPending] = useState(false)
+	const [facts, setFacts] = useState<OwnerFact[]>([])
+	// The call with MAX (VoiceCall). It lives here, not in the Thread, because the presenter's dock
+	// opens it and fills answers into it from outside the Discovery.
+	const [callOpen, setCallOpen] = useState(false)
+	const [callFill, setCallFill] = useState<CallFill | null>(null)
+	const callTriggerRef = useRef<HTMLElement | null>(null)
+	const lastAnswerIdRef = useRef<string | null>(null)
 	const [traceOpen, setTraceOpen] = useState(false)
 	const [toast, setToastNote] = useState<ToastNote | null>(null)
 	// While a sheet is open it shows the confirmations; the page's own spot is behind its scrim.
@@ -1095,21 +1020,49 @@ export function DiscoveryAutonomousPrototypePage({ embedded = false, active = tr
 			excludedOutputs,
 			missionDecision,
 			deadline: missionDeadline,
+			facts,
 			updatedAt: new Date().toISOString(),
 		} : record))
-	}, [activeRecordId, charterApproval, clarificationPending, currentMissionTitle, decision, excludedOutputs, handoff, interviewClosed, interviewIndex, invitedIds, invitesSent, messages, missionBrief, missionDeadline, missionDecision, packageSelection, paused, people, phase, scenarioKey, screen, view, workshopFinalized])
+	}, [activeRecordId, charterApproval, clarificationPending, currentMissionTitle, decision, excludedOutputs, facts, handoff, interviewClosed, interviewIndex, invitedIds, invitesSent, messages, missionBrief, missionDeadline, missionDecision, packageSelection, paused, people, phase, scenarioKey, screen, view, workshopFinalized])
+
+	// A scripted source check returns an early signal during the call; others wait for the evidence stage.
+	const earlyChecks = useRef(new Set<string>())
+	const activeRecordRef = useRef(activeRecordId)
+	activeRecordRef.current = activeRecordId
+	useEffect(() => {
+		const script = scriptForScenario(scenarioKey, demoSession()?.id)
+		for (const fact of facts) {
+			if (fact.status !== "checking" || !script || script.answers[fact.index]?.trim() !== fact.quote.trim()) continue
+			const finding = script.heard[fact.index]?.check?.finding
+			const key = `${activeRecordId}:${fact.index}`
+			if (!finding || earlyChecks.current.has(key)) continue
+			earlyChecks.current.add(key)
+			const record = activeRecordId
+			window.setTimeout(() => {
+				if (activeRecordRef.current !== record) return
+				setFacts((current) => current.map((entry) => entry.index === fact.index && entry.status === "checking" ? { ...entry, status: "early", finding } : entry))
+			}, reducedMotion ? 0 : 2600)
+		}
+	}, [activeRecordId, facts, reducedMotion, scenarioKey])
+	// Once the sources are read (the run has moved past reading them), every check the owner asked for
+	// is verified against them. Not at the close itself: MAX is still saying it will read them next.
+	useEffect(() => { setFacts((current) => settleFacts(current, scenarioKey, interviewClosed && phase >= 3)) }, [interviewClosed, phase, scenarioKey])
 
 	// The package toast announces the moment the run finishes, not every reopening of a finished run.
 	const finishedLiveRef = useRef(false)
+	// MAX's stakeholder calls start when the owner's call ends, and in a customer demo the interview
+	// stage runs long enough to watch them (StakeholderCalls); under reduced motion nothing waits.
+	const watchCalls = !reducedMotion && !!scriptForScenario(scenarioKey, demoSession()?.id)
 	useEffect(() => {
 		if (screen !== "workspace" || !interviewClosed || paused || needsDecision || complete) return
+		if (callOpen && phase === 2) return
 		const timer = window.setTimeout(() => setPhase((current) => {
 			const next = Math.min(current + 1, OPERATIONS.length - 1)
 			if (next === OPERATIONS.length - 1 && current !== next) finishedLiveRef.current = true
 			return next
-		}), 1650)
+		}), watchCalls && phase === 3 ? STAKEHOLDER_STAGE_MS : 1650)
 		return () => window.clearTimeout(timer)
-	}, [complete, interviewClosed, needsDecision, paused, phase, screen])
+	}, [callOpen, complete, interviewClosed, needsDecision, paused, phase, screen, watchCalls])
 
 	// Synthesis writes one document per step in list order, and holds while the run is paused.
 	// Under reduced motion the whole set lands at once and nothing waits on this timer.
@@ -1219,6 +1172,7 @@ export function DiscoveryAutonomousPrototypePage({ embedded = false, active = tr
 		setInterviewIndex(0)
 		setInterviewClosed(false)
 		setClarificationPending(false)
+		setFacts([])
 		setPeople(SCENARIOS[nextScenario].people)
 		setMessages(startingMessages)
 		setInvitesSent(false)
@@ -1250,6 +1204,7 @@ export function DiscoveryAutonomousPrototypePage({ embedded = false, active = tr
 		setInterviewIndex(0)
 		setInterviewClosed(false)
 		setClarificationPending(false)
+		setFacts([])
 		setPeople(SCENARIOS.tprm.people)
 		setMessages(initialInterviewMessages("tprm"))
 		setPendingPerson(null)
@@ -1290,6 +1245,7 @@ export function DiscoveryAutonomousPrototypePage({ embedded = false, active = tr
 		setInterviewIndex(record.interviewIndex)
 		setInterviewClosed(record.interviewClosed)
 		setClarificationPending(record.clarificationPending)
+		setFacts(record.facts ?? [])
 		setTraceOpen(false)
 		setPackageSelection(record.packageSelection)
 		setInvitesSent(record.invitesSent)
@@ -1430,6 +1386,8 @@ export function DiscoveryAutonomousPrototypePage({ embedded = false, active = tr
 	// The customer demo's presenter can put the scripted answer in the composer; the presenter still sends it.
 	const fillRef = useRef<(text: string, recordId?: string) => void>(() => undefined)
 	fillRef.current = (text, recordId) => {
+		// On a call the answer is spoken, not typed: the call hears it and sends it after the pause.
+		if (callOpen && screen === "workspace" && (!recordId || recordId === activeRecordId)) { setCallFill(current => ({ text, tick: (current?.tick ?? 0) + 1 })); return }
 		const record = recordId ? records.find((item) => item.id === recordId) : undefined
 		if (record && (record.id !== activeRecordId || screen !== "workspace")) resumeDiscovery({ ...record, view: "thread" })
 		else if (screen !== "workspace") return
@@ -1437,13 +1395,30 @@ export function DiscoveryAutonomousPrototypePage({ embedded = false, active = tr
 		setCommandText(text)
 		setComposerFocusTick((tick) => tick + 1)
 	}
+	// The presenter can start the owner interview as a call from the dock.
+	const callRef = useRef<(recordId?: string) => void>(() => undefined)
+	// A call asked for a Discovery that isn't open yet starts once that Discovery is (switching records ends calls).
+	const pendingCallRef = useRef<string | null>(null)
+	callRef.current = (recordId) => {
+		const record = recordId ? records.find((item) => item.id === recordId) : undefined
+		if (record && record.id !== activeRecordId) { pendingCallRef.current = record.id; resumeDiscovery({ ...record, view: "thread" }); return }
+		if (record && screen !== "workspace") resumeDiscovery({ ...record, view: "thread" })
+		else if (screen !== "workspace") return
+		setView("thread")
+		openCall(null)
+	}
 	useEffect(() => {
 		const onFill = (event: Event) => {
 			const detail = (event as CustomEvent<{ text?: unknown; recordId?: unknown }>).detail
 			if (typeof detail?.text === "string") fillRef.current(detail.text.slice(0, 600), typeof detail.recordId === "string" ? detail.recordId : undefined)
 		}
+		const onCall = (event: Event) => {
+			const detail = (event as CustomEvent<{ recordId?: unknown }>).detail
+			callRef.current(typeof detail?.recordId === "string" ? detail.recordId : undefined)
+		}
 		window.addEventListener(DEMO_FILL_EVENT, onFill)
-		return () => window.removeEventListener(DEMO_FILL_EVENT, onFill)
+		window.addEventListener(DEMO_CALL_EVENT, onCall)
+		return () => { window.removeEventListener(DEMO_FILL_EVENT, onFill); window.removeEventListener(DEMO_CALL_EVENT, onCall) }
 	}, [])
 
 	// MAX replies to an answer it never got to reply to, the same way it replies to a new one.
@@ -1609,7 +1584,7 @@ export function DiscoveryAutonomousPrototypePage({ embedded = false, active = tr
 		addMessage({
 			id: `interview-complete-${Date.now()}`,
 			actor: "max",
-			text: `${prefix ? `${prefix} ` : ""}That gives me enough owner context for this pass. I’ve closed the interview, preserved the conversation for later additions, and started source verification and stakeholder coordination. I’ll keep the work visible in Autonomy and won’t ask another interview question unless you reopen it.`,
+			text: closingText(scenario, people, prefix),
 			trace: ["Saved the owner interview as a versioned context snapshot", "Replanned the inquiry map from the captured answers", "Started the autonomous work graph"],
 		})
 		setToast("Owner interview complete · Autonomy is now live")
@@ -1619,6 +1594,14 @@ export function DiscoveryAutonomousPrototypePage({ embedded = false, active = tr
 		const source = referencedSource(text, scenarioKey)
 		const uncertain = isUncertainAnswer(text)
 		const finalQuestion = interviewIndex >= scenario.ownerInterview.length - 1
+		// The customer demo's scripted answer gets its scripted reply, written to be heard on the call.
+		const script = scriptForScenario(scenarioKey, demoSession()?.id)
+		const scripted = script && !clarificationPending && script.answers[interviewIndex]?.trim() === text.trim() ? script : undefined
+		const answerId = lastAnswerIdRef.current ?? messages.slice().reverse().find((message) => message.actor === "user" && message.text === text)?.id ?? `answer-${interviewIndex}`
+		const heard = clarificationPending
+			? { index: interviewIndex, topic: prompt.topic, label: prompt.topic, value: `Open · ${conciseAnswer(text, 48)} would know`, status: "gap" as const, quote: text, messageId: answerId }
+			: heardFrom(scenarioKey, interviewIndex, text, answerId, scripted?.heard[interviewIndex])
+		setFacts((current) => [...current.filter((fact) => fact.index !== interviewIndex), heard].sort((a, b) => a.index - b.index))
 
 		if (uncertain && !clarificationPending) {
 			setClarificationPending(true)
@@ -1635,7 +1618,8 @@ export function DiscoveryAutonomousPrototypePage({ embedded = false, active = tr
 		const nextIndex = interviewIndex + 1
 		setClarificationPending(false)
 		if (finalQuestion) {
-			const prefix = uncertain
+			const prefix = scripted ? scripted.replies[interviewIndex]
+				: uncertain
 				? `I’ll carry ${prompt.topic.toLowerCase()} as an explicit unknown and verify it with ${scenario.sources[0].system}.`
 				: `I’ve captured “${conciseAnswer(text)}” as the owner position on ${prompt.topic.toLowerCase()}.`
 			closeOwnerInterview(prefix)
@@ -1645,7 +1629,8 @@ export function DiscoveryAutonomousPrototypePage({ embedded = false, active = tr
 		setInterviewIndex(nextIndex)
 		setPhase(Math.min(1, Math.floor(nextIndex / 3)))
 		const nextPrompt = scenario.ownerInterview[nextIndex]
-		const prefix = source
+		const prefix = scripted ? scripted.replies[interviewIndex]
+			: source
 			? `I’ll verify ${prompt.topic.toLowerCase()} in ${source.name} instead of asking you to guess. I’ve preserved that source check in the inquiry map.`
 			: uncertain
 				? `I’ll keep ${prompt.topic.toLowerCase()} open and resolve it with the accountable stakeholder.`
@@ -1657,7 +1642,7 @@ export function DiscoveryAutonomousPrototypePage({ embedded = false, active = tr
 		addMessage(nextMessage)
 	}
 
-	const interviewedCount = Math.min(people.length, Math.max(0, phase - 2))
+	const interviewedCount = interviewsDone(phase, people.length)
 	const uninvitedPeople = people.filter((person) => !invitedIds.includes(person.id))
 
 	const rosterAnswer = () => {
@@ -1844,11 +1829,13 @@ export function DiscoveryAutonomousPrototypePage({ embedded = false, active = tr
 		reply(`Noted: “${echoOwner(text)}”. ${action} Any resulting record change will show in the work trace.`, complete ? ["Recorded a revision note", "Left the verified package unchanged"] : ["Recorded the owner direction", `Applied it to ${OPERATIONS[phase].label.toLowerCase()}`])
 	}
 
-	const submitCommand = (rawText: string) => {
+	const submitCommand = (rawText: string, via?: "voice") => {
 		const text = rawText.trim()
 		if (!text) return
 		setCommandText("")
-		addMessage({ id: `user-${Date.now()}`, actor: "user", text })
+		const id = `user-${Date.now()}`
+		lastAnswerIdRef.current = id
+		addMessage({ id, actor: "user", text, ...(via ? { via } : {}) })
 		// A turn, not a form submit: MAX visibly considers the answer before it
 		// replies. Reduced motion collapses the gap and skips the pending row.
 		if (!reducedMotion) setPendingReply(thinkingLine(interviewClosed ? null : scenario.ownerInterview[Math.min(interviewIndex, scenario.ownerInterview.length - 1)].topic, phase))
@@ -1860,6 +1847,31 @@ export function DiscoveryAutonomousPrototypePage({ embedded = false, active = tr
 			replyToCommand(text)
 		}, reducedMotion ? 50 : 720)
 	}
+
+	const openCall = (trigger: HTMLElement | null) => {
+		callTriggerRef.current = trigger ?? (document.activeElement instanceof HTMLElement ? document.activeElement : null)
+		setCallOpen(true)
+	}
+	const closeCall = () => setCallOpen(false)
+	// Focus goes back to whatever opened the call, after the render that removes it.
+	const callWasOpen = useRef(false)
+	useEffect(() => {
+		if (callOpen) { callWasOpen.current = true; return }
+		if (!callWasOpen.current) return
+		callWasOpen.current = false
+		const trigger = callTriggerRef.current
+		callTriggerRef.current = null
+		if (trigger?.isConnected) trigger.focus({ preventScroll: true })
+		else setComposerFocusTick((tick) => tick + 1)
+	}, [callOpen])
+	// Leaving the Discovery, or this Discovery, ends the call: the microphone and playback go with it.
+	useEffect(() => { if (!active || screen !== "workspace") setCallOpen(false) }, [active, screen])
+	useEffect(() => {
+		if (activeRecordId && pendingCallRef.current === activeRecordId) { pendingCallRef.current = null; setView("thread"); openCall(null); return }
+		pendingCallRef.current = null
+		setCallOpen(false)
+		// eslint-disable-next-line react-hooks/exhaustive-deps
+	}, [activeRecordId])
 
 	const approveCharter = (reason: string) => {
 		setCharterApproval({ reason, approvedAt: new Date().toISOString() })
@@ -1935,6 +1947,15 @@ export function DiscoveryAutonomousPrototypePage({ embedded = false, active = tr
 		event.preventDefault()
 		submitCommand(commandText)
 	}
+
+	// What the call shows: the question open now, what MAX says first, and a source being read.
+	const lastMaxTurn = messages.slice().reverse().find((message) => message.actor === "max")
+	const callTopic = !interviewClosed && lastMaxTurn?.question ? `${lastMaxTurn.question.topic} · ${lastMaxTurn.question.current} of ${lastMaxTurn.question.total}` : null
+	const callOpenerLine = interviewClosed ? "What would you like to ask me about this Discovery?" : callOpener(scenarioKey, interviewIndex, clarificationPending ? lastMaxTurn?.prompt : undefined)
+	const latestFact = facts.reduce<OwnerFact | undefined>((latest, fact) => !latest || fact.index > latest.index ? fact : latest, undefined)
+	const callCheck: CallCheck = latestFact && !interviewClosed && (latestFact.status === "checking" || latestFact.status === "early") && latestFact.source
+		? { source: latestFact.source, records: scenario.sources.find((source) => source.name === latestFact.source)?.records ?? "", status: latestFact.status, finding: latestFact.finding }
+		: null
 
 	return (
 		<div ref={rootRef} className={`prototype ds-scope${embedded ? " embedded" : ""}`}>
@@ -2026,7 +2047,8 @@ export function DiscoveryAutonomousPrototypePage({ embedded = false, active = tr
 							composerFocusTick={composerFocusTick}
 							onCommandTextChange={setCommandText}
 							onSend={sendCommand}
-							onVoiceSubmit={submitCommand}
+							onStartCall={openCall}
+							facts={facts}
 							onResolveDecision={resolveDecision}
 							onJumpToDecision={() => jumpToDecision("thread")}
 							onOpenPeople={() => openDrawer("people")}
@@ -2095,6 +2117,25 @@ export function DiscoveryAutonomousPrototypePage({ embedded = false, active = tr
 						destination={destination}
 						onClose={closeCharterDialog}
 						onApprove={reason => { approveCharter(reason); closeCharterDialog() }} />
+					<VoiceCall
+						open={callOpen}
+						host={rootRef.current}
+						onClose={closeCall}
+						onSubmit={(text) => submitCommand(text, "voice")}
+						onOpenAutonomy={() => setView("autonomy")}
+						messages={messages}
+						interviewing={!interviewClosed}
+						missionTitle={currentMissionTitle}
+						questionNumber={Math.min(interviewIndex + 1, scenario.ownerInterview.length)}
+						questionTotal={scenario.ownerInterview.length}
+						topicLabel={callTopic}
+						opener={callOpenerLine}
+						facts={facts}
+						topics={scenario.ownerInterview.map((prompt) => prompt.topic)}
+						ring={topicRing(scenarioKey, facts, interviewIndex, interviewClosed)}
+						check={callCheck}
+						fill={callFill}
+						nextUp={`Next, MAX reads the ${scenario.sources.length} connected sources and talks to ${joinNames(people)}. It only comes back to you if something needs your call.`} />
 				</>
 			) : null}
 			{paletteOpen ? (
@@ -3119,7 +3160,7 @@ function OverflowMenu({ label, items }: { label: string; items: Array<{ label: s
 }
 
 function peopleCountForPhase(phase: number) {
-	return Math.min(4, Math.max(0, phase - 2))
+	return interviewsDone(phase, 4)
 }
 
 /*
@@ -3318,7 +3359,7 @@ function Overview({
 	const stage = journeyProgress(phase, journey)
 	const interviewTotal = scenario.ownerInterview.length
 	const interviewStep = `Question ${Math.min(interviewIndex + 1, interviewTotal)} of ${interviewTotal} · ${scenario.ownerInterview[Math.min(interviewIndex, interviewTotal - 1)].topic}`
-	const interviewed = Math.min(people.length, Math.max(0, phase - 2))
+	const interviewed = interviewsDone(phase, people.length)
 	const sourceRecords = scenario.sources.reduce((total, source) => total + Number(source.records.replace(/[^0-9]/g, "")), 0)
 	const sourcesRead = interviewClosed && phase >= 2
 	const followUps = phase >= 4 ? 4 : phase >= 3 ? 2 : 0
@@ -3576,6 +3617,17 @@ function Overview({
 					<div className={`overview-priority-grid${decisionPending ? " has-decision" : ""}`}>
 						{decisionPending ? [authorityCard, nowCard] : [nowCard, authorityCard]}
 					</div>
+
+					{interviewClosed ? (
+						<StakeholderCalls
+							people={mappedPeople}
+							script={scriptForScenario(scenarioKey, demoSession()?.id)}
+							phase={phase}
+							paused={paused}
+							decisionPending={decisionPending}
+							onOpenPeople={() => onOpenDrawer("people")}
+							onJumpToDecision={() => { authorityRef.current?.scrollIntoView({ block: "center", behavior: reducedMotion ? "auto" : "smooth" }); authorityRef.current?.focus({ preventScroll: true }) }} />
+					) : null}
 
 					<section className="autonomy-metrics" aria-label="Work handled by MAX">
 						<div className="metric-card">
@@ -3853,9 +3905,40 @@ function JourneyGroup({ phase, context, headingId }: { phase: number; context: J
 	)
 }
 
+/* What MAX heard in the owner interview: one row per question, filled as the owner answers, by
+ * voice or in the thread. A source the owner pointed at shows its check; "not sure" stays a gap. */
+function HeardGroup({ scenarioKey, facts, interviewIndex, interviewing }: { scenarioKey: ScenarioKey; facts: OwnerFact[]; interviewIndex: number; interviewing: boolean }) {
+	const topics = SCENARIOS[scenarioKey].ownerInterview
+	const open = facts.filter(fact => fact.status === "gap").length
+	return (
+		<section className="panel-group" aria-labelledby="thread-heard">
+			<h3 id="thread-heard">What MAX heard</h3>
+			<p className="panel-desc">{facts.length} of {topics.length} answers{open ? `, ${open} kept open` : ""}. Each becomes the position the team is held to.</p>
+			<ol className="panel-card heard-list">
+				{topics.map((prompt, index) => {
+					const fact = facts.find(entry => entry.index === index)
+					const asking = !fact && interviewing && index === interviewIndex
+					const status = fact?.status ?? (asking ? "asking" : "pending")
+					return (
+						<li key={prompt.topic} className={`panel-row is-stacked heard-row is-${status}`}>
+							{status === "gap" ? <Warning size={16} weight="fill" className="panel-row-icon is-warning" />
+								: status === "checking" ? <CircleNotch size={16} className="panel-row-icon spin" />
+								: status === "early" ? <Database size={16} className="panel-row-icon" />
+								: fact ? <CheckCircle size={16} weight="fill" className="panel-row-icon is-complete" />
+								: <Circle size={16} className="panel-row-icon" />}
+							<span className="panel-row-label">{fact?.label ?? prompt.topic}</span>{" "}
+							<span className="panel-row-value">{fact ? fact.value : asking ? "Being asked now" : "Not yet"}</span>
+							{fact?.finding ? <span className="panel-row-sub">{fact.status === "early" ? "Early signal" : "Verified"} · {fact.finding}</span> : fact?.status === "checking" ? <span className="panel-row-sub">Checking {fact.source}</span> : null}
+						</li>
+					)
+				})}
+			</ol>
+		</section>
+	)
+}
+
 /* How far from the end of the log the reader may be and still be followed. */
 const FOLLOW_DISTANCE = 180
-const VOICE_OPEN_QUESTION = "What would you like to ask MAX about this Discovery?"
 
 /* Thread events land like turns and leave by folding their height away, so the
  * log never snaps. Under reduced motion they are simply there or gone. */
@@ -3931,7 +4014,8 @@ function Thread({
 	toast,
 	onCommandTextChange,
 	onSend,
-	onVoiceSubmit,
+	onStartCall,
+	facts,
 	onResolveDecision,
 	onJumpToDecision,
 	onOpenPeople,
@@ -3962,7 +4046,10 @@ function Thread({
 	toast: ToastNote | null
 	onCommandTextChange: (value: string) => void
 	onSend: (event: FormEvent) => void
-	onVoiceSubmit: (text: string) => void
+	/* Opens the call with MAX; focus returns to whatever opened it. */
+	onStartCall: (trigger: HTMLElement | null) => void
+	/* What MAX heard in the owner interview, one fact per answer. */
+	facts: OwnerFact[]
 	onResolveDecision: (decision: Exclude<DecisionState, "pending">) => void
 	onJumpToDecision: () => void
 	onOpenPeople: () => void
@@ -3984,7 +4071,7 @@ function Thread({
 	const packageReady = phase >= OPERATIONS.length - 1
 	const limitation = decision === "modified"
 	const sourceRecords = scenario.sources.reduce((total, source) => total + Number(source.records.replace(/[^0-9]/g, "")), 0)
-	const stakeholderInterviews = Math.min(people.length, Math.max(0, phase - 2))
+	const stakeholderInterviews = interviewsDone(phase, people.length)
 	const currentInterviewPrompt = scenario.ownerInterview[Math.min(interviewIndex, scenario.ownerInterview.length - 1)]
 	const decisionCopy = DECISION_COPY[scenarioKey]
 	const scrollRef = useRef<HTMLDivElement>(null)
@@ -4000,9 +4087,6 @@ function Thread({
 	decisionPendingRef.current = decisionPending
 	// Where focus goes once the Details sheet has closed.
 	const restoreFocusRef = useRef<"toggle" | "composer" | null>(null)
-	const [voiceOpen, setVoiceOpen] = useState(false)
-	// Leaving Discover ends the call: the microphone, playback and the inert page are released with it.
-	useEffect(() => { if (!active) setVoiceOpen(false) }, [active])
 	const [detailsOpen, setDetailsOpen] = useState(false)
 	const [detailsAsSheet, setDetailsAsSheet] = useState(false)
 	const [decisionInView, setDecisionInView] = useState(true)
@@ -4161,7 +4245,8 @@ function Thread({
 		: handoff && onOpenPlan ? { label: `Open in ${destination}`, primary: true, run: onOpenPlan }
 		: packageReady ? { label: "Review deliverables", primary: false, run: onOpenPackage }
 		: { label: "View progress", primary: false, run: onOpenAutonomy }
-	const callout = interviewing ? <>MAX interviews you first. Each answer becomes the owner position; say “not sure” and MAX keeps it as an explicit gap instead of guessing.</>
+	const remainingQuestions = Math.max(1, scenario.ownerInterview.length - interviewIndex)
+	const callout = interviewing ? <>MAX interviews you first, by voice or here in the thread. Each answer becomes the owner position; say “not sure” and MAX keeps it as an explicit gap instead of guessing.</>
 		: handoff ? <>This Discovery is with {destination}. The packet is frozen: MAX answers questions from it, and any change goes to {destination} as a new request.</>
 		: packageReady ? <>MAX finished inside the authority you approved. Ask about any finding before you hand the package to {destination}.</>
 		: paused ? <>You paused the run. MAX holds the last verified checkpoint, and nothing new starts until you resume.</>
@@ -4204,10 +4289,21 @@ function Thread({
 
 				<div className="message-log" ref={scrollRef} role="log" aria-live="polite" aria-label="Discovery owner chat messages" tabIndex={0}>
 					<div className="thread-column">
-						<div className="thread-callout" role="note">
-							<Info size={16} />
-							<p>{callout}</p>
-						</div>
+						{interviewing ? (
+							<section className="thread-call" aria-labelledby="thread-call-title">
+								<VoiceOrb state="idle" size="xs" />
+								<div className="thread-call-copy">
+									<h2 id="thread-call-title">Talk it through with MAX</h2>
+									<p>{remainingQuestions === scenario.ownerInterview.length ? `${remainingQuestions} questions` : `${remainingQuestions} question${remainingQuestions === 1 ? "" : "s"} left`}, about {Math.max(1, Math.round(remainingQuestions * 0.7))} minute{Math.round(remainingQuestions * 0.7) > 1 ? "s" : ""}. {callout}</p>
+								</div>
+								<DsButton variant="primary" size="sm" onClick={event => onStartCall(event.currentTarget)}><Microphone size={14} />Start the call</DsButton>
+							</section>
+						) : (
+							<div className="thread-callout" role="note">
+								<Info size={16} />
+								<p>{callout}</p>
+							</div>
+						)}
 
 						<AnimatePresence initial={false} mode="popLayout">
 							{messages.map((message) => message.actor === "max" ? (
@@ -4224,7 +4320,7 @@ function Thread({
 									<div className="message-body turn-bubble">
 										<p>{message.text}</p>
 									</div>
-									<span className="turn-meta-chip">Owner</span>
+									<span className="turn-meta-chip">{message.via === "voice" ? "Owner · spoken" : "Owner"}</span>
 								</motion.article>
 							))}
 							{pendingReply ? (
@@ -4303,7 +4399,7 @@ function Thread({
 						onSubmit={onSend}
 						inputRef={composerRef}
 						voiceButtonRef={voiceButtonRef}
-						onVoice={() => setVoiceOpen(true)}
+						onVoice={() => onStartCall(voiceButtonRef.current)}
 						placeholder={composer.placeholder}
 						scope={composer.scope} />
 				</div>
@@ -4324,6 +4420,7 @@ function Thread({
 
 				<NeedsYouGroup items={needsYou} headingId="thread-needs-you" />
 				<JourneyGroup phase={phase} context={journey} headingId="thread-journey" />
+				{interviewing || facts.length ? <HeardGroup scenarioKey={scenarioKey} facts={facts} interviewIndex={interviewIndex} interviewing={interviewing} /> : null}
 
 				<section className="panel-group" aria-labelledby="thread-brief">
 					<h3 id="thread-brief">Discovery brief</h3>
@@ -4380,20 +4477,6 @@ function Thread({
 				</section>
 			</aside>
 
-			<VoiceInterview
-				open={voiceOpen}
-				onClose={() => {
-					setVoiceOpen(false)
-					window.requestAnimationFrame(() => voiceButtonRef.current?.focus())
-				}}
-				onSubmit={onVoiceSubmit}
-				messages={messages}
-				question={interviewing ? lastMaxMessage?.prompt ?? lastMaxMessage?.text ?? currentInterviewPrompt.question : VOICE_OPEN_QUESTION}
-				topicLabel={interviewing && lastMaxMessage?.question ? `${lastMaxMessage.question.topic} · ${lastMaxMessage.question.current} of ${lastMaxMessage.question.total}` : null}
-				interviewing={interviewing}
-				questionNumber={interviewIndex + 1}
-				questionTotal={scenario.ownerInterview.length}
-			/>
 		</div>
 	)
 }
@@ -4514,561 +4597,8 @@ function MaxMessageBody({
 	)
 }
 
-/*
- * Voice is the ElevenLabs agent voice preview (mobbin 5de031ac): a slim bar
- * with Back and the conversation's name, the orb with its call button in the
- * middle, and the running transcript on the right above a pill composer.
- *
- * The session is a modal over the whole viewport. It renders on document.body
- * so no transformed ancestor can trap it inside the stage, and everything else
- * on the page is inert while it is open.
- */
-type VoiceIssue = "unsupported" | "blocked" | "no-mic" | "network" | "start"
-type VoiceNotice = { tone: "warning" | "info"; icon: "warning" | "info" | "speaker"; title: string; detail: string }
-
-const VOICE_ISSUES: Record<VoiceIssue, { label: string; title: string; detail: string }> = {
-	unsupported: { label: "This browser can’t transcribe speech", title: "Type your answers here", detail: "MAX still reads each question aloud, and your answers go into the same owner thread." },
-	blocked: { label: "Microphone access is blocked", title: "Allow the microphone, then retry", detail: "Use the site settings in your browser’s address bar, or type your answer below." },
-	"no-mic": { label: "No microphone found", title: "Connect a microphone, then retry", detail: "Or type your answer below." },
-	network: { label: "Voice transcription is offline", title: "Check your connection, then retry", detail: "Or type your answer below." },
-	start: { label: "Voice input couldn’t start", title: "Retry voice input", detail: "Or type your answer below." },
-}
-const NOTHING_HEARD: VoiceNotice = { tone: "info", icon: "info", title: "I didn’t hear anything", detail: "Press the mic and try again, or type your answer." }
-const PLAYBACK_FAILED: VoiceNotice = { tone: "info", icon: "speaker", title: "Audio playback isn’t available", detail: "MAX’s reply is in the transcript above." }
-const QUESTION_UNREAD: VoiceNotice = { tone: "info", icon: "speaker", title: "Audio playback isn’t available", detail: "Read MAX’s question on screen and answer when you’re ready." }
-const PLAYBACK_MISSING: VoiceNotice = { tone: "info", icon: "speaker", title: "MAX can’t speak in this browser", detail: "Questions and replies appear on screen." }
+/* Focusable controls inside a modal surface. */
 const VOICE_FOCUSABLE = "button:not(:disabled), textarea:not(:disabled), input:not(:disabled), [href], [tabindex]:not([tabindex='-1'])"
-// A voice that has not started by now is silent; the turn goes back to the owner.
-const VOICE_START_WATCHDOG_MS = 4_000
-
-function recognitionIssue(error: string): VoiceIssue | "nothing-heard" | null {
-	switch (error) {
-		case "not-allowed":
-		case "service-not-allowed": return "blocked"
-		case "audio-capture": return "no-mic"
-		case "network": return "network"
-		case "no-speech": return "nothing-heard"
-		// We abort recognition ourselves when the owner sends, stops or closes.
-		case "aborted": return null
-		default: return "start"
-	}
-}
-
-function VoiceInterview(props: {
-	open: boolean
-	onClose: () => void
-	onSubmit: (text: string) => void
-	messages: ChatMessage[]
-	question: string
-	topicLabel: string | null
-	interviewing: boolean
-	questionNumber: number
-	questionTotal: number
-}) {
-	// Each opening is a fresh session: state, audio and focus start over.
-	return props.open ? <VoiceSession {...props} /> : null
-}
-
-function VoiceSession({
-	onClose,
-	onSubmit,
-	messages,
-	question,
-	topicLabel,
-	interviewing,
-	questionNumber,
-	questionTotal,
-}: {
-	onClose: () => void
-	onSubmit: (text: string) => void
-	messages: ChatMessage[]
-	question: string
-	topicLabel: string | null
-	interviewing: boolean
-	questionNumber: number
-	questionTotal: number
-}) {
-	const reduced = useReducedMotion()
-	const noticeMotion = useRiseIn()
-	const [recognitionSupported] = useState(() => Boolean(getSpeechRecognitionConstructor()))
-	const [synthesisSupported] = useState(() => typeof window !== "undefined" && Boolean(window.speechSynthesis) && typeof window.SpeechSynthesisUtterance === "function")
-	// With no recognition the session is typed; its resting state carries that notice.
-	const restState: VoiceState = recognitionSupported ? "ready" : "error"
-	const [state, setState] = useState<VoiceState>("consent")
-	const [issue, setIssue] = useState<VoiceIssue | null>(null)
-	const [notice, setNotice] = useState<VoiceNotice | null>(null)
-	const [transcript, setTranscript] = useState("")
-	const [awaitingFromCount, setAwaitingFromCount] = useState<number | null>(null)
-	// The opening utterance keeps the surface on "Ready when you are": the label
-	// stays true (you may answer at any moment) while MAX reads the question.
-	const [introSpeaking, setIntroSpeaking] = useState(false)
-	const [spokenChars, setSpokenChars] = useState(0)
-	const backdropRef = useRef<HTMLDivElement>(null)
-	const dialogRef = useRef<HTMLElement>(null)
-	const micRef = useRef<HTMLButtonElement>(null)
-	const transcriptRef = useRef<HTMLTextAreaElement>(null)
-	const panelRef = useRef<HTMLDivElement>(null)
-	const recognitionRef = useRef<BrowserSpeechRecognition | null>(null)
-	const playbackRef = useRef({ token: 0, timer: 0 })
-	const voiceChosenRef = useRef(false)
-	const focusCallRef = useRef(false)
-	// What was already on screen when the session began renders whole; only what
-	// arrives during the session streams in.
-	const [knownIds] = useState(() => new Set(messages.map(message => message.id)))
-	const openQuestionRef = useRef(question)
-	const questionRef = useRef(question)
-	questionRef.current = question
-
-	const cancelPlayback = () => {
-		playbackRef.current.token += 1
-		window.clearTimeout(playbackRef.current.timer)
-		if (synthesisSupported) window.speechSynthesis.cancel()
-	}
-
-	// Reads `text` aloud and calls `done` exactly once: when the voice ends, fails,
-	// never starts, or runs past any sensible length without ending.
-	const speak = (text: string, onBoundary: (upTo: number) => void, done: (played: boolean) => void) => {
-		cancelPlayback()
-		if (!synthesisSupported || !text.trim()) { done(false); return }
-		const token = playbackRef.current.token
-		const current = () => playbackRef.current.token === token
-		const finish = (played: boolean) => {
-			if (!current()) return
-			cancelPlayback()
-			done(played)
-		}
-		try {
-			const utterance = new SpeechSynthesisUtterance(text)
-			utterance.rate = 0.96
-			utterance.pitch = 0.98
-			utterance.onboundary = (event) => { if (current()) onBoundary(event.charIndex + (event.charLength || 0)) }
-			utterance.onstart = () => {
-				if (!current()) return
-				window.clearTimeout(playbackRef.current.timer)
-				// Some voices never fire onend; the waveform must not run forever.
-				playbackRef.current.timer = window.setTimeout(() => finish(true), 3_000 + text.split(/\s+/).length * 450)
-			}
-			utterance.onend = () => finish(true)
-			utterance.onerror = () => finish(false)
-			window.speechSynthesis.speak(utterance)
-			playbackRef.current.timer = window.setTimeout(() => finish(false), VOICE_START_WATCHDOG_MS)
-		} catch {
-			finish(false)
-		}
-	}
-
-	const releaseRecognition = () => {
-		const recognition = recognitionRef.current
-		recognitionRef.current = null
-		recognition?.abort()
-	}
-
-	// Focus goes back to the transcript only when it has nowhere better to be.
-	const reclaimFocus = () => {
-		const active = document.activeElement
-		if (!active || active === document.body || !dialogRef.current?.contains(active)) transcriptRef.current?.focus({ preventScroll: true })
-	}
-
-	const settle = () => {
-		setSpokenChars(0)
-		setState(restState)
-		reclaimFocus()
-	}
-
-	useLayoutEffect(() => {
-		const backdrop = backdropRef.current
-		if (!backdrop) return
-		const shelved = Array.from(document.body.children).filter((node): node is HTMLElement => node instanceof HTMLElement && node !== backdrop && !node.inert && node.tagName !== "SCRIPT")
-		for (const node of shelved) node.inert = true
-		backdrop.querySelector<HTMLElement>(".voice-consent-button")?.focus({ preventScroll: true })
-		return () => {
-			for (const node of shelved) node.inert = false
-		}
-	}, [])
-
-	useEffect(() => () => {
-		releaseRecognition()
-		cancelPlayback()
-	}, [])
-
-	// The caller passes an inline onClose. Reading it through a ref keeps the
-	// listener registered once: a shell re-render during the same keydown would
-	// otherwise swap it out mid-dispatch and the browser would skip it.
-	const closeRef = useRef(onClose)
-	useEffect(() => { closeRef.current = onClose })
-	useEffect(() => {
-		const handleKeyDown = (event: KeyboardEvent) => {
-			if (event.key !== "Escape" || event.defaultPrevented) return
-			event.preventDefault()
-			closeRef.current()
-		}
-		window.addEventListener("keydown", handleKeyDown)
-		return () => window.removeEventListener("keydown", handleKeyDown)
-	}, [])
-
-	useEffect(() => {
-		const panel = panelRef.current
-		if (panel) panel.scrollTop = panel.scrollHeight
-	}, [messages, state])
-
-	useLayoutEffect(() => {
-		const field = transcriptRef.current
-		if (!field) return
-		field.style.height = "auto"
-		field.style.height = `${field.scrollHeight}px`
-	}, [transcript])
-
-	// Consent unmounts the button that held focus; the call's own control takes it
-	// in the same commit, so nothing waits on a frame.
-	const consent = state === "consent"
-	useLayoutEffect(() => {
-		if (consent || !focusCallRef.current) return
-		focusCallRef.current = false
-		;(recognitionSupported ? micRef.current : transcriptRef.current)?.focus({ preventScroll: true })
-	}, [consent, recognitionSupported])
-
-	useEffect(() => {
-		if (awaitingFromCount === null || messages.length <= awaitingFromCount) return
-		const latest = messages.at(-1)
-		if (!latest || latest.actor !== "max") return
-		setAwaitingFromCount(null)
-		if (!voiceChosenRef.current || !synthesisSupported) { settle(); return }
-		// Voice reads the bare question, as the transcript shows it; the stage follows
-		// the reading only when it shows those same words.
-		const spoken = latest.prompt ?? latest.text
-		const onStage = spoken === questionRef.current
-		setSpokenChars(0)
-		setState("speaking")
-		speak(spoken, upTo => { if (onStage) setSpokenChars(upTo) }, played => {
-			if (!played) setNotice(PLAYBACK_FAILED)
-			settle()
-		})
-	}, [awaitingFromCount, messages])
-
-	const endIntroSpeech = () => {
-		setIntroSpeaking(false)
-		setSpokenChars(0)
-	}
-
-	const readQuestion = () => {
-		if (!synthesisSupported) return
-		setSpokenChars(0)
-		setIntroSpeaking(true)
-		speak(question, setSpokenChars, played => {
-			endIntroSpeech()
-			if (!played) setNotice(QUESTION_UNREAD)
-		})
-	}
-
-	const beginSession = () => {
-		voiceChosenRef.current = true
-		openQuestionRef.current = question
-		focusCallRef.current = true
-		setState(restState)
-		readQuestion()
-	}
-
-	const beginListening = () => {
-		voiceChosenRef.current = true
-		setNotice(null)
-		setIssue(null)
-		cancelPlayback()
-		endIntroSpeech()
-		releaseRecognition()
-		const SpeechRecognition = getSpeechRecognitionConstructor()
-		if (!SpeechRecognition) {
-			setState("error")
-			setIssue("unsupported")
-			transcriptRef.current?.focus({ preventScroll: true })
-			return
-		}
-		const recognition = new SpeechRecognition()
-		const current = () => recognitionRef.current === recognition
-		recognition.continuous = true
-		recognition.interimResults = true
-		recognition.lang = "en-US"
-		recognition.onresult = (event) => {
-			if (!current()) return
-			let nextTranscript = ""
-			for (let index = 0; index < event.results.length; index += 1) {
-				nextTranscript += `${event.results[index][0]?.transcript ?? ""} `
-			}
-			setTranscript(nextTranscript.trim())
-		}
-		recognition.onerror = (event) => {
-			if (!current()) return
-			const next = recognitionIssue(event.error)
-			if (next === null) return
-			recognitionRef.current = null
-			if (next === "nothing-heard") {
-				setNotice(NOTHING_HEARD)
-				setState("ready")
-				return
-			}
-			setIssue(next)
-			setState("error")
-			transcriptRef.current?.focus({ preventScroll: true })
-		}
-		recognition.onend = () => {
-			if (!current()) return
-			recognitionRef.current = null
-			setState(state => state === "listening" ? "ready" : state)
-		}
-		recognitionRef.current = recognition
-		setState("listening")
-		try {
-			recognition.start()
-		} catch {
-			recognitionRef.current = null
-			setIssue("start")
-			setState("error")
-			transcriptRef.current?.focus({ preventScroll: true })
-		}
-	}
-
-	const stopListening = () => {
-		// stop() still delivers the final result, so the handlers stay attached until onend.
-		recognitionRef.current?.stop()
-		setState("ready")
-		transcriptRef.current?.focus({ preventScroll: true })
-	}
-
-	const stopSpeaking = () => {
-		cancelPlayback()
-		endIntroSpeech()
-		setState(restState)
-	}
-
-	const pressMic = () => {
-		if (state === "thinking") return
-		if (state === "listening") stopListening()
-		else if (state === "speaking" || (!recognitionSupported && introSpeaking)) stopSpeaking()
-		else if (recognitionSupported) beginListening()
-	}
-
-	const submitTranscript = () => {
-		const answer = transcript.trim()
-		if (!answer || state === "thinking") return
-		releaseRecognition()
-		cancelPlayback()
-		endIntroSpeech()
-		setAwaitingFromCount(messages.length)
-		setState("thinking")
-		setNotice(null)
-		setIssue(null)
-		onSubmit(answer)
-		setTranscript("")
-		transcriptRef.current?.focus({ preventScroll: true })
-	}
-
-	const trapTab = (event: React.KeyboardEvent<HTMLElement>) => {
-		if (event.key !== "Tab") return
-		const focusable = Array.from(event.currentTarget.querySelectorAll<HTMLElement>(VOICE_FOCUSABLE)).filter(node => node.getClientRects().length > 0)
-		const first = focusable[0], last = focusable.at(-1)
-		const active = document.activeElement
-		if (!first || !last) { event.preventDefault(); return }
-		if (!(active instanceof HTMLElement) || !focusable.includes(active)) { event.preventDefault(); (event.shiftKey ? last : first).focus(); return }
-		if (event.shiftKey && active === first) { event.preventDefault(); last.focus() }
-		else if (!event.shiftKey && active === last) { event.preventDefault(); first.focus() }
-	}
-
-	const live = state === "listening" || state === "speaking" || introSpeaking
-	const issueKey: VoiceIssue | null = state === "error" ? issue ?? "unsupported" : recognitionSupported ? null : "unsupported"
-	const issueCopy = issueKey ? VOICE_ISSUES[issueKey] : null
-	const callout: VoiceNotice | null = issueCopy && issueKey
-		? { tone: "warning", icon: "warning", title: issueCopy.title, detail: issueKey === "unsupported" && !synthesisSupported ? "Questions and replies appear on screen, and your answers go into the same owner thread." : issueCopy.detail }
-		: notice ?? (synthesisSupported ? null : PLAYBACK_MISSING)
-	const pill = consent ? { label: "Not started", tone: "" }
-		: !recognitionSupported ? { label: "Typing only", tone: " is-warning" }
-		: state === "error" ? { label: "Voice unavailable", tone: " is-warning" }
-		: live ? { label: "Live", tone: " is-positive" }
-		: { label: "Connected", tone: "" }
-	const stageLabel = {
-		consent: "Before we begin",
-		ready: "Ready when you are",
-		listening: "Listening",
-		thinking: "MAX is considering your answer",
-		speaking: "MAX is responding",
-		error: issueCopy?.label ?? VOICE_ISSUES.start.label,
-	}[state]
-	const stopsSpeech = state === "speaking" || (!recognitionSupported && introSpeaking)
-	const micInert = state === "thinking" || (!recognitionSupported && !stopsSpeech)
-	const micLabel = state === "listening" ? "Stop listening"
-		: stopsSpeech ? "Stop MAX speaking"
-		: !recognitionSupported ? "Voice input isn’t available in this browser"
-		: state === "error" ? "Retry voice input"
-		: "Start listening"
-	const micIcon = state === "listening" ? <Waveform size={20} weight="bold" />
-		: stopsSpeech ? <SpeakerHigh size={20} weight="fill" />
-		: !recognitionSupported ? <MicrophoneSlash size={20} weight="fill" />
-		: <Microphone size={20} weight="fill" />
-	const highlightUpTo = (introSpeaking || state === "speaking") ? spokenChars : 0
-	const recent = messages.slice(-4)
-	const placeholder = state === "thinking" ? "Waiting for MAX…"
-		: state === "listening" ? "Your words appear here…"
-		: recognitionSupported ? "Speak or type your response…"
-		: "Type your response…"
-	const consentTitle = recognitionSupported
-		? interviewing ? "Continue this interview by voice" : "Talk to MAX about this Discovery"
-		: interviewing ? "Continue this interview by typing" : "Ask MAX about this Discovery by typing"
-	const consentBody = recognitionSupported
-		? "Your speech is transcribed into the same owner thread. This prototype uses your browser’s voice services and does not retain the original audio."
-		: synthesisSupported
-			? "This browser can’t transcribe speech, so you type your answers. MAX reads each question aloud, and nothing is recorded."
-			: "This browser has no voice services, so this session is typed. Your answers go into the same owner thread."
-	const consentDetails = recognitionSupported
-		? ["The transcript stays visible in the thread", "You can switch back to typing at any time"]
-		: ["Your answers stay visible in the thread", synthesisSupported ? "MAX reads its questions aloud" : "Questions appear on screen"]
-
-	return createPortal(
-		<div ref={backdropRef} className="prototype ds-scope voice-backdrop">
-			<motion.section
-				ref={dialogRef}
-				className="voice-dialog"
-				role="dialog"
-				aria-modal="true"
-				aria-labelledby="voice-dialog-title"
-				onKeyDown={trapTab}
-				initial={reduced ? false : { y: 8, scale: 0.995, filter: "blur(3px)" }}
-				animate={{ y: 0, scale: 1, filter: "blur(0px)" }}
-				transition={{ duration: 0.24, ease: [0.2, 0, 0, 1] }}>
-				<header className="voice-bar">
-					<button className="ds-button ds-button--ghost ds-button--sm voice-back" type="button" aria-label="Close voice session" onClick={onClose}><CaretLeft size={14} />Back</button>
-					<div className="voice-bar-title">
-						<h2 id="voice-dialog-title">{interviewing ? "Owner interview" : "Mission conversation"}</h2>
-						<span className="voice-bar-sep" aria-hidden="true" />
-						<span>{interviewing ? `Question ${questionNumber} of ${questionTotal}` : "Context active"}</span>
-						<span className={`workspace-status${pill.tone}`}><span aria-hidden="true" />{pill.label}</span>
-					</div>
-					<span className="voice-bar-end" />
-				</header>
-
-				<div className={`voice-body${consent ? " is-consent" : ""}`}>
-					<div className="voice-stage">
-						<div className="voice-stage-main">
-							{consent ? (
-								<div className="voice-consent">
-									<Orb size="lg" still={!recognitionSupported} className="voice-orb" />
-									<p className="voice-state-label">{stageLabel}</p>
-									<h3>{consentTitle}</h3>
-									<p>{consentBody}</p>
-									<ul className="voice-consent-details">
-										{consentDetails.map(detail => <li key={detail}><CheckCircle size={16} weight="fill" />{detail}</li>)}
-									</ul>
-									<DsButton variant="primary" className="voice-consent-button" onClick={beginSession}>
-										{recognitionSupported ? <><Microphone size={16} />Continue with voice</> : <><Keyboard size={16} />Continue by typing</>}
-									</DsButton>
-								</div>
-							) : (
-								<>
-									<Orb size="lg" active={live} still={state === "error"} className="voice-orb">
-										<button
-											ref={micRef}
-											className={`voice-mic-button${state === "listening" ? " listening" : ""}`}
-											type="button"
-											aria-label={micLabel}
-											aria-disabled={micInert || undefined}
-											title={!recognitionSupported && !stopsSpeech ? micLabel : undefined}
-											onClick={pressMic}>
-											{micIcon}
-										</button>
-									</Orb>
-									<p className={`voice-state-label${state === "error" ? " is-warning" : ""}`} aria-live="polite">
-										{state === "error" ? <Warning size={14} weight="fill" aria-hidden="true" /> : null}
-										{state === "thinking" ? <ShimmerText>{stageLabel}</ShimmerText> : stageLabel}
-									</p>
-									{topicLabel ? <span className="turn-chip voice-question-topic">{topicLabel}</span> : null}
-									<p className="voice-question"><VoiceWords key={question} text={question} fresh={question !== openQuestionRef.current} spokenUpTo={highlightUpTo} /></p>
-								</>
-							)}
-						</div>
-						{consent ? null : (
-							<div className="voice-pill">
-								<button type="button" onClick={onClose}>End voice session</button>
-							</div>
-						)}
-					</div>
-
-					<aside className="voice-panel" aria-label="Voice transcript">
-						<div className="voice-log" ref={panelRef}>
-							{consent ? (
-								<div className="voice-empty"><span><ChatCircleText size={16} /></span><p>{interviewing ? "Start the call or type an answer to continue the interview" : "Start the call or type a message to ask MAX about this Discovery"}</p></div>
-							) : (
-								<>
-									<p className="voice-panel-note">{recognitionSupported ? "Voice session started" : "Typed session started"}</p>
-									{recent.map(message => message.actor === "max" ? (
-										<div key={message.id} className="voice-turn is-max"><img src={publicAsset("maxion-logo-gradient.svg")} alt="" /><p><VoiceWords text={message.prompt ?? message.text} fresh={!knownIds.has(message.id)} /></p></div>
-									) : (
-										<div key={message.id} className="voice-turn is-owner"><p>{message.text}</p></div>
-									))}
-									{state === "thinking" ? <div className="voice-turn is-max"><img src={publicAsset("maxion-logo-gradient.svg")} alt="" /><p><span className="dsc-thinking-dots" aria-hidden="true"><i /><i /><i /></span></p></div> : null}
-								</>
-							)}
-						</div>
-						<div className="voice-transcript">
-							<div role="status">
-								<AnimatePresence initial={false} mode="wait">
-									{callout ? (
-										<motion.p key={issueKey ?? callout.title} className={`voice-notice is-${callout.tone}`} {...noticeMotion}>
-											{callout.icon === "warning" ? <Warning size={16} weight="fill" aria-hidden="true" /> : callout.icon === "speaker" ? <SpeakerSlash size={16} aria-hidden="true" /> : <Info size={16} aria-hidden="true" />}
-											<span><strong>{callout.title}</strong>{callout.detail}</span>
-										</motion.p>
-									) : null}
-								</AnimatePresence>
-							</div>
-							<div className="voice-compose">
-								<label htmlFor="voice-transcript" className="sr-only">Your response</label>
-								<textarea
-									ref={transcriptRef}
-									id="voice-transcript"
-									rows={1}
-									value={transcript}
-									readOnly={state === "thinking"}
-									aria-busy={state === "thinking" || undefined}
-									onChange={(event) => setTranscript(event.target.value)}
-									onKeyDown={event => { if (event.key === "Enter" && !event.shiftKey && !event.nativeEvent.isComposing) { event.preventDefault(); submitTranscript() } }}
-									placeholder={placeholder}
-								/>
-								<button className="voice-send" type="button" aria-label="Send response" onClick={submitTranscript} disabled={!transcript.trim() || state === "thinking"}><ArrowUp size={16} weight="bold" /></button>
-							</div>
-						</div>
-					</aside>
-				</div>
-			</motion.section>
-		</div>,
-		document.body,
-	)
-}
-
-/* Voice text streams in word by word when it arrives during the session, then
- * settles to plain words so the stage can follow MAX's reading. Freshness is
- * fixed when the words mount, so a re-render mid-stream never snaps it whole. */
-function VoiceWords({ text, fresh, spokenUpTo = 0 }: { text: string; fresh: boolean; spokenUpTo?: number }) {
-	const [streaming] = useState(fresh)
-	const revealed = useWordStream(text, streaming)
-	const done = revealed >= text.split(" ").length
-	// The last words are still resolving from their blur when the count lands.
-	const [settled, setSettled] = useState(done)
-	useEffect(() => {
-		if (!done || settled) return
-		const timer = window.setTimeout(() => setSettled(true), 480)
-		return () => window.clearTimeout(timer)
-	}, [done, settled])
-	if (!settled) return <GeneratedWords text={text} revealed={revealed} />
-	if (spokenUpTo <= 0) return <>{text}</>
-	return <>{spokenSegments(text, spokenUpTo).map((segment, index) => <span key={index} className={segment.spoken ? "is-spoken" : undefined}>{segment.text}</span>)}</>
-}
-
-// Splits the question so the words MAX has already said can be highlighted as
-// it reads. Browsers without utterance boundary events simply never highlight.
-function spokenSegments(text: string, upTo: number) {
-	let offset = 0
-	return text.split(/(\s+)/).map((part) => {
-		const start = offset
-		offset += part.length
-		return { text: part, spoken: start < upTo }
-	})
-}
 
 function MessageTrace({ steps }: { steps: string[] }) {
 	const [open, setOpen] = useState(false)

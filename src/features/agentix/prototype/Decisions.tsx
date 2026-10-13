@@ -1,4 +1,5 @@
-import { ArrowRight, CalendarBlank, CaretRight, Pause, Play, Question, RocketLaunch, Scales, ShieldCheck, StopCircle, UserCircle, WarningCircle } from "@phosphor-icons/react"
+import { ArrowRight, CaretRight, Pause, Play } from "@phosphor-icons/react"
+import { CalendarBlank, Question, RocketLaunch, Scales, ShieldCheck, StopCircle, UserCircle, WarningCircle } from "./glyphs"
 import { Button as DsButton } from "@/design/primitives"
 import { useEffect, useId, useRef, useState, type KeyboardEvent, type ReactNode } from "react"
 import { artifactBy, artifactSpec, decisionBy, itemBy, latest, releaseWindowOf, scenarioOf } from "./engine/engine"

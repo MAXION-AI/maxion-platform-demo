@@ -36,7 +36,7 @@ The number on each heading matches the sidebar count. To show a stakeholder's si
 **1 · Start the Discovery.** In Discover, choose the **S/4HANA conversion** template and **Start autonomous Discovery**. MAX drafts the mission ("S/4HANA conversion: custom code disposition"). Tick the authority review and choose **Create Discovery**.
 *Say:* Everything starts from a business outcome, not a ticket.
 
-**2 · Answer the owner interview.** Six questions. Use **Fill answer** in the sidebar, then press Enter. On the second answer MAX goes and reads the usage statistics rather than asking the owner to guess how much code is live.
+**2 · Answer the owner interview.** Six questions. Use **Fill answer** in the sidebar, then press Enter. On the second answer MAX goes and reads the usage statistics rather than asking the owner to guess how much code is live. Or make it a call: choose **Start the call** in the sidebar row (or in the Thread), then **Continue with voice**. On the call, **Fill answer** arrives as speech and sends itself after the pause; **What MAX heard** fills on the right, and on the second answer MAX reads the source during the call (an early signal, verified later). The call ends on a summary: choose **Watch MAX work** to open the stakeholder calls.
 *Say:* MAX only asks for judgement the records can't supply.
 
 **3 · Let MAX investigate, then decide.** Open **Autonomy** while MAX reads the four sources and interviews the four owners. It stops at one decision: 412 used objects now have a standard S/4HANA equivalent, 374 behave identically, and **38 do not**. On the custom credit-exposure check alone, €2,412,880.40 of orders a month would block differently. Choose **Adopt SAP standard and change the process**.
@@ -48,10 +48,10 @@ The number on each heading matches the sidebar count. To show a stakeholder's si
 
 ### Agentix
 
-**6 · Create the engagement in Agentix.** Nothing existed in Agentix for this until the handoff. Answer the two questions (**Ask me before each pipeline release**, **The sandbox copy of the repository**), choose **Run the read-only check**, then **Activate engagement**.
+**6 · Create the engagement in Agentix.** Nothing existed in Agentix for this until the handoff. Answer the two questions (**Ask me before each pipeline release**, **The sandbox copy of the repository**), choose **Run the read-only check**, then **Activate engagement**. The engagement opens on its **Floor**: the team assembles, with the Discovery package going to the coordinator and each milestone to the specialist who takes it first.
 *Say:* Four agents with separate permissions, the systems they may touch, three milestones and a nightly sweep. Discovery couldn't confirm who approves production transports, so that's the first question.
 
-**7 · Decide the ownerless objects.** MS-1 asks about 212 objects in use that nobody claims. Choose **Hold them for the Development Lead**.
+**7 · Decide the ownerless objects.** MS-1 asks about 212 objects in use that nobody claims. Choose **Hold them for the Development Lead**. On the Floor, the specialist's packet climbs to **You** and your room opens with the decision; decide it there, or in **Work**.
 *Say:* Remediating them quietly would carry someone else's debt into S/4HANA, so the specialist asks instead of choosing.
 
 **8 · Watch a check fail and the repair.** In MS-2, pipeline v1 dispositions the exceptions in bulk, so two of its twelve checks fail: behaviour and credit exposure. Open v1 to show the 38 objects. The remediation specialist repairs the rule, and v2 passes. Use **Controls → Skip** to move faster.

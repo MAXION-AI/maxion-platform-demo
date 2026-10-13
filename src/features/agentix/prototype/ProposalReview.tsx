@@ -1,4 +1,5 @@
-import { ArrowLeft, ArrowRight, CaretDown, CaretRight, CheckCircle, FileArrowDown, ShieldCheck, WarningCircle, XCircle } from "@phosphor-icons/react"
+import { ArrowLeft, ArrowRight, CaretDown, CaretRight } from "@phosphor-icons/react"
+import { CheckCircle, FileArrowDown, ShieldCheck, WarningCircle, XCircle } from "./glyphs"
 import { Button as DsButton, Mark, TextButton } from "@/design/primitives"
 import { useId } from "react"
 import { activationBlockers, type DefinitionPatch } from "./engine/engine"

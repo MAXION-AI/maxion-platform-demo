@@ -199,7 +199,41 @@ function complete(draft: AgentixState, item: WorkItem, template: StepTemplate, i
 	step.status = "done"; step.doneAt = draft.clock
 	item.costCents += 3
 	if (template.obligation && template.kind !== "notify") meet(item, template.obligation, template.evidence?.[0] ?? `${template.system ?? "Agentix"} · ${item.reference}`)
-	log(draft, { engagementId: item.engagementId, workItemId: item.id, actor: template.owner, kind: "step", text: `${item.reference}: ${text}.`, tone: "positive", operations: template.tools })
+	log(draft, { engagementId: item.engagementId, workItemId: item.id, actor: template.owner, kind: "step", stepId: template.id, text: `${item.reference}: ${text}.`, tone: "positive", operations: template.tools })
+	handoff(draft, item, template, index)
+}
+
+/*
+ * When the next step belongs to another specialist, the work changes hands. The engine records it
+ * as its own event, so the team floor can show what moved between whom, and Activity can say so.
+ * A step that waits on the owner is a decision, recorded by the decision itself, not a handoff.
+ */
+function handoff(draft: AgentixState, item: WorkItem, template: StepTemplate, index: number) {
+	const steps = templateOf(draft, item)?.steps ?? []
+	// Steps in one group run side by side; the work moves on to the first step after the group, and
+	// only once the whole group is done: the last of them to finish hands it on.
+	let at = index + 1
+	if (template.group) {
+		let first = index
+		while (first > 0 && steps[first - 1].group === template.group) first -= 1
+		while (at < steps.length && steps[at].group === template.group) at += 1
+		for (let member = first; member < at; member += 1) if (item.steps[member] && item.steps[member].status !== "done" && item.steps[member].status !== "skipped") return
+	}
+	// Work handed into a group goes to every member of it.
+	let end = at + 1
+	if (steps[at]?.group) while (end < steps.length && steps[end].group === steps[at].group) end += 1
+	if (template.owner === "owner") return
+	const scenario = scenarioOf(draft, item.engagementId)
+	const name = (id: string) => scenario.team.find(member => member.id === id)?.name ?? id
+	const artifact = template.artifact ? draft.artifacts.find(entry => entry.id === `${item.engagementId}:${template.artifact}`) : undefined
+	const what = artifact ? `${artifact.title.toLowerCase()} v${latest(artifact).version}` : template.done.charAt(0).toLowerCase() + template.done.slice(1)
+	const to = new Set<string>()
+	for (let next = at; next < Math.min(end, steps.length); next += 1) {
+		const owner = steps[next].owner
+		if (owner === "owner" || owner === template.owner || to.has(owner) || item.steps[next]?.status === "skipped") continue
+		to.add(owner)
+		log(draft, { engagementId: item.engagementId, workItemId: item.id, artifactId: artifact?.id, actor: template.owner, kind: "handoff", stepId: template.id, from: template.owner, to: owner, text: `${item.reference}: ${name(template.owner)} handed ${what} to the ${name(owner).toLowerCase()}.`, tone: "neutral" })
+	}
 }
 
 function runTest(draft: AgentixState, item: WorkItem, template: StepTemplate, index: number): StepResult {

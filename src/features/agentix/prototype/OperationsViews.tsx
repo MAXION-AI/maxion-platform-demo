@@ -1,4 +1,5 @@
-import { Check, CheckCircle, Clock, MagnifyingGlass, Minus, Pause, WarningCircle, X, XCircle } from "@phosphor-icons/react"
+import { Check, MagnifyingGlass, Minus, Pause, X } from "@phosphor-icons/react"
+import { CheckCircle, Clock, WarningCircle, XCircle } from "./glyphs"
 import { motion, useReducedMotion } from "motion/react"
 import { Badge, Button as DsButton, EmptyState, Mark, Tile, TileGrid } from "@/design/primitives"
 import { riseIn } from "@/components/motion/MotionKit"

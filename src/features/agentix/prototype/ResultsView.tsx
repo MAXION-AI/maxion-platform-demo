@@ -1,6 +1,7 @@
-import { ArrowLeft, ArrowsLeftRight, CaretRight, ChartBar, CheckCircle, FileText, MagnifyingGlass, PencilSimple, Receipt, Scales, TreeStructure } from "@phosphor-icons/react"
+import { ArrowLeft, CaretRight, MagnifyingGlass, PencilSimple } from "@phosphor-icons/react"
+import { ArrowsLeftRight, ChartBar, CheckCircle, FileText, Receipt, TreeStructure } from "./glyphs"
 import { Button as DsButton, Mark } from "@/design/primitives"
-import { useEffect, useRef, useState } from "react"
+import { useEffect, useLayoutEffect, useRef, useState } from "react"
 import { artifactBy, itemBy, latest } from "./engine/engine"
 import { memberName, shortTime, statusOf } from "./engine/selectors"
 import type { AgentixState, Artifact, ArtifactKind } from "./engine/types"
@@ -8,9 +9,11 @@ import { Status } from "./OperationsViews"
 import { DashboardPreview, DataLabel, MappingPreview, PipelinePreview, ReconciliationPreview, RunbookPreview, VersionHistory } from "./ResultPreviews"
 
 const ORDER: ArtifactKind[] = ["dashboard", "reconciliation", "pipeline", "mapping", "runbook"]
-const ICON: Record<ArtifactKind, typeof ChartBar> = { dashboard: ChartBar, reconciliation: Scales, pipeline: TreeStructure, mapping: ArrowsLeftRight, runbook: FileText }
+const ICON: Record<ArtifactKind, typeof ChartBar> = { dashboard: ChartBar, reconciliation: Receipt, pipeline: TreeStructure, mapping: ArrowsLeftRight, runbook: FileText }
 
-export type ResultCallbacks = { onSelect: (id: string | undefined) => void; onRequestChange: (artifactId: string) => void; onOpenWork: (id: string) => void }
+/* `auto` marks a choice made for the person (the first result opened beside the list): it is navigation, but
+ * it never takes focus. `focusRequest` holds the result the person opened themselves until its heading takes focus. */
+export type ResultCallbacks = { onSelect: (id: string | undefined, options?: { auto?: boolean }) => void; onRequestChange: (artifactId: string) => void; onOpenWork: (id: string) => void; focusRequest: { current: string | null } }
 
 /*
  * Results: what the engagement produced and what it verified. The list is the
@@ -35,6 +38,16 @@ export function ResultsView({ state, engagementId, resultId, callbacks }: { stat
 	const outcomes = verified.slice(0, 12)
 	const selected = resultId && (artifactBy(state, resultId) || itemBy(state, resultId)) ? resultId : undefined
 	const empty = !artifacts.length && !outcomes.length
+	// Beside the list there is always something to read. Where the preview sits beside the list (a wide
+	// screen), the first result opens as a choice made for you: the conversation is about it and it stays
+	// until you choose another, but it doesn't take focus. On a narrow screen the list comes first.
+	const preview = useRef<HTMLDivElement>(null)
+	const first = artifacts[0]?.id ?? outcomes[0]?.id
+	useLayoutEffect(() => {
+		if (selected || !first || !preview.current?.getClientRects().length) return
+		callbacks.onSelect(first, { auto: true })
+		// eslint-disable-next-line react-hooks/exhaustive-deps
+	}, [selected, first])
 	return (
 		<div className={`aop-results${selected ? " has-selection" : ""}`}>
 			<nav className="aop-results-list" aria-label="Results">
@@ -49,7 +62,7 @@ export function ResultsView({ state, engagementId, resultId, callbacks }: { stat
 								return (
 									<li key={artifact.id}>
 										<button type="button" aria-current={selected === artifact.id ? "true" : undefined} onClick={() => callbacks.onSelect(artifact.id)}>
-											<span className="aop-result-icon" aria-hidden="true"><Icon size={16} /></span>
+											<span className="aop-result-icon" aria-hidden="true"><Icon size={18} /></span>
 											<span className="aop-list-text"><strong>{artifact.title}</strong><small>v{version.version}{live ? ` · live v${live}` : ""} · {version.status === "failed" ? "failed checks" : version.status === "testing" ? "testing" : version.status === "tested" ? "tested" : live === version.version ? "in production" : version.status}</small></span>
 										</button>
 									</li>
@@ -65,7 +78,7 @@ export function ResultsView({ state, engagementId, resultId, callbacks }: { stat
 							{outcomes.map(item => (
 								<li key={item.id}>
 									<button type="button" aria-current={selected === item.id ? "true" : undefined} onClick={() => callbacks.onSelect(item.id)}>
-										<span className="aop-result-icon is-positive" aria-hidden="true"><CheckCircle size={16} weight="fill" /></span>
+										<span className="aop-result-icon is-positive" aria-hidden="true"><CheckCircle size={18} weight="fill" /></span>
 										<span className="aop-list-text"><strong>{item.title}</strong><small><span className="aop-mono">{item.reference}</span> · {shortTime(item.finished ?? item.started)}</small></span>
 									</button>
 								</li>
@@ -74,13 +87,20 @@ export function ResultsView({ state, engagementId, resultId, callbacks }: { stat
 					) : <p className="aop-quiet">A result appears here only when every required outcome has evidence.</p>}
 				</section>
 			</nav>
-			<div className="aop-results-preview">
+			<div className="aop-results-preview" ref={preview}>
 				{selected && artifactBy(state, selected) ? <ArtifactResult key={selected} state={state} artifact={artifactBy(state, selected)!} callbacks={callbacks} />
 					: selected ? <OutcomeResult key={selected} state={state} workId={selected} callbacks={callbacks} />
 					: <div className="aop-empty"><span className="aop-empty-icon is-still" aria-hidden="true"><MagnifyingGlass size={18} /></span><strong>{empty ? "No results yet" : "Choose a result"}</strong><p>{empty ? "Results appear as work is verified. Nothing is shown as done before its evidence passes." : "Open a result to see its business view, evidence and versions."}</p></div>}
 			</div>
 		</div>
 	)
+}
+
+/* A result the person opened takes focus, once; one opened for them, or shown again on a revisit, doesn't. */
+function useFocusOnOpen(id: string, request: { current: string | null }) {
+	const heading = useRef<HTMLHeadingElement>(null)
+	useEffect(() => { if (request.current === id) { request.current = null; heading.current?.focus({ preventScroll: true }) } }, [id, request])
+	return heading
 }
 
 function ArtifactResult({ state, artifact, callbacks }: { state: AgentixState; artifact: Artifact; callbacks: ResultCallbacks }) {
@@ -90,8 +110,7 @@ function ArtifactResult({ state, artifact, callbacks }: { state: AgentixState; a
 	const shown = picked !== null && artifact.versions.some(entry => entry.version === picked) ? picked : artifact.productionVersion ?? current.version
 	const [compare, setCompare] = useState<number | null>(null)
 	const [evidence, setEvidence] = useState(false)
-	const heading = useRef<HTMLHeadingElement>(null)
-	useEffect(() => { heading.current?.focus({ preventScroll: true }) }, [artifact.id])
+	const heading = useFocusOnOpen(artifact.id, callbacks.focusRequest)
 	const version = artifact.versions.find(entry => entry.version === shown) ?? current
 	const owner = itemBy(state, artifact.workItemId)
 	const events = state.events.filter(event => event.artifactId === artifact.id).slice(-8).reverse()
@@ -131,8 +150,7 @@ function ArtifactResult({ state, artifact, callbacks }: { state: AgentixState; a
 
 function OutcomeResult({ state, workId, callbacks }: { state: AgentixState; workId: string; callbacks: ResultCallbacks }) {
 	const item = itemBy(state, workId)!
-	const heading = useRef<HTMLHeadingElement>(null)
-	useEffect(() => { heading.current?.focus({ preventScroll: true }) }, [workId])
+	const heading = useFocusOnOpen(workId, callbacks.focusRequest)
 	const engagement = state.engagements[item.engagementId]
 	const minutes = item.finished ? Math.max(1, Math.round((item.finished - item.started) / 60000)) : null
 	return (

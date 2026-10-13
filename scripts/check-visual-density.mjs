@@ -76,6 +76,9 @@ const openEngagement = name => async page => {
 	await freshAgentix(page)
 	await page.locator(".aop-agent-card").filter({ hasText: name }).click()
 	await page.waitForTimeout(800)
+	// An engagement opens on its team floor (2026-10-11); these screens measure the work list.
+	await page.getByRole("tab", { name: /^Work/ }).click()
+	await page.waitForTimeout(400)
 }
 SCREENS.push(
 	// The engagement floats its composer like the test-agent panel: one lift.
@@ -127,6 +130,40 @@ SCREENS.push(
 )
 
 SCREENS.push(
+	// The team floor composes the reference's Workflow tab (aa384f7c): one bordered canvas whose node cards
+	// are the seats and systems. Seats are smaller than a container (140 × 48), so the global allowance
+	// holds; the one lift is the engagement composer below the floor, as on the other Agentix screens.
+	{
+		name: "agentix-floor",
+		path: "/agentix-prototype",
+		root: ".aop-root",
+		budget: { shadowed: 1 },
+		async prepare(page) {
+			await freshAgentix(page)
+			await page.locator(".aop-agent-card").filter({ hasText: "Revenue reconciliation" }).click()
+			await page.waitForTimeout(1200)
+		},
+	},
+	// The owner interview as a call: one stage, one rail, and one floating toolbar (the single lift).
+	{
+		name: "discovery-call",
+		path: "/discovery-prototype",
+		root: ".prototype",
+		budget: { shadowed: 1 },
+		async prepare(page) {
+			await page.getByRole("button", { name: "New Discovery", exact: true }).click()
+			await page.getByRole("textbox", { name: "Discovery brief" }).fill("Resolve the highest-risk vendor onboarding decision with evidence.")
+			await page.getByRole("button", { name: "Start autonomous Discovery" }).click()
+			await page.getByRole("checkbox", { name: "Mission authority reviewed" }).check()
+			await page.getByRole("button", { name: "Create Discovery" }).click()
+			await page.getByRole("button", { name: "Start the call" }).click({ timeout: 15000 })
+			await page.getByRole("button", { name: /Continue (with voice|by typing)/ }).click()
+			await page.waitForTimeout(1200)
+		},
+	},
+)
+
+SCREENS.push(
 	// The Dashboard is the ElevenLabs Home: six illustrated action tiles and three
 	// illustration tiles are that reference's own frames (docs/elevenlabs-reference-map.md).
 	{ name: "dashboard", path: "/maxion-prototype", root: ".wh-root" },
@@ -151,6 +188,8 @@ const audit = (page, rootSelector) =>
 			const box = element.getBoundingClientRect()
 			if (!box.width || !box.height) continue
 			const style = cs(element)
+			// What isn't painted isn't seen: content kept in layout under a covering layer doesn't count.
+			if (style.visibility !== "visible") continue
 			const bordered = ["Top", "Right", "Bottom", "Left"].some(side => parseFloat(style[`border${side}Width`]) > 0)
 			const filled = style.backgroundColor !== "rgba(0, 0, 0, 0)"
 			// A container is a panel that compartmentalises the screen, not a chip.
@@ -178,7 +217,7 @@ const baseline = existsSync(BASELINE) ? JSON.parse(readFileSync(BASELINE, "utf8"
 const next = {}
 let failed = false
 
-const browser = await chromium.launch()
+const browser = await chromium.launch({ args: ["--mute-audio"] })
 const page = await browser.newPage({ viewport: { width: 1440, height: 900 } })
 for (const screen of SCREENS) {
 	await page.goto(BASE + screen.path)

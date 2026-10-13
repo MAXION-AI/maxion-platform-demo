@@ -40,7 +40,7 @@ The number on each heading matches the sidebar count.
 **1 · Start the Discovery.** In Discover, choose the **AP invoice exceptions** template and **Start autonomous Discovery**. Tick the authority review and choose **Create Discovery**.
 *Say:* Everything starts from a business outcome, not a ticket.
 
-**2 · Answer the owner interview.** Six questions, filled from the sidebar with **Fill answer**, sent with Enter.
+**2 · Answer the owner interview.** Six questions, filled from the sidebar with **Fill answer**, sent with Enter. Or make it a call: choose **Start the call** in the sidebar row (or in the Thread), then **Continue with voice**. On the call, **Fill answer** arrives as speech and sends itself after the pause; **What MAX heard** fills on the right, and on the second answer MAX reads the source during the call (an early signal, verified later). The call ends on a summary: choose **Watch MAX work** to open the stakeholder calls.
 *Say:* MAX only asks for judgement the records can't supply.
 
 **3 · Let MAX investigate, then decide.** MAX reads the four sources and interviews the four owners, then stops at one decision: ServiceNow clears invoices on the purchase-order band of ±2% or $25, while 212 supplier contracts negotiate a flat ±1.5%. The two disagree on 240 invoices worth $84,310.55. Choose **Make the contract tolerance authoritative**.
@@ -52,10 +52,10 @@ The number on each heading matches the sidebar count.
 
 ### Agentix
 
-**6 · Create the engagement in Agentix.** Nothing existed in Agentix for this until the handoff. Answer the two questions (**Ask me before each pipeline release**, **The synthetic sweep of 1,904 cases**), choose **Run the read-only check**, then **Activate engagement**.
+**6 · Create the engagement in Agentix.** Nothing existed in Agentix for this until the handoff. Answer the two questions (**Ask me before each pipeline release**, **The synthetic sweep of 1,904 cases**), choose **Run the read-only check**, then **Activate engagement**. The engagement opens on its **Floor**: the team assembles, with the Discovery package going to the coordinator and each milestone to the specialist who takes it first.
 *Say:* Four agents with separate permissions, the systems they may touch, three milestones and a daily sweep. Discovery couldn't confirm who approves production changes, so that's the first question.
 
-**7 · Decide the no-contract rule.** MS-1 asks about 318 open cases with no active contract to test against. Choose **Route them to the category buyer**.
+**7 · Decide the no-contract rule.** MS-1 asks about 318 open cases with no active contract to test against. Choose **Route them to the category buyer**. On the Floor, the specialist's packet climbs to **You** and your room opens with the decision; decide it there, or in **Work**.
 
 **8 · Watch a check fail and the repair.** In MS-2, pipeline v1 tests price against the purchase order, so two of its eleven checks fail: tolerance and discount capture. Open v1 to show the 240 cases, $84,310.55 apart. The triage specialist repairs the lookup, and v2 passes all eleven.
 *Say:* The Discovery decision became a test, and the test caught the mistake before anything reached production.

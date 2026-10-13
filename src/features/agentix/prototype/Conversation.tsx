@@ -1,9 +1,11 @@
-import { ArrowUpRight, ChatCircleText, CheckCircle, Clock, PushPin, PushPinSlash, Sparkle, X, XCircle } from "@phosphor-icons/react"
+import { ArrowUpRight, PushPin, PushPinSlash, X } from "@phosphor-icons/react"
+import { ChatCircleText, CheckCircle, Clock, XCircle } from "./glyphs"
 import { Button as DsButton, Mark } from "@/design/primitives"
 import { WorkspaceComposer } from "@/components/workspace/WorkspaceComposer"
 import { useEffect, useRef, type RefObject } from "react"
 import { artifactBy, artifactSpec, itemBy, latest, releaseBy } from "./engine/engine"
-import { accountable, shortTime } from "./engine/selectors"
+import { accountable, clockLabel, shortTime } from "./engine/selectors"
+import { Prose } from "./prose"
 import { sameScope, type AgentixState, type InstructionStatus, type Message, type ObjectRef, type ScopeRef } from "./engine/types"
 
 const STATUS: Record<InstructionStatus, { label: string; tone: string; icon: typeof Clock }> = {
@@ -83,7 +85,7 @@ const RECENT = 5 * 60000
 
 /* The latest exchange, one line above the composer while the conversation is collapsed. */
 export function LatestReply({ state, engagementId, onOpen, onDismiss, onLink }: { state: AgentixState; engagementId: string; onOpen: () => void; onDismiss: () => void; onLink: (ref: ObjectRef) => void }) {
-	const messages = state.messages.filter(message => message.engagementId === engagementId)
+	const messages = state.messages.filter(message => message.engagementId === engagementId && !message.agentId)
 	// The latest reply to you; progress updates posted since don't hide it.
 	const reply = [...messages].reverse().find(message => message.role === "agent" && !message.update)
 	const asked = reply ? [...messages].reverse().find(message => message.role === "owner" && message.at <= reply.at) : undefined
@@ -95,7 +97,7 @@ export function LatestReply({ state, engagementId, onOpen, onDismiss, onLink }: 
 			{status ? <span className={`aop-status is-${status.tone}`}><status.icon size={12} weight="bold" />{status.label}</span> : null}
 			<p><time className="aop-latest-time">{shortTime(reply.at)}</time> {reply.text}</p>
 			<span className="aop-latest-actions">
-				{(reply.links ?? []).slice(0, 2).map(link => <button key={`${link.kind}:${link.id}`} type="button" className="aop-chip is-outline aop-link-chip" onClick={() => onLink(link)}>{refLabel(state, link)}</button>)}
+				{(reply.links ?? []).slice(0, 2).map(link => <button key={`${link.kind}:${link.id}`} type="button" className="aop-ref" onClick={() => onLink(link)}>{refLabel(state, link)}</button>)}
 				<button type="button" className="aop-scope-action" onClick={onOpen}>Open conversation</button>
 				<button type="button" className="aop-icon-button" aria-label="Dismiss the latest reply" onClick={onDismiss}><X size={12} /></button>
 			</span>
@@ -110,7 +112,7 @@ export function ConversationPanel({ state, engagementId, pinned, onPin, onClose,
 	const log = useRef<HTMLDivElement>(null)
 	const engagement = state.engagements[engagementId]
 	const lead = accountable(engagement)
-	const messages = state.messages.filter(message => message.engagementId === engagementId)
+	const messages = state.messages.filter(message => message.engagementId === engagementId && !message.agentId)
 	useEffect(() => { const node = log.current; if (node) node.scrollTop = node.scrollHeight }, [messages.length])
 	return (
 		<section className={`aop-conversation${pinned ? " is-pinned" : ""}`} aria-label="Conversation" onKeyDown={event => { if (event.key === "Escape" && !event.defaultPrevented) { event.stopPropagation(); onClose() } }}>
@@ -143,18 +145,21 @@ function MessageRow({ state, message, lead, leadId, workflowId, onLink, onAccept
 		return (
 			<article className="aop-turn is-owner">
 				<p className="aop-turn-speaker">You{scope}<time>{shortTime(message.at)}</time></p>
-				<div className="aop-bubble"><p>{message.text}</p></div>
+				<div className="aop-bubble"><p><Prose text={message.text} /></p></div>
 				{status ? <span className={`aop-status is-${status.tone}`}><status.icon size={12} weight="bold" />{status.label}</span> : null}
 			</article>
 		)
 	}
+	// A progress update is the accountable agent noting what moved: quieter than a reply, signed with its mark.
 	if (message.update) {
 		return (
 			<article className="aop-update">
-				<Sparkle size={14} aria-hidden="true" />
-				<p>{message.text}</p>
-				{(message.links ?? []).length ? <span className="aop-chips">{message.links!.slice(0, 3).map(link => <button key={`${link.kind}:${link.id}`} type="button" className="aop-chip is-outline aop-link-chip" onClick={() => onLink(link)}>{refLabel(state, link)}</button>)}</span> : null}
-				<time>{shortTime(message.at)}</time>
+				<Mark seed={`${workflowId}:${leadId}`} size="xs" />
+				<p><Prose text={message.text} /></p>
+				<p className="aop-refs">
+					<time title={shortTime(message.at)}>{clockLabel(message.at)}</time>
+					{(message.links ?? []).slice(0, 3).map(link => <button key={`${link.kind}:${link.id}`} type="button" className="aop-ref" onClick={() => onLink(link)}>{refLabel(state, link)}</button>)}
+				</p>
 			</article>
 		)
 	}
@@ -162,8 +167,8 @@ function MessageRow({ state, message, lead, leadId, workflowId, onLink, onAccept
 		<article className="aop-turn">
 			<p className="aop-turn-speaker"><Mark seed={`${workflowId}:${leadId}`} size="xs" /><span className="aop-turn-name">{lead}</span>{scope}<time>{shortTime(message.at)}</time></p>
 			<div className="aop-bubble">
-				<p>{message.text}</p>
-				{(message.links ?? []).length ? <p className="aop-chips">{message.links!.slice(0, 4).map(link => <button key={`${link.kind}:${link.id}`} type="button" className="aop-chip is-outline aop-link-chip" onClick={() => onLink(link)}>{refLabel(state, link)}</button>)}</p> : null}
+				<p><Prose text={message.text} /></p>
+				{(message.links ?? []).length ? <p className="aop-refs">{message.links!.slice(0, 4).map(link => <button key={`${link.kind}:${link.id}`} type="button" className="aop-ref" onClick={() => onLink(link)}>{refLabel(state, link)}</button>)}</p> : null}
 				{message.offer ? <div className="aop-offer"><DsButton size="sm" variant="primary" onClick={() => onAccept(message.id)}>Yes, go ahead</DsButton><span>Nothing happens unless you choose this.</span></div> : null}
 			</div>
 		</article>

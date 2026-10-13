@@ -1,20 +1,25 @@
-import { CaretRight, CheckCircle, Info, Pulse, Warning, WarningCircle, XCircle } from "@phosphor-icons/react"
+import { CaretRight } from "@phosphor-icons/react"
+import { CheckCircle, Info, Pulse, Warning, WarningCircle, XCircle } from "./glyphs"
 import { Mark, SegmentedTabs } from "@/design/primitives"
 import { useState } from "react"
 import { artifactBy, itemBy, releaseBy } from "./engine/engine"
-import { memberName, shortTime } from "./engine/selectors"
+import { clockLabel, memberName, shortTime } from "./engine/selectors"
+import { Prose, withoutReference } from "./prose"
 import type { ActivityEvent, AgentixState, Nav, ObjectRef } from "./engine/types"
 
 const DECISIONS = new Set<ActivityEvent["kind"]>(["decision"])
-const OPERATIONS = new Set<ActivityEvent["kind"]>(["step", "check", "repair", "effect", "release", "version", "cycle", "assignment"])
+const OPERATIONS = new Set<ActivityEvent["kind"]>(["step", "check", "repair", "effect", "release", "version", "cycle", "assignment", "handoff"])
 const matches = (event: ActivityEvent, filter: Nav["activityFilter"]) => filter === "all" || (filter === "decisions" ? DECISIONS.has(event.kind) : filter === "operations" ? OPERATIONS.has(event.kind) : event.kind === "instruction" || event.actor === "owner")
+/* Entries by one teammate within ten minutes of each other read as one run. */
+const RUN_GAP = 10 * 60_000
 const TONE_ICON = { positive: CheckCircle, attention: WarningCircle, danger: XCircle, live: Pulse, neutral: Info }
 
 /*
  * Activity: every agent action, decision, tool operation and instruction, in
  * time order, each line naming what it touched. Tool operations are one
  * disclosure away; there is no private reasoning here, only what was done.
- * It reads like the Relevance AI task timeline (mobbin 83aa02a2).
+ * It reads as one quiet timeline: a status seal on a thread, who and when,
+ * what happened in reading type, and what it touched as plain links.
  */
 export function ActivityView({ state, engagementId, filter, onFilter, onOpen }: { state: AgentixState; engagementId: string; filter: Nav["activityFilter"]; onFilter: (filter: Nav["activityFilter"]) => void; onOpen: (ref: ObjectRef) => void }) {
 	const [limit, setLimit] = useState(50)
@@ -37,7 +42,7 @@ export function ActivityView({ state, engagementId, filter, onFilter, onOpen }: 
 				<section key={day} className="aop-activity-day" aria-label={day}>
 					<h2 className="aop-activity-date">{day}</h2>
 					<ol className="aop-activity-list">
-						{list.map(event => <ActivityRow key={event.id} state={state} event={event} onOpen={onOpen} />)}
+						{list.map((event, index) => <ActivityRow key={event.id} state={state} event={event} continued={index > 0 && list[index - 1].actor === event.actor && list[index - 1].at - event.at <= RUN_GAP} onOpen={onOpen} />)}
 					</ol>
 				</section>
 			))}
@@ -47,27 +52,30 @@ export function ActivityView({ state, engagementId, filter, onFilter, onOpen }: 
 	)
 }
 
-function ActivityRow({ state, event, onOpen }: { state: AgentixState; event: ActivityEvent; onOpen: (ref: ObjectRef) => void }) {
+/* Consecutive entries by the same teammate read as one run: the name once, then only the times. */
+function ActivityRow({ state, event, continued, onOpen }: { state: AgentixState; event: ActivityEvent; continued: boolean; onOpen: (ref: ObjectRef) => void }) {
 	const Icon = TONE_ICON[event.tone] ?? Info
 	const engagement = state.engagements[event.engagementId]
 	const work = event.workItemId ? itemBy(state, event.workItemId) : undefined
 	const artifact = event.artifactId ? artifactBy(state, event.artifactId) : undefined
 	const release = event.releaseId ? releaseBy(state, event.releaseId) : undefined
 	const actor = memberName(state, event.engagementId, event.actor)
+	// The work it belongs to is named once, as a link, so the sentence doesn't start with its reference too.
+	const text = work ? withoutReference(event.text, work.reference) : event.text
 	return (
-		<li className={`aop-activity-row is-${event.tone}`}>
-			<span className="aop-activity-icon" aria-hidden="true"><Icon size={14} weight={event.tone === "positive" ? "fill" : "regular"} /></span>
+		<li className={`aop-activity-row is-${event.tone}${continued ? " is-continued" : ""}`}>
+			<span className="aop-activity-icon" aria-hidden="true"><Icon size={18} weight={event.tone === "positive" ? "fill" : "regular"} /></span>
 			<div className="aop-activity-body">
 				<p className="aop-activity-meta">
-					{event.actor === "owner" || event.actor === "demo" || event.actor === "agentix" ? <span className="aop-activity-actor">{actor}</span> : <span className="aop-activity-actor"><Mark seed={`${engagement.workflowId}:${event.actor}`} size="xs" />{actor}</span>}
-					<time dateTime={new Date(event.at).toISOString()}>{shortTime(event.at)}</time>
+					{continued ? <span className="sr-only">{actor}</span> : event.actor === "owner" || event.actor === "demo" || event.actor === "agentix" ? <span className="aop-activity-actor">{actor}</span> : <span className="aop-activity-actor"><Mark seed={`${engagement.workflowId}:${event.actor}`} size="xs" />{actor}</span>}
+					<time dateTime={new Date(event.at).toISOString()} title={shortTime(event.at)}>{clockLabel(event.at)}</time>
 				</p>
-				<p className="aop-activity-text">{event.text}</p>
+				<p className="aop-activity-text"><Prose text={text} /></p>
 				{work || artifact || release ? (
-					<p className="aop-chips">
-						{work ? <button type="button" className="aop-chip is-outline aop-link-chip" onClick={() => onOpen({ kind: "work", id: work.id })}>{work.reference}</button> : null}
-						{artifact ? <button type="button" className="aop-chip is-outline aop-link-chip" onClick={() => onOpen({ kind: "artifact", id: artifact.id })}>{artifact.title}</button> : null}
-						{release ? <button type="button" className="aop-chip is-outline aop-link-chip" onClick={() => onOpen({ kind: "work", id: release.workItemId })}>{release.reference}</button> : null}
+					<p className="aop-refs">
+						{work ? <button type="button" className="aop-ref" onClick={() => onOpen({ kind: "work", id: work.id })}>{work.reference}</button> : null}
+						{artifact ? <button type="button" className="aop-ref" onClick={() => onOpen({ kind: "artifact", id: artifact.id })}>{artifact.title}</button> : null}
+						{release ? <button type="button" className="aop-ref" onClick={() => onOpen({ kind: "work", id: release.workItemId })}>{release.reference}</button> : null}
 					</p>
 				) : null}
 				{event.operations?.length ? (

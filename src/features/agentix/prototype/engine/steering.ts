@@ -1,6 +1,6 @@
 import { actOnEngagement, actOnRelease, actOnWork, artifactBy, artifactSpec, decisionBy, isTerminal, itemBy, latest, post, produce, releaseWindowOf, scenarioOf, templateOf } from "./engine"
 import { SCENARIOS } from "./scenarios"
-import { decisionTitle, itemSentence, needsYou, presenceLine, releaseSentence, statusOf, teamPresence } from "./selectors"
+import { accountable, decisionTitle, itemSentence, needsYou, presenceLine, releaseSentence, statusOf, teamOf, teamPresence } from "./selectors"
 import { scopeKey, type AgentixState, type InstructionIntent, type InstructionStatus, type ObjectRef, type PendingChange, type Release, type ScopeRef, type WorkItem } from "./types"
 
 /*
@@ -96,6 +96,28 @@ function boundary(state: AgentixState, engagementId: string, scope: ScopeRef) {
 	return scenario.boundary
 }
 
+/* What the team is doing, said the way the accountable agent would say it: who is on what, who is
+ * free, and what (if anything) needs the owner. */
+function teamNow(state: AgentixState, engagementId: string) {
+	const engagement = state.engagements[engagementId]
+	const lead = accountable(engagement)
+	const presence = teamPresence(state, engagementId)
+	const who = (entry: (typeof presence)[number]) => entry.member.id === lead.id ? "I'm" : `the ${name(entry.member.name)} is`
+	const doing = (sentence: string) => sentence.replace(/ · ([A-Z]+-[\w-]+)$/, " on $1").replace(/^./, char => char.toLowerCase())
+	const busy = presence.filter(entry => entry.state !== "ready").map(entry => `${who(entry)} ${doing(entry.sentence)}`)
+	// Who is free, with "I" last, as people say it.
+	const ready = presence.filter(entry => entry.state === "ready")
+	const free = [...ready.filter(entry => entry.member.id !== lead.id).map(entry => `the ${name(entry.member.name)}`), ...(ready.some(entry => entry.member.id === lead.id) ? ["I"] : [])]
+	const list = (items: string[]) => items.length < 2 ? items.join("") : `${items.slice(0, -1).join(", ")} and ${items.at(-1)}`
+	const waiting = needsYou(state, engagementId).filter(entry => entry.kind !== "proposal")
+	const now = busy.length ? `Right now ${list(busy)}.` : "Nobody is mid-task right now."
+	const rest = !free.length ? "" : free.length === 1 && free[0] === "I" ? " I'm free for incoming work." : ` ${list(free).replace(/^./, char => char.toUpperCase())} ${free.length === 1 ? "is" : "are"} free for incoming work.`
+	// A question keeps its question mark; anything else ends with a full stop.
+	const title = waiting[0]?.title.replace(/^[A-Z](?=[a-z])/, char => char.toLowerCase())
+	const you = waiting.length ? ` ${waiting.length === 1 ? "One thing needs you" : `${waiting.length} things need you; the first`}: ${title}${/[?.!]$/.test(title ?? "") ? "" : "."}` : " Nothing needs you."
+	return `${now}${rest}${you}`
+}
+
 function question(state: AgentixState, engagementId: string, scope: ScopeRef, text: string, original = text): Outcome {
 	const answer = (reply: string, links: ObjectRef[] = []): Outcome => ({ state, intent: "question", status: "answered", reply, links })
 	if (WIDEN.test(text)) return answer(WIDEN_REPLY)
@@ -113,8 +135,10 @@ function question(state: AgentixState, engagementId: string, scope: ScopeRef, te
 	}
 	if (/\b(allowed|permission|permitted|scope|boundar|authori[st]y|may it|can it change)\b/.test(text)) return answer(boundary(state, engagementId, scope))
 	if (/\b(team|specialists?|who is|who's|how many agents|why (this|these) (agents?|team))\b/.test(text)) {
-		const people = teamPresence(state, engagementId).map(entry => `${entry.member.name}: ${entry.sentence}.`).join(" ")
-		return answer(`${scenarioOf(state, engagementId).teamReason} ${people}`)
+		const presence = teamPresence(state, engagementId)
+		// Why this team: the reason it was formed, then who is on it.
+		if (/\bwhy\b|how many agents/.test(text)) return answer(`${scenarioOf(state, engagementId).teamReason} ${presence.map(entry => `${entry.member.name}: ${entry.sentence}.`).join(" ")}`)
+		return answer(teamNow(state, engagementId))
 	}
 	if (/\brelease|deploy|production|live\b/.test(text)) {
 		const releases = state.releases.filter(release => release.engagementId === engagementId && release.status !== "superseded" && (scope.kind === "engagement" || (scope.kind === "work" && release.workItemId === scope.id) || (scope.kind === "artifact" && release.artifactId === scope.id)))
@@ -268,6 +292,14 @@ function scopeIn(state: AgentixState, engagementId: string, scope: ScopeRef): Sc
 	return { kind: "engagement" }
 }
 
+/* What an input would do, without doing it. Talk on the floor answers a spoken question at once and holds a spoken change for the owner to send. */
+export function previewInstruction(state: AgentixState, engagementId: string, requested: ScopeRef, input: string): { intent: InstructionIntent; status: InstructionStatus } | null {
+	const text = input.trim().slice(0, 2000)
+	if (!text || !state.engagements[engagementId]) return null
+	const { intent, status } = interpret(state, engagementId, scopeIn(state, engagementId, requested), text)
+	return { intent, status }
+}
+
 export function sendInstruction(state: AgentixState, engagementId: string, requested: ScopeRef, input: string): AgentixState {
 	const text = input.trim().slice(0, 2000)
 	if (!text || !state.engagements[engagementId]) return state
@@ -303,3 +335,86 @@ export function acceptOffer(state: AgentixState, messageId: string): AgentixStat
 }
 
 export const describeDecision = (state: AgentixState, id: string) => { const decision = decisionBy(state, id); return decision ? decisionTitle(state, decision) : "" }
+
+/* ---- Talking to one teammate ------------------------------------------------
+ * In the team floor the owner can open any teammate's room and write to it directly. A specialist
+ * answers for its own work: what it is doing, what it found, what it may touch and why it waits.
+ * It never steers the team: a pause, a priority, a hold or new work goes to the accountable agent,
+ * who applies it exactly as if the owner had written there, and says so in the main conversation.
+ * Nobody approves, releases or widens authority from chat, in any room.
+ */
+const lower = (text: string) => text.charAt(0).toLowerCase() + text.slice(1)
+const name = (text: string) => text.toLowerCase()
+
+function agentAnswer(state: AgentixState, engagementId: string, memberId: string, text: string): { reply: string; links: ObjectRef[] } {
+	const engagement = state.engagements[engagementId]
+	const member = teamOf(engagement).find(entry => entry.id === memberId)!
+	const presence = teamPresence(state, engagementId).find(entry => entry.member.id === memberId)
+	const item = presence?.workId ? itemBy(state, presence.workId) : undefined
+	const template = item ? templateOf(state, item) : undefined
+	const step = item && template ? template.steps.find((spec, index) => spec.owner === memberId && (item.steps[index]?.status === "working" || item.steps[index]?.status === "waiting")) ?? template.steps.find((spec, index) => spec.owner === memberId && item.steps[index]?.status === "pending") : undefined
+	const owned = state.artifacts.filter(artifact => artifact.engagementId === engagementId && artifactSpec(state, artifact)?.owner === memberId)
+	const links: ObjectRef[] = item ? [{ kind: "work", id: item.id }] : []
+	if (/\b(fail|failed|failing|checks?|tests?|broke|broken)\b/.test(text)) {
+		for (const artifact of owned) {
+			const found = failedChecks(state, engagementId, { kind: "artifact", id: artifact.id })
+			if (found) return { reply: found.text, links: found.links }
+		}
+		const tested = owned.map(artifact => { const version = latest(artifact); const passed = version.checks.filter(check => check.status === "passed").length; return version.checks.length ? `${artifact.title} v${version.version}: ${passed} of ${version.checks.length} checks passed` : null }).filter(Boolean)
+		return { reply: tested.length ? `Nothing of mine has failed. ${tested.join("; ")}. A passed test isn't a production result; production only changes through the coordinator's release.` : "I haven't tested anything yet. Every check runs in isolation before anything reaches production.", links: owned.map(artifact => ({ kind: "artifact" as const, id: artifact.id })) }
+	}
+	if (/\b(allowed|permission|permissions|access|scope|touch|systems?|tools?|can you|may you)\b/.test(text)) {
+		return { reply: `I can use ${member.tools.replace(/ · /g, ", ")}. ${member.scope} Anything beyond that needs a new review of the engagement.`, links: [] }
+	}
+	const decision = item?.wait?.kind === "decision" ? decisionBy(state, item.wait.decisionId) : undefined
+	if (decision && decision.status === "open") {
+		const spec = scenarioOf(state, engagementId).decisions[decision.template]
+		const facts = spec?.facts.slice(0, 3).map(fact => `${fact.label}: ${fact.value}`).join("; ")
+		return { reply: `I'm waiting on you for ${item!.reference}: ${decisionTitle(state, decision)} ${spec?.detail ?? ""}${facts ? ` What I found: ${facts}.` : ""} It's a business rule, so I asked rather than choosing; decide it in its card.`, links: [{ kind: "decision", id: decision.id }, ...links] }
+	}
+	if (/\b(why|wait|waiting|blocked|stuck|holding)\b/.test(text) && presence && presence.state !== "working") {
+		return { reply: `${presence.sentence}. ${presence.state === "dependency" ? "I start on my own once that's ready; nothing else waits on me." : presence.state === "ready" ? member.duty : ""}`.trim(), links }
+	}
+	if (!presence || presence.state === "ready") return { reply: `Nothing is assigned to me right now. ${member.duty}`, links: [] }
+	const doing = step?.doing ?? presence.sentence.replace(/ · [A-Z]+-\d+.*$/, "")
+	const tools = step?.tools?.length ? ` Using ${step.tools.join("; ")}.` : ""
+	return { reply: `I'm ${lower(doing)}${item ? ` for ${item.reference}` : ""}.${tools}${presence.more ? ` ${presence.more} more item${presence.more === 1 ? " is" : "s are"} queued for me.` : ""}`, links }
+}
+
+export function sendToAgent(state: AgentixState, engagementId: string, agentId: string, input: string): AgentixState {
+	const engagement = state.engagements[engagementId]
+	const text = input.trim().slice(0, 2000)
+	if (!engagement || !text) return state
+	const lead = accountable(engagement)
+	if (agentId === lead.id) return sendInstruction(state, engagementId, { kind: "engagement" }, text)
+	const member = teamOf(engagement).find(entry => entry.id === agentId)
+	if (!member) return state
+	const presence = teamPresence(state, engagementId).find(entry => entry.member.id === agentId)
+	const scope: ScopeRef = presence?.workId ? { kind: "work", id: presence.workId } : { kind: "engagement" }
+	const plainText = plain(text)
+	const bare = plainText.replace(/[.!]+$/, "")
+	const asks = QUESTION.test(bare) || EXPLAIN.test(bare) || plainText.endsWith("?")
+	const say = (draft: AgentixState, reply: string, links: ObjectRef[] = []) => { post(draft, engagementId, scope, tidy(reply), links); draft.messages[draft.messages.length - 1].agentId = agentId }
+	const own = (draft: AgentixState, intent: InstructionIntent, status: InstructionStatus, links: ObjectRef[] = [], pending?: PendingChange) => {
+		draft.seq++
+		draft.messages.push({ id: `m-${draft.seq}`, engagementId, scope, role: "owner", text, at: draft.clock, agentId, instruction: { intent, status, pending, links } })
+	}
+	if (!NEGATED_START.test(bare) && (WIDEN.test(plainText) || APPROVE.test(plainText))) {
+		return produce(state, draft => { own(draft, "refuse", "declined"); say(draft, `I can't approve, release or widen anything, and neither can chat. Production changes go through the ${name(lead.name)} under your release policy, and decisions stay with you in their card. Nothing changed.`) })
+	}
+	if (asks) {
+		const answer = agentAnswer(state, engagementId, agentId, plainText)
+		return produce(state, draft => { own(draft, "question", "answered", answer.links); say(draft, answer.reply, answer.links) })
+	}
+	// Steering is the accountable agent's: route it there, and let it answer in the main conversation.
+	// Naming a work item ("pause INV-20842") steers that item; otherwise it means this specialist's own.
+	// (A fresh, non-global copy: testing the shared global pattern would move its lastIndex under interpret's matchAll.)
+	const outcome = interpret(state, engagementId, new RegExp(REFERENCE.source, "i").test(text) ? { kind: "engagement" } : scope, text)
+	return produce(outcome.state, draft => {
+		// A queued change rides on this message; the engine applies it on the next demo minute, whichever room it was written in.
+		own(draft, outcome.intent === "unsupported" ? "unsupported" : outcome.intent, outcome.status, outcome.links, outcome.pending)
+		say(draft, outcome.status === "declined" && outcome.intent === "unsupported" ? `That isn't something I can do from here. ${outcome.reply}` : `That changes how the team runs, so it goes through the ${name(lead.name)}. I've passed it on; its answer is in your conversation with it.`)
+		post(draft, engagementId, scope, tidy(`From your message to the ${name(member.name)}: ${outcome.reply}`), outcome.links)
+		if (outcome.status !== "answered") draft.events.push({ id: `ev-${++draft.seq}`, at: draft.clock, engagementId, workItemId: scope.kind === "work" ? scope.id : undefined, actor: "owner", kind: "instruction", text: `Instruction ${outcome.status} via the ${name(member.name)}: “${text.length > 80 ? `${text.slice(0, 77)}…` : text}”`, tone: outcome.status === "declined" ? "neutral" : "live" })
+	})
+}

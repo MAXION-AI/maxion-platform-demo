@@ -2,9 +2,10 @@ import { REVENUE_SCRIPT } from "./revenue"
 import { S4HANA_SCRIPT } from "./s4hana"
 import { SALESFORCE_SAP_SCRIPT } from "./salesforceSap"
 import { SERVICENOW_SCRIPT } from "./servicenow"
+import { SCENARIOS } from "@/features/discovery-autonomous/model"
 import type { DemoId, DemoScript } from "./types"
 
-export type { DemoId, DemoScript, DemoStepCopy, DemoStepId } from "./types"
+export type { CallLine, DemoId, DemoScript, DemoStepCopy, DemoStepId, StakeholderCall } from "./types"
 export { DEMO_STEP_ORDER } from "./types"
 
 /*
@@ -27,3 +28,15 @@ export const isDemoId = (value: unknown): value is DemoId => typeof value === "s
 for (const [key, script] of Object.entries(DEMO_SCRIPTS)) {
 	if (script.id !== key) throw new Error(`Demo script "${script.id}" is registered as "${key}"`)
 }
+
+/* The call speaks one reply and records one fact per answer, and every call is with someone the Discovery mapped. */
+for (const script of Object.values(DEMO_SCRIPTS)) {
+	const people = SCENARIOS[script.scenarioKey].people.map(person => person.id)
+	if (script.replies.length !== script.answers.length || script.heard.length !== script.answers.length) throw new Error(`Demo script "${script.id}": ${script.answers.length} answers, ${script.replies.length} replies, ${script.heard.length} facts`)
+	for (const id of [...script.calls.map(call => call.person), ...script.conflict.between]) {
+		if (!people.includes(id)) throw new Error(`Demo script "${script.id}" calls "${id}", who isn't in its Discovery`)
+	}
+}
+
+/* The demo whose Discovery this is, when one is running for it. */
+export const scriptForScenario = (scenarioKey: string, id: DemoId | undefined) => id && DEMO_SCRIPTS[id]?.scenarioKey === scenarioKey ? DEMO_SCRIPTS[id] : undefined

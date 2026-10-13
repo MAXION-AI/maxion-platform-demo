@@ -1,4 +1,5 @@
-import { ArrowLeft, ArrowRight, CaretDown, CheckCircle, Flask, Plus, WarningCircle } from "@phosphor-icons/react"
+import { ArrowLeft, ArrowRight, CaretDown, Plus } from "@phosphor-icons/react"
+import { CheckCircle, Flask, WarningCircle } from "./glyphs"
 import { AnimatePresence, motion, useReducedMotion } from "motion/react"
 import { Banner, Button as DsButton, Count, Mark, PageHeader, SearchInput, SegmentedTabs, TextButton } from "@/design/primitives"
 import { useRiseIn } from "@/components/motion/MotionKit"
@@ -155,7 +156,7 @@ export function DeployedAgentsPage({ intentSignal, onAttentionChange, onOpenDisc
 	}, [state, onAttentionChange])
 
 	const showLanding = () => { setNav({ engagementId: null, workId: undefined, resultId: undefined, creating: false, reviewing: undefined }); setFocusRequest(count => count + 1) }
-	const openEngagement = (id: string, patch: Partial<Nav> = {}) => { setNav({ engagementId: id, creating: false, reviewing: undefined, workId: undefined, resultId: undefined, view: "work", ...patch }); setFocusRequest(count => count + 1) }
+	const openEngagement = (id: string, patch: Partial<Nav> = {}) => { setNav({ engagementId: id, creating: false, reviewing: undefined, workId: undefined, resultId: undefined, view: "floor", ...patch }); setFocusRequest(count => count + 1) }
 	const openWork = (id: string) => { const item = itemBy(state, id); if (item) openEngagement(item.engagementId, { view: "work", workId: id }) }
 	useEffect(() => {
 		const pending = assigned.current

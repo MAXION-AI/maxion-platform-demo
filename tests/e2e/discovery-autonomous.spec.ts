@@ -68,7 +68,8 @@ test("runs an autonomous Discovery from brief to verified package", async ({ pag
 	await composer.fill("End the owner interview")
 	await composer.press("Enter")
 	await expect(page.getByText(/That gives me enough owner context for this pass/)).toBeVisible()
-	await expect(page.getByText(/keep the work visible in Autonomy and won’t ask another interview question unless you reopen it/)).toBeVisible()
+	// The close says what MAX does next and when it will come back (written to be heard on a call too).
+	await expect(page.getByText(/I’ll only come back to you if something needs your call\. You can follow all of it in Autonomy\./)).toBeVisible()
 	await expect(page.getByRole("region", { name: "Autonomous work summary" })).toBeVisible()
 	await expect(page.getByRole("button", { name: "Open autonomy" })).toBeVisible()
 
@@ -147,19 +148,22 @@ test("continues the owner interview through the voice agent", async ({ page }) =
 	await expect(voiceDialog.getByText(/does not retain the original audio/i)).toBeVisible()
 
 	await voiceDialog.getByRole("button", { name: "Continue with voice" }).click()
-	await expect(voiceDialog.getByText("Ready when you are")).toBeVisible()
+	// MAX speaks first on a call: a greeting, how long it is, then the open question.
+	await expect(voiceDialog.getByText(/Hi, I’m MAX\./).first()).toBeVisible()
 	const transcript = voiceDialog.getByRole("textbox", { name: "Your response" })
 	await transcript.fill("Delaying strategic vendors is most costly because teams bypass controls after ten days and the audit trail breaks down.")
 	await voiceDialog.getByRole("button", { name: "Send response" }).click()
-	const ownerThread = page.getByLabel("Discovery owner chat messages")
-	await expect(ownerThread.getByText(/working position on decision pressure/i)).toBeVisible({ timeout: 5_000 })
-	await expect(ownerThread.getByText("Risk segmentation · 2 of 6")).toBeVisible()
+	// The call's transcript shows MAX's reply; the Thread it covers gets the same messages.
+	await expect(voiceDialog.getByRole("complementary", { name: "Voice transcript" }).getByText(/working position on decision pressure/i)).toBeVisible({ timeout: 5_000 })
 
 	const accessibility = await new AxeBuilder({ page }).analyze()
 	expect(accessibility.violations.filter((violation) => violation.impact === "critical" || violation.impact === "serious")).toEqual([])
 	await voiceDialog.getByRole("button", { name: "Close voice session" }).click()
 	await expect(voiceDialog).toBeHidden()
 	await expect(page.getByRole("button", { name: "Voice" })).toBeFocused()
+	const ownerThread = page.getByLabel("Discovery owner chat messages")
+	await expect(ownerThread.getByText(/working position on decision pressure/i)).toBeVisible()
+	await expect(ownerThread.getByText("Risk segmentation · 2 of 6")).toBeVisible()
 })
 
 test("keeps the launch experience usable at a mobile viewport", async ({ page }) => {
@@ -203,6 +207,7 @@ test("keeps the launch experience usable at a mobile viewport", async ({ page })
 	}))
 	expect(voiceDimensions.scrollWidth).toBe(voiceDimensions.clientWidth)
 	expect(voiceDimensions.scrollHeight).toBeLessThanOrEqual(voiceDimensions.clientHeight)
+	expect(await voiceDialog.evaluate(node => node.scrollWidth - node.clientWidth)).toBeLessThanOrEqual(1)
 })
 
 const SCENARIO_EXCEPTION_TITLE = "One external interview needs your approval"

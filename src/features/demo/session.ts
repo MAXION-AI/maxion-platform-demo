@@ -285,7 +285,13 @@ export const DEMO_AGENTIX_RESET_EVENT = "maxion-demo-agentix-reset"
 export function resetDemoAgentix() {
 	if (typeof window !== "undefined" && demoActive()) window.dispatchEvent(new Event(DEMO_AGENTIX_RESET_EVENT))
 }
-/* Puts a scripted answer in the Discovery composer; the presenter still sends it. */
+/* The presenter starts the owner interview as a call; the Discovery opens its Thread and the call. */
+export const DEMO_CALL_EVENT = "maxion-demo-call"
+export function startDemoCall(recordId?: string) {
+	if (typeof window !== "undefined") window.dispatchEvent(new CustomEvent(DEMO_CALL_EVENT, { detail: { recordId } }))
+}
+
+/* Puts a scripted answer in the Discovery composer, or speaks it on the call when one is open. */
 export const DEMO_FILL_EVENT = "maxion-demo-fill"
 export function fillDemoAnswer(text: string, recordId?: string) {
 	if (typeof window !== "undefined") window.dispatchEvent(new CustomEvent(DEMO_FILL_EVENT, { detail: { text, recordId } }))

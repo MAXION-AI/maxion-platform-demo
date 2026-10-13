@@ -54,7 +54,7 @@ import { readState } from "@/features/agentix/prototype/engine/storage"
 import { PresenterDock } from "@/features/demo/PresenterDock"
 import type { DemoAction, DemoSnapshot } from "@/features/demo/progress"
 import { demoScript } from "@/features/demo/scripts"
-import { demoSession, fillDemoAnswer } from "@/features/demo/session"
+import { demoSession, fillDemoAnswer, startDemoCall } from "@/features/demo/session"
 import {
 	demoRecordId,
 	DiscoveryAutonomousPrototypePage,
@@ -1393,6 +1393,7 @@ export function MaxionPlatformPrototypePage() {
 		const record = snapshot.discovery
 		if (action.kind === "discover") navigate("discovery")
 		else if (action.kind === "fill") { navigate("discovery"); fillDemoAnswer(action.text, record?.id) }
+		else if (action.kind === "call") { navigate("discovery"); startDemoCall(action.recordId) }
 		else if (action.kind === "discovery") openDiscoveryRecord(action.recordId, action.jump)
 		else if (action.kind === "review" && record?.handoff?.target === "agentix") openPlanPacket({ ...record.handoff, target: "agentix", note: record.handoff.note ?? "" })
 		// Beats 7-12 emit { kind: "engagement" }: open the engagement this demo actually created.

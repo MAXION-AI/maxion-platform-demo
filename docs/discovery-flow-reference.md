@@ -24,6 +24,20 @@ the owner's own journey. The prototype carries them at `/stakeholder-interview?d
 no token service exists here, so the address names the demo and the stakeholder instead. Like the
 presenter guide it is a window beside the demo and never takes the demo's saved state.
 
+## Departures from the real product (2026-10-11)
+
+The demo now goes beyond the surveyed product in three places, deliberately, as input for the
+product's plans; see `docs/changes/2026-10-11-voice-call-team-floor/`:
+
+- **The owner interview is a call first.** The Thread opens with a call invitation and the call
+  (`VoiceCall.tsx`) covers the Discovery module rather than the viewport. MAX speaks its whole reply,
+  listens hands-free, and records **What MAX heard** (one fact per answer, with status) beside a full
+  transcript. The real product's voice modal (portal refactor §4.7) shows an orb, captions and the
+  last four turns.
+- **Stakeholder interviews are shown as they run** (`StakeholderCalls.tsx` in Autonomy), with the
+  disagreement that becomes the decision. The real product shows a stage status.
+- **Voice-channel stakeholders start by voice** on their link page.
+
 ## 1. Hub
 
 Eyebrow "Autonomous Discovery", title "Continue where MAX left off." A three-cell

@@ -77,6 +77,10 @@ async function createEngagement(page: Page) {
 	await page.getByRole("button", { name: "Run the read-only check" }).click()
 	await expect(page.getByText("Read-only check passed. Nothing was written.")).toBeVisible({ timeout: 10_000 })
 	await page.getByRole("button", { name: /Activate engagement/ }).click()
+	// The new engagement opens on its team floor, with the whole team seated; the work list is one tab away.
+	await expect(page.getByRole("region", { name: "Team floor" })).toBeVisible()
+	await expect(page.getByRole("region", { name: "Team floor" }).getByRole("button", { name: /^You/ })).toBeVisible()
+	await page.getByRole("tab", { name: /^Work/ }).click()
 	await expect(page.locator('[data-work="MS-1"]').first()).toBeVisible()
 	// The header must agree with the activation: three milestones are queued, so it is Active.
 	await expect(page.locator(".aop-eng-head")).toContainText("Active")
@@ -163,6 +167,8 @@ test("the AP exceptions demo runs from a new Discovery to a verified morning in 
 	await expect(page.getByRole("heading", { name: /Release triage and routing pipeline v2 to production\?/ })).toBeVisible()
 	await expect(dockRow(page)).toContainText("9/12")
 	await page.getByRole("button", { name: "Approve release" }).first().click()
+	// The dock opens the engagement on its team floor; the milestones are on Work.
+	await page.getByRole("tab", { name: /^Work/ }).click()
 
 	// The dashboard publishes under policy and stays the step while it is shown; running the next cycle moves on.
 	for (let i = 0; i < 8 && !(await page.getByText("3 of 3 milestones verified").count()); i++) await demoControls(page, "Skip")

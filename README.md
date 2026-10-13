@@ -74,6 +74,19 @@ Halden Group's ECC to S/4HANA conversion, and the one a system integrator recogn
 
 Agentix has no conversion engagement until the Discovery hands its package over, and each new conversion Discovery starts it again from zero. The talk track, scripted answers and figures are in the [presenter runbook](docs/demo-s4hana-conversion.md).
 
+## Voice and the team floor
+
+Discovery's owner interview can run as a call with MAX (**Start the call** in the Thread or the presenter row): MAX speaks, listens hands-free, and fills **What MAX heard** as you talk; afterwards Autonomy shows MAX talking to each stakeholder. An active Agentix engagement opens on its **Floor**, a live view of the team where each teammate has a room you can talk to. What changed and why, with before/after screenshots and the impact on the product's plans: [docs/changes/2026-10-11-voice-call-team-floor](docs/changes/2026-10-11-voice-call-team-floor/README.md).
+
+MAX's voice is the browser's own until its lines are pre-rendered with ElevenLabs:
+
+```bash
+pnpm voice:render --dry-run
+ELEVENLABS_API_KEY=… ELEVENLABS_VOICE_ID=… pnpm voice:render
+```
+
+The first lists every scripted line and its size; the second writes `public/voice/` and its manifest, which the app plays with word-timed captions. Browsers under test automation never speak aloud.
+
 ## Deploy
 
 Build and publish locally; pushing source code to `main` does not deploy the site.

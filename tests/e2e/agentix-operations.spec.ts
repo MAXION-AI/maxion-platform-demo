@@ -16,9 +16,14 @@ async function enter(page: Page, path = "/agentix-prototype") {
 	if (path === "/agentix-prototype") await expect(page.getByRole("heading", { name: "Engagements", exact: true })).toBeVisible()
 }
 const tiles = (page: Page) => page.locator(".aop-agent-card")
-const openEngagement = (page: Page, name: string) => tiles(page).filter({ hasText: name }).click()
+/* An engagement opens on its team floor; these journeys read its work list, one tab away. */
+async function openEngagement(page: Page, name: string) {
+	await tiles(page).filter({ hasText: name }).click()
+	await expect(page.getByRole("region", { name: "Team floor" })).toBeVisible()
+	await page.getByRole("tab", { name: /^Work/ }).click()
+}
 const row = (page: Page, reference: string) => page.locator(`[data-work="${reference}"]`).first()
-const tab = (page: Page, name: "Work" | "Results" | "Activity") => page.getByRole("tab", { name: new RegExp(`^${name}`) })
+const tab = (page: Page, name: "Floor" | "Work" | "Results" | "Activity") => page.getByRole("tab", { name: new RegExp(`^${name}`) })
 const composer = (page: Page) => page.locator("#aop-composer-input")
 
 async function demo(page: Page, action: "Advance" | "Skip", times = 1) {
@@ -44,6 +49,8 @@ async function activateFlagship(page: Page) {
 	await page.getByText("Ask me before each pipeline release").click()
 	await page.getByText("The synthetic 30-day sample").click()
 	await page.getByRole("button", { name: /Activate expansion/ }).click()
+	await expect(page.getByRole("region", { name: "Team floor" })).toBeVisible()
+	await tab(page, "Work").click()
 	await expect(row(page, "MS-1")).toBeVisible()
 }
 /* Answer the price variance and the region question, then run MS-2 to its release decision. */
@@ -272,6 +279,11 @@ test("tabs, sheets and the conversation work from the keyboard; closing the conv
 	await expect(tab(page, "Results")).toHaveAttribute("aria-selected", "true")
 	await page.keyboard.press("ArrowRight")
 	await expect(tab(page, "Activity")).toHaveAttribute("aria-selected", "true")
+	// Arrowing back onto Results shows its open result again without taking focus out of the tabs.
+	await page.keyboard.press("ArrowLeft")
+	await expect(tab(page, "Results")).toBeFocused()
+	await page.keyboard.press("ArrowLeft")
+	await expect(tab(page, "Work")).toBeFocused()
 	await page.getByRole("button", { name: "Details", exact: true }).click()
 	await expect(page.getByRole("dialog", { name: "Revenue reconciliation details" })).toBeVisible()
 	await page.keyboard.press("Escape")

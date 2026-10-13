@@ -249,7 +249,7 @@ export function DashboardModule({
 	const quickActions: Array<{ label: string; art: ActionArtKind; run: () => void }> = [
 		{ label: "New project", art: "project", run: () => onCreateProject ? onCreateProject() : onNavigate("projects") },
 		{ label: "Start Discovery", art: "discovery", run: onStartDiscovery },
-		{ label: "New engagement", art: "agentix", run: () => onOpenAgentix({ type: "create" }) },
+		{ label: "Agentix", art: "agentix", run: () => onOpenAgentix({ type: "create" }) },
 		{ label: "Ask MAX", art: "consult", run: () => onNavigate("consult") },
 	]
 	const attentionCount = activities.filter((item) => item.tone === "attention").length

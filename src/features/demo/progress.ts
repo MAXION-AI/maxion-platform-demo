@@ -56,6 +56,7 @@ function safeStorage(): Storage | null { try { return window.localStorage } catc
 export type DemoAction =
 	| { kind: "discover" }
 	| { kind: "fill"; text: string }
+	| { kind: "call"; recordId: string }
 	| { kind: "discovery"; recordId: string; jump: "resume" | "decision" | "package" | "autonomy" }
 	| { kind: "review" }
 	| { kind: "engagement" }
@@ -71,6 +72,8 @@ export type DemoStep = {
 	detail?: string
 	/* The one button that moves the presenter on, when there is one. */
 	action?: { label: string; run: DemoAction }
+	/* A quieter second way to do the same step: the owner interview can be a call. */
+	secondary?: { label: string; run: DemoAction }
 	status: "done" | "current" | "upcoming"
 }
 
@@ -143,7 +146,7 @@ export function demoSteps(script: DemoScript, snapshot: DemoSnapshot): { steps: 
 }
 
 // The live detail and next action for the step the presenter is on.
-function live(script: DemoScript, id: DemoStepId, discovery: DemoDiscovery | null, facts: ReturnType<typeof agentixFacts>): Pick<DemoStep, "detail" | "action"> {
+function live(script: DemoScript, id: DemoStepId, discovery: DemoDiscovery | null, facts: ReturnType<typeof agentixFacts>): Pick<DemoStep, "detail" | "action" | "secondary"> {
 	const record = discovery?.id
 	switch (id) {
 		case "start": return { action: { label: "Open Discover", run: { kind: "discover" } } }
@@ -155,6 +158,8 @@ function live(script: DemoScript, id: DemoStepId, discovery: DemoDiscovery | nul
 			return {
 				detail: awaitingReply(discovery) ? "MAX is replying…" : discovery?.clarificationPending ? "MAX asked a follow-up. Answer it in your own words, or say who would know." : `Question ${question} of ${script.answers.length}`,
 				action: answer ? { label: "Fill answer", run: { kind: "fill", text: answer } } : record ? { label: "Open the Discovery", run: { kind: "discovery", recordId: record, jump: "resume" } } : undefined,
+				// The interview is a call by choice: Fill answer then speaks the answer on the call.
+				secondary: record && !discovery?.interviewClosed ? { label: "Start the call", run: { kind: "call", recordId: record } } : undefined,
 			}
 		}
 		case "decision": {

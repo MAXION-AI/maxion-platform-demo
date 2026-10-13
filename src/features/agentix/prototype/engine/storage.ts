@@ -72,7 +72,7 @@ function tidy(state: AgentixState): AgentixState {
 	if (nav.engagementId && !Object.hasOwn(state.engagements, nav.engagementId)) nav.engagementId = null
 	if (nav.workId && !state.work.some(item => item.id === nav.workId)) nav.workId = undefined
 	if (nav.resultId && !state.artifacts.some(item => item.id === nav.resultId) && !state.work.some(item => item.id === nav.resultId)) nav.resultId = undefined
-	if (!["work", "results", "activity"].includes(nav.view)) nav.view = "work"
+	if (!["floor", "work", "results", "activity"].includes(nav.view)) nav.view = "floor"
 	const gated = Array.isArray(state.demo.gated) ? state.demo.gated.filter(id => typeof id === "string" && id.length <= 40) : undefined
 	return { ...state, nav, demo: { ackLoss: !!state.demo.ackLoss, scenario: WORKFLOW_IDS.includes(state.demo.scenario as WorkflowId) ? state.demo.scenario : "", ...state.demo.quiet ? { quiet: true } : {}, ...gated?.length ? { gated } : {} } }
 }

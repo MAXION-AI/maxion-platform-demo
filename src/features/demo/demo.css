@@ -127,3 +127,17 @@
 .mxd-si-closed .mxd-si-brand { margin-inline: auto; -webkit-mask-position: center; mask-position: center; }
 .mxd-si-turn + .mxd-si-turn:not(:has(.mxd-si-who)) { margin-top: calc(var(--ds-space-1) * -1); }
 .mxd-si-turn:has(.mxd-si-who) + .mxd-si-turn:has(.mxd-si-who) { margin-top: var(--ds-space-3); }
+
+/* The stakeholder interview by voice: the call's orb and turns above a quiet transcript. */
+.mxd-si-chat:has(.mxd-sv) { grid-template-rows: auto auto minmax(0, 1fr); }
+.mxd-sv { display: grid; justify-items: center; gap: var(--ds-space-3); padding: var(--ds-space-6) 0 var(--ds-space-4); border-bottom: 1px solid var(--ds-border); text-align: center; }
+.mxd-sv .vo { margin-bottom: var(--ds-space-3); }
+.mxd-sv-mic { display: grid; place-items: center; align-self: end; width: var(--ds-control-h-lg); height: var(--ds-control-h-lg); margin-bottom: calc(var(--ds-control-h-lg) / -2); border: 0; border-radius: var(--ds-radius-full); background: var(--ds-primary); color: var(--ds-fg-on-primary); cursor: pointer; }
+.mxd-sv-mic.is-listening { background: var(--ds-brand-teal); box-shadow: 0 0 0 var(--ds-space-1) var(--ds-orb-glow); }
+.mxd-sv-mic:focus-visible { outline: 2px solid var(--ds-ring); outline-offset: 2px; }
+.mxd-sv-state { margin: var(--ds-space-2) 0 0; color: var(--ds-fg); font-size: var(--ds-text-sm); line-height: var(--ds-lh-sm); font-weight: var(--ds-weight-medium); }
+.mxd-sv-caption { max-width: var(--ds-call-caption-w); min-height: calc(var(--ds-lh-title) * 2); margin: 0; color: var(--ds-fg); font-size: var(--ds-text-title); line-height: var(--ds-lh-title); text-wrap: balance; }
+.mxd-sv-caption .is-coming { color: var(--ds-fg-subtle); }
+.mxd-sv-caption .is-heard { color: var(--ds-fg-subtle); }
+.mxd-sv-actions { justify-content: center; }
+.mxd-si-thread.is-transcript .mxd-si-turn p { padding: var(--ds-space-2) var(--ds-space-3); font-size: var(--ds-text-xs); line-height: var(--ds-lh-xs); }

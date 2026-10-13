@@ -1,4 +1,5 @@
-import { ArrowRight, CaretDown, CaretRight, CheckCircle, Clock, Hourglass, Pulse, RocketLaunch, UserCircle, Warning, WarningCircle } from "@phosphor-icons/react"
+import { ArrowRight, CaretDown, CaretRight } from "@phosphor-icons/react"
+import { CheckCircle, Clock, Hourglass, Pulse, RocketLaunch, UserCircle, Warning, WarningCircle } from "./glyphs"
 import { AnimatePresence, motion } from "motion/react"
 import { Button as DsButton, Mark, TextButton } from "@/design/primitives"
 import { ShimmerText, useRiseIn } from "@/components/motion/MotionKit"

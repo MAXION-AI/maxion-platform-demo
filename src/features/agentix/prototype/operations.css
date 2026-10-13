@@ -58,6 +58,8 @@
 .aop-status.is-danger { background: var(--ds-danger-bg); color: var(--ds-danger-fg); }
 .aop-status.is-live { background: var(--ds-tint-1-bg); color: var(--ds-tint-1-fg); }
 .aop-status.is-neutral > svg { color: var(--ds-fg-subtle); }
+/* On a tinted pill the seal's disc would vanish into the tint: the pill is the seal, the glyph keeps its mark. */
+.aop-pill .ax-glyph .ax-disc, .aop-status .ax-glyph .ax-disc { opacity: 0; }
 
 /* A live dot with a soft ping, for work in flight. */
 .aop-live-dot { position: relative; display: inline-block; flex-shrink: 0; width: var(--ds-dots); height: var(--ds-dots); border-radius: var(--ds-radius-full); background: currentColor; }
@@ -434,10 +436,10 @@ button.aop-list-row:hover .aop-row-action { color: var(--ds-fg); }
 /* ---- Conversation: the test-agent panel -------------------------------------------- */
 .aop-context-thread { display: flex; flex-direction: column; min-width: 0; min-height: 0; border-left: 1px solid var(--ds-border); background: var(--ds-bg); }
 .aop-thread-head { display: flex; flex-shrink: 0; align-items: center; gap: var(--ds-space-2); height: var(--ds-tabstrip-h); padding: 0 var(--ds-space-4); border-bottom: 1px solid var(--ds-border); }
-.aop-thread-head h2 { font-size: var(--ds-text-sm); line-height: var(--ds-lh-sm); font-weight: var(--ds-weight-medium); }
+.aop-thread-head h2 { font-size: var(--ds-text-lg); line-height: var(--ds-lh-lg); font-weight: var(--ds-weight-semibold); letter-spacing: var(--ds-track-name); font-variation-settings: var(--ds-opsz-display); }
 /* The work column already leads back to the list; only the phone, which shows one panel at a time, needs it here. */
 .aop-root .aop-thread-head .aop-thread-back { display: none; margin-left: calc(-1 * var(--ds-space-2)); }
-.aop-thread-log { position: relative; display: flex; flex: 1; flex-direction: column; gap: var(--ds-space-5); min-height: 0; overflow-y: auto; padding: var(--ds-space-5) var(--ds-space-4); mask-image: linear-gradient(to bottom, transparent 0, var(--ds-fg) var(--ds-space-5)); }
+.aop-thread-log { position: relative; display: flex; flex: 1; flex-direction: column; gap: var(--ds-space-8); min-height: 0; overflow-y: auto; padding: var(--ds-space-6) var(--ds-space-5) var(--ds-space-8); mask-image: linear-gradient(to bottom, transparent 0, var(--ds-fg) var(--ds-space-6)); }
 .aop-thread-log:focus-visible { outline-offset: -2px; }
 .aop-thread-empty { display: grid; justify-items: center; gap: var(--ds-space-1); margin: auto 0; text-align: center; }
 .aop-thread-empty > .aop-icon-tile { margin-bottom: var(--ds-space-2); }
@@ -446,14 +448,17 @@ button.aop-list-row:hover .aop-row-action { color: var(--ds-fg); }
 .aop-suggestions { display: flex; flex-wrap: wrap; justify-content: center; gap: var(--ds-space-2); margin-top: var(--ds-space-3); }
 .aop-suggestion { display: inline-flex; align-items: center; gap: var(--ds-space-1); height: var(--ds-control-h-sm); padding: 0 var(--ds-space-3); border: 1px solid var(--ds-border); border-radius: var(--ds-radius-full); background: var(--ds-bg); color: var(--ds-fg); font-size: var(--ds-text-xs); font-weight: var(--ds-weight-medium); transition: background var(--ds-duration) var(--ds-ease), border-color var(--ds-duration) var(--ds-ease); }
 .aop-suggestion:hover { border-color: var(--ds-border-strong); background: var(--ds-bg-hover); }
+/* A reply reads like writing, not a widget: the agent's name and time, then its words in reading type with
+ * no box around them. Your own words sit in one soft bubble on the right. */
 .aop-turn { display: flex; flex-direction: column; align-items: flex-start; gap: var(--ds-space-2); min-width: 0; }
 .aop-turn.is-owner { align-items: flex-end; }
-.aop-turn-speaker { display: flex; align-items: center; gap: var(--ds-space-2); font-size: var(--ds-text-sm); line-height: var(--ds-lh-sm); font-weight: var(--ds-weight-medium); }
-.aop-turn.is-owner .aop-turn-speaker { color: var(--ds-fg-subtle); font-size: var(--ds-text-xs); line-height: var(--ds-lh-xs); font-weight: var(--ds-weight-regular); }
-.aop-bubble { max-width: 88%; padding: var(--ds-space-3) var(--ds-space-4); border: 1px solid var(--ds-border); border-radius: var(--ds-radius-xl); background: var(--ds-bg); }
-.aop-turn:not(.is-owner) .aop-bubble { max-width: calc(100% - var(--ds-mark-xs) - var(--ds-space-2)); margin-left: calc(var(--ds-mark-xs) + var(--ds-space-2)); }
-.aop-turn.is-owner .aop-bubble { border-color: transparent; background: var(--ds-bg-callout); }
-.aop-bubble p { font-size: var(--ds-text-sm); line-height: var(--ds-lh-sm); white-space: pre-wrap; overflow-wrap: anywhere; }
+.aop-turn-speaker { display: flex; align-items: center; gap: var(--ds-space-2); font-size: var(--ds-text-md); line-height: var(--ds-lh-md); font-weight: var(--ds-weight-semibold); letter-spacing: var(--ds-track-name); }
+.aop-turn.is-owner .aop-turn-speaker { color: var(--ds-fg-subtle); font-size: var(--ds-text-xs); line-height: var(--ds-lh-xs); font-weight: var(--ds-weight-regular); letter-spacing: 0; }
+.aop-bubble { max-width: 88%; padding: 0; border: 0; background: none; }
+/* A reply runs the full width of the panel under its name: a narrow drawer can't spare an indent. */
+.aop-turn:not(.is-owner) .aop-bubble { max-width: 100%; margin-left: 0; }
+.aop-turn.is-owner .aop-bubble { max-width: 85%; padding: var(--ds-space-2) var(--ds-space-4); border-radius: var(--ds-radius-xl) var(--ds-radius-xl) var(--ds-radius-sm) var(--ds-radius-xl); background: var(--ds-bg-callout); }
+.aop-bubble p { font-size: var(--ds-text-lg); line-height: var(--ds-lh-read); letter-spacing: var(--ds-track-read); white-space: pre-wrap; overflow-wrap: anywhere; }
 .aop-bubble.is-thinking { display: flex; align-items: center; gap: var(--ds-space-2); font-size: var(--ds-text-sm); line-height: var(--ds-lh-sm); }
 .aop-thinking-dots { display: inline-flex; gap: 2px; }
 .aop-thinking-dots > i { width: var(--ds-space-1); height: var(--ds-space-1); border-radius: var(--ds-radius-full); background: var(--ds-fg-subtle); animation: aop-bounce 1000ms var(--ds-ease) infinite; }

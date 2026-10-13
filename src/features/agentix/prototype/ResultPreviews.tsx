@@ -1,4 +1,5 @@
-import { CaretDown, CaretRight, Check, Database, Minus, Warning } from "@phosphor-icons/react"
+import { CaretDown, CaretRight, Check, Minus } from "@phosphor-icons/react"
+import { Database, Warning } from "./glyphs"
 import { useState } from "react"
 import { artifactSpec, isTerminal, latest, releaseWindowFor, scenarioOf } from "./engine/engine"
 import type { MappingRow, PreviewSpec } from "./engine/scenarios"
@@ -178,7 +179,6 @@ export function DashboardPreview({ state, artifact, version }: { state: AgentixS
 			<div className="aop-dash" aria-label={`${spec.subject} v${version.version} preview`}>
 				<header className="aop-dash-head">
 					<strong>{spec.subject} · {production ? dayLabel(ledgerDay - 86400000) : preview.sampleDay}</strong>
-					<DataLabel state={state} artifact={artifact} version={version} />
 				</header>
 				<div className="aop-dash-tiles">
 					{spec.tiles({ exceptions, loaded }).map(tile => <div key={tile.label}><span>{tile.label}</span><strong>{tile.value}</strong><small>{tile.note}</small></div>)}

@@ -194,3 +194,16 @@ place. In Agentix, work rows rise into the list, live work carries a pinging dot
 and a shimmering sentence, the sheets slide in, and activation confirms with a
 toast. Entrances never fade text in, so accessibility contrast checks hold while
 anything is moving. Everything honours reduced motion.
+
+## Added 2026-10-11: the voice call and the team floor
+
+Mobbin answered "requires a paid plan" on 2026-10-11, so no new screens were captured for these surfaces. They were composed from screens already in this map and from ElevenLabs' own open-source agent components; check them against fresh captures when access returns.
+
+| Surface | Reference | Source |
+| --- | --- | --- |
+| Owner interview call (`VoiceCall.tsx`) | Agent voice preview with transcript: slim bar, orb with its call button, transcript beside it | [5de031ac](https://mobbin.com/screens/5de031ac-ea60-46c7-869a-32b443d38647) (layout kept; the transcript rail now leads with What MAX heard) |
+| The orb's states (`VoiceOrb`) | ElevenLabs UI `Orb`: one body whose look follows the agent's state (listening, thinking, talking) and its input/output volume | [ElevenLabs UI](https://elevenlabs.io/blog/elevenlabs-ui) (open source, shadcn registry at ui.elevenlabs.io); drawn here on a 2D canvas in MAXION teal rather than adopting its WebGL component |
+| Call toolbar | Floating toolbars, the reference's one lifted element besides composers and dialogs | `docs/visual-spec.md` elevation rules |
+| Team floor (`TeamFloor.tsx`) | Agent Workflow tab: dot-grid canvas, hairline node cards, connecting edges | [aa384f7c](https://mobbin.com/screens/aa384f7c-33b2-436e-a01a-3f20dff0b6e1) and [ElevenLabs Agent Workflows](https://elevenlabs.io/docs/eleven-agents/customization/agent-workflows); here view-only, never edited |
+| Agent room (`AgentRoom.tsx`) | Conversation Metadata panel beside the transcript | [b547338d](https://mobbin.com/screens/b547338d-1640-4ae4-a999-10ab8552ddeb) |
+| Stakeholder calls (`StakeholderCalls.tsx`) | No direct reference; composed as columns with one hairline (composition over containers) | — |

@@ -1,4 +1,5 @@
-import { ArrowLeft, BellSlash, CaretRight, FileArrowDown, PauseCircle, ShieldWarning, XCircle } from "@phosphor-icons/react"
+import { ArrowLeft, CaretRight } from "@phosphor-icons/react"
+import { BellSlash, FileArrowDown, PauseCircle, ShieldWarning, XCircle } from "./glyphs"
 import { Button as DsButton, Dialog } from "@/design/primitives"
 import { useEffect, useLayoutEffect, useRef, useState, type KeyboardEvent } from "react"
 import { actOnEngagement, actOnRelease, actOnWork, artifactBy, decide, fulfill, isTerminal, itemBy, releaseBy, decisionBy, assignWork, type ReleaseAction, type WorkAction } from "./engine/engine"
@@ -13,10 +14,11 @@ import { ResultsView } from "./ResultsView"
 import type { DetailSection } from "./Sheets"
 import { WorkDetail } from "./WorkDetail"
 import { WorkView } from "./WorkView"
+import { TeamFloor } from "./TeamFloor"
 
 type Update = (recipe: (state: AgentixState) => AgentixState) => void
 
-const TABS: { id: View; label: string }[] = [{ id: "work", label: "Work" }, { id: "results", label: "Results" }, { id: "activity", label: "Activity" }]
+const TABS: { id: View; label: string }[] = [{ id: "floor", label: "Floor" }, { id: "work", label: "Work" }, { id: "results", label: "Results" }, { id: "activity", label: "Activity" }]
 
 /*
  * One engagement: a compact header, three stable destinations (Work, Results,
@@ -29,7 +31,7 @@ export function EngagementWorkspace({ state, engagementId, update, onDetails, on
 	const engagement = state.engagements[engagementId]
 	const nav = state.nav
 	const [open, setOpen] = useState(state.ui.conversationPinned)
-	const [seen, setSeen] = useState(() => state.messages.filter(message => message.engagementId === engagementId).length)
+	const [seen, setSeen] = useState(() => state.messages.filter(message => message.engagementId === engagementId && !message.agentId).length)
 	const [dismissed, setDismissed] = useState<string | null>(null)
 	const [assigning, setAssigning] = useState(false)
 	const [showHistory, setShowHistory] = useState(false)
@@ -52,14 +54,16 @@ export function EngagementWorkspace({ state, engagementId, update, onDetails, on
 	// The composer follows navigation only while it's empty, so an unsent instruction is never retargeted.
 	useEffect(() => { if (!draft.trim() && !sameScope(scope, viewScope)) setScope(viewScope) }, [viewScope.kind, (viewScope as { id?: string }).id])
 
-	const messages = state.messages.filter(message => message.engagementId === engagementId)
+	const messages = state.messages.filter(message => message.engagementId === engagementId && !message.agentId)
 	const unread = Math.max(0, messages.filter(message => message.role === "agent").length - messages.slice(0, seen).filter(message => message.role === "agent").length)
 	useEffect(() => { if (open) setSeen(messages.length) }, [open, messages.length])
 
 	const setNav = (patch: Partial<Nav>) => update(current => ({ ...current, nav: { ...current.nav, ...patch } }))
-	const remember = () => { const key = `${nav.view}:${nav.view === "work" ? nav.workId ?? "list" : nav.view === "results" ? "results" : "activity"}`; if (scroll.current) positions.current[key] = scroll.current.scrollTop }
+	const remember = () => { const key = `${nav.view}:${nav.view === "work" ? nav.workId ?? "list" : nav.view}`; if (scroll.current) positions.current[key] = scroll.current.scrollTop }
 	const openWork = (id: string) => { remember(); const item = itemBy(state, id); returnTo.current = item?.reference ?? null; setNav({ view: "work", workId: id }) }
-	const openResult = (id: string | undefined) => { remember(); setNav({ view: "results", resultId: id }) }
+	// A result the person opens takes focus once it renders; one opened for them (auto) doesn't.
+	const focusResult = useRef<string | null>(null)
+	const openResult = (id: string | undefined, options?: { auto?: boolean }) => { remember(); focusResult.current = options?.auto ? null : id ?? null; setNav({ view: "results", resultId: id }) }
 	// Back always returns focus to the row of the item you were viewing, however you reached it.
 	const back = () => { const item = nav.workId ? itemBy(state, nav.workId) : undefined; returnTo.current = item?.reference ?? returnTo.current; remember(); setNav({ workId: undefined }) }
 	const openRef = (ref: ObjectRef) => {
@@ -73,7 +77,7 @@ export function EngagementWorkspace({ state, engagementId, update, onDetails, on
 	useLayoutEffect(() => {
 		const node = scroll.current
 		if (!node) return
-		const key = `${nav.view}:${nav.view === "work" ? nav.workId ?? "list" : nav.view === "results" ? "results" : "activity"}`
+		const key = `${nav.view}:${nav.view === "work" ? nav.workId ?? "list" : nav.view}`
 		// A work item opens with the engagement header scrolled away, so its decision starts under the sticky tabs.
 		const head = node.querySelector<HTMLElement>(".aop-eng-head")
 		node.scrollTop = nav.workId && nav.view === "work" ? head?.offsetHeight ?? 0 : positions.current[key] ?? 0
@@ -173,7 +177,9 @@ export function EngagementWorkspace({ state, engagementId, update, onDetails, on
 						))}
 					</div>
 					<div id="aop-eng-panel" role="tabpanel" aria-labelledby={`aop-tab-${nav.view}`} className="aop-eng-body">
-						{nav.view === "work" && selected ? (
+						{nav.view === "floor" ? (
+							<TeamFloor state={state} engagementId={engagementId} update={update} onDecide={decideWith} onOpenWork={openWork} onOpenResult={id => openResult(id)} onToast={onToast} />
+						) : nav.view === "work" && selected ? (
 							<>
 								<nav className="aop-work-crumbs" aria-label="Work item">
 									<DsButton variant="ghost" size="sm" onClick={back}><ArrowLeft size={14} />Work</DsButton>
@@ -189,7 +195,7 @@ export function EngagementWorkspace({ state, engagementId, update, onDetails, on
 						) : nav.view === "work" ? (
 							<WorkView state={state} engagementId={engagementId} showHistory={showHistory} onHistory={setShowHistory} callbacks={{ onOpenWork: openWork, onOpenResult: id => openResult(id), onDecide: decideWith, onTeam: () => onDetails("team"), onRestore: restore }} />
 						) : nav.view === "results" ? (
-							<ResultsView state={state} engagementId={engagementId} resultId={nav.resultId} callbacks={{ onSelect: openResult, onRequestChange: id => messageAbout({ kind: "artifact", id }), onOpenWork: openWork }} />
+							<ResultsView state={state} engagementId={engagementId} resultId={nav.resultId} callbacks={{ onSelect: openResult, onRequestChange: id => messageAbout({ kind: "artifact", id }), onOpenWork: openWork, focusRequest: focusResult }} />
 						) : (
 							<ActivityView state={state} engagementId={engagementId} filter={nav.activityFilter} onFilter={filter => setNav({ activityFilter: filter })} onOpen={openRef} />
 						)}
@@ -197,7 +203,8 @@ export function EngagementWorkspace({ state, engagementId, update, onDetails, on
 				</div>
 				{open ? null : (
 					<div className="aop-eng-dock">
-						{latestAgent && latestAgent.id !== dismissed && unread ? <LatestReply state={state} engagementId={engagementId} onOpen={() => setOpen(true)} onDismiss={() => setDismissed(latestAgent.id)} onLink={openRef} /> : null}
+						{/* The floor answers in its own talk bar and rooms; the latest-reply strip would only repeat it. */}
+						{latestAgent && latestAgent.id !== dismissed && unread && nav.view !== "floor" ? <LatestReply state={state} engagementId={engagementId} onOpen={() => setOpen(true)} onDismiss={() => setDismissed(latestAgent.id)} onLink={openRef} /> : null}
 						{composerEl}
 					</div>
 				)}

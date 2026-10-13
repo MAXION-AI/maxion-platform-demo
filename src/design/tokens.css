@@ -26,6 +26,14 @@
   /* Measured: conversation, Metadata panel, sheet and dialog titles (cap height 12.45px). */
   --ds-text-title: 17px; --ds-lh-title: 24px;
   --ds-text-xl: 22px; --ds-lh-xl: 28px; --ds-track-xl: -0.025em;
+  --ds-track-caption: -0.01em; /* derived: live captions at the title size, set a touch looser than a heading */
+  /* Derived (owner's choice 2026-10-12, "Inter, refined"): reading text in conversations sits on a 24px line,
+     timelines on 22px; names and titles take Inter's display cut set a touch tighter; reading text a hair tighter. */
+  --ds-lh-read: 24px;
+  --ds-lh-relaxed: 22px;
+  --ds-track-name: -0.006em;
+  --ds-opsz-display: "opsz" 28; /* derived: Inter's display cut for names and titles, set at body sizes */
+  --ds-track-read: -0.006em;
   --ds-text-greeting: 26px; --ds-lh-greeting: 32px; --ds-track-greeting: -0.03em; /* Home greeting, measured */
   /* Measured: "Your Professional Voice Clone is being prepared" (560e2903). */
   --ds-text-display: 34px; --ds-lh-display: 40px; --ds-track-display: -0.03em;
@@ -130,6 +138,8 @@
   /* Stacking: the shell is a fixed full-screen layer; anything portaled to <body> sits above it. */
   --ds-z-shell: 9999;
   --ds-z-portal: 10000;
+  /* A call covers its module but stays under the shell's sidebar (z 60), so the presenter's dock still works. */
+  --ds-z-call: 50;
   --ds-panel-w: 360px;
   --ds-rail-narrow: 240px;
   --ds-tile-min: 248px;
@@ -158,6 +168,17 @@
   --ds-orb-sm: 96px;
   --ds-orb: 176px;
   --ds-orb-lg: 280px;
+  --ds-orb-xs: 56px;
+  --ds-call-rail-w: 340px;     /* derived: the call's What MAX heard + transcript rail */
+  --ds-call-caption-w: 640px;  /* derived: caption measure on the call stage */
+  --ds-call-fact-w: 200px;
+  --ds-floor-h: clamp(var(--ds-floor-h-min), calc(100dvh - var(--ds-floor-offset)), var(--ds-floor-h-max)); /* derived: the floor fills what the engagement header leaves */
+  --ds-floor-h-min: 400px;
+  --ds-floor-h-max: 600px;
+  --ds-floor-offset: 376px;    /* topbar, engagement header, tabs, the timeline under the floor and the composer */
+  --ds-room-w: 340px;          /* derived: a teammate's room beside the floor */
+  --ds-floor-grid: 16px;       /* the workflow canvas's dot grid, as the reference draws it */
+  --ds-chat-log-h: 220px;      /* derived: a room's conversation before it scrolls */
   --ds-node-w: 244px;          /* workflow node card */
   --ds-dots: 6px;              /* pagination dot, measured; the active one is a pill */
   --ds-underline-offset: 3px;
@@ -194,6 +215,7 @@
   --ds-orb-sheen: rgba(255, 255, 255, 0.42);
   --ds-orb-edge: rgba(16, 112, 112, 0.18);
   --ds-orb-blur: 18px;
+  --ds-orb-blur-sm: 8px;
   --ds-blur-word: 5px;
 
   /* Motion */

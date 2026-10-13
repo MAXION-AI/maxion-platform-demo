@@ -48,7 +48,7 @@ The number on each heading matches the sidebar count. A step stays current until
 **1 · Start the Discovery.** In Discover, choose the **Revenue reconciliation** template and **Start autonomous Discovery**. MAX drafts the mission ("Revenue reconciliation: SQL Server to AWS", a deadline a week out). Tick the authority review and choose **Create Discovery**.
 *Say:* Everything starts from a business outcome, not a ticket. MAX drafts the mission and asks up front what it may do without asking.
 
-**2 · Answer the owner interview.** Six questions. Use **Fill answer** in the sidebar, or **Fill in the demo** in the presenter window, then press Enter. On the second answer, MAX says it will check the ledger rather than ask you to guess.
+**2 · Answer the owner interview.** Six questions. Use **Fill answer** in the sidebar, or **Fill in the demo** in the presenter window, then press Enter. On the second answer, MAX says it will check the ledger rather than ask you to guess. Or make it a call: choose **Start the call** in the sidebar row (or in the Thread), then **Continue with voice**. On the call, **Fill answer** arrives as speech and sends itself after the pause; **What MAX heard** fills on the right, and on the second answer MAX reads the source during the call (an early signal, verified later). The call ends on a summary: choose **Watch MAX work** to open the stakeholder calls.
 *Say:* MAX only asks for judgement the records can't supply.
 
 **3 · Let MAX investigate, then decide.** Open **Autonomy** while MAX reads the four sources and interviews the four owners. A few seconds later it stops at one decision: the close workbooks convert 14 invoices at invoice-date rates while the ledger uses posting-date rates, $126.24 apart. Choose **Adopt posting-date rates**.
@@ -61,10 +61,10 @@ The number on each heading matches the sidebar count. A step stays current until
 
 ### Agentix
 
-**6 · Create the engagement in Agentix.** Nothing existed in Agentix for this until the handoff. The proposal names the Discovery and packet it came from; the Discovery's title is a link back to it. Answer the two questions (**Ask me before each pipeline release**, **The synthetic 30-day sample**), choose **Run the read-only check**, then **Activate engagement**.
+**6 · Create the engagement in Agentix.** Nothing existed in Agentix for this until the handoff. The proposal names the Discovery and packet it came from; the Discovery's title is a link back to it. Answer the two questions (**Ask me before each pipeline release**, **The synthetic 30-day sample**), choose **Run the read-only check**, then **Activate engagement**. The engagement opens on its **Floor**: the team assembles, with the Discovery package going to the coordinator and each milestone to the specialist who takes it first.
 *Say:* Agentix turned the Discovery into an engagement: a team of four agents with separate permissions, the systems they may touch, three milestones and a daily operation. Discovery couldn't confirm who approves production releases, so that's the first question.
 
-**7 · Decide the missing-region rule.** MS-1 asks about the 212 invoices without a region. Choose **Show them as Unassigned**.
+**7 · Decide the missing-region rule.** MS-1 asks about the 212 invoices without a region. Choose **Show them as Unassigned**. On the Floor, the specialist's packet climbs to **You** and your room opens with the decision; decide it there, or in **Work**.
 *Say:* The agent found what Discovery flagged. It's a business rule, so the specialist asks instead of choosing.
 
 **8 · Watch a check fail and the repair.** In MS-2, pipeline v1 converts at invoice-date rates, so two of its nine checks fail: currency conversion and totals by region. Open v1 to show the 14 rows, $126.24 apart. The data specialist repairs the join, and v2 passes all nine checks. Use **Controls → Skip** to move faster.

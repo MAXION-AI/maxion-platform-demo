@@ -94,9 +94,12 @@ describe("Results", () => {
 		state = run(state, s => s.engagements[REV].cycles === "daily")
 		const id = artifact(state, "dashboard")!.id
 		state = tick(sendInstruction(state, REV, { kind: "artifact", id }, "Add regional drill-down to this dashboard"))
-		const callbacks = { onSelect: vi.fn(), onRequestChange: vi.fn(), onOpenWork: vi.fn() }
-		const { rerender } = render(<ResultsView state={state} engagementId={REV} resultId={id} callbacks={callbacks} />)
+		// Opened by the person: the heading takes focus once, and the request is spent.
+		const callbacks = { onSelect: vi.fn(), onRequestChange: vi.fn(), onOpenWork: vi.fn(), focusRequest: { current: id as string | null } }
+		const { rerender, unmount } = render(<ResultsView state={state} engagementId={REV} resultId={id} callbacks={callbacks} />)
 		expect(screen.getByRole("heading", { name: /Revenue dashboard v1/ })).toBeInTheDocument()
+		expect(screen.getByRole("heading", { name: /Revenue dashboard v1/ })).toHaveFocus()
+		expect(callbacks.focusRequest.current).toBeNull()
 		expect(screen.getByText("Latest is v2")).toBeInTheDocument()
 		state = run(state, s => artifact(s, "dashboard")!.productionVersion === 2)
 		rerender(<ResultsView state={state} engagementId={REV} resultId={id} callbacks={callbacks} />)
@@ -106,6 +109,15 @@ describe("Results", () => {
 		expect(screen.getByRole("list", { name: "AMER countries" })).toHaveTextContent("United States")
 		fireEvent.click(screen.getByRole("button", { name: /^v1/ }))
 		expect(screen.getAllByText("Previously in production").length).toBeGreaterThan(0)
+		// Shown again on a revisit (the tab remounts with the same selection), it leaves focus where it was.
+		unmount()
+		const tab = document.createElement("button")
+		tab.textContent = "Results tab"
+		document.body.appendChild(tab)
+		tab.focus()
+		render(<ResultsView state={state} engagementId={REV} resultId={id} callbacks={callbacks} />)
+		expect(tab).toHaveFocus()
+		tab.remove()
 	})
 })
 

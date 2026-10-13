@@ -1,4 +1,5 @@
-import { Bell, BellSlash, CaretRight, ChatCircleText, CheckCircle, Circle, FlagBanner, LinkSimple, MinusCircle, Pause, PauseCircle, Play, Receipt, WarningCircle, XCircle } from "@phosphor-icons/react"
+import { CaretRight, LinkSimple, Pause, Play, Bell as BellAction, BellSlash as BellSlashAction } from "@phosphor-icons/react"
+import { Bell, BellSlash, ChatCircleText, CheckCircle, Circle, FlagBanner, MinusCircle, PauseCircle, Receipt, WarningCircle, XCircle } from "./glyphs"
 import { Button as DsButton, Mark } from "@/design/primitives"
 import { ShimmerText } from "@/components/motion/MotionKit"
 import { useEffect, useRef, type ReactNode } from "react"
@@ -182,7 +183,7 @@ export function WorkDetail({ state, workId, callbacks }: { state: AgentixState; 
 				<DsButton onClick={callbacks.onMessage}><ChatCircleText size={14} />Message about {item.reference}</DsButton>
 				{pausable ? <DsButton onClick={() => callbacks.onWork(item.status === "paused" ? "resume" : "pause")}>{item.status === "paused" ? <Play size={14} /> : <Pause size={14} />}{item.status === "paused" ? "Resume work item" : "Pause work item"}</DsButton> : null}
 				{!isTerminal(item) && item.priority !== "High" ? <DsButton onClick={() => callbacks.onWork("prioritize")}>Prioritize</DsButton> : null}
-				{holdable ? <DsButton onClick={() => callbacks.onWork(item.held ? "release-hold" : "hold")}>{item.held ? <Bell size={14} /> : <BellSlash size={14} />}{item.held ? "Release notification" : "Hold notification"}</DsButton> : null}
+				{holdable ? <DsButton onClick={() => callbacks.onWork(item.held ? "release-hold" : "hold")}>{item.held ? <BellAction size={14} /> : <BellSlashAction size={14} />}{item.held ? "Release notification" : "Hold notification"}</DsButton> : null}
 			</div>
 		</article>
 	)
@@ -223,7 +224,7 @@ function PartialBlock({ state, item, onReconnect, onRelease }: { state: AgentixS
 				<h3>Record work is done and kept. The notification is outstanding.</h3>
 				<p>{expired ? "The notification connection expired. Reconnecting resumes only the outstanding send; the recorded change is not repeated." : checking ? "Rechecking the restored connection; the send resumes on its own." : item.held ? "You held this notification. It stays incomplete until you release it." : "Notifications are held for the whole engagement. This resumes once they're released."}</p>
 				<div className="aop-callout-actions">
-					{expired ? <DsButton variant="primary" onClick={onReconnect}>Reconnect notification account (demo)</DsButton> : item.held ? <DsButton variant="primary" onClick={onRelease}><Bell size={14} />Release this notification</DsButton> : null}
+					{expired ? <DsButton variant="primary" onClick={onReconnect}>Reconnect notification account (demo)</DsButton> : item.held ? <DsButton variant="primary" onClick={onRelease}><BellAction size={14} />Release this notification</DsButton> : null}
 				</div>
 			</div>
 		</section>

@@ -85,6 +85,21 @@
 .prototype .thread-column > [data-motion-pop-id] { margin-top: 0; }
 
 .prototype .thread-callout { display: flex; align-items: flex-start; gap: var(--ds-space-3); padding: var(--ds-space-3) var(--ds-space-4); border-radius: var(--ds-radius-lg); background: var(--ds-bg-callout); color: var(--ds-fg); }
+/* The call invitation that opens the owner interview: a small orb, what the call is, and one filled action. */
+.prototype .thread-call { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: var(--ds-space-4); padding: var(--ds-space-2) 0 var(--ds-space-4); border-bottom: 1px solid var(--ds-border); }
+.prototype .thread-call-copy { display: grid; gap: 2px; min-width: 0; }
+.prototype .thread-call h2 { margin: 0; color: var(--ds-fg); font-size: var(--ds-text-md); line-height: var(--ds-lh-md); font-weight: var(--ds-weight-semibold); letter-spacing: normal; }
+.prototype .thread-call p { margin: 0; color: var(--ds-fg-subtle); font-size: var(--ds-text-sm); line-height: var(--ds-lh-sm); text-wrap: pretty; }
+@media (max-width: 600px) {
+	.prototype .thread-call { grid-template-columns: auto minmax(0, 1fr); }
+	.prototype .thread-call > .ds-button { grid-column: 1 / -1; justify-self: start; }
+}
+/* What MAX heard, in the Details column: values wrap, because they are the owner's positions. */
+.prototype .heard-row .panel-row-value, .prototype .heard-row .panel-row-sub { white-space: normal; text-overflow: clip; }
+.prototype .heard-row.is-pending .panel-row-value { color: var(--ds-fg-subtle); }
+.prototype .heard-row.is-asking .panel-row-value { color: var(--ds-brand-teal); }
+.prototype .heard-row.is-gap .panel-row-value { color: var(--ds-warning-fg); }
+.prototype .heard-row.is-verified .panel-row-sub { color: var(--ds-positive-fg); }
 .prototype .thread-callout > svg { flex-shrink: 0; margin-top: 2px; }
 .prototype .thread-callout p { margin: 0; font-size: var(--ds-text-sm); line-height: var(--ds-lh-sm); }
 
@@ -1231,94 +1246,7 @@
 	.prototype .dsc-palette > footer { display: none; }
 }
 
-/* ==========================================================================
- * Voice (mobbin 5de031ac): a slim bar, the orb with its call button, and the
- * transcript over a pill composer, both panels floating on a #fafafa page.
- * The session renders on document.body, so its backdrop is its own
- * .prototype root and covers the viewport whatever the stage is doing. It
- * stacks one above the shell, which is itself a fixed layer at 9999.
- * ========================================================================== */
-.prototype.voice-backdrop { position: fixed; inset: 0; z-index: var(--ds-z-portal); display: flex; height: auto; background: var(--ds-bg-inset); }
-.prototype .voice-dialog { display: flex; flex: 1; flex-direction: column; min-width: 0; min-height: 0; outline: 0; }
-.prototype .voice-bar { display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; gap: var(--ds-space-3); height: var(--ds-topbar-h); flex-shrink: 0; padding: 0 var(--ds-space-3); }
-.prototype .voice-back { justify-self: start; }
-.prototype .voice-bar-title { display: flex; align-items: center; gap: var(--ds-space-3); min-width: 0; color: var(--ds-fg-subtle); font-size: var(--ds-text-sm); line-height: var(--ds-lh-sm); white-space: nowrap; }
-.prototype .voice-bar-title h2 { margin: 0; color: var(--ds-fg); font-size: var(--ds-text-sm); line-height: var(--ds-lh-sm); font-weight: var(--ds-weight-medium); letter-spacing: normal; }
-.prototype .voice-bar-sep { width: 1px; height: var(--ds-space-4); background: var(--ds-border); }
-.prototype .voice-bar-title .workspace-status { cursor: default; }
-.prototype .voice-body { display: grid; flex: 1; grid-template-columns: minmax(0, 1fr) minmax(0, calc(var(--ds-panel-w) * 1.2)); gap: var(--ds-space-1); min-height: 0; padding: 0 var(--ds-space-1) var(--ds-space-1); }
-/* The stage scrolls its content and keeps the control pill in its own row, so
- * the pill can never sit on the question. Auto margins centre the content and
- * give way when it is taller than the stage. */
-.prototype .voice-stage { display: flex; flex-direction: column; min-height: 0; border-radius: var(--ds-radius-lg); background: linear-gradient(to bottom, var(--ds-bg-inset), var(--ds-bg) 36%); text-align: center; }
-.prototype .voice-stage-main { display: flex; flex: 1; flex-direction: column; align-items: center; gap: var(--ds-space-3); min-height: 0; overflow-y: auto; padding: var(--ds-space-8) var(--ds-space-6) var(--ds-space-3); }
-.prototype .voice-stage-main > :first-child { margin-top: auto; }
-.prototype .voice-stage-main > :last-child { margin-bottom: auto; }
-.prototype .voice-orb { margin-bottom: var(--ds-space-5); }
-.prototype .voice-mic-button { position: absolute; bottom: calc(var(--ds-space-5) * -1); left: 50%; display: grid; place-items: center; width: calc(var(--ds-control-h) + var(--ds-space-3)); height: calc(var(--ds-control-h) + var(--ds-space-3)); border: var(--ds-space-1) solid var(--ds-bg); border-radius: var(--ds-radius-full); background: var(--ds-fg); color: var(--ds-bg); transform: translateX(-50%); cursor: pointer; transition: background var(--ds-duration) var(--ds-ease), transform var(--ds-duration) var(--ds-ease); }
-.prototype .voice-mic-button:hover { transform: translateX(-50%) scale(1.04); }
-.prototype .voice-mic-button.listening { background: var(--ds-danger-fg); }
-/* Unavailable or waiting: the button keeps focus but reads as off. */
-.prototype .voice-mic-button[aria-disabled="true"] { background: var(--ds-primary-disabled); cursor: default; }
-.prototype .voice-mic-button[aria-disabled="true"]:hover { transform: translateX(-50%); }
-.prototype .voice-state-label { display: inline-flex; align-items: center; gap: var(--ds-space-1); margin: var(--ds-space-3) 0 0; color: var(--ds-fg); font-size: var(--ds-text-sm); line-height: var(--ds-lh-sm); font-weight: var(--ds-weight-medium); }
-.prototype .voice-state-label.is-warning { color: var(--ds-warning-fg); }
-.prototype .voice-question { max-width: 48ch; margin: 0; color: var(--ds-fg); font-size: var(--ds-text-title); line-height: var(--ds-lh-title); text-wrap: pretty; }
-.prototype .voice-question span { transition: color 160ms var(--ds-ease); }
-.prototype .voice-question:has(.is-spoken) span:not(.is-spoken) { color: var(--ds-fg-subtle); }
-.prototype .voice-pill { display: flex; flex-shrink: 0; align-self: center; gap: var(--ds-space-1); margin: 0 0 var(--ds-space-5); padding: var(--ds-space-1); border: 1px solid var(--ds-border); border-radius: var(--ds-radius-full); background: var(--ds-bg); box-shadow: var(--ds-shadow-float); }
-.prototype .voice-pill button { height: var(--ds-control-h-sm); padding: 0 var(--ds-space-3); border: 0; border-radius: var(--ds-radius-full); background: none; color: var(--ds-fg); font: inherit; font-size: var(--ds-text-sm); white-space: nowrap; cursor: pointer; }
-.prototype .voice-pill button:hover { background: var(--ds-bg-hover); }
-.prototype .voice-consent { display: grid; justify-items: center; gap: var(--ds-space-3); max-width: 46ch; }
-.prototype .voice-consent .mk-orb { margin-bottom: var(--ds-space-3); }
-.prototype .voice-consent h3 { margin: 0; color: var(--ds-fg); font-size: var(--ds-text-xl); line-height: var(--ds-lh-xl); font-weight: var(--ds-weight-semibold); letter-spacing: var(--ds-track-xl); }
-.prototype .voice-consent p:not(.voice-state-label) { margin: 0; color: var(--ds-fg-subtle); font-size: var(--ds-text-sm); line-height: var(--ds-lh-sm); }
-.prototype .voice-consent .voice-state-label { margin: 0; color: var(--ds-fg-subtle); font-weight: var(--ds-weight-regular); }
-.prototype .voice-consent-details { display: grid; gap: var(--ds-space-2); margin: var(--ds-space-2) 0; padding: 0; list-style: none; text-align: left; }
-.prototype .voice-consent-details li { display: flex; align-items: center; gap: var(--ds-space-2); color: var(--ds-fg); font-size: var(--ds-text-sm); line-height: var(--ds-lh-sm); }
-.prototype .voice-consent-details svg { color: var(--ds-positive-fg); }
-.prototype .voice-question-topic { margin-top: var(--ds-space-1); }
-.prototype .voice-panel { display: flex; flex-direction: column; min-width: 0; min-height: 0; border-radius: var(--ds-radius-lg); background: var(--ds-bg); }
-/* Turns, the notice and the composer share the panel's 16px side edges. */
-.prototype .voice-log { display: flex; flex: 1; flex-direction: column; gap: var(--ds-space-4); min-height: 0; overflow-y: auto; padding: var(--ds-space-5) var(--ds-space-4); }
-.prototype .voice-panel-note { align-self: center; margin: 0; color: var(--ds-fg-subtle); font-size: var(--ds-text-xs); line-height: var(--ds-lh-xs); }
-.prototype .voice-turn { display: flex; gap: var(--ds-space-2); max-width: 92%; color: var(--ds-fg); font-size: var(--ds-text-sm); line-height: var(--ds-lh-sm); }
-.prototype .voice-turn p { margin: 0; }
-.prototype .voice-turn img { width: var(--ds-avatar-xs); height: var(--ds-avatar-xs); flex-shrink: 0; margin-top: 2px; }
-.prototype .voice-turn.is-owner { align-self: flex-end; }
-.prototype .voice-turn.is-owner p { padding: var(--ds-space-2) var(--ds-space-3); border-radius: var(--ds-radius-xl); background: var(--ds-bg-callout); }
-.prototype .voice-empty { display: grid; justify-items: center; gap: var(--ds-space-2); margin: auto; color: var(--ds-fg-subtle); font-size: var(--ds-text-sm); line-height: var(--ds-lh-sm); text-align: center; }
-.prototype .voice-empty p { max-width: 28ch; margin: 0; }
-.prototype .voice-empty span { display: grid; place-items: center; width: var(--ds-icon-tile); height: var(--ds-icon-tile); border-radius: var(--ds-radius-md); background: var(--ds-bg-callout); color: var(--ds-fg); }
-.prototype .voice-transcript { padding: 0 var(--ds-space-4) var(--ds-space-4); }
-/* The reference's failure callout (integration-failed): a tinted fill, the icon
- * on the first line, a short title over the way forward. */
-.prototype .voice-notice { display: flex; align-items: flex-start; gap: var(--ds-space-2); margin: 0 0 var(--ds-space-2); padding: var(--ds-space-2) var(--ds-space-3); border-radius: var(--ds-radius-md); background: var(--ds-bg-callout); color: var(--ds-fg-subtle); font-size: var(--ds-text-sm); line-height: var(--ds-lh-sm); text-wrap: pretty; }
-.prototype .voice-notice > svg { flex-shrink: 0; width: var(--ds-icon); height: var(--ds-icon); margin-top: 2px; color: var(--ds-fg-subtle); }
-.prototype .voice-notice strong { display: block; color: var(--ds-fg); font-weight: var(--ds-weight-medium); }
-.prototype .voice-notice.is-warning { background: var(--ds-warning-bg); color: var(--ds-warning-fg); }
-.prototype .voice-notice.is-warning > svg, .prototype .voice-notice.is-warning strong { color: var(--ds-warning-fg); }
-.prototype .voice-compose { display: flex; align-items: flex-end; gap: var(--ds-space-2); padding: var(--ds-space-1) var(--ds-space-1) var(--ds-space-1) var(--ds-space-4); border: 1px solid var(--ds-border); border-radius: var(--ds-radius-2xl); background: var(--ds-bg); box-shadow: var(--ds-shadow-composer); }
-.prototype .voice-compose:focus-within { border-color: var(--ds-border-strong); }
-/* One 15px line sits in the 36px send row; the field grows with the answer up to
- * five lines, then scrolls. */
-.prototype .voice-compose textarea { flex: 1; min-width: 0; min-height: var(--ds-control-h); max-height: calc(var(--ds-lh-lg) * 5 + var(--ds-control-h) - var(--ds-lh-lg)); padding: calc((var(--ds-control-h) - var(--ds-lh-lg)) / 2) 0; overflow-y: auto; border: 0; outline: 0; resize: none; background: transparent; color: var(--ds-fg); font: inherit; font-size: var(--ds-text-lg); line-height: var(--ds-lh-lg); }
-.prototype .voice-send { display: grid; flex-shrink: 0; place-items: center; width: var(--ds-control-h); height: var(--ds-control-h); padding: 0; border: 0; border-radius: var(--ds-radius-full); background: var(--ds-fg); color: var(--ds-bg); cursor: pointer; }
-.prototype .voice-send:disabled { opacity: 1; background: var(--ds-primary-disabled); cursor: default; }
-@media (max-width: 900px) {
-	.prototype .voice-body { grid-template-columns: minmax(0, 1fr); grid-template-rows: minmax(0, 1.25fr) minmax(0, 1fr); }
-	/* Before the call there is no transcript yet: the consent takes the height and
-	 * the panel keeps only its composer, so the primary action stays in view. */
-	.prototype .voice-body.is-consent { grid-template-rows: minmax(0, 1fr) auto; }
-	.prototype .voice-body.is-consent .voice-log { display: none; }
-	.prototype .voice-body.is-consent .voice-transcript { padding-top: var(--ds-space-4); }
-	.prototype .voice-stage-main { padding: var(--ds-space-5) var(--ds-space-4) var(--ds-space-3); }
-	.prototype .voice-pill { margin-bottom: var(--ds-space-3); }
-	.prototype .voice-orb.mk-orb--lg { width: min(var(--ds-orb), 40vw); height: min(var(--ds-orb), 40vw); }
-	.prototype .voice-bar-title > span:not(.workspace-status):not(.voice-bar-sep), .prototype .voice-bar-sep { display: none; }
-	.prototype .voice-question { font-size: var(--ds-text-md); line-height: var(--ds-lh-md); }
-	.prototype .voice-compose textarea { max-height: calc(var(--ds-lh-lg) * 3 + var(--ds-control-h) - var(--ds-lh-lg)); }
-}
+/* The owner interview call lives in voice-call.css (VoiceCall.tsx). */
 
 /* ==========================================================================
  * Workshop (mobbin d9cd8778): items and their state on the left, the selected

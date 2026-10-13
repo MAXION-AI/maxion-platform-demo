@@ -1,4 +1,5 @@
-import { ArrowUpRight, CaretRight, ClockCountdown, Flask, Info, Lightning, PlugsConnected, Scroll, ShieldCheck, UsersThree, X } from "@phosphor-icons/react"
+import { ArrowUpRight, CaretRight, X } from "@phosphor-icons/react"
+import { ClockCountdown, Flask, Info, Lightning, PlugsConnected, Scroll, ShieldCheck, UsersThree } from "./glyphs"
 import { Button as DsButton, Mark, SegmentedTabs, TextButton } from "@/design/primitives"
 import { useState, type ReactNode } from "react"
 import type { WorkflowId } from "./initiatives"

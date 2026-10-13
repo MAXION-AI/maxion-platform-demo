@@ -1,33 +1,5 @@
-import {
-	ArrowLeft,
-	ArrowRight,
-	Bell,
-	Briefcase,
-	CaretRight,
-	ChatCircleText,
-	Check,
-	CheckCircle,
-	CirclesThree,
-	Clock,
-	Database,
-	FileText,
-	House,
-	LinkSimple,
-	ListChecks,
-	LockKey,
-	MagnifyingGlass,
-	Paperclip,
-	Pause,
-	Play,
-	Plus,
-	ShieldCheck,
-	SidebarSimple,
-	Pulse,
-	SpinnerGap,
-	Stop,
-	Tray,
-	X,
-} from "@phosphor-icons/react"
+import { ArrowLeft, ArrowRight, Briefcase, CaretRight, Check, CirclesThree, House, LinkSimple, ListChecks, LockKey, MagnifyingGlass, Paperclip, Pause, Play, Plus, SidebarSimple, SpinnerGap, Stop, Tray, X, Bell as BellAction } from "@phosphor-icons/react"
+import { Bell, ChatCircleText, CheckCircle, Clock, Database, FileText, ShieldCheck, Pulse } from "./glyphs"
 import { AnimatePresence, motion, useReducedMotion } from "motion/react"
 import { useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode, type RefObject } from "react"
 import { useLocation } from "react-router-dom"
@@ -231,7 +203,7 @@ function Header({ label, mobileNavOpen, onMobileNav, onCommand, onInspector, ins
 			<div className="ax3-header-actions">
 				<button type="button" aria-label="Open Agentix command menu" onClick={onCommand}><MagnifyingGlass size={15} /><span>Search or ask</span><kbd>⌘K</kbd></button>
 				{inspectorAvailable ? <button type="button" aria-label="Open Agent inspector" onClick={onInspector}><SidebarSimple size={16} /></button> : null}
-				<button type="button" aria-label="Notifications" title="Decisions surface on Today" onClick={onNotifications}><Bell size={16} /></button>
+				<button type="button" aria-label="Notifications" title="Decisions surface on Today" onClick={onNotifications}><BellAction size={16} /></button>
 			</div>
 		</header>
 	)

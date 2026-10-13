@@ -160,8 +160,13 @@ export interface ActivityEvent {
 	releaseId?: string
 	decisionId?: string
 	actor: string
-	kind: "step" | "check" | "repair" | "decision" | "instruction" | "release" | "effect" | "notice" | "cycle" | "assignment" | "version"
+	kind: "step" | "check" | "repair" | "decision" | "instruction" | "release" | "effect" | "notice" | "cycle" | "assignment" | "version" | "handoff"
 	text: string
+	/* The step template this event closes, when it closes one. */
+	stepId?: string
+	/* On a handoff: the specialist whose step finished, and the one whose step starts next. */
+	from?: string
+	to?: string
 	tone: Tone
 	operations?: string[]
 	evidence?: string[]
@@ -184,6 +189,12 @@ export interface Message {
 	role: "owner" | "agent"
 	text: string
 	at: number
+	/*
+	 * Which teammate the message belongs to, when it isn't the accountable agent: the owner wrote to
+	 * that specialist in its room, or that specialist answered. Absent means the engagement's
+	 * conversation with the accountable agent, as before.
+	 */
+	agentId?: string
 	/* On an owner's message: what the instruction became. */
 	instruction?: { intent: InstructionIntent; status: InstructionStatus; pending?: PendingChange; links: ObjectRef[] }
 	/* On an agent's message: the objects it concerns. */
@@ -239,7 +250,7 @@ export interface Engagement {
 	notes: string[]
 }
 
-export type View = "work" | "results" | "activity"
+export type View = "floor" | "work" | "results" | "activity"
 export interface Nav {
 	engagementId: string | null
 	view: View

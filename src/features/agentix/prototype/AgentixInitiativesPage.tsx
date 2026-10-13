@@ -1,4 +1,5 @@
-import { ArrowLeft, ArrowRight, CaretRight, CheckCircle, FileArrowDown, PauseCircle, Stack, UserCircle, WarningCircle } from "@phosphor-icons/react"
+import { ArrowLeft, ArrowRight, CaretRight } from "@phosphor-icons/react"
+import { CheckCircle, FileArrowDown, PauseCircle, Stack, UserCircle, WarningCircle } from "./glyphs"
 import { useEffect, useRef, useState, type RefObject } from "react"
 import { Badge, Button as DsButton, Mark } from "@/design/primitives"
 import type { WorkflowId } from "./initiatives"

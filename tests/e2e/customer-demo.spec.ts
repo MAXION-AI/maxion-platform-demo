@@ -80,6 +80,10 @@ async function createEngagement(page: Page) {
 	await page.getByRole("button", { name: "Run the read-only check" }).click()
 	await expect(page.getByText("Read-only check passed. Nothing was written.")).toBeVisible({ timeout: 10_000 })
 	await page.getByRole("button", { name: /Activate engagement/ }).click()
+	// The new engagement opens on its team floor, with the whole team seated; the work list is one tab away.
+	await expect(page.getByRole("region", { name: "Team floor" })).toBeVisible()
+	await expect(page.getByRole("region", { name: "Team floor" }).getByRole("button", { name: /^You/ })).toBeVisible()
+	await page.getByRole("tab", { name: /^Work/ }).click()
 	await expect(page.locator('[data-work="MS-1"]').first()).toBeVisible()
 	// The header must agree with the activation: three milestones are queued, so it is Active.
 	await expect(page.locator(".aop-eng-head")).toContainText("Active")

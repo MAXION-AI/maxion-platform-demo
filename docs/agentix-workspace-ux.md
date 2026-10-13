@@ -2,14 +2,15 @@
 Updated 2026-09-18. This replaces the 2026-09-11 deployed-agents contract. It describes the frontend demo only; nothing here is a production runtime sign-off.
 
 ## What the customer should understand
-"This agent owns this responsibility. Here is its work, what needs me, and what it has achieved." A deployed specialist team keeps its responsibility. It can work through qualified business tools, build versioned engineering artifacts, test them in isolation, release them under policy, and then keep operating the result. These are capabilities inside one engagement, not separate modules or agent types. There is no workflow-versus-role selector, model or effort picker, agent count, sandbox picker or graph to configure.
+"This agent owns this responsibility. Here is its work, what needs me, and what it has achieved." A deployed specialist team keeps its responsibility. It can work through qualified business tools, build versioned engineering artifacts, test them in isolation, release them under policy, and then keep operating the result. These are capabilities inside one engagement, not separate modules or agent types. There is no workflow-versus-role selector, model or effort picker, agent count, sandbox picker or graph to configure. (Amended 2026-10-11: the deployed team is now *shown* as a live floor, see Navigation. It is a view, never an editor; nothing on it is wired or configured. Change record: `docs/changes/2026-10-11-voice-call-team-floor/`.)
 
 ## Navigation
-MAXION sidebar → Agentix → engagement → a work item or a result. An engagement has three stable destinations:
+MAXION sidebar → Agentix → engagement → a work item or a result. An engagement has four stable destinations:
 
 | Destination | Answers | Contents |
 |---|---|---|
-| Work (default) | What is happening? Does it need me? | A "Now" line (open work by state, and whether anything needs you), the latest achievements, the first decision in full with the rest as rows, then Delivery milestones, recurring cycles, cases, and History. An aside shows team presence and operation facts. |
+| Floor (default, 2026-10-11) | Who is doing what, right now, and does it need me? | The team as one calm hierarchy on a dot grid: you at the top, the accountable agent under you, the specialists in one row, the systems they may use along the bottom (each under whoever reaches it; production reached only by the accountable agent). Only the team's lines are always drawn; a line to a system runs while a step uses it, an agent's reach shows while you look at it, and work handed between specialists travels along the team's lines. Lines run only between tiers and through gaps, never under a card; labels sit on them as short pills. Names wrap, never truncate. Selecting a seat opens that teammate's room; your own room opens by itself when a decision arrives. Morning briefing, Replay and Talk to the team sit in a small toolbar on the canvas; the timeline runs under it. |
+| Work | What is happening? Does it need me? | A "Now" line (open work by state, and whether anything needs you), the latest achievements, the first decision in full with the rest as rows, then Delivery milestones, recurring cycles, cases, and History. An aside shows team presence and operation facts. |
 | Results | What has actually been achieved? | Artifacts with business previews first, and verified outcomes. |
 | Activity | What did the agents do? | Actions, decisions, tool operations and evidence, grouped by day and filterable. Tool operations expand. No private reasoning is shown. |
 
@@ -40,7 +41,7 @@ The flagship previews are the source-to-target mapping, the pipeline stages (SQL
 Once the pipeline and dashboard milestones are verified, the same engagement runs a daily 06:00 London reconciliation. Each cycle is an independent occurrence: it loads, reconciles, refreshes the dashboard and notifies. The Work view shows the next occurrence, data freshness (marked Stale when the last scheduled occurrence hasn't verified), service health, and derived measures (verified count, median time to verify). No savings or cost is claimed. A failed notification keeps the completed record change as a partial outcome and resumes only the outstanding send. A notification outage holds only notifications: new work is still admitted and progresses up to its send. Pause intake, pause a work item, and hold or stop a release are separate controls.
 
 ## Conversation and steering
-One composer is always in the dock, in Work, Results and Activity alike, addressed to the accountable agent. It shows its scope: the whole engagement, a work item or a result. Drafts are kept per scope. Navigation never retargets an unsent draft; the composer offers to write about what you're viewing instead. The conversation panel opens as an overlay, can be pinned beside the work, collapses to the latest reply, and closing it never pauses work. Material progress posts a linked update in the conversation.
+One composer is always in the dock, on the Floor and in Work, Results and Activity alike, addressed to the accountable agent. It shows its scope: the whole engagement, a work item or a result. Drafts are kept per scope. Navigation never retargets an unsent draft; the composer offers to write about what you're viewing instead. The conversation panel opens as an overlay, can be pinned beside the work, collapses to the latest reply, and closing it never pauses work. Material progress posts a linked update in the conversation.
 
 | Instruction | Result |
 |---|---|
@@ -53,6 +54,8 @@ One composer is always in the dock, in Work, Results and Activity alike, address
 | "Hold this release until the agreed window" on a release still awaiting approval | Not applied. The reply points to "Approve for Saturday 02:00" on its card. |
 | A change that names another case from inside a case | Not applied, with the reason; your text stays in the composer. From the whole engagement, naming a case ("Pause INV-20843") targets that case. |
 | Anything the demo can't do | Not applied, with the reason; your text stays in the composer |
+
+**Rooms (2026-10-11).** Each teammate on the Floor has a room: its duty, what it may use and never does, what it is doing now (with its step's tools), what it built, its recent events, and a conversation. A specialist answers questions about its own work in first person, in its own thread. Anything that would steer the team (pause, priority, holds, intake, changes, new work) is routed to the accountable agent, which applies it exactly as above and answers in the main conversation, "From your message to the {specialist}: …". Approving, releasing and widening authority are refused in every room. The accountable agent's room is the main conversation. **Talk to the team** asks the accountable agent through the same interpreter and speaks the answer, lighting each teammate's seat as it is named. Typed text is sent by pressing Ask, as in the composer; a spoken question is answered at once, and anything spoken that would change the work waits in the field for the owner to send. A room the owner picks takes focus and returns it to the seat on close; a room that opens by itself for a decision does not take focus.
 
 Instruction states are Queued, Waiting to apply, Applied, Not applied, Couldn't apply and Answered. Classification happens as you send, so there is no separate "received" state. Questions only read, so a question about a named item is answered about that item.
 
@@ -85,7 +88,7 @@ Everything is simulated. There is no language model; four scripted scenarios sta
 | Serial position | Needs-you comes first, then delivery, cycles and cases | The newest achievement leads the Now panel |
 | Peak-end | A verified milestone reads as its evidence | Delivery ends in "runs as a daily operation" with the next cycle |
 | Zeigarnik | Open obligations stay visible | Required outcomes show evidenced or pending per item |
-| Prägnanz | At most main, aside and an optional conversation | No five-column cockpit; the aside moves below under 64rem |
+| Prägnanz | At most main, aside and an optional conversation; on the Floor, the floor and one room (amended 2026-10-11) | No five-column cockpit; the aside moves below under 64rem; the room moves under the floor below 1200px, and below the narrowest seated floor (the specialists' row and two rows of systems) the floor becomes a list |
 | Similarity | One status vocabulary everywhere | The same words in rows, detail, team and activity |
 | Uniform connectedness | One card per decision; one row per work item | Artifacts, releases and items link rather than nest |
 | Tesler's | The review asks only what the package can't answer | Two questions for the flagship; the rest is derived |

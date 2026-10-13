@@ -21,6 +21,9 @@ test("a separate engagement persists its own definition, work and conversation w
   await page.clock.runFor(4000)
   await page.getByRole("button", { name: "Activate engagement" }).click()
   await expect(page.getByRole("heading", { name: "EMEA invoice controls", exact: true })).toBeVisible()
+  // An active engagement opens on its team floor; the work list is one tab away.
+  await expect(page.getByRole("region", { name: "Team floor" })).toBeVisible()
+  await page.getByRole("tab", { name: /^Work/ }).click()
   await expect(page.locator(".aop-now")).toContainText("Ready for incoming work")
   // New work arrives through the engagement's trigger (the demo's incoming event), not a sample-case button.
   await page.getByRole("button", { name: "Controls", exact: true }).click()
@@ -49,6 +52,7 @@ test("the full approval action and the composer remain visible at normal laptop 
   await page.setViewportSize({ width: 1280, height: 720 })
   await page.goto("/agentix-prototype")
   await page.locator(".aop-agent-card").filter({ hasText: "Revenue reconciliation" }).click()
+  await page.getByRole("tab", { name: /^Work/ }).click()
   await page.getByRole("button", { name: "Review details", exact: true }).first().click()
   const approval = await page.getByRole("button", { name: "Approve $240 variance" }).boundingBox()
   const work = await page.locator(".aop-eng-scroll").boundingBox()
@@ -66,6 +70,7 @@ test("mobile opens the conversation over the work without losing a case draft", 
   await page.setViewportSize({ width: 375, height: 812 })
   await page.goto("/agentix-prototype")
   await page.locator(".aop-agent-card").filter({ hasText: "Revenue reconciliation" }).click()
+  await page.getByRole("tab", { name: /^Work/ }).click()
   await page.getByRole("button", { name: "Review details", exact: true }).first().click()
   const input = page.locator("#aop-composer-input")
   await input.fill("Keep the Northwind decision scoped")
