@@ -34,7 +34,7 @@ import { AnimatePresence, motion, useReducedMotion } from "motion/react"
 import { useEffect, useMemo, useRef, useState, type CSSProperties, type FormEvent, type ReactNode, type RefObject } from "react"
 
 import { useRiseIn } from "@/components/motion/MotionKit"
-import { Button, Card, EmptyState, Mark, SearchInput } from "@/design/primitives"
+import { Badge, Button, Card, EmptyState, Mark, PageHeader, SearchInput } from "@/design/primitives"
 import type { AgentixAttention, AgentixIntent, AgentixPendingCase } from "@/features/agentix/prototype/AgentixInitiativesPage"
 import { listDiscoveryJumpRecords, type DiscoveryJump, type DiscoveryJumpRecord, type HandoffPacket } from "@/features/discovery-autonomous/DiscoveryAutonomousPrototypePage"
 import { DELIVERABLES } from "@/features/discovery-autonomous/deliverables"
@@ -43,6 +43,8 @@ import { ActionArt, ActivityAvatar, ProjectArt, type ActionArtKind, type Activit
 import { NavGlyph, type NavGlyphName } from "./NavGlyphs"
 import { MaxionSpiralMark } from "./PortalChrome"
 import "./workspace-home.css"
+import "./account-pages.css"
+import { useSheetFocus } from "./useSheetFocus"
 import {
 	EXECUTE_TASKS,
 	WORKSPACE_CYCLE_RESET,
@@ -111,13 +113,29 @@ function useDialogFocus(panelRef: RefObject<HTMLElement | null>, open: boolean) 
 	}, [panelRef, open])
 }
 
+/* The live ElevenLabs app gives every page a 48px top bar with where you are and the global actions; the account
+ * pages have the same one as Dashboard and Projects, and it carries their place ("Account › Settings"). */
+function PortalTopbar({ section, title, onCommand }: { section: string; title: string; onCommand?: () => void }) {
+	return (
+		<div className="ds-scope mxp-portal-top">
+			<header className="ds-topbar">
+				<div className="ds-topbar-start"><span className="mxp-portal-crumb">{section}</span><CaretRight size={12} aria-hidden="true" className="mxp-portal-crumb-sep" /><span className="ds-topbar-title">{title}</span></div>
+				<div className="ds-topbar-end">
+					{onCommand ? <Button size="sm" className="wh-jump" onClick={onCommand}><MagnifyingGlass aria-hidden="true" />Jump to<kbd>⌘K</kbd></Button> : null}
+				</div>
+			</header>
+		</div>
+	)
+}
+
+/* A page under the top bar needs no eyebrow above its title; pages without the top bar still pass one. */
 function PortalPageHeader({
 	eyebrow,
 	title,
 	description,
 	actions,
 }: {
-	eyebrow: string
+	eyebrow?: string
 	title: string
 	description: string
 	actions?: ReactNode
@@ -125,7 +143,7 @@ function PortalPageHeader({
 	return (
 		<header className="mxp-portal-page-header">
 			<div>
-				<span>{eyebrow}</span>
+				{eyebrow ? <span>{eyebrow}</span> : null}
 				<h1>{title}</h1>
 				<p>{description}</p>
 			</div>
@@ -994,22 +1012,20 @@ export function ExecuteHubModule({
 // opens the engagement that owns the case; Review decision opens the case itself.
 function ApprovalInbox({ approvals, onOpenAgentix }: { approvals: AgentixPendingCase[]; onOpenAgentix: (intent: AgentixIntent) => void }) {
 	return (
-		<section className="ds-scope mxp-approvals" aria-label="Pending approvals">
+		<section className="mxp-approvals" aria-label="Pending approvals">
 			{approvals.length ? (
-				<Card title="Pending approvals" count={approvals.length} description="Agentix stopped before each effect. Each opens with its exact change, owner and evidence.">
-					<div className="ds-list">
-						{approvals.map((item) => (
-							<article key={item.id} className="ds-list-row mxp-approval-row" aria-label={`${item.title} · ${item.reference}`}>
-								<span className="ds-list-row-mark"><Mark seed={item.agentId} size="sm" /></span>
-								<span className="ds-list-row-main"><strong>{item.title}</strong><small>{item.engagement} · {item.reference}</small></span>
-								<span className="ds-list-row-action mxp-approval-actions">
-									<Button variant="ghost" size="sm" aria-label={`Inspect ${item.engagement}`} onClick={() => onOpenAgentix({ type: "engagement", id: item.agentId })}>Inspect</Button>
-									<Button variant="primary" size="sm" aria-label={`${agentixCaseAction(item)} · ${item.reference}`} onClick={() => onOpenAgentix(agentixCaseIntent(item))}>{agentixCaseAction(item)}<ArrowRight aria-hidden="true" /></Button>
-								</span>
-							</article>
-						))}
-					</div>
-				</Card>
+				<div className="acc-list">
+					{approvals.map((item) => (
+						<article key={item.id} className="acc-row mxp-approval-row" aria-label={`${item.title} · ${item.reference}`}>
+							<Mark seed={item.agentId} size="xs" />
+							<span className="acc-row-main"><strong>{item.title}</strong><small>{item.engagement} · {item.reference}</small></span>
+							<span className="acc-row-actions">
+								<Button variant="ghost" size="sm" aria-label={`Inspect ${item.engagement}`} onClick={() => onOpenAgentix({ type: "engagement", id: item.agentId })}>Inspect</Button>
+								<Button variant="primary" size="sm" aria-label={`${agentixCaseAction(item)} · ${item.reference}`} onClick={() => onOpenAgentix(agentixCaseIntent(item))}>{agentixCaseAction(item)}<ArrowRight aria-hidden="true" /></Button>
+							</span>
+						</article>
+					))}
+				</div>
 			) : (
 				// Nothing waiting is one quiet line, not an empty bordered card.
 				<EmptyState className="mxp-approvals-empty" icon={<CheckCircle weight="fill" />} title="All caught up">No approvals are waiting for you.</EmptyState>
@@ -1038,7 +1054,7 @@ const INITIAL_INTEGRATIONS: IntegrationRecord[] = [
 	{ id: "quickbooks", name: "QuickBooks Online", category: "ERP", provider: "Nango", account: "Northstar US", connected: true, health: "Healthy", scope: "Company 934771" },
 ]
 
-export function IntegrationsModule() {
+export function IntegrationsModule({ onCommand }: { onCommand?: () => void } = {}) {
 	const [integrations, setIntegrations] = useState(INITIAL_INTEGRATIONS)
 	const [query, setQuery] = useState("")
 	const [selected, setSelected] = useState<IntegrationRecord | null>(null)
@@ -1067,27 +1083,104 @@ export function IntegrationsModule() {
 			setMessage(`${integration.name} connection test succeeded.`)
 		}, 650)
 	}
+	const scopesRef = useRef<HTMLElement>(null)
+	const logRef = useRef<HTMLElement>(null)
+	useSheetFocus(selected !== null, () => setSelected(null), scopesRef)
+	useSheetFocus(accessLogOpen, () => setAccessLogOpen(false), logRef)
+	const connectedCount = integrations.filter((item) => item.connected).length
+	const attentionCount = integrations.filter((item) => item.connected && item.health === "Needs attention").length
 	return (
-		<div className="mxp-portal-page mxp-integrations-page">
-			<PortalPageHeader eyebrow="Workspace administration" title="Integrations" description="Connect workspace systems, manage provider access, and control how MAX uses external context." actions={<button type="button" onClick={() => setAccessLogOpen(true)}><FileText size={15} />Access log</button>} />
-			<section className="mxp-portal-stats" aria-label="Integration summary"><PortalStat icon={<Plug size={18} />} label="Connected systems" value={String(integrations.filter((item) => item.connected).length)} hint="Across five categories" /><PortalStat icon={<CheckCircle size={18} />} label="Healthy" value={String(integrations.filter((item) => item.connected && item.health === "Healthy").length)} hint="Last tested today" /><PortalStat icon={<WarningCircle size={18} />} label="Needs attention" value={String(integrations.filter((item) => item.connected && item.health === "Needs attention").length)} hint="Existing access remains active" /><PortalStat icon={<ShieldCheck size={18} />} label="Policy owner" value="Tenant admin" hint="All changes are audited" /></section>
-			<div className="mxp-integration-notice"><ShieldCheck size={17} /><div><strong>Connections remain user- and tenant-scoped</strong><p>Nango and Merge authorization never grants Agentix or other modules more access than the connected account already has.</p></div></div>
-			<label className="mxp-integration-search"><MagnifyingGlass size={16} /><span className="sr-only">Search integrations</span><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search integrations" /></label>
-			<div className="mxp-integration-categories">
-				{categories.map((category) => <section key={category} className="mxp-portal-card mxp-integration-category"><header><div><span><Plug size={17} weight="duotone" /></span><div><h2>{category}</h2><p>{category === "CRM" ? "Customer records and commercial workflows" : category === "File storage" ? "Documents, evidence, and collaborative files" : category === "Ticketing" ? "Delivery issues, approvals, and operating queues" : category === "HRIS" ? "People, roles, and workforce records" : "Financial and inventory systems"}</p></div></div><small>{filtered.filter((item) => item.category === category && item.connected).length} connected</small></header><div>{filtered.filter((item) => item.category === category).map((integration) => <article key={integration.id}><span className="mxp-integration-logo">{integration.name.split(/\s/).map((part) => part[0]).join("").slice(0, 2)}</span><div><span><strong>{integration.name}</strong>{integration.connected ? <i className={integration.health === "Healthy" ? "is-healthy" : "is-attention"}>{integration.health}</i> : <i>Available</i>}</span><p>{integration.connected ? integration.account : `Connect through ${integration.provider}`}</p><small>{integration.provider}{integration.connected ? ` · ${integration.scope}` : ""}</small></div><div>{!integration.connected ? <button type="button" className="mxp-primary" onClick={() => connect(integration)}>Connect</button> : disconnectingId === integration.id ? <span className="mxp-disconnect-confirm" role="group" aria-label={`Confirm disconnecting ${integration.name}`}><small><WarningCircle size={13} />MAX loses this context immediately.</small><button type="button" onClick={() => setDisconnectingId(null)}>Keep connected</button><button type="button" className="mxp-disconnect-go" onClick={() => disconnect(integration)}>Disconnect</button></span> : <><button type="button" disabled={testingId === integration.id} onClick={() => test(integration)}>{testingId === integration.id ? "Testing…" : "Test"}</button><button type="button" onClick={() => setSelected(integration)}>Scopes</button><button type="button" aria-label={`Disconnect ${integration.name}`} onClick={() => setDisconnectingId(integration.id)}>Disconnect</button></>}</div></article>)}</div></section>)}
+		<div className="ds-scope acc-frame">
+			<PortalTopbar section="Account" title="Integrations" onCommand={onCommand} />
+			<div className="acc-page">
+				<PageHeader
+					title="Integrations"
+					description="Connect workspace systems and choose what MAX may read. Access never exceeds what the connected account already has."
+					actions={<Button onClick={() => setAccessLogOpen(true)}><FileText aria-hidden="true" />Access log</Button>} />
+				{/* The record's facts as one quiet line, as the live app states them. */}
+				<p className="acc-summary">
+					<span><strong>{connectedCount}</strong> connected</span>
+					{attentionCount ? <span className="is-attention"><strong>{attentionCount}</strong> needs attention; its access stays active</span> : null}
+				</p>
+				<SearchInput className="acc-search" label="Search integrations" placeholder="Search integrations" value={query} onChange={(event) => setQuery(event.target.value)} onClear={() => setQuery("")} />
+				{categories.length === 0 ? (
+					<EmptyState
+						icon={<Plug aria-hidden="true" />}
+						title="No matching integrations"
+						action={<Button onClick={() => setQuery("")}>Show all integrations</Button>}>
+						<p>Try a system name such as Salesforce, or a category such as CRM.</p>
+					</EmptyState>
+				) : (
+					<div className="acc-list">
+						{categories.map((category) => (
+							<section key={category} className="acc-group" aria-label={category}>
+								<h2 className="acc-group-title">{category}<span><span className="sr-only">, </span>{filtered.filter((item) => item.category === category && item.connected).length} connected</span></h2>
+								{filtered.filter((item) => item.category === category).map((integration) => (
+									<article key={integration.id} className="acc-row" aria-label={integration.name}>
+										<span className="acc-logo" aria-hidden="true">{integration.name.split(/\s/).map((part) => part[0]).join("").slice(0, 2)}</span>
+										<span className="acc-row-main">
+											<strong>{integration.name}{integration.connected && integration.health === "Needs attention" ? <Badge tone="warning">Needs attention</Badge> : null}{!integration.connected ? <Badge>Available</Badge> : null}</strong>
+											<small>{integration.connected ? `${integration.account} · ${integration.provider} · ${integration.scope}` : `Connect through ${integration.provider}`}</small>
+										</span>
+										<span className="acc-row-actions">
+											{!integration.connected ? <Button size="xs" variant="primary" onClick={() => connect(integration)}>Connect</Button>
+												: disconnectingId === integration.id ? (
+													<span className="acc-confirm" role="group" aria-label={`Confirm disconnecting ${integration.name}`}>
+														<small>MAX loses this context immediately.</small>
+														<Button size="xs" onClick={() => setDisconnectingId(null)}>Keep connected</Button>
+														<Button size="xs" className="acc-danger" onClick={() => disconnect(integration)}>Disconnect</Button>
+													</span>
+												) : (
+													<>
+														<Button size="xs" disabled={testingId === integration.id} onClick={() => test(integration)}>{testingId === integration.id ? "Testing…" : "Test"}</Button>
+														<Button size="xs" onClick={() => setSelected(integration)}>Scopes</Button>
+														<Button size="xs" aria-label={`Disconnect ${integration.name}`} onClick={() => setDisconnectingId(integration.id)}>Disconnect</Button>
+													</>
+												)}
+										</span>
+									</article>
+								))}
+							</section>
+						))}
+					</div>
+				)}
+				<div className="mxp-live-message" aria-live="polite">{message}</div>
 			</div>
-			<div className="mxp-live-message" aria-live="polite">{message}</div>
-			{selected ? <><button type="button" className="mxp-panel-scrim" aria-label="Close integration scopes" onClick={() => setSelected(null)} /><aside className="mxp-integration-panel" aria-label={`${selected.name} available scopes`}><header><div><small>Connection scope</small><h2>{selected.name}</h2></div><button type="button" aria-label="Close integration scopes" onClick={() => setSelected(null)}><X size={17} /></button></header><div><p>Choose which workspace MAX may read through this connection. Provider permissions still apply.</p>{[selected.scope, "Transformation Office", "Finance Operations"].filter((scope, index, all) => all.indexOf(scope) === index).map((scope) => <label key={scope}><input type="radio" name="scope" defaultChecked={scope === selected.scope} /><span><strong>{scope}</strong><small>Authorized workspace scope</small></span></label>)}<button type="button" className="mxp-primary" onClick={() => { setMessage(`${selected.name} scope saved.`); setSelected(null) }}>Save scope</button></div></aside></> : null}
-			{accessLogOpen ? <><button type="button" className="mxp-panel-scrim" aria-label="Close access log" onClick={() => setAccessLogOpen(false)} /><aside className="mxp-integration-panel" aria-label="Integration access log"><header><div><small>Immutable audit trail</small><h2>Integration access log</h2></div><button type="button" aria-label="Close access log" onClick={() => setAccessLogOpen(false)}><X size={17} /></button></header><div className="mxp-access-log"><p><Database size={15} /><span><strong>Salesforce records read</strong><small>Discovery · Root Admin · 8 minutes ago</small></span></p><p><ShieldCheck size={15} /><span><strong>SAP connection tested</strong><small>Tenant admin · 31 minutes ago</small></span></p><p><Plug size={15} /><span><strong>QuickBooks scope updated</strong><small>Tenant admin · Yesterday</small></span></p></div></aside></> : null}
+			{selected ? (
+				<>
+					<button type="button" className="acc-scrim" aria-label="Close integration scopes" onClick={() => setSelected(null)} />
+					<aside ref={scopesRef} className="acc-panel" aria-label={`${selected.name} available scopes`}>
+						<header><div><small>Connection scope</small><h2>{selected.name}</h2></div><Button size="sm" icon variant="ghost" aria-label="Close integration scopes" onClick={() => setSelected(null)}><X aria-hidden="true" /></Button></header>
+						<div className="acc-panel-body">
+							<p>Choose which workspace MAX may read through this connection. Provider permissions still apply.</p>
+							{[selected.scope, "Transformation Office", "Finance Operations"].filter((scope, index, all) => all.indexOf(scope) === index).map((scope) => <label key={scope} className="acc-choice"><input type="radio" name="scope" defaultChecked={scope === selected.scope} /><span><strong>{scope}</strong><small>Authorized workspace scope</small></span></label>)}
+							<Button variant="primary" onClick={() => { setMessage(`${selected.name} scope saved.`); setSelected(null) }}>Save scope</Button>
+						</div>
+					</aside>
+				</>
+			) : null}
+			{accessLogOpen ? (
+				<>
+					<button type="button" className="acc-scrim" aria-label="Close access log" onClick={() => setAccessLogOpen(false)} />
+					<aside ref={logRef} className="acc-panel" aria-label="Integration access log">
+						<header><div><small>Audit trail</small><h2>Integration access log</h2></div><Button size="sm" icon variant="ghost" aria-label="Close access log" onClick={() => setAccessLogOpen(false)}><X aria-hidden="true" /></Button></header>
+						<ul className="acc-log">
+							<li><strong>Salesforce records read</strong><small>Discovery · Root Admin · 8 minutes ago</small></li>
+							<li><strong>SAP connection tested</strong><small>Tenant admin · 31 minutes ago</small></li>
+							<li><strong>QuickBooks scope updated</strong><small>Tenant admin · Yesterday</small></li>
+						</ul>
+					</aside>
+				</>
+			) : null}
 		</div>
 	)
 }
 
 // Help answers live beside their titles: a row that only rotates a chevron teaches nothing.
 const HELP_TOPICS = [
-	{ title: "Create and manage projects", answer: "A project holds its members, its linked Discovery and Plan work, and its activity trail. Create one from Projects → Create Project. Archiving hides the workspace and keeps every piece of evidence attached to it." },
+	{ title: "Create and manage projects", answer: "A project holds its members, its linked Discovery and Agentix work, and its activity trail. Create one from Projects → Create Project. Archiving hides the workspace and keeps every piece of evidence attached to it." },
 	{ title: "Run an autonomous Discovery", answer: "Start from Discover → New Discovery and give MAX a brief. It researches, interviews owners, and stops at any boundary it is not authorized to cross — an external interview always waits for your approval." },
-	{ title: "Move a Plan into Execute", answer: "A plan becomes sendable once its implementation boundary is approved. Send to Execute carries the evidence snapshot with it, and Execute carves the plan into isolated workspaces before it touches anything." },
+	{ title: "Hand a Discovery to Agentix", answer: "When a Discovery's package is verified, Continue to Agentix carries it, with its evidence, into a new engagement. You answer its setup questions, a read-only check runs, and nothing acts until you activate it." },
 	{ title: "Manage integration permissions", answer: "Connections stay user- and tenant-scoped. Scopes controls which workspace MAX may read through a connection, and every read is written to the integration access log." },
 	{ title: "Govern Agentix approvals", answer: "Agentix agents work inside a bounded authority and stop when an effect needs a person. An approval shows the exact effects, their value, and the systems they touch before anything is posted." },
 ] as const
@@ -1097,6 +1190,7 @@ export function AccountUtilityModule({
 	onNavigate,
 	approvals = [],
 	onOpenAgentix,
+	onCommand,
 }: {
 	module: "settings" | "approvals" | "usage" | "help"
 	onNavigate: Navigate
@@ -1104,11 +1198,82 @@ export function AccountUtilityModule({
 	// and routes to them; it never keeps a second copy that can disagree with the agent.
 	approvals?: AgentixPendingCase[]
 	onOpenAgentix?: (intent: AgentixIntent) => void
+	onCommand?: () => void
 }) {
 	const [helpQuery, setHelpQuery] = useState("")
 	const [openTopic, setOpenTopic] = useState<string | null>(null)
+	const [settings, setSettings] = useState({ notifications: true, brief: true })
 	const helpMatches = HELP_TOPICS.filter((topic) => `${topic.title} ${topic.answer}`.toLowerCase().includes(helpQuery.trim().toLowerCase()))
-	const config = module === "settings" ? { icon: GearSix, eyebrow: "Account", title: "Settings", description: "Manage workspace identity, governance, notifications, and security." } : module === "approvals" ? { icon: ShieldCheck, eyebrow: "Governance", title: "My approvals", description: "Material decisions waiting for your explicit authority." } : module === "usage" ? { icon: ChartBar, eyebrow: "Account", title: "Usage", description: "Review workspace units and activity for the current billing cycle." } : { icon: Question, eyebrow: "Support", title: "Help", description: "Find guidance for MAXION workflows and platform administration." }
-	const Icon = config.icon
-	return <div className="mxp-portal-page mxp-utility-page"><PortalPageHeader eyebrow={config.eyebrow} title={config.title} description={config.description} />{module === "settings" ? <section className="mxp-portal-card mxp-settings-card"><header><span><Icon size={18} /></span><div><h2>Workspace defaults</h2><p>Controls apply across MAXION modules.</p></div></header><label><span><strong>Agent notifications</strong><small>Notify owners when an autonomous run needs intervention.</small></span><input type="checkbox" defaultChecked /></label><label><span><strong>Weekly operating brief</strong><small>Send a verified summary every Monday.</small></span><input type="checkbox" defaultChecked /></label><button type="button" onClick={() => onNavigate("integrations")}><Plug size={15} />Manage integrations<ArrowRight size={14} /></button></section> : module === "approvals" ? <ApprovalInbox approvals={approvals} onOpenAgentix={(intent) => onOpenAgentix ? onOpenAgentix(intent) : onNavigate("agentix")} /> : module === "usage" ? <section className="mxp-usage-layout"><div className="mxp-usage-ring" style={{ "--mxp-usage-arc": `${WORKSPACE_UNITS_PERCENT}%` } as CSSProperties}><strong>{WORKSPACE_UNITS_PERCENT}%</strong><span>of workspace units used</span><small>{workspaceUnitsLabel(WORKSPACE_UNITS_USED)} of {workspaceUnitsLabel(WORKSPACE_UNIT_CAP)} units · resets {WORKSPACE_CYCLE_RESET}</small></div><div className="mxp-portal-card"><h2>Current cycle</h2><dl>{WORKSPACE_USAGE_ROWS.map((row) => <div key={row.module}><dt>{row.module}</dt><dd>{workspaceUnitsLabel(row.units)} units<span className="mxp-usage-bar" aria-hidden="true"><i style={{ width: `${Math.round((row.units / WORKSPACE_UNITS_USED) * 100)}%` }} /></span></dd></div>)}</dl><p className="mxp-usage-total"><ChartBar size={13} />{workspaceUnitsLabel(WORKSPACE_UNIT_CAP - WORKSPACE_UNITS_USED)} units remain before the cycle resets on {WORKSPACE_CYCLE_RESET}.</p></div></section> : <section className="mxp-help-layout"><label><MagnifyingGlass size={16} /><input aria-label="Search help" value={helpQuery} onChange={(event) => { setHelpQuery(event.target.value); setOpenTopic(null) }} placeholder="Search MAXION help" /></label>{helpMatches.map((topic) => <div className="mxp-help-topic" key={topic.title}><button type="button" aria-expanded={openTopic === topic.title} onClick={() => setOpenTopic((current) => current === topic.title ? null : topic.title)}><Question size={15} /><span>{topic.title}</span><CaretRight size={13} /></button>{openTopic === topic.title ? <p>{topic.answer}</p> : null}</div>)}{helpMatches.length === 0 ? <p className="mxp-help-empty">No help topic matches “{helpQuery.trim()}”. Ask Consult MAX instead — it answers from the live workspace rather than a static article.</p> : null}</section>}</div>
+	const config = module === "settings"
+		? { title: "Settings", description: "Workspace defaults that apply across MAXION." }
+		: module === "approvals"
+			? { title: "My approvals", description: "Decisions Agentix stopped for. Each opens with its exact change and evidence." }
+			: module === "usage"
+				? { title: "Usage", description: `Workspace units this billing cycle, which resets ${WORKSPACE_CYCLE_RESET}.` }
+				: { title: "Help", description: "Guidance for MAXION workflows and administration." }
+	const switchRow = (key: "notifications" | "brief", label: string, detail: string) => (
+		<div className="acc-row">
+			<span className="acc-row-main"><strong id={`acc-${key}`}>{label}</strong><small>{detail}</small></span>
+			<button type="button" role="switch" className="acc-switch" aria-checked={settings[key]} aria-labelledby={`acc-${key}`} onClick={() => setSettings((current) => ({ ...current, [key]: !current[key] }))}><span /></button>
+		</div>
+	)
+	return (
+		<div className="ds-scope acc-frame">
+			<PortalTopbar section="Account" title={config.title} onCommand={onCommand} />
+			<div className="acc-page">
+				<PageHeader title={config.title} description={config.description} />
+				{module === "settings" ? (
+					<div className="acc-list">
+						<section className="acc-group" aria-label="Workspace defaults">
+							<h2 className="acc-group-title">Notifications</h2>
+							{switchRow("notifications", "Agent notifications", "Notify owners when an autonomous run needs intervention.")}
+							{switchRow("brief", "Weekly operating brief", "Send a verified summary every Monday.")}
+						</section>
+						<section className="acc-group" aria-label="Connected systems">
+							<h2 className="acc-group-title">Connected systems</h2>
+							<div className="acc-row">
+								<span className="acc-row-main"><strong>Integrations</strong><small>Which systems MAX may read, and through which accounts.</small></span>
+								<span className="acc-row-actions"><Button size="sm" onClick={() => onNavigate("integrations")}>Manage integrations<ArrowRight aria-hidden="true" /></Button></span>
+							</div>
+						</section>
+					</div>
+				) : module === "approvals" ? (
+					<ApprovalInbox approvals={approvals} onOpenAgentix={(intent) => onOpenAgentix ? onOpenAgentix(intent) : onNavigate("agentix")} />
+				) : module === "usage" ? (
+					<section className="acc-usage" aria-label="Current cycle">
+						<p className="acc-usage-figure"><strong>{WORKSPACE_UNITS_PERCENT}%</strong><span>{workspaceUnitsLabel(WORKSPACE_UNITS_USED)} of {workspaceUnitsLabel(WORKSPACE_UNIT_CAP)} units used</span></p>
+						<span className="acc-meter" aria-hidden="true"><i style={{ width: `${WORKSPACE_UNITS_PERCENT}%` }} /></span>
+						<div className="acc-list">
+							{WORKSPACE_USAGE_ROWS.map((row) => (
+								<div key={row.module} className="acc-row">
+									<span className="acc-row-main"><strong>{row.module}</strong></span>
+									<span className="acc-row-value">{workspaceUnitsLabel(row.units)} units</span>
+								</div>
+							))}
+							<div className="acc-row">
+								<span className="acc-row-main"><strong>Remaining</strong></span>
+								<span className="acc-row-value">{workspaceUnitsLabel(WORKSPACE_UNIT_CAP - WORKSPACE_UNITS_USED)} units</span>
+							</div>
+						</div>
+					</section>
+				) : (
+					<section className="acc-help" aria-label="Help topics">
+						<SearchInput className="acc-search" label="Search help" placeholder="Search MAXION help" value={helpQuery} onChange={(event) => { setHelpQuery(event.target.value); setOpenTopic(null) }} onClear={() => setHelpQuery("")} />
+						{helpMatches.length ? (
+							<div className="acc-list">
+								{helpMatches.map((topic) => (
+									<div className="acc-topic" key={topic.title}>
+										<button type="button" aria-expanded={openTopic === topic.title} onClick={() => setOpenTopic((current) => current === topic.title ? null : topic.title)}><span>{topic.title}</span><CaretRight aria-hidden="true" /></button>
+										{openTopic === topic.title ? <p>{topic.answer}</p> : null}
+									</div>
+								))}
+							</div>
+						) : (
+							<EmptyState title={`No help topic matches “${helpQuery.trim()}”`} action={<Button onClick={() => onNavigate("consult")}>Ask Consult MAX</Button>}><p>Consult MAX answers from the live workspace.</p></EmptyState>
+						)}
+					</section>
+				)}
+			</div>
+		</div>
+	)
 }

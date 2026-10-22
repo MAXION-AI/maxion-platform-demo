@@ -29,9 +29,11 @@ export function EngagementHeader({ state, engagement, onToggleIntake, onDetails,
 			<div className="aop-engagement-title">
 				<Mark seed={engagement.id} />
 				<div>
-					<h1 tabIndex={-1}>{engagement.name}</h1>
-					{/* Where the work came from is what a viewer needs here; an internal slug ("agx_invoice") only read as noise. */}
-					<p>{provenance(engagement)}{pending ? ` · v${pending.version} in review` : ""}</p>
+					{/* The live app sets its status chip beside the title; the facts follow as one quiet line under the row. */}
+					<div className="aop-engagement-name">
+						<h1 tabIndex={-1}>{engagement.name}</h1>
+						<Status label={status.label} tone={status.tone} live={status.tone === "live"} />
+					</div>
 				</div>
 			</div>
 			<div className="aop-actions aop-engagement-actions">
@@ -43,13 +45,15 @@ export function EngagementHeader({ state, engagement, onToggleIntake, onDetails,
 				<DsButton onClick={onDetails}><UsersThree size={14} />Details</DsButton>
 				{!draft ? <DsButton onClick={onAssign}><Plus size={14} />Assign work</DsButton> : null}
 			</div>
-			<ul className="aop-pill-row aop-engagement-pills" aria-label="Engagement summary">
-				<li><Status label={status.label} tone={status.tone} live={status.tone === "live"} /></li>
-				<li className="aop-pill is-optional"><UserCircle size={12} />{engagement.owner || "No owner yet"}</li>
-				<li className="aop-pill is-optional">{engagement.cycles !== "off" ? <ClockCountdown size={12} /> : <Lightning size={12} />}{engagement.cycles !== "off" ? scheduleLabel(engagement.workflowId, engagement.cycles) : engagement.trigger === "Assignment" ? "Assigned work" : "Incoming events"}</li>
-				<li className="aop-pill is-optional"><UsersThree size={12} />{team.length === 1 ? "One agent" : `Team of ${team.length}`}</li>
-				<li className="aop-pill"><RocketLaunch size={12} />{draft ? "Draft" : `Deployment v${engagement.version}`}</li>
-				{engagement.packages.length > 1 ? <li className="aop-pill is-optional"><GitBranch size={12} />{engagement.packages.length} packages</li> : null}
+			{/* Where the work came from and the engagement's facts, as one quiet row under the name and actions
+			    (it was two rows). It wraps on a narrow screen; the provenance gives way first. */}
+			<ul className="aop-engagement-facts" aria-label="Engagement summary">
+				<li className="aop-engagement-origin">{provenance(engagement)}{pending ? ` · v${pending.version} in review` : ""}</li>
+				{/* The owner and the trigger sit on the floor itself (your seat, the first edge) and in Details. */}
+				{engagement.cycles !== "off" ? <li className="is-optional">{scheduleLabel(engagement.workflowId, engagement.cycles)}</li> : null}
+				<li className="is-optional">{team.length === 1 ? "One agent" : `Team of ${team.length}`}</li>
+				{engagement.packages.length > 1 ? <li className="is-optional">{engagement.packages.length} packages</li> : null}
+				<li>{draft ? "Draft" : `Deployment v${engagement.version}`}</li>
 			</ul>
 		</header>
 	)

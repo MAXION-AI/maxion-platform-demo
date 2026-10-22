@@ -43,7 +43,6 @@ export function DecisionCard({ state, decisionId, onDecide, compact = false, con
 	return (
 		<section ref={root} className={`aop-decision${compact ? " is-compact" : ""}`} aria-labelledby={headingId}>
 			<header className="aop-decision-head">
-				<span className="aop-icon-tile is-warning" aria-hidden="true">{icon}</span>
 				<div>
 					<p className="aop-decision-kicker">{decision.kind === "release" ? "Release approval" : decision.kind === "question" ? "Your decision" : "Approval"} · <span className="aop-mono">{item.reference}</span></p>
 					<h3 id={headingId}>{decisionTitle(state, decision)}</h3>
@@ -169,7 +168,6 @@ export function HumanFulfillment({ reference, onAttach }: { reference: string; o
 	return (
 		<section className="aop-decision" aria-labelledby={`${id}-title`}>
 			<header className="aop-decision-head">
-				<span className="aop-icon-tile is-warning" aria-hidden="true"><UserCircle size={16} /></span>
 				<div>
 					<p className="aop-decision-kicker">Owner confirmation · <span className="aop-mono">{reference}</span></p>
 					<h3 id={`${id}-title`}>Payroll owner confirmation needed</h3>

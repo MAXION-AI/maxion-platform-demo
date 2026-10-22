@@ -600,7 +600,7 @@ export function journeyNextAction(phase: number, context: JourneyContext = {}): 
 	const destination = context.destination ?? "Plan"
 	if (journeyComplete(phase)) return context.handoffId ? `Sent to ${destination} as ${context.handoffId}.` : `Package verified. Review it in Package, then continue to ${destination}.`
 	if (context.interviewOpen) return "Answer MAX’s interview questions so it can frame the mission."
-	if (context.decisionPending) return "One decision needs you. Unaffected work keeps moving."
+	if (context.decisionPending) return "Only the affected branch waits; everything else keeps moving."
 	if (context.hold === "paused") return "Paused at the last verified checkpoint. Nothing new starts until you resume."
 	return JOURNEY_STAGES.find(item => item.id === currentJourneyStage(phase, context))?.nextAction ?? ""
 }

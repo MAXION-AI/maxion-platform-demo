@@ -36,7 +36,6 @@ export function ActivityView({ state, engagementId, filter, onFilter, onOpen }: 
 		<div className="aop-activity">
 			<div className="aop-activity-tools">
 				<SegmentedTabs label="Activity filter" value={filter} onChange={onFilter} options={[{ value: "all", label: "All", count: counts.all }, { value: "decisions", label: "Decisions", count: counts.decisions }, { value: "operations", label: "Operations", count: counts.operations }, { value: "instructions", label: "Instructions", count: counts.instructions }]} />
-				<p className="aop-hint">No private reasoning is shown; only what was done and its evidence.</p>
 			</div>
 			{[...days.entries()].map(([day, list]) => (
 				<section key={day} className="aop-activity-day" aria-label={day}>
@@ -67,7 +66,7 @@ function ActivityRow({ state, event, continued, onOpen }: { state: AgentixState;
 			<span className="aop-activity-icon" aria-hidden="true"><Icon size={18} weight={event.tone === "positive" ? "fill" : "regular"} /></span>
 			<div className="aop-activity-body">
 				<p className="aop-activity-meta">
-					{continued ? <span className="sr-only">{actor}</span> : event.actor === "owner" || event.actor === "demo" || event.actor === "agentix" ? <span className="aop-activity-actor">{actor}</span> : <span className="aop-activity-actor"><Mark seed={`${engagement.workflowId}:${event.actor}`} size="xs" />{actor}</span>}
+					{continued ? <span className="sr-only">{actor}</span> : event.actor === "owner" || event.actor === "demo" || event.actor === "agentix" ? <span className="aop-activity-actor">{actor}</span> : <span className="aop-activity-actor">{actor}</span>}
 					<time dateTime={new Date(event.at).toISOString()} title={shortTime(event.at)}>{clockLabel(event.at)}</time>
 				</p>
 				<p className="aop-activity-text"><Prose text={text} /></p>

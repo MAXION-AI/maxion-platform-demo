@@ -134,7 +134,7 @@ export function StakeholderInterviewPage() {
 
 					<section className="mxd-si-topics" aria-label="What MAX will ask about">
 						<p className="mxd-kicker">What MAX will ask you about</p>
-						<ul>{topics.map(topic => <li key={topic}>{topic}</li>)}</ul>
+						<ul>{topics.map(topic => <li key={topic}>{topic.charAt(0).toUpperCase() + topic.slice(1)}</li>)}</ul>
 					</section>
 
 					<label className="mxd-si-consent">

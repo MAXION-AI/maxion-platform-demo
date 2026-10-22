@@ -75,7 +75,7 @@ export function Composer({ state, engagementId, scope, viewScope, draft, inputRe
 				placeholder={scope.kind === "engagement" ? "Ask, steer or assign work…" : scope.kind === "artifact" ? "Ask about it or request a change…" : "Ask about it or steer it…"}
 				sendLabel="Send to the accountable agent"
 				maxLength={2000}
-				context={<><Mark seed={`${state.engagements[engagementId].workflowId}:${lead.id}`} size="xs" /><span aria-live="polite"><span className="aop-composer-to">To {lead.name} · about </span><strong>{scopeLabel(state, scope)}</strong></span></>}
+				context={<><span aria-live="polite"><span className="aop-composer-to">To {lead.name} · about </span><strong>{scopeLabel(state, scope)}</strong></span></>}
 				tools={conversationOpen ? undefined : <button type="button" aria-pressed={conversationOpen} aria-label={`Conversation${unread && !conversationOpen ? `, ${unread} new` : ""}`} onClick={onToggleConversation}><ChatCircleText size={14} /><span className="aop-composer-tool-label">Conversation</span>{unread && !conversationOpen ? <span className="aop-unread">{unread}</span> : null}</button>} />
 		</div>
 	)

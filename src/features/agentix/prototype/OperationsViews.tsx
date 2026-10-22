@@ -47,7 +47,8 @@ const BADGE_TONE = { positive: "positive", attention: "warning", danger: "danger
  * specialist, what it's doing, whether it needs you and its latest verified
  * result, so the list answers the three questions before anything is opened.
  */
-export function Fleet({ state, query, filter, onOpen, onReset }: { state: AgentixState; query: string; filter: string; onOpen: (id: string) => void; onReset: () => void }) {
+/* `listed` holds the engagements whose waiting items the Needs you list above already shows (unfolded). */
+export function Fleet({ state, query, filter, onOpen, onReset, listed }: { state: AgentixState; query: string; filter: string; onOpen: (id: string) => void; onReset: () => void; listed?: ReadonlySet<string> }) {
 	const term = query.trim().toLowerCase()
 	const engagements = Object.values(state.engagements).filter(engagement => {
 		// The customer demo's revenue engagement appears once its Discovery creates it.
@@ -71,8 +72,6 @@ export function Fleet({ state, query, filter, onOpen, onReset }: { state: Agenti
 				const lead = accountable(engagement)
 				const team = teamOf(engagement).length
 				const status = health(state, engagement)
-				const waiting = needsYou(state, engagement.id).length
-				const latestResult = achievements(state, engagement.id, 1)[0]
 				const open = state.work.filter(item => item.engagementId === engagement.id && !isTerminal(item)).length
 				return (
 					<Tile
@@ -80,16 +79,15 @@ export function Fleet({ state, query, filter, onOpen, onReset }: { state: Agenti
 						className="aop-agent-card"
 						onClick={() => onOpen(engagement.id)}
 						mark={<Mark seed={engagement.id} />}
-						aside={<Badge tone={BADGE_TONE[status.tone]}>{status.label}</Badge>}
+						// "Needs you" is said once: by the list above the cards when it shows that engagement, otherwise on the card.
+						aside={status.label === "Active" || (status.label === "Needs you" && listed?.has(engagement.id)) ? undefined : <Badge tone={BADGE_TONE[status.tone]}>{status.label}</Badge>}
 						title={engagement.name}
 						meta={team > 1 ? `${lead.name} + ${team - 1} specialist${team === 2 ? "" : "s"}` : `${lead.name} · one agent`}
 						footer={engagement.status === "draft" ? <span className="ds-tile-stats">Set up to activate</span> : (
 							<span className="aop-tile-foot">
 								<span className="aop-tile-activity">{presenceLine(state, engagement)}</span>
-								<span className="aop-tile-line">
-									<span className="ds-tile-stats"><span><b>{open}</b> open</span><span><b>{waiting}</b> {waiting === 1 ? "needs" : "need"} you</span></span>
-									{latestResult ? <span className="aop-tile-result"><CheckCircle size={12} weight="fill" aria-hidden="true" /><span>{latestResult.title}</span></span> : null}
-								</span>
+								{/* One count: what needs you is the badge above and the Needs you list, and results live in the engagement. */}
+								<span className="ds-tile-stats"><span><b>{open}</b> open</span></span>
 							</span>
 						)} />
 				)

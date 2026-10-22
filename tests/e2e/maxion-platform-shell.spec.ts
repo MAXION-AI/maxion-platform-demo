@@ -72,7 +72,7 @@ test("keeps the canonical MAXION shell functional across core modules", async ({
 
 	await navigation.getByRole("button", { name: "Integrations" }).click()
 	await expect(page.getByRole("heading", { name: "Integrations" })).toBeVisible()
-	await page.getByRole("textbox", { name: "Search integrations" }).fill("Workday")
+	await page.getByRole("searchbox", { name: "Search integrations" }).fill("Workday")
 	await page.getByRole("button", { name: "Connect" }).click()
 	await expect(page.getByText("Workday connected.")).toBeVisible()
 

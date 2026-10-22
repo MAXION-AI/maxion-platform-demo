@@ -28,8 +28,10 @@ const hash = (value: string, seed: number) => { let h = seed >>> 0; for (let i =
 /* The tint a seed's Mark wears, so a surface can sit in the same colour as its logo. */
 export const markTint = (seed: string) => hash(seed, 2) % TINTS
 
-export function Mark({ seed, size, className }: { seed: string; size?: "sm" | "xs"; className?: string }) {
-	return <span className={cx("ds-mark", size && `ds-mark--${size}`, className)} data-tint={markTint(seed)} aria-hidden="true"><svg viewBox="0 0 24 24">{MARKS[hash(seed, 4) % MARKS.length]}</svg></span>
+/* `tone="neutral"` keeps the shape in ink on a grey tile: for things (sources, documents, templates) that
+ * sit beside agents, so colour stays with the agents and with what needs action. */
+export function Mark({ seed, size, tone, className }: { seed: string; size?: "sm" | "xs"; tone?: "neutral"; className?: string }) {
+	return <span className={cx("ds-mark", size && `ds-mark--${size}`, className)} data-tint={tone === "neutral" ? undefined : markTint(seed)} aria-hidden="true"><svg viewBox="0 0 24 24">{MARKS[hash(seed, 4) % MARKS.length]}</svg></span>
 }
 
 export function TileGrid({ className, children, ...rest }: HTMLAttributes<HTMLElement>) {
@@ -45,7 +47,8 @@ export function Tile({ mark, aside, title, meta, footer, className, type = "butt
 	return <button type={type} className={cx("ds-tile", className)} aria-labelledby={label} aria-describedby={description} {...rest}>{mark || aside ? <span className="ds-tile-top" id={aside ? `${id}-aside` : undefined}>{mark}{aside}</span> : null}<span className="ds-tile-heading"><strong id={`${id}-title`}>{title}</strong>{meta ? <small id={`${id}-meta`}>{meta}</small> : null}</span>{footer ? <span className="ds-tile-footer" id={`${id}-footer`}>{footer}</span> : null}</button>
 }
 
-type ButtonProps = ButtonHTMLAttributes<HTMLButtonElement> & { variant?: "primary" | "secondary" | "ghost"; size?: "sm"; icon?: boolean }
+/* Three sizes, as the live app sets them: 36 for page actions, sm 32 for the top bar and toolbars, xs 24 inline in rows. */
+type ButtonProps = ButtonHTMLAttributes<HTMLButtonElement> & { variant?: "primary" | "secondary" | "ghost"; size?: "sm" | "xs"; icon?: boolean }
 export const Button = forwardRef<HTMLButtonElement, ButtonProps>(function Button({ variant = "secondary", size, icon = false, className, type = "button", ...rest }, ref) {
 	return <button ref={ref} type={type} className={cx("ds-button", variant !== "secondary" && `ds-button--${variant}`, size && `ds-button--${size}`, icon && "ds-button--icon", className)} {...rest} />
 })

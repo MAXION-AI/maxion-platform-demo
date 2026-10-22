@@ -1,46 +1,35 @@
 /* The team floor (TeamFloor.tsx, AgentRoom.tsx, FloorTalk.tsx). Tokens only. One bordered surface holds
  * the canvas and the room, as the reference's workflow tab holds its canvas and settings panel. On the
- * canvas every seat is the same hairline card on a quiet dot grid; the team's lines are thin, end in
- * arrowheads and never run under a seat; labels sit on the lines as pills. Nothing is lifted. */
-.aop-root .tf { display: grid; gap: var(--ds-space-3); }
-.aop-root .tf-body { display: grid; grid-template-columns: minmax(0, 1fr); height: var(--ds-floor-h); overflow: hidden; border: 1px solid var(--ds-border); border-radius: var(--ds-radius-lg); }
+ * canvas every seat is the same white card whose edge is barely there, on a faint dot grid that falls
+ * away toward the edges. The only lines are the team's: thin, solid, ending in open arrowheads, never
+ * under a seat, each labelled with a pill. A system in use is named on the agent's footer, as the
+ * reference node lists its tools; nothing is drawn to it. Nothing is lifted. */
+/* isolate: the floor's own layers (seats, labels, the talk dock) never paint over the sticky tab strip. */
+.aop-root .tf { display: grid; gap: var(--ds-space-4); isolation: isolate; }
+.aop-root .tf-body { display: grid; grid-template-columns: minmax(0, 1fr); height: var(--ds-floor-h); overflow: hidden; border: 1px solid var(--ds-floor-edge); border-radius: var(--ds-radius-xl); }
 .aop-root .tf-body.has-room { grid-template-columns: minmax(0, 1fr) var(--ds-room-w); }
-.aop-root .tf-canvas { position: relative; min-width: 0; overflow: hidden; background-color: var(--ds-bg-inset); background-image: radial-gradient(var(--ds-border) 1px, transparent 1px); background-size: var(--ds-floor-grid) var(--ds-floor-grid); }
+.aop-root .tf-canvas { position: relative; min-width: 0; overflow: hidden; background-color: var(--ds-bg); background-image: var(--ds-floor-dots); background-position: center; background-size: var(--ds-floor-grid) var(--ds-floor-grid); }
+.aop-root .tf-canvas.is-compact { background-image: none; }
 
 /* The canvas toolbar, top right; its words go before your seat would be crowded. */
-.aop-root .tf-tools { position: absolute; z-index: 4; top: var(--ds-space-3); right: var(--ds-space-3); display: flex; gap: var(--ds-space-1); }
-.aop-root .tf-tools .ds-button { background: var(--ds-bg); }
+.aop-root .tf-tools { position: absolute; z-index: 4; top: var(--ds-space-4); right: var(--ds-space-4); display: flex; gap: var(--ds-space-1); }
+.aop-root .tf-tools .ds-button { border-color: var(--ds-floor-edge); background: var(--ds-bg); }
+.aop-root .tf-tools .ds-button:hover { border-color: var(--ds-border); }
 .aop-root .tf-tools .ds-button[aria-pressed="true"] { background: var(--ds-bg-selected); }
 .aop-root .tf-tools.is-none .tf-tool-label, .aop-root .tf-tools.is-talk .ds-button:not(.is-talk) .tf-tool-label { display: none; }
 
-/* Lines. */
+/* Lines: the team's only, solid, with open arrowheads drawn in the line's own stroke. */
 .aop-root .tf-edges { position: absolute; inset: 0; overflow: visible; pointer-events: none; }
-.aop-root .tf-edge { fill: none; stroke: var(--ds-border-strong); stroke-width: 1px; }
-.aop-root .tf-arrow path { fill: var(--ds-border-strong); }
-.aop-root .tf-arrow.is-flow path { fill: var(--ds-brand-teal); }
-.aop-root .tf-arrow.is-ask path { fill: var(--ds-warning-fg); }
-.aop-root .tf-edge.is-reach { stroke-dasharray: 3 4; }
-.aop-root .tf-edge.is-ask { stroke: var(--ds-warning-fg); stroke-dasharray: 4 4; }
-.aop-root .tf-edge.is-live { stroke: var(--ds-orb-1); }
-.aop-root .tf-flow { fill: none; stroke: var(--ds-brand-teal); stroke-width: 2px; stroke-dasharray: 4 10; stroke-linecap: round; animation: tf-flow 900ms linear infinite; }
-.aop-root .tf-reach.is-readback .tf-edge, .aop-root .tf-reach.is-waiting .tf-edge { stroke: var(--ds-warning-fg); }
-.aop-root .tf-reach.is-readback .tf-flow { stroke: var(--ds-warning-fg); }
-.aop-root .tf-reach.is-waiting .tf-flow { display: none; }
-.aop-root .tf-reach.is-blocked .tf-edge { stroke: var(--ds-danger-fg); }
-.aop-root .tf-reach.is-blocked .tf-flow { display: none; }
-@keyframes tf-flow { to { stroke-dashoffset: -28; } }
+.aop-root .tf-edge { fill: none; stroke: var(--ds-floor-line); stroke-width: 1px; stroke-linecap: round; }
+.aop-root .tf-arrow path { fill: none; stroke: var(--ds-floor-line); stroke-width: 1; stroke-linecap: round; stroke-linejoin: round; }
 
-/* Labels on the lines, as the reference's edge pills: amber for you, red for a block, ink for work moving. */
-.aop-root .tf-pill { position: absolute; z-index: 3; display: inline-flex; align-items: center; height: var(--ds-lh-sm); padding: 0 var(--ds-space-2); border-radius: var(--ds-radius-full); font-size: var(--ds-text-xs); line-height: var(--ds-lh-xs); font-weight: var(--ds-weight-medium); white-space: nowrap; pointer-events: none; transform: translate(-50%, -50%); }
-.aop-root .tf-pill.is-attention { background: var(--ds-warning-bg); color: var(--ds-warning-fg); }
-.aop-root .tf-pill.is-danger { background: var(--ds-danger-bg); color: var(--ds-danger-fg); }
-.aop-root .tf-pill.is-positive { background: var(--ds-positive-bg); color: var(--ds-positive-fg); }
-.aop-root .tf-pill.is-neutral { background: var(--ds-fg); color: var(--ds-bg); }
-/* What is moving is labelled lightly: the line and the dot carry it, the label only names it. */
-.aop-root .tf-pill.is-travelling { border: 1px solid var(--ds-border); background: var(--ds-bg); color: var(--ds-fg); animation: tf-label 1500ms var(--ds-ease) forwards; }
-.aop-root .tf-pill.is-travelling.is-attention { color: var(--ds-warning-fg); }
-.aop-root .tf-pill.is-travelling.is-positive { color: var(--ds-positive-fg); }
-@keyframes tf-label { 0% { opacity: 0; } 15%, 75% { opacity: 1; } 100% { opacity: 0; } }
+/* The team's labels, always on, as the reference canvas labels every edge: a dark pill in the middle of the
+ * gap, its words cut short before they reach a neighbour. Something waiting on you is amber; what is moving
+ * along the line takes the label while it travels. */
+.aop-root .tf-label { position: absolute; z-index: 3; display: block; box-sizing: border-box; height: var(--ds-control-h-xs); padding: 0 calc(var(--ds-space-2) + 2px); overflow: hidden; border-radius: var(--ds-radius-full); background: var(--ds-fg); color: var(--ds-bg); font-size: var(--ds-text-chip); line-height: var(--ds-control-h-xs); font-weight: var(--ds-weight-medium); letter-spacing: var(--ds-track-chip); text-overflow: ellipsis; white-space: nowrap; transform: translate(-50%, -50%); }
+.aop-root .tf-label.is-attention { background: var(--ds-warning-bg); color: var(--ds-warning-fg); }
+.aop-root .tf-label.is-moving { animation: tf-label-in 240ms var(--ds-ease); }
+@keyframes tf-label-in { from { opacity: 0.4; } to { opacity: 1; } }
 /* What moves travels along the lines, under the seats. */
 .aop-root .tf-travel { position: absolute; z-index: 1; top: 0; left: 0; width: var(--ds-space-2); height: var(--ds-space-2); border-radius: var(--ds-radius-full); background: var(--ds-fg); offset-rotate: 0deg; animation: tf-travel 1500ms var(--ds-ease) forwards; }
 .aop-root .tf-travel.is-attention { background: var(--ds-warning-fg); }
@@ -48,69 +37,77 @@
 @keyframes tf-travel { from { offset-distance: 0%; } to { offset-distance: 100%; } }
 
 /* Seats: the owner, the agents, the systems. Every one the same card. */
-.aop-root .tf-seat, .aop-root .tf-system { position: absolute; z-index: 2; box-sizing: border-box; overflow: hidden; border: 1px solid var(--ds-border); border-radius: var(--ds-radius-lg); background: var(--ds-bg); color: var(--ds-fg); transition: border-color 200ms var(--ds-ease), opacity 200ms var(--ds-ease); }
-.aop-root .tf-seat { display: grid; align-content: start; gap: var(--ds-space-1); padding: var(--ds-space-3); font: inherit; text-align: left; cursor: pointer; }
+.aop-root .tf-seat, .aop-root .tf-system { position: absolute; z-index: 2; box-sizing: border-box; overflow: hidden; border: 1px solid var(--ds-floor-edge); border-radius: var(--ds-radius-md); background: var(--ds-bg); color: var(--ds-fg); transition: border-color 200ms var(--ds-ease), opacity 200ms var(--ds-ease); }
+.aop-root .tf-seat { display: grid; align-content: start; gap: var(--ds-space-1); padding: var(--ds-space-4); font: inherit; text-align: left; cursor: pointer; }
 .aop-root .tf-seat:hover { border-color: var(--ds-border-strong); }
 .aop-root .tf-seat:focus-visible { outline: 2px solid var(--ds-ring); outline-offset: 2px; }
 .aop-root .tf-seat.is-selected { border-color: var(--ds-fg); }
-.aop-root .tf-owner { display: flex; align-items: center; gap: var(--ds-space-2); padding: var(--ds-space-1) var(--ds-space-3); }
+.aop-root .tf-owner { display: flex; align-items: center; gap: var(--ds-space-3); padding: var(--ds-space-2) var(--ds-space-4); }
 .aop-root .tf-owner > svg { flex-shrink: 0; color: var(--ds-fg-subtle); }
-.aop-root .tf-owner.is-asking { border-color: var(--ds-warning-fg); }
-.aop-root .tf-owner.is-asking > svg { color: var(--ds-warning-fg); }
 .aop-root .tf-owner.is-selected { border-color: var(--ds-fg); }
 .aop-root .tf-seat-text { display: grid; min-width: 0; }
-.aop-root .tf-seat-text strong { font-size: var(--ds-text-sm); line-height: var(--ds-lh-sm); font-weight: var(--ds-weight-semibold); }
+.aop-root .tf-seat-text strong { font-size: var(--ds-text-md); line-height: var(--ds-lh-md); font-weight: var(--ds-weight-regular); letter-spacing: var(--ds-track-name); font-variation-settings: var(--ds-opsz-display); }
 .aop-root .tf-seat-text small { overflow: hidden; color: var(--ds-fg-subtle); font-size: var(--ds-text-xs); line-height: var(--ds-lh-xs); text-overflow: ellipsis; white-space: nowrap; }
-.aop-root .tf-count { margin-left: auto; padding: 0 var(--ds-space-2); border-radius: var(--ds-radius-full); background: var(--ds-warning-bg); color: var(--ds-warning-fg); font-size: var(--ds-text-xs); line-height: var(--ds-lh-xs); font-weight: var(--ds-weight-semibold); }
+.aop-root .tf-count { margin-left: auto; padding: 0 var(--ds-space-2); border-radius: var(--ds-radius-full); background: var(--ds-warning-bg); color: var(--ds-warning-fg); font-size: var(--ds-text-chip); line-height: var(--ds-lh-chip); font-weight: var(--ds-weight-semibold); }
 
 /* An agent: who, what it is doing now, and the work it holds. Names wrap rather than cut; a wrapped
  * name gives the sentence one line (data-lines, set after layout), and so does a short floor. */
 .aop-root .tf-agent-head { display: flex; align-items: flex-start; gap: var(--ds-space-2); min-width: 0; }
 .aop-root .tf-agent-head .ds-mark { flex-shrink: 0; margin-top: 2px; }
-.aop-root .tf-agent-head strong { display: -webkit-box; flex: 1; min-width: 0; overflow: hidden; font-size: var(--ds-text-sm); line-height: var(--ds-lh-sm); font-weight: var(--ds-weight-semibold); -webkit-box-orient: vertical; -webkit-line-clamp: 2; }
+.aop-root .tf-agent-head strong { display: -webkit-box; flex: 1; min-width: 0; overflow: hidden; font-size: var(--ds-text-md); line-height: var(--ds-lh-md); font-weight: var(--ds-weight-regular); letter-spacing: var(--ds-track-name); font-variation-settings: var(--ds-opsz-display); -webkit-box-orient: vertical; -webkit-line-clamp: 2; }
 .aop-root .tf-state { position: relative; flex-shrink: 0; width: var(--ds-space-2); height: var(--ds-space-2); margin-top: var(--ds-space-1); border-radius: var(--ds-radius-full); background: var(--ds-border-strong); }
 .aop-root .tf-state.is-working { background: var(--ds-brand-teal); }
 .aop-root .tf-state.is-recovering, .aop-root .tf-state.is-decision { background: var(--ds-warning-fg); }
 .aop-root .tf-agent-now { display: -webkit-box; overflow: hidden; color: var(--ds-fg-subtle); font-size: var(--ds-text-xs); line-height: var(--ds-lh-xs); -webkit-box-orient: vertical; -webkit-line-clamp: 2; }
 .aop-root .tf-agent[data-lines="2"] .tf-agent-now, .aop-root .tf-canvas.is-tight .tf-agent-now { -webkit-line-clamp: 1; }
-.aop-root .tf-canvas.is-tight .tf-agent[data-lines="2"] .tf-agent-meta { display: none; }
-.aop-root .tf-agent-meta { display: flex; align-items: center; gap: var(--ds-space-1); min-width: 0; overflow: hidden; }
-.aop-root .tf-role { flex-shrink: 0; margin-right: var(--ds-space-1); color: var(--ds-fg-subtle); font-size: var(--ds-text-xs); line-height: var(--ds-lh-xs); }
-.aop-root .tf-tag { flex-shrink: 0; overflow: hidden; padding: 0 var(--ds-space-2); border-radius: var(--ds-radius-full); background: var(--ds-bg-muted); color: var(--ds-fg-subtle); font-size: var(--ds-text-xs); line-height: var(--ds-lh-xs); text-overflow: ellipsis; white-space: nowrap; }
-.aop-root .tf-tag:last-child { flex-shrink: 1; min-width: 0; }
-.aop-root .tf-tag.is-mono { font-family: var(--ds-font-mono); }
-.aop-root .tf-tag.is-danger { background: var(--ds-danger-bg); color: var(--ds-danger-fg); }
+/* An agent is the reference node: a body (its name and what it is doing) over a grey footer band of chips. */
+.aop-root .tf-agent { grid-template-rows: minmax(0, 1fr) auto; gap: 0; padding: 0; }
+.aop-root .tf-agent-body { display: grid; align-content: start; gap: var(--ds-space-1); min-height: 0; padding: var(--ds-space-4); overflow: hidden; }
+.aop-root .tf-canvas.is-tight .tf-agent-body { padding-block: var(--ds-space-3); }
+.aop-root .tf-agent-foot { display: flex; align-items: center; gap: var(--ds-space-1); min-width: 0; padding: calc(var(--ds-space-1) + 2px) var(--ds-space-3); overflow: hidden; border-top: 1px solid var(--ds-floor-edge); background: var(--ds-bg-inset); }
+.aop-root .tf-canvas.is-tight .tf-agent[data-lines="2"] .tf-agent-foot { display: none; }
+.aop-root .tf-chip { display: inline-flex; flex-shrink: 0; align-items: center; gap: var(--ds-space-1); padding: 0 var(--ds-space-2); border: 1px solid var(--ds-border); border-radius: var(--ds-radius-full); background: var(--ds-bg); color: var(--ds-fg); font-size: var(--ds-text-chip); line-height: var(--ds-lh-chip); font-weight: var(--ds-weight-medium); letter-spacing: var(--ds-track-chip); white-space: nowrap; }
+.aop-root .tf-chip:last-child { flex-shrink: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.aop-root .tf-chip > svg { flex-shrink: 0; color: var(--ds-fg-subtle); }
+.aop-root .tf-chip.is-danger { color: var(--ds-danger-fg); }
+/* A system the agent is using now: the reference node's tool chip. */
+.aop-root .tf-chip.is-system { gap: calc(var(--ds-space-1) + 2px); }
+.aop-root .tf-chip-text { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.aop-root .tf-foot-note { overflow: hidden; color: var(--ds-fg-subtle); font-size: var(--ds-text-xs); line-height: var(--ds-lh-xs); text-overflow: ellipsis; white-space: nowrap; }
 .aop-root .tf-agent.is-decision, .aop-root .tf-agent.is-recovering { border-color: var(--ds-warning-fg); }
 .aop-root .tf-agent.is-selected { border-color: var(--ds-fg); }
 .aop-root .tf-agent.is-lit { border-color: var(--ds-brand-teal); outline: 2px solid var(--ds-orb-glow); outline-offset: 0; }
 
 /* A system: what it is and what the team may do there. A long name takes both lines. */
-.aop-root .tf-system { display: flex; align-items: center; gap: var(--ds-space-2); padding: var(--ds-space-1) var(--ds-space-2); border-radius: var(--ds-radius-md); }
-.aop-root .tf-system-icon { display: grid; flex-shrink: 0; place-items: center; width: var(--ds-avatar-sm); height: var(--ds-avatar-sm); border-radius: var(--ds-radius-sm); background: var(--ds-bg-muted); color: var(--ds-fg-subtle); }
-.aop-root .tf-system .tf-seat-text strong { font-size: var(--ds-text-xs); line-height: var(--ds-lh-xs); }
+.aop-root .tf-system { display: flex; align-items: center; gap: var(--ds-space-2); padding: var(--ds-space-2) var(--ds-space-3); border-radius: var(--ds-radius-lg); }
+.aop-root .tf-system-icon { display: grid; flex-shrink: 0; place-items: center; width: var(--ds-avatar-sm); height: var(--ds-avatar-sm); border-radius: var(--ds-radius-sm); color: var(--ds-fg-subtle); }
+.aop-root .tf-system .tf-seat-text strong { font-size: var(--ds-text-xs); line-height: var(--ds-lh-xs); font-weight: var(--ds-weight-medium); letter-spacing: normal; font-variation-settings: normal; }
 /* On the floor a system is its icon and name (capability is in its tooltip and the rooms); the list adds the capability. */
 .aop-root .tf-canvas:not(.is-compact) .tf-system .tf-seat-text small { display: none; }
-.aop-root .tf-system.is-active { border-color: var(--ds-brand-teal); }
-.aop-root .tf-system.is-active .tf-system-icon { background: var(--ds-sidebar-selected); color: var(--ds-brand-teal); }
+/* In use: the edge firms up and the icon takes full ink; the agent's footer names who is using it. */
+.aop-root .tf-system.is-active { border-color: var(--ds-border-strong); }
+.aop-root .tf-system.is-active .tf-system-icon { color: var(--ds-fg); }
 .aop-root .tf-system.is-readback, .aop-root .tf-system.is-waiting { border-color: var(--ds-warning-fg); }
 .aop-root .tf-system.is-blocked { border-color: var(--ds-danger-fg); }
-.aop-root .tf-system.is-quiet { opacity: 0.45; }
+/* Quiet, not faded: subtle ink keeps the name readable (opacity failed contrast). */
+.aop-root .tf-system.is-quiet { color: var(--ds-fg-subtle); }
+.aop-root .tf-system.is-quiet .tf-seat-text :is(strong, small) { color: var(--ds-fg-subtle); }
 /* The release state, in words, sitting on the top edge of the system it concerns. */
 .aop-root .tf-system:has(.tf-status) { overflow: visible; }
-.aop-root .tf-status { position: absolute; z-index: 1; top: 0; right: var(--ds-space-2); padding: 0 var(--ds-space-2); border-radius: var(--ds-radius-full); font-size: var(--ds-text-xs); line-height: var(--ds-lh-xs); font-weight: var(--ds-weight-medium); white-space: nowrap; transform: translateY(-50%); }
+.aop-root .tf-status { position: absolute; z-index: 1; top: 0; right: var(--ds-space-2); padding: 0 var(--ds-space-2); border-radius: var(--ds-radius-full); font-size: var(--ds-text-chip); line-height: var(--ds-lh-chip); font-weight: var(--ds-weight-medium); white-space: nowrap; transform: translateY(-50%); }
 .aop-root .tf-status.is-attention { background: var(--ds-warning-bg); color: var(--ds-warning-fg); }
 .aop-root .tf-status.is-danger { background: var(--ds-danger-bg); color: var(--ds-danger-fg); }
 .aop-root .tf-canvas.is-compact .tf-status { position: static; margin-left: auto; transform: none; }
 
 /* Talking: a flat band across the bottom of the canvas; the team stays in view above it. */
-.aop-root .tf-talk-dock { position: absolute; z-index: 5; right: 0; bottom: 0; left: 0; border-top: 1px solid var(--ds-border); background: var(--ds-bg); }
-.aop-root .tf-talk { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: start; gap: var(--ds-space-3); padding: var(--ds-space-3) var(--ds-space-4); }
+.aop-root .tf-talk-dock { position: absolute; z-index: 5; right: 0; bottom: 0; left: 0; border-top: 1px solid var(--ds-floor-edge); background: var(--ds-bg); }
+.aop-root .tf-talk { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: start; gap: var(--ds-space-4); padding: var(--ds-space-4) var(--ds-space-5); }
 .aop-root .tf-talk-body { display: grid; gap: var(--ds-space-2); min-width: 0; }
 .aop-root .tf-talk-state { margin: 0; color: var(--ds-fg-subtle); font-size: var(--ds-text-xs); line-height: var(--ds-lh-xs); }
 .aop-root .tf-talk-line { display: -webkit-box; overflow: hidden; margin: 0; color: var(--ds-fg); font-size: var(--ds-text-md); line-height: var(--ds-lh-md); -webkit-box-orient: vertical; -webkit-line-clamp: 3; }
 .aop-root .tf-talk-line .is-coming { color: var(--ds-fg-subtle); }
 .aop-root .tf-talk-prompts, .aop-root .tf-chat-suggest { display: flex; flex-wrap: wrap; gap: var(--ds-space-1); }
-.aop-root .tf-talk-prompts button, .aop-root .tf-chat-suggest button { height: var(--ds-control-h-xs); padding: 0 var(--ds-space-2); border: 1px solid var(--ds-border); border-radius: var(--ds-radius-full); background: var(--ds-bg); color: var(--ds-fg); font: inherit; font-size: var(--ds-text-xs); cursor: pointer; }
+.aop-root .tf-talk-prompts button, .aop-root .tf-chat-suggest button { height: var(--ds-control-h-xs); padding: 0 var(--ds-space-2); border: 1px solid var(--ds-border); border-radius: var(--ds-radius-full); background: var(--ds-bg); color: var(--ds-fg); font: inherit; font-size: var(--ds-text-chip); cursor: pointer; }
 .aop-root .tf-talk-prompts button:hover, .aop-root .tf-chat-suggest button:hover { background: var(--ds-bg-hover); }
 .aop-root .tf-talk-compose, .aop-root .tf-chat-compose { display: flex; align-items: center; gap: var(--ds-space-1); padding: 2px 2px 2px var(--ds-space-3); border: 1px solid var(--ds-border); border-radius: var(--ds-radius-full); }
 .aop-root .tf-chat-compose { align-items: flex-end; border-radius: var(--ds-radius-xl); }
@@ -131,17 +128,17 @@
 /* The room beside the floor. */
 .aop-root .tf-room { display: grid; align-content: start; min-height: 0; overflow-y: auto; overscroll-behavior: contain; border-left: 1px solid var(--ds-border); background: var(--ds-bg); }
 .aop-root .tf-room-head { position: sticky; z-index: 1; top: 0; background: var(--ds-bg); }
-.aop-root .tf-room-head { display: flex; align-items: center; gap: var(--ds-space-3); padding: var(--ds-space-3) var(--ds-space-4); border-bottom: 1px solid var(--ds-border); }
+.aop-root .tf-room-head { display: flex; align-items: center; gap: var(--ds-space-3); padding: var(--ds-space-4) var(--ds-space-5); border-bottom: 1px solid var(--ds-border); }
 .aop-root .tf-room-head > div { flex: 1; min-width: 0; }
 .aop-root .tf-room-close { display: grid; flex-shrink: 0; place-items: center; width: var(--ds-control-h-sm); height: var(--ds-control-h-sm); border: 0; border-radius: var(--ds-radius-full); background: transparent; color: var(--ds-fg-subtle); cursor: pointer; }
 .aop-root .tf-room-close:hover { background: var(--ds-bg-hover); color: var(--ds-fg); }
-.aop-root .tf-room-head h2 { display: flex; flex-wrap: wrap; align-items: center; gap: var(--ds-space-2); margin: 0; font-size: var(--ds-text-md); line-height: var(--ds-lh-md); font-weight: var(--ds-weight-semibold); outline: none; }
+.aop-root .tf-room-head h2 { display: flex; flex-wrap: wrap; align-items: center; gap: var(--ds-space-2); margin: 0; font-size: var(--ds-text-md); line-height: var(--ds-lh-md); font-weight: var(--ds-weight-medium); outline: none; }
 .aop-root .tf-room-head p { margin: 2px 0 0; color: var(--ds-fg-subtle); font-size: var(--ds-text-xs); line-height: var(--ds-lh-xs); }
 .aop-root .tf-room-icon { display: grid; flex-shrink: 0; place-items: center; width: var(--ds-space-8); height: var(--ds-space-8); border-radius: var(--ds-radius-md); background: var(--ds-bg-muted); color: var(--ds-fg-subtle); }
-.aop-root .tf-room-section { display: grid; gap: var(--ds-space-2); padding: var(--ds-space-3) var(--ds-space-4); border-bottom: 1px solid var(--ds-border); }
+.aop-root .tf-room-section { display: grid; gap: var(--ds-space-3); padding: var(--ds-space-5); border-bottom: 1px solid var(--ds-border); }
 .aop-root .tf-room-section h3, .aop-root .tf-room-chat h3 { margin: 0; color: var(--ds-fg-subtle); font-size: var(--ds-text-xs); line-height: var(--ds-lh-xs); font-weight: var(--ds-weight-medium); }
 .aop-root .tf-room-chips { display: flex; flex-wrap: wrap; gap: var(--ds-space-1); margin: 0; padding: 0; list-style: none; }
-.aop-root .tf-room-chips li { padding: 0 var(--ds-space-2); border: 1px solid var(--ds-border); border-radius: var(--ds-radius-full); font-size: var(--ds-text-xs); line-height: var(--ds-lh-xs); }
+.aop-root .tf-room-chips li { padding: 2px var(--ds-space-2); border-radius: var(--ds-radius-full); background: var(--ds-bg-callout); font-size: var(--ds-text-chip); line-height: var(--ds-lh-chip); }
 .aop-root .tf-room-chips span { margin-left: var(--ds-space-1); color: var(--ds-fg-subtle); }
 .aop-root .tf-room-never { display: flex; gap: var(--ds-space-2); margin: 0; color: var(--ds-fg-subtle); font-size: var(--ds-text-xs); line-height: var(--ds-lh-xs); }
 .aop-root .tf-room-never svg { flex-shrink: 0; margin-top: 1px; }
@@ -150,7 +147,7 @@
 .aop-root .tf-room-link { display: inline-flex; flex-wrap: wrap; align-items: center; gap: var(--ds-space-1); padding: 0; border: 0; background: none; color: var(--ds-fg); font: inherit; font-size: var(--ds-text-sm); line-height: var(--ds-lh-sm); text-align: left; cursor: pointer; }
 .aop-root .tf-room-link:hover { text-decoration: underline; text-underline-offset: var(--ds-underline-offset); }
 .aop-root .tf-room-link span { flex-basis: 100%; color: var(--ds-fg-subtle); font-size: var(--ds-text-xs); line-height: var(--ds-lh-xs); }
-.aop-root .tf-room-list { display: grid; gap: var(--ds-space-3); margin: 0; padding: 0; list-style: none; }
+.aop-root .tf-room-list { display: grid; gap: var(--ds-space-4); margin: 0; padding: 0; list-style: none; }
 .aop-root .tf-room-list li { display: flex; gap: var(--ds-space-2); color: var(--ds-fg); font-size: var(--ds-text-sm); line-height: var(--ds-lh-sm); }
 .aop-root .tf-room-list li > svg { flex-shrink: 0; color: var(--ds-positive-fg); }
 .aop-root .tf-room-list time { display: block; color: var(--ds-fg-subtle); font-size: var(--ds-text-xs); line-height: var(--ds-lh-xs); font-variant-numeric: tabular-nums; }
@@ -167,7 +164,7 @@
 /* A decision in your room is the room's content, not a card inside it; its choices stay in view while you read. */
 .aop-root .tf-room .aop-decision { gap: var(--ds-space-3); margin: 0; padding: 0; border: 0; border-radius: 0; }
 .aop-root .tf-room .aop-decision-foot { position: sticky; bottom: 0; padding: var(--ds-space-3) 0; background: var(--ds-bg); }
-.aop-root .tf-room-chat { display: grid; gap: var(--ds-space-2); padding: var(--ds-space-3) var(--ds-space-4) var(--ds-space-4); }
+.aop-root .tf-room-chat { display: grid; gap: var(--ds-space-3); padding: var(--ds-space-5); }
 /* A room's conversation, set like the main one: the agent's words in body type on a relaxed line, yours in a soft bubble. */
 .aop-root .tf-chat-log { display: grid; gap: var(--ds-space-4); max-height: var(--ds-chat-log-h); margin: 0; padding: 0; overflow-y: auto; list-style: none; }
 .aop-root .tf-chat-log li { display: grid; gap: var(--ds-space-1); }
@@ -186,10 +183,8 @@
 .aop-root .tf-track { position: relative; height: var(--ds-space-4); }
 .aop-root .tf-track::before { position: absolute; top: 50%; right: 0; left: 0; height: 1px; background: var(--ds-border); content: ""; }
 .aop-root .tf-tick { position: absolute; top: 50%; width: 2px; height: var(--ds-space-2); border-radius: 1px; background: var(--ds-border-strong); translate: -50% -50%; }
-.aop-root .tf-tick.is-handoff { background: var(--ds-brand-teal); }
-.aop-root .tf-tick.is-decision, .aop-root .tf-tick.is-attention { background: var(--ds-warning-fg); }
+/* The record's ticks are one quiet grey; only a failure and now stand out. */
 .aop-root .tf-tick.is-danger { background: var(--ds-danger-fg); }
-.aop-root .tf-tick.is-release { background: var(--ds-fg); }
 .aop-root .tf-tick.is-now { height: var(--ds-space-4); background: var(--ds-fg); }
 
 /* The team assembles once, the first time the floor opens after activation. */
@@ -202,7 +197,7 @@
 /* Narrow: the seats stack and the room follows the floor. */
 @media (max-width: 1200px) {
 	.aop-root .tf-body, .aop-root .tf-body.has-room { grid-template-columns: minmax(0, 1fr); grid-template-rows: var(--ds-floor-h) auto; height: auto; }
-	.aop-root .tf-room { border-top: 1px solid var(--ds-border); border-left: 0; }
+	.aop-root .tf-room { border-top: 1px solid var(--ds-border); border-left: 0; scroll-margin-top: calc(var(--ds-control-h) + var(--ds-space-2)); }
 }
 /* Too narrow for a floor: one column, the team then its systems. */
 .aop-root .tf-body:has(.tf-canvas.is-compact) { grid-template-rows: auto; height: auto; }
@@ -216,6 +211,6 @@
 .aop-root .tf-list-label { margin: var(--ds-space-2) 0 0; color: var(--ds-fg-subtle); font-size: var(--ds-text-xs); line-height: var(--ds-lh-xs); }
 
 @media (prefers-reduced-motion: reduce) {
-	.aop-root .tf-flow { animation: none; display: none; }
+	.aop-root .tf-label.is-moving { animation: none; }
 	.aop-root .tf.is-arriving .tf-owner, .aop-root .tf.is-arriving .tf-agent, .aop-root .tf.is-arriving .tf-system, .aop-root .tf.is-arriving .tf-edges { animation: none; }
 }

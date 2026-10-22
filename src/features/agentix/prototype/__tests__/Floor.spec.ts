@@ -4,7 +4,7 @@ import { SCENARIOS } from "../engine/scenarios"
 import { initialState } from "../engine/seed"
 import { previewInstruction, sendInstruction, sendToAgent } from "../engine/steering"
 import type { AgentixState, WorkItem } from "../engine/types"
-import { floorMinWidth, floorPlan, labelPoint, layoutFloor, liveFlows, packetsFor, reachOf, route, systemsForStep, systemsOf, type Box } from "../floor"
+import { floorMinWidth, floorPlan, handsOff, LABEL_H, labelPoint, layoutFloor, liveFlows, packetsFor, reachOf, route, systemsForStep, systemsOf, teamLines, teamPath, type Box } from "../floor"
 
 /*
  * The team floor reads the same engine state as every other view. These tests pin what it shows:
@@ -143,6 +143,44 @@ describe("seating", () => {
 				const target = layout.boxes[`system:${reach.system}`].x, descent = points[points.length - 3].x
 				if (layout.channels.length > 2 && target > layout.channels[1] && target < layout.channels.at(-2)!) expect(layout.channels.slice(1, -1)).toContain(descent)
 			}
+		}
+	})
+
+	it("draws the team as curves within the gap between tiers, each labelled clear of the cards and of each other", () => {
+		for (const [width, height] of SIZES) {
+			const plan = floorPlan(activated(), REV)
+			const layout = layoutFloor(plan, width, height)
+			const lines = teamLines(layout, plan)
+			expect(lines.map(line => line.to)).toEqual(["coordinator", "analyst", "data", "dashboard"])
+			const labels: Box[] = []
+			for (const line of lines) {
+				const source = layout.boxes[line.from], target = layout.boxes[line.to]
+				const numbers = line.d.match(/-?\d+(\.\d+)?/g)!.map(Number)
+				const points = Array.from({ length: numbers.length / 2 }, (_, index) => ({ x: numbers[index * 2], y: numbers[index * 2 + 1] }))
+				// A curve leaves its source's foot and lands on its target's head; every point it is drawn through stays in that gap.
+				expect(points[0].y, `${line.from} → ${line.to}`).toBeCloseTo(source.y + source.height / 2, 5)
+				expect(points.at(-1)!.y).toBeCloseTo(target.y - target.height / 2, 5)
+				for (const point of points) expect(point.y >= points[0].y - 0.01 && point.y <= points.at(-1)!.y + 0.01, `${line.from} → ${line.to} at ${width}×${height}`).toBe(true)
+				if (!line.at) continue
+				// A label holds its gap with room to spare, and never covers a card or another label.
+				const label = { x: line.at.x, y: line.at.y, width: line.room, height: LABEL_H }
+				expect(points.at(-1)!.y - points[0].y).toBeGreaterThanOrEqual(LABEL_H + 8)
+				for (const [id, box] of Object.entries(layout.boxes)) expect(apart(label, box), `${line.from} → ${line.to} label on ${id} at ${width}×${height}`).toBe(true)
+				for (const other of labels) expect(apart(label, other), `labels overlap at ${width}×${height}`).toBe(true)
+				labels.push(label)
+			}
+			// Things travel along the team's curves between any two of the team; a system keeps its routed line.
+			for (const [from, to] of [["owner", "analyst"], ["dashboard", "owner"], ["analyst", "data"], ["coordinator", "dashboard"]]) expect(teamPath(layout, plan, from, to), `${from} → ${to}`).toMatch(/^M /)
+			expect(teamPath(layout, plan, "coordinator", `system:${plan.systems[0].id}`)).toBeNull()
+		}
+	})
+
+	it("labels each specialist's line with the step it is handed", () => {
+		const state = activated()
+		const plan = floorPlan(state, REV)
+		for (const agent of plan.agents.filter(entry => !entry.accountable)) {
+			const steps = Object.values(SCENARIOS[state.engagements[REV].workflowId].templates).flatMap(template => template.steps.filter(step => step.owner === agent.id).map(step => step.title))
+			expect(steps).toContain(handsOff(state, REV, agent.id))
 		}
 	})
 

@@ -117,16 +117,25 @@ export function lineCount(text: string, width: number, kind: "agent" | "system",
 	}
 	return lines
 }
-export const SEAT = { owner: 44, agent: 104, tight: 84, system: 44, system3: 60 }
-const PAD_X = 24
+/* Seat heights follow team-floor.css: a body with 16px padding (12px top and bottom on a tight floor), a 14/20
+ * name and two 12/16 lines of what the agent is doing, over a 31px footer of chips (6px padding, 18px chips,
+ * its hairline). A tight floor gives a two-line name the footer's room. */
+export const SEAT = { owner: 52, agent: 124, tight: 96, system: 48, system3: 64 }
+const SEAT_PAD = 16
+const SYS_PAD = 12
+const PAD_X = 32
 const PAD_Y = 16
-const GAP_X = 16
-const SYS_GAP = 12
+const GAP_X = 20
+const SYS_GAP = 16
 const SEAT_MIN = 168
-const SEAT_MAX = 248
-const SPINE_MAX = 264
-const SYS_MAX = 208
-const GAPS = { owner: [16, 40], bus: [24, 48], lane: [24, 64], rows: 12 } as const
+const SEAT_MAX = 264
+const SPINE_MAX = 280
+const SYS_MAX = 216
+/* The gaps between tiers hold the team's labels (24px pills), so they open wider than the lines alone need. */
+const GAPS = { owner: [40, 56], bus: [48, 64], lane: [32, 72], rows: 16 } as const
+/* A label shows only where its gap holds it with room either side. */
+export const LABEL_H = 24
+const LABEL_ROOM = LABEL_H + 8
 
 const specialistsOf = (plan: FloorPlan) => plan.agents.filter(agent => !agent.accountable)
 const leadOf = (plan: FloorPlan) => plan.agents.find(agent => agent.accountable) ?? plan.agents[0]
@@ -165,9 +174,9 @@ export function layoutFloor(plan: FloorPlan, width: number, height: number, opti
 	const measure = options.measure ?? averageMeasure
 	const lines: Record<string, number> = {}
 	// Widths inside the cards: padding, border, and the mark, dot or tile beside the name.
-	for (const agent of plan.agents) lines[agent.id] = lineCount(agent.member.name, (agent.accountable ? spine : seat) - 2 * 12 - 2 - 20 - 8 - 8 - 8, "agent", measure)
+	for (const agent of plan.agents) lines[agent.id] = lineCount(agent.member.name, (agent.accountable ? spine : seat) - 2 * SEAT_PAD - 2 - 20 - 8 - 8 - 8, "agent", measure)
 	// Systems keep their icon tiles while every name still fits in two lines beside one.
-	const systemLines = (tiles: boolean) => plan.systems.map(system => lineCount(system.link.name, sys.width - 2 - 16 - (tiles ? 24 + 8 : 0), "system", measure))
+	const systemLines = (tiles: boolean) => plan.systems.map(system => lineCount(system.link.name, sys.width - 2 - 2 * SYS_PAD - (tiles ? 24 + 8 : 0), "system", measure))
 	const systemTiles = systemLines(true).every(count => count <= 2)
 	systemLines(systemTiles).forEach((count, index) => { lines[`system:${plan.systems[index].id}`] = count })
 	const systemH = plan.systems.some(system => lines[`system:${system.id}`] > 2) ? SEAT.system3 : SEAT.system
@@ -178,7 +187,9 @@ export function layoutFloor(plan: FloorPlan, width: number, height: number, opti
 	const needed = (agentH: number, squeeze = 1) => (PAD_Y * 2 + GAPS.owner[0] + (n ? GAPS.bus[0] : 0) + (sys.rows ? GAPS.lane[0] : 0)) * squeeze + SEAT.owner + agentH + (n ? agentH : 0) + sysBlock
 	const tight = needed(SEAT.agent) > height
 	const agentH = tight ? SEAT.tight : SEAT.agent
-	const squeeze = needed(agentH) > height ? 0.5 : 1
+	// Then the gaps close only as far as the floor needs, never below a twelfth of their minimum.
+	const flexible = needed(agentH) - needed(agentH, 0)
+	const squeeze = needed(agentH) > height ? Math.max(0.08, Math.min(1, (height - needed(agentH, 0)) / flexible)) : 1
 	let spare = Math.max(0, height - needed(agentH, squeeze))
 	const opened: number[] = []
 	const open = (gap: readonly [number, number], share: number, used: boolean) => {
@@ -301,7 +312,7 @@ function path(layout: FloorLayout, plan: FloorPlan, from: string, to: string): R
 }
 
 /* A route as an SVG path: each run with rounded corners. */
-export function roundedPath(runs: Route, radius = 8) {
+export function roundedPath(runs: Route, radius = 12) {
 	return runs.map(points => runPath(points, radius)).filter(Boolean).join(" ")
 }
 function runPath(points: Point[], radius: number) {
@@ -333,6 +344,89 @@ export function labelPoint(runs: Route, boxes: Record<string, Box> = {}, fit = 1
 		if (u.y === v.y && length >= fit && clear(at) && (!best || length > best.length)) best = { at, length }
 	}
 	return best?.at ?? null
+}
+
+/* ---- The team's lines, as the reference canvas draws them ------------------------------------
+ * Smooth curves between tiers (the live ElevenLabs workflow canvas, measured 2026-10-19): down from you to
+ * the accountable agent, and from the accountable agent's foot to each specialist, each leaving at its own
+ * port so the curves fan out and their labels have room. A curve only spans the gap between two tiers, so
+ * none runs under a card. Lines to the systems keep their routes through the gaps (route()). */
+export type TeamLine = { from: string; to: string; d: string; at: Point | null; room: number }
+
+/* Where the accountable agent's line to a specialist leaves its foot. */
+export function portOf(layout: FloorLayout, plan: FloorPlan, agentId: string): Point | null {
+	const lead = leadOf(plan)
+	const box = lead ? layout.boxes[lead.id] : undefined
+	const specialists = specialistsOf(plan)
+	const index = specialists.findIndex(agent => agent.id === agentId)
+	if (!box || index < 0) return null
+	const n = specialists.length
+	const step = n > 1 ? Math.min(56, (box.width - 64) / (n - 1)) : 0
+	return { x: box.x + (index - (n - 1) / 2) * step, y: box.y + box.height / 2 }
+}
+
+/* A curve from one tier to the next, leaving and arriving vertically. */
+const curve = (from: Point, to: Point) => { const my = (from.y + to.y) / 2; return `C ${from.x} ${my} ${to.x} ${my} ${to.x} ${to.y}` }
+
+/* The team's lines with where each label sits (the middle of its gap, when the gap holds a label) and how
+ * wide a label may be before it runs into its neighbour. */
+export function teamLines(layout: FloorLayout, plan: FloorPlan): TeamLine[] {
+	const { boxes } = layout
+	const lead = leadOf(plan)
+	const leadBox = lead ? boxes[lead.id] : undefined
+	if (!lead || !leadBox || !boxes.owner) return []
+	const lines: TeamLine[] = []
+	const foot = bottomOf(boxes.owner), head = topOf(leadBox)
+	lines.push({ from: "owner", to: lead.id, d: `M ${foot.x} ${foot.y} L ${head.x} ${head.y}`, at: head.y - foot.y >= LABEL_ROOM ? { x: foot.x, y: (foot.y + head.y) / 2 } : null, room: leadBox.width })
+	const ends = specialistsOf(plan).map(agent => ({ agent, start: portOf(layout, plan, agent.id), box: boxes[agent.id] })).filter((entry): entry is { agent: SeatAgent; start: Point; box: Box } => !!entry.start && !!entry.box)
+	const mids = ends.map(({ start, box }) => (start.x + box.x) / 2)
+	ends.forEach(({ agent, start, box }, index) => {
+		const end = topOf(box)
+		const neighbour = Math.min(...[mids[index - 1], mids[index + 1]].filter((x): x is number => x !== undefined).map(x => Math.abs(x - mids[index])), Infinity)
+		lines.push({ from: lead.id, to: agent.id, d: `M ${start.x} ${start.y} ${curve(start, end)}`, at: end.y - start.y >= LABEL_ROOM ? { x: mids[index], y: (start.y + end.y) / 2 } : null, room: Math.min(box.width, neighbour - 12) })
+	})
+	return lines
+}
+
+/* The path something takes between two of the team, along the team's lines: through the accountable agent
+ * when it goes past it (passing behind its card). Null for anything that involves a system. */
+export function teamPath(layout: FloorLayout, plan: FloorPlan, from: string, to: string): string | null {
+	const { boxes } = layout
+	const lead = leadOf(plan)?.id
+	if (!lead || !boxes[lead] || !boxes.owner || from === to) return null
+	const isSpecialist = (key: string) => specialistsOf(plan).some(agent => agent.id === key) && !!boxes[key]
+	const foot = bottomOf(boxes.owner), head = topOf(boxes[lead])
+	const down = (agent: string) => ({ s: portOf(layout, plan, agent)!, e: topOf(boxes[agent]) })
+	const fromOwner = `M ${foot.x} ${foot.y} L ${head.x} ${head.y}`, toOwner = `M ${head.x} ${head.y} L ${foot.x} ${foot.y}`
+	const toSpecialist = (agent: string) => { const { s, e } = down(agent); return `M ${s.x} ${s.y} ${curve(s, e)}` }
+	const fromSpecialist = (agent: string) => { const { s, e } = down(agent); return `M ${e.x} ${e.y} ${curve(e, s)}` }
+	if (from === "owner" && to === lead) return fromOwner
+	if (from === lead && to === "owner") return toOwner
+	if (from === lead && isSpecialist(to)) return toSpecialist(to)
+	if (isSpecialist(from) && to === lead) return fromSpecialist(from)
+	if (from === "owner" && isSpecialist(to)) return `${fromOwner} ${toSpecialist(to)}`
+	if (isSpecialist(from) && to === "owner") return `${fromSpecialist(from)} ${toOwner}`
+	// One specialist to another: up to its port, along the accountable agent's foot, and down to the other.
+	if (isSpecialist(from) && isSpecialist(to)) { const b = down(to); return `${fromSpecialist(from)} L ${b.s.x} ${b.s.y} ${curve(b.s, b.e)}` }
+	return null
+}
+
+/* What the accountable agent hands a specialist: the step it is on now, or else the first step it takes in
+ * this engagement's work. The team's line to it carries this as its label, as the reference canvas labels
+ * each transition with its condition. */
+export function handsOff(state: AgentixState, engagementId: string, agentId: string): string | null {
+	const presence = teamPresence(state, engagementId).find(entry => entry.member.id === agentId)
+	const item = presence?.workId ? state.work.find(work => work.id === presence.workId) : undefined
+	const template = item ? templateOf(state, item) : undefined
+	if (item && template) {
+		const now = template.steps.find((spec, index) => spec.owner === agentId && (item.steps[index]?.status === "working" || item.steps[index]?.status === "waiting"))
+		if (now) return now.title
+	}
+	for (const each of Object.values(scenarioOf(state, engagementId).templates)) {
+		const first = each.steps.find(spec => spec.owner === agentId)
+		if (first) return first.title
+	}
+	return null
 }
 
 /* The system a release changes: the production link its target names. */

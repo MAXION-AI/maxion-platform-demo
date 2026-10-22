@@ -131,14 +131,14 @@ export function WorkView({ state, engagementId, callbacks, showHistory, onHistor
 			<div className="aop-work-main">
 				<section className="aop-now" aria-label="Now">
 					<div className="aop-now-part">
-						<span className="aop-now-label"><Pulse size={14} aria-hidden="true" />Now</span>
+						<span className="aop-now-label">Now</span>
 						<p>{workSummary(state, engagement)}</p>
 					</div>
 					<div className="aop-now-part">
-						<span className="aop-now-label"><CheckCircle size={14} aria-hidden="true" />Achieved</span>
+						<span className="aop-now-label">Achieved</span>
 						{achieved.length ? (
 								<ul className="aop-achieved">
-									{achieved.map(entry => <li key={entry.key}><button type="button" onClick={() => entry.artifactId ? callbacks.onOpenResult(entry.artifactId) : entry.workId && callbacks.onOpenWork(entry.workId)}><CheckCircle size={14} weight="fill" aria-hidden="true" /><span className="aop-list-text"><strong>{entry.title}</strong><small>{entry.detail.endsWith(dayLabel(entry.at)) ? entry.detail : `${entry.detail} · ${dayLabel(entry.at)}`}</small></span></button></li>)}
+									{achieved.map(entry => <li key={entry.key}><button type="button" onClick={() => entry.artifactId ? callbacks.onOpenResult(entry.artifactId) : entry.workId && callbacks.onOpenWork(entry.workId)}><span className="aop-list-text"><strong>{entry.title}</strong><small>{entry.detail.endsWith(dayLabel(entry.at)) ? entry.detail : `${entry.detail} · ${dayLabel(entry.at)}`}</small></span></button></li>)}
 								</ul>
 							) : <p>Nothing verified yet. Results appear here only once their evidence checks pass.</p>}
 					</div>
@@ -164,8 +164,8 @@ export function WorkView({ state, engagementId, callbacks, showHistory, onHistor
 								<button type="button" onClick={() => entry.workId ? callbacks.onOpenWork(entry.workId) : callbacks.onTeam()}>
 									<Mark seed={`${engagement.workflowId}:${entry.member.id}`} size="xs" />
 									<span className="aop-list-text">
-										<strong>{entry.member.name}{entry.member.accountable ? <span className="aop-chip">Accountable</span> : null}</strong>
-										<small className={`is-${entry.state}`}>{entry.state === "working" ? <span className="aop-live-dot" aria-hidden="true" /> : entry.state === "dependency" ? <Hourglass size={12} aria-hidden="true" /> : entry.state === "decision" ? <WarningCircle size={12} aria-hidden="true" /> : entry.state === "recovering" ? <Warning size={12} aria-hidden="true" /> : <Clock size={12} aria-hidden="true" />}{entry.sentence}{entry.more ? ` · +${entry.more} more` : ""}</small>
+										<strong>{entry.member.name}{entry.member.accountable ? <span className="aop-role-note">Accountable</span> : null}</strong>
+										<small className={`is-${entry.state}`}>{entry.state === "working" ? null : entry.state === "dependency" ? <Hourglass size={12} aria-hidden="true" /> : entry.state === "decision" ? <WarningCircle size={12} aria-hidden="true" /> : entry.state === "recovering" ? <Warning size={12} aria-hidden="true" /> : <Clock size={12} aria-hidden="true" />}{entry.sentence}{entry.more ? ` · +${entry.more} more` : ""}</small>
 									</span>
 								</button>
 							</li>

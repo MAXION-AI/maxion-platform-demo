@@ -1,13 +1,12 @@
 import {
 	CaretLeft,
 	CaretRight,
-	Command,
 	List,
 	MagnifyingGlass,
 	SignOut,
 	X,
 } from "@phosphor-icons/react"
-import { useId, useState, type CSSProperties, type ReactNode } from "react"
+import { useEffect, useId, useRef, useState, type CSSProperties, type ReactNode } from "react"
 
 import { publicAsset } from "@/lib/publicAsset"
 import { NavGlyph, type NavGlyphName } from "./NavGlyphs"
@@ -108,6 +107,39 @@ export function PortalSidebar({
 	demo,
 }: PortalSidebarProps) {
 	const [notice, setNotice] = useState("")
+	const triggerRef = useRef<HTMLButtonElement>(null)
+	const asideRef = useRef<HTMLElement>(null)
+	const closeRef = useRef<HTMLButtonElement>(null)
+	const wasOpen = useRef(false)
+	// On a phone the open navigation is a modal sheet: focus moves in, Tab stays in it, Escape
+	// closes it, and focus goes back to the button that opened it. The page behind is made inert
+	// by the shell, which owns the stage.
+	useEffect(() => {
+		if (!mobileOpen) {
+			if (wasOpen.current) triggerRef.current?.focus({ preventScroll: true })
+			wasOpen.current = false
+			return
+		}
+		wasOpen.current = true
+		closeRef.current?.focus({ preventScroll: true })
+		const onKeyDown = (event: KeyboardEvent) => {
+			// A dialog opened over the sheet (the command menu) owns the keyboard.
+			if (event.defaultPrevented) return
+			const modal = (document.activeElement as HTMLElement | null)?.closest('[aria-modal="true"]')
+			if (modal && !asideRef.current?.contains(modal)) return
+			if (event.key === "Escape") { event.preventDefault(); onMobileOpenChange(false); return }
+			if (event.key !== "Tab" || !asideRef.current) return
+			const focusable = [...asideRef.current.querySelectorAll<HTMLElement>("button:not([disabled]), a[href], input, [tabindex]:not([tabindex='-1'])")].filter((node) => node.offsetParent !== null)
+			if (focusable.length === 0) return
+			const first = focusable[0]
+			const last = focusable[focusable.length - 1]
+			const inside = asideRef.current.contains(document.activeElement)
+			if (event.shiftKey && (document.activeElement === first || !inside)) { event.preventDefault(); last.focus() }
+			else if (!event.shiftKey && (document.activeElement === last || !inside)) { event.preventDefault(); first.focus() }
+		}
+		document.addEventListener("keydown", onKeyDown)
+		return () => document.removeEventListener("keydown", onKeyDown)
+	}, [mobileOpen, onMobileOpenChange])
 	const navigate = (module: MaxionModuleId) => {
 		onNavigate(module)
 		onMobileOpenChange(false)
@@ -138,6 +170,7 @@ export function PortalSidebar({
 	return (
 		<>
 			<button
+				ref={triggerRef}
 				type="button"
 				className="mxp-mobile-nav-trigger"
 				aria-label="Open navigation"
@@ -154,6 +187,7 @@ export function PortalSidebar({
 				/>
 			) : null}
 			<aside
+				ref={asideRef}
 				id="portal-sidebar"
 				className={`mxp-portal-sidebar ds-scope ds-sidebar${mobileOpen ? " is-mobile-open" : ""}${collapsed ? " is-collapsed" : ""}`}
 				aria-label="Main navigation">
@@ -187,12 +221,12 @@ export function PortalSidebar({
 						onClick={() => onCollapsedChange(!collapsed)}>
 						{collapsed ? <CaretRight size={15} /> : <CaretLeft size={15} />}
 					</button>
-					<button type="button" className="mxp-mobile-nav-close" aria-label="Close navigation" onClick={() => onMobileOpenChange(false)}>
+					<button ref={closeRef} type="button" className="mxp-mobile-nav-close" aria-label="Close navigation" onClick={() => onMobileOpenChange(false)}>
 						<X size={18} />
 					</button>
 				</div>
 
-				<button type="button" className="ws-sidebar-search" aria-label="Search workspace" onClick={onCommand}><MagnifyingGlass size={16} /><span>Search workspace</span><kbd>⌘K</kbd></button>
+				<button type="button" className="ws-sidebar-search" aria-label="Search workspace" aria-keyshortcuts="Meta+K Control+K" onClick={() => { onMobileOpenChange(false); onCommand() }}><MagnifyingGlass size={16} /><span>Search workspace</span><kbd>⌘K</kbd></button>
 				<nav className="mxp-portal-sidebar-scroll" aria-label="Portal sections">
 					<ul className="ds-nav">{PRIMARY_NAVIGATION.map((item) => renderItem(item))}</ul>
 					{demo}
@@ -210,7 +244,6 @@ export function PortalSidebar({
 					<div className="mxp-sidebar-user" title={collapsed ? "Root Admin · Enterprise workspace" : undefined}><span>RA</span><div><strong>Root Admin</strong><small>Enterprise workspace</small></div></div>
 					<div className="mxp-sidebar-actions">
 						<button type="button" aria-label="Logout" title={collapsed ? "Logout" : undefined} onClick={() => setNotice("Prototype session remains active.")}><SignOut size={14} /><span>Logout</span></button>
-						<button type="button" aria-label="Open command menu" onClick={onCommand}><Command size={14} /><kbd>⌘K</kbd></button>
 					</div>
 					<span className="mxp-sidebar-notice" aria-live="polite">{notice}</span>
 				</footer>

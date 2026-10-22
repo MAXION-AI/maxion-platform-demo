@@ -139,7 +139,8 @@ export function callOpener(scenarioKey: ScenarioKey, index: number, clarifying?:
 	const total = scenario.ownerInterview.length
 	const prompt = scenario.ownerInterview[Math.min(index, total - 1)]
 	if (clarifying) return `Welcome back. We were on ${prompt.topic.toLowerCase()}. ${clarifying}`
-	if (index === 0) return `Hi, I’m MAX. I’ll lead this as the ${scenario.interviewer.toLowerCase()}, and I’ll keep it to ${total} questions: I’ve already connected ${scenario.sources.length} sources, so I’ll only ask for judgement the records can’t give me. ${prompt.question}`
+	// Short on purpose: it is read as a caption and in the transcript at once (review, 2026-10-19).
+	if (index === 0) return `Hi, I’m MAX. ${total} questions, only on what the ${scenario.sources.length} connected sources can’t tell me. ${prompt.question}`
 	return `Welcome back. We’re on question ${index + 1} of ${total}, ${prompt.topic.toLowerCase()}. ${prompt.question}`
 }
 
