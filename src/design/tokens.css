@@ -16,16 +16,18 @@
   --ds-font: "Inter", system-ui, -apple-system, "Segoe UI", sans-serif;
   --ds-font-mono: ui-monospace, SFMono-Regular, Menlo, monospace;
   --ds-text-2xs: 10px; /* derived: the collapsed rail's count bubble */
-  --ds-text-xs: 12px; --ds-lh-xs: 16px;
-  --ds-text-sm: 13px; --ds-lh-sm: 20px;
+  /* The live ElevenLabs app (measured 2026-10-19) reads at 14/20, with 13/18 for compact metadata; chips keep
+     12/16 (--ds-text-chip) and buttons 13 (--ds-text-button). */
+  --ds-text-xs: 13px; --ds-lh-xs: 18px;
+  --ds-text-sm: 14px; --ds-lh-sm: 20px;
   --ds-text-md: 14px; --ds-lh-md: 20px;
   /* Measured on the Test AI agent composer (8dbb547d): 15px with Inter's open text spacing. */
   --ds-text-lg: 15px; --ds-lh-lg: 22px;
   /* Measured: create-flow subtitle and Studio document paragraphs. */
   --ds-text-subtitle: 16px; --ds-lh-subtitle: 24px;
   /* Measured: conversation, Metadata panel, sheet and dialog titles (cap height 12.45px). */
-  --ds-text-title: 17px; --ds-lh-title: 24px;
-  --ds-text-xl: 22px; --ds-lh-xl: 28px; --ds-track-xl: -0.025em;
+  --ds-text-title: 16px; --ds-lh-title: 24px; /* live app: section headings 16/24 medium */
+  --ds-text-xl: 24px; --ds-lh-xl: 30px; --ds-track-xl: -0.15px; /* live app: page titles 24/30 regular */
   --ds-track-caption: -0.01em; /* derived: live captions at the title size, set a touch looser than a heading */
   /* Derived (owner's choice 2026-10-12, "Inter, refined"): reading text in conversations sits on a 24px line,
      timelines on 22px; names and titles take Inter's display cut set a touch tighter; reading text a hair tighter. */
@@ -34,7 +36,16 @@
   --ds-track-name: -0.006em;
   --ds-opsz-display: "opsz" 28; /* derived: Inter's display cut for names and titles, set at body sizes */
   --ds-track-read: -0.006em;
-  --ds-text-greeting: 26px; --ds-lh-greeting: 32px; --ds-track-greeting: -0.03em; /* Home greeting, measured */
+  /* Measured in the live ElevenLabs app (elevenlabs.io/app, 2026-10-19): reading and row text 14/20; compact
+     metadata 13/18; chips, badges and small buttons 12/16 medium with +0.03px; buttons 13; page titles 24/30
+     at regular weight; section headings 16/24 medium. */
+  --ds-text-body: var(--ds-text-sm); --ds-lh-body: var(--ds-lh-sm);
+  --ds-text-meta: var(--ds-text-xs); --ds-lh-meta: var(--ds-lh-xs);
+  --ds-text-chip: 12px; --ds-lh-chip: 16px; --ds-track-chip: 0.03px;
+  --ds-text-button: 13px;
+  --ds-text-page: var(--ds-text-xl); --ds-lh-page: var(--ds-lh-xl); --ds-track-page: var(--ds-track-xl);
+  --ds-text-section: var(--ds-text-title); --ds-lh-section: var(--ds-lh-title);
+  --ds-text-greeting: 28px; --ds-lh-greeting: 36px; --ds-track-greeting: -0.7px; /* live app: the Architect home greeting, 28/36 regular */
   /* Measured: "Your Professional Voice Clone is being prepared" (560e2903). */
   --ds-text-display: 34px; --ds-lh-display: 40px; --ds-track-display: -0.03em;
   --ds-weight-regular: 400;
@@ -78,7 +89,9 @@
   /* Shape */
   --ds-radius-sm: 6px;
   --ds-radius-md: 8px;
-  --ds-radius-lg: 12px;
+  --ds-radius-button: 10px; /* live app: buttons 32–36px tall with 10px corners */
+  --ds-radius-lg: 16px;      /* live app (2026-10-19): cards, editors and bordered lists take 16px corners */
+  --ds-radius-input: 12px;   /* live app: inputs are 40px with 12px corners */
   /* Measured: chat bubbles and the dashboard card. */
   --ds-radius-xl: 16px;
   /* Measured: the chat composer card and dialogs. */
@@ -125,14 +138,17 @@
   --ds-sidebar-muted: #3a6868;
   --ds-sidebar-dim: #5e8e8e;
   --ds-control-h: 36px;
+  --ds-control-h-md: 32px;   /* live app: top-bar and toolbar buttons */
   --ds-control-h-sm: 28px;
   --ds-control-h-lg: 44px;   /* create-flow inputs, measured */
   --ds-control-h-xs: 24px;
   --ds-row-h: 52px;
   --ds-nav-h: 30px;
   --ds-icon: 16px;
-  --ds-page-x: 48px;
-  --ds-page-y: 32px;
+  --ds-gutter-page: 56px;      /* measured: the live app's content sits 56px in from each side of main */
+  --ds-page-top: 56px;         /* measured: its page title sits about 60px under the top bar */
+  --ds-page-x: var(--ds-gutter-page);
+  --ds-page-y: var(--ds-page-top);
   --ds-page-max: 1440px;
   --ds-mobile-nav-offset: 48px; /* the shell's phone menu button: 12px inset, 28px control, 8px gap */
   /* Stacking: the shell is a fixed full-screen layer; anything portaled to <body> sits above it. */
@@ -173,11 +189,17 @@
   --ds-call-caption-w: 640px;  /* derived: caption measure on the call stage */
   --ds-call-fact-w: 200px;
   --ds-floor-h: clamp(var(--ds-floor-h-min), calc(100dvh - var(--ds-floor-offset)), var(--ds-floor-h-max)); /* derived: the floor fills what the engagement header leaves */
-  --ds-floor-h-min: 400px;
+  --ds-floor-h-min: 380px;
   --ds-floor-h-max: 600px;
-  --ds-floor-offset: 376px;    /* topbar, engagement header, tabs, the timeline under the floor and the composer */
+  --ds-floor-offset: 326px;    /* topbar, the one-line engagement header, tabs and the composer (the timeline shows only in Replay) */
   --ds-room-w: 340px;          /* derived: a teammate's room beside the floor */
-  --ds-floor-grid: 16px;       /* the workflow canvas's dot grid, as the reference draws it */
+  --ds-floor-grid: 20px;       /* measured: the live workflow canvas draws a dot every 20px */
+  /* The live ElevenLabs workflow canvas (measured 2026-10-19): a white canvas with 1px #a3a3a3 dots, nodes with an
+     8px radius and a 7.5% hairline, and 1px lines at 44% ink. */
+  --ds-floor-dot: rgba(0, 0, 0, 0.36);
+  --ds-floor-dots: radial-gradient(circle, var(--ds-floor-dot) 0.5px, transparent 0.85px);
+  --ds-floor-edge: rgba(0, 0, 0, 0.075);
+  --ds-floor-line: rgba(0, 0, 0, 0.44);
   --ds-chat-log-h: 220px;      /* derived: a room's conversation before it scrolls */
   --ds-node-w: 244px;          /* workflow node card */
   --ds-dots: 6px;              /* pagination dot, measured; the active one is a pill */
@@ -224,7 +246,7 @@
 }
 
 @media (max-width: 600px) {
-  :root { --ds-control-h: 44px; --ds-row-h: 56px; --ds-page-x: 16px; --ds-page-y: 24px; }
+  :root { --ds-control-h: 44px; --ds-row-h: 56px; --ds-page-x: 16px; --ds-page-y: 24px; --ds-gutter-page: 16px; --ds-page-top: 24px; }
 }
 
 /* Dark tokens are opt-in per surface (.ds-scope.ds-auto-dark) until the legacy layers that still
@@ -262,6 +284,9 @@
     --ds-scrim-dialog: rgba(15, 15, 16, 0.64);
     --ds-border: rgba(255, 255, 255, 0.12);
     --ds-border-strong: rgba(255, 255, 255, 0.22);
+    --ds-floor-dot: rgba(255, 255, 255, 0.3);
+    --ds-floor-edge: rgba(255, 255, 255, 0.1);
+    --ds-floor-line: rgba(255, 255, 255, 0.44);
     --ds-primary: #ededed;
     --ds-primary-hover: #d4d4d4;
     --ds-positive-fg: #6fd39a; --ds-positive-bg: rgba(111, 211, 154, 0.14);

@@ -1,0 +1,85 @@
+/*
+ * Account pages: Settings, Integrations, My approvals, Usage and Help. Tokens only.
+ * Built on the primitive layer the way the live app sets a settings page: the shared top bar,
+ * a 24/30 title 56px in, one quiet facts line, and a single bordered list whose rows are split
+ * by a hairline. No card inside a card, no tinted callouts, one row height.
+ */
+.acc-frame { display: flex; flex-direction: column; height: 100%; min-height: 0; background: var(--ds-bg); }
+/* Block flow, not a grid: a scrolling grid lets its overflow-hidden rows shrink below their content. */
+.acc-page { display: block; flex: 1; min-height: 0; overflow-y: auto; padding: var(--ds-page-top) var(--ds-gutter-page) var(--ds-space-12); }
+.acc-page > * { width: 100%; max-width: calc(var(--ds-page-max) - var(--ds-sidebar-w)); margin-inline: auto; }
+.acc-frame .ds-page-header { margin-bottom: var(--ds-space-4); }
+
+/* Facts as one line, the number in ink. */
+.acc-frame .acc-summary { display: flex; flex-wrap: wrap; gap: var(--ds-space-1) var(--ds-space-5); margin-bottom: var(--ds-space-5); color: var(--ds-fg-subtle); font-size: var(--ds-text-sm); line-height: var(--ds-lh-sm); }
+.acc-summary strong { color: var(--ds-fg); font-weight: var(--ds-weight-medium); font-variant-numeric: tabular-nums; }
+.acc-summary .is-attention strong { color: var(--ds-warning-fg); }
+.acc-frame .acc-search { margin-bottom: var(--ds-space-4); }
+
+/* One bordered list; groups and rows divide it with a hairline. */
+.acc-list { overflow: hidden; border: 1px solid var(--ds-border); border-radius: var(--ds-radius-xl); background: var(--ds-bg); }
+.acc-group + .acc-group { border-top: 1px solid var(--ds-border); }
+.acc-group-title { display: flex; align-items: baseline; justify-content: space-between; gap: var(--ds-space-3); padding: var(--ds-space-4) var(--ds-space-4) var(--ds-space-1); color: var(--ds-fg); font-size: var(--ds-text-sm); line-height: var(--ds-lh-sm); font-weight: var(--ds-weight-medium); }
+.acc-group-title > span { color: var(--ds-fg-subtle); font-weight: var(--ds-weight-regular); }
+.acc-row { display: flex; align-items: center; gap: var(--ds-space-3); min-height: var(--ds-row-h); padding: var(--ds-space-3) var(--ds-space-4); }
+.acc-row + .acc-row { border-top: 1px solid var(--ds-border); }
+.acc-row-main { display: grid; flex: 1; min-width: 0; }
+.acc-row-main > strong { display: flex; flex-wrap: wrap; align-items: center; gap: var(--ds-space-2); color: var(--ds-fg); font-size: var(--ds-text-sm); line-height: var(--ds-lh-sm); font-weight: var(--ds-weight-medium); }
+.acc-row-main > small { overflow: hidden; color: var(--ds-fg-subtle); font-size: var(--ds-text-meta); line-height: var(--ds-lh-meta); text-overflow: ellipsis; white-space: nowrap; }
+.acc-row-actions { display: flex; flex-shrink: 0; align-items: center; gap: var(--ds-space-2); }
+.acc-row-value { flex-shrink: 0; color: var(--ds-fg); font-size: var(--ds-text-sm); line-height: var(--ds-lh-sm); font-variant-numeric: tabular-nums; }
+.acc-logo { display: grid; flex-shrink: 0; place-items: center; width: var(--ds-control-h-md); height: var(--ds-control-h-md); border-radius: var(--ds-radius-md); background: var(--ds-bg-muted); color: var(--ds-fg); font-size: var(--ds-text-chip); line-height: var(--ds-lh-chip); font-weight: var(--ds-weight-medium); }
+.acc-confirm { display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: var(--ds-space-2); }
+.acc-confirm > small { color: var(--ds-fg-subtle); font-size: var(--ds-text-meta); line-height: var(--ds-lh-meta); }
+.acc-frame .ds-button.acc-danger { color: var(--ds-danger-fg); }
+
+/* A switch, as the live app's settings use, in place of a native checkbox. */
+.acc-switch { position: relative; flex-shrink: 0; width: var(--ds-space-8); height: var(--ds-space-5); padding: 0; border: 0; border-radius: var(--ds-radius-full); background: var(--ds-border-strong); cursor: pointer; transition: background var(--ds-duration) var(--ds-ease); }
+.acc-switch > span { position: absolute; top: 2px; left: 2px; width: var(--ds-space-4); height: var(--ds-space-4); border-radius: var(--ds-radius-full); background: var(--ds-bg); transition: transform var(--ds-duration) var(--ds-ease); }
+.acc-switch[aria-checked="true"] { background: var(--ds-primary); }
+.acc-switch[aria-checked="true"] > span { transform: translateX(calc(var(--ds-space-8) - var(--ds-space-4) - var(--ds-space-1))); }
+
+/* Usage: one figure, one meter, then the breakdown as rows. */
+.acc-usage { display: grid; gap: var(--ds-space-3); }
+.acc-usage-figure { display: flex; flex-wrap: wrap; align-items: baseline; gap: var(--ds-space-1) var(--ds-space-3); }
+.acc-usage-figure strong { font-size: var(--ds-text-xl); line-height: var(--ds-lh-xl); letter-spacing: var(--ds-track-xl); font-weight: var(--ds-weight-regular); font-variant-numeric: tabular-nums; }
+.acc-usage-figure span { color: var(--ds-fg-subtle); font-size: var(--ds-text-sm); line-height: var(--ds-lh-sm); }
+.acc-meter { display: block; height: var(--ds-space-1); margin-bottom: var(--ds-space-3); overflow: hidden; border-radius: var(--ds-radius-full); background: var(--ds-bg-muted); }
+.acc-meter > i { display: block; height: 100%; border-radius: inherit; background: var(--ds-fg); }
+
+/* Help: topics as disclosure rows in the same list. */
+.acc-topic + .acc-topic { border-top: 1px solid var(--ds-border); }
+.acc-topic > button { display: flex; align-items: center; justify-content: space-between; gap: var(--ds-space-3); width: 100%; min-height: var(--ds-row-h); padding: var(--ds-space-3) var(--ds-space-4); border: 0; background: transparent; color: var(--ds-fg); font-size: var(--ds-text-sm); line-height: var(--ds-lh-sm); font-weight: var(--ds-weight-medium); text-align: left; transition: background var(--ds-duration) var(--ds-ease); }
+.acc-topic > button:hover { background: var(--ds-bg-hover); }
+.acc-topic > button:focus-visible { outline-offset: -2px; }
+.acc-topic > button svg { width: var(--ds-icon); height: var(--ds-icon); color: var(--ds-fg-subtle); transition: transform var(--ds-duration) var(--ds-ease); }
+.acc-topic > button[aria-expanded="true"] svg { transform: rotate(90deg); }
+.acc-topic > p { padding: 0 var(--ds-space-4) var(--ds-space-4); color: var(--ds-fg-subtle); font-size: var(--ds-text-sm); line-height: var(--ds-lh-sm); }
+
+/* Scope and access-log sheets, as the Projects details sheet. */
+.acc-scrim { position: fixed; inset: 0; z-index: 80; padding: 0; border: 0; background: var(--ds-scrim-sheet); cursor: default; }
+.acc-panel { position: fixed; top: 0; right: 0; bottom: 0; z-index: 81; display: flex; flex-direction: column; width: var(--ds-sheet-w); max-width: 100%; border-left: 1px solid var(--ds-border); background: var(--ds-bg); box-shadow: var(--ds-shadow-dialog); }
+.acc-panel > header { display: flex; align-items: flex-start; justify-content: space-between; gap: var(--ds-space-3); padding: var(--ds-space-5) var(--ds-space-4) var(--ds-space-3) var(--ds-space-6); }
+.acc-panel > header small { color: var(--ds-fg-subtle); font-size: var(--ds-text-meta); line-height: var(--ds-lh-meta); }
+.acc-panel > header h2 { font-size: var(--ds-text-title); line-height: var(--ds-lh-title); font-weight: var(--ds-weight-medium); }
+.acc-panel-body { display: grid; align-content: start; gap: var(--ds-space-4); padding: var(--ds-space-3) var(--ds-space-6) var(--ds-space-6); color: var(--ds-fg-subtle); font-size: var(--ds-text-sm); line-height: var(--ds-lh-sm); }
+.acc-panel-body > .ds-button { justify-self: start; }
+.acc-choice { display: flex; align-items: flex-start; gap: var(--ds-space-3); color: var(--ds-fg); cursor: pointer; }
+.acc-choice > input { margin-top: var(--ds-space-1); }
+.acc-choice > span { display: grid; }
+.acc-choice strong { font-weight: var(--ds-weight-medium); }
+.acc-choice small, .acc-log small { color: var(--ds-fg-subtle); font-size: var(--ds-text-meta); line-height: var(--ds-lh-meta); }
+.acc-log { display: grid; margin: 0; padding: 0 var(--ds-space-6) var(--ds-space-6); list-style: none; }
+.acc-log > li { display: grid; padding: var(--ds-space-3) 0; border-top: 1px solid var(--ds-border); font-size: var(--ds-text-sm); line-height: var(--ds-lh-sm); }
+.acc-log strong { font-weight: var(--ds-weight-medium); }
+
+@media (max-width: 860px) {
+	.acc-frame .ds-topbar { padding-left: calc(var(--ds-mobile-nav-offset) + var(--ds-space-4)); }
+}
+@media (max-width: 640px) {
+	.acc-frame .ds-page-header { flex-direction: column; align-items: flex-start; gap: var(--ds-space-3); }
+	.acc-row { flex-wrap: wrap; }
+	.acc-row-main > small { white-space: normal; }
+	.acc-row-actions { flex-wrap: wrap; }
+	.acc-row:has(.acc-logo) .acc-row-actions, .acc-row:has(.ds-mark) .acc-row-actions { width: 100%; padding-left: calc(var(--ds-control-h-md) + var(--ds-space-3)); }
+}

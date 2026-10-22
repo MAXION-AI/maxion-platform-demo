@@ -1,4 +1,4 @@
-import { useLayoutEffect, useMemo, useRef, useState, type CSSProperties } from "react"
+import { useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type RefObject } from "react"
 
 import { ARCHITECTURE_TEXT, BAR_GUTTER, BAR_VALUE_GAP, EXHIBIT_FRAME_MAX, EXHIBIT_FRAME_MIN, EXHIBIT_LINE, EXHIBIT_TEXT, barPlotEnd, formatValue, layoutArchitecture, layoutQuadrantLabels, layoutTimeline, lineAxis, roundValue as round, waterfallLabelLines } from "./exhibitLayout"
 import { figures, textWidth, wrapText } from "./textMetrics"
@@ -287,8 +287,10 @@ function HeatmapExhibit({ exhibit, width }: Frame & { exhibit: Extract<Exhibit, 
 }
 
 function TableExhibit({ exhibit }: { exhibit: Extract<Exhibit, { kind: "table" }> }) {
+	const scrollRef = useRef<HTMLDivElement>(null)
+	const scrolls = useOverflowing(scrollRef, exhibit)
 	return (
-		<div className="exhibit-table-scroll">
+		<div ref={scrollRef} className="exhibit-table-scroll" {...scrollRegion(scrolls, exhibit.title)}>
 			<table className="exhibit-table">
 				<caption className="visually-hidden">{exhibit.title}</caption>
 				<thead>
@@ -508,6 +510,24 @@ function usePlotFrame() {
 	return [ref, width] as const
 }
 
+// A frame that scrolls sideways on a narrow screen has to be reachable by keyboard, so it
+// becomes a focusable, named region only while it actually overflows.
+function useOverflowing(ref: RefObject<HTMLElement | null>, key: unknown) {
+	const [overflowing, setOverflowing] = useState(false)
+	useLayoutEffect(() => {
+		const node = ref.current
+		if (!node) return
+		const check = () => setOverflowing(node.scrollWidth > node.clientWidth + 1)
+		check()
+		if (typeof ResizeObserver === "undefined") return
+		const observer = new ResizeObserver(check)
+		observer.observe(node)
+		return () => observer.disconnect()
+	}, [ref, key])
+	return overflowing
+}
+const scrollRegion = (overflowing: boolean, label: string) => overflowing ? { tabIndex: 0, role: "region", "aria-label": label } : {}
+
 // Evidence identifiers read in mono; the rest of the source line is prose.
 function sourceParts(source: string) {
 	return source.split(/(\[[^\]]+\])/).filter(Boolean).map((part, position) => /^\[[^\]]+\]$/.test(part) ? <code key={position} className="exhibit-id">{part}</code> : part)
@@ -515,13 +535,14 @@ function sourceParts(source: string) {
 
 export function DeliverableExhibit({ exhibit, index }: { exhibit: Exhibit; index: number }) {
 	const [plotRef, width] = usePlotFrame()
+	const plotScrolls = useOverflowing(plotRef, width)
 	return (
 		<figure className="exhibit">
 			<figcaption className="exhibit-head">
 				<p className="exhibit-number">Exhibit {index}</p>
 				<h5>{exhibit.title}</h5>
 			</figcaption>
-			<div ref={plotRef} className={`exhibit-plot is-${exhibit.kind}`} style={{ "--exh-frame-min": `${EXHIBIT_FRAME_MIN}px` } as CSSProperties}>
+			<div ref={plotRef} className={`exhibit-plot is-${exhibit.kind}`} style={{ "--exh-frame-min": `${EXHIBIT_FRAME_MIN}px` } as CSSProperties} {...scrollRegion(plotScrolls && exhibit.kind !== "table", exhibit.title)}>
 				<ExhibitGraphic exhibit={exhibit} width={width} />
 			</div>
 			<p className="exhibit-caption">{exhibit.caption}</p>

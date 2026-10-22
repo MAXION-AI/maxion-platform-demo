@@ -333,7 +333,7 @@
 .mxp-discovery-setup { padding: clamp(28px, 5vw, 58px) clamp(22px, 5vw, 70px); }
 .mxp-discovery-intro,
 .mxp-mission-grid { width: min(100%, 960px); margin-inline: auto; }
-.mxp-discovery-intro h1 { margin: 9px 0 7px; font-size: clamp(27px, 3.2vw, 42px); font-weight: 530; letter-spacing: -0.045em; }
+.mxp-discovery-intro h1 { margin: 9px 0 7px; font-size: var(--ds-text-greeting); line-height: var(--ds-lh-greeting); font-weight: var(--ds-weight-regular); letter-spacing: var(--ds-track-greeting); }
 .mxp-discovery-intro p { max-width: 650px; margin: 0; color: var(--mxp-muted); font-size: var(--ds-text-sm); line-height: 1.5; }
 .mxp-scenario-tabs { display: flex; gap: 4px; margin-top: 23px; }
 .mxp-scenario-tabs button { min-height: 30px; padding: 0 10px; border: 1px solid var(--mxp-line); border-radius: 16px; background: transparent; color: var(--mxp-muted); font-size: var(--ds-text-xs); cursor: pointer; }
@@ -387,11 +387,11 @@
 .mxp-conversation article.is-user,
 .mxp-consult-thread article.is-user { margin-left: 40px; }
 .mxp-conversation article > div > span,
-.mxp-consult-thread article > div > span { display: flex; gap: 8px; align-items: baseline; font-size: var(--ds-text-xs); font-weight: 650; }
+.mxp-consult-thread article > div > span { display: flex; gap: 8px; align-items: baseline; font-size: var(--ds-text-sm); font-weight: var(--ds-weight-medium); }
 .mxp-conversation time,
 .mxp-consult-thread time { color: var(--mxp-muted-2); font-size: var(--ds-text-xs); font-weight: 400; }
 .mxp-conversation article p,
-.mxp-consult-thread article p { margin: 5px 0 0; color: var(--mxp-ink-2); font-size: var(--ds-text-xs); line-height: 1.55; }
+.mxp-consult-thread article p { margin: 5px 0 0; color: var(--mxp-ink-2); font-size: var(--ds-text-sm); line-height: var(--ds-lh-sm); }
 .mxp-discovery-activity { margin: 25px 0; border: 1px solid var(--mxp-line); border-radius: 9px; background: var(--mxp-surface); overflow: hidden; }
 .mxp-discovery-activity summary { display: flex; min-height: 42px; align-items: center; justify-content: space-between; padding: 0 12px; cursor: pointer; list-style: none; }
 .mxp-discovery-activity summary > span { display: flex; align-items: center; gap: 7px; color: var(--mxp-muted); font-size: var(--ds-text-xs); }
@@ -441,7 +441,7 @@
 .mxp-discovery-composer > div,
 .mxp-consult-composer > div { width: min(100%, 700px); margin-inline: auto; border: 1px solid #cecdc6; border-radius: 11px; background: var(--mxp-surface); box-shadow: none; }
 .mxp-discovery-composer textarea,
-.mxp-consult-composer textarea { width: 100%; resize: none; border: 0; outline: 0; background: transparent; color: var(--mxp-ink); padding: 11px 12px 2px; font-size: var(--ds-text-xs); }
+.mxp-consult-composer textarea { width: 100%; resize: none; border: 0; outline: 0; background: transparent; color: var(--mxp-ink); padding: 11px 12px 2px; font-size: var(--ds-text-sm); }
 .mxp-discovery-composer > div > div,
 .mxp-consult-composer > div > div { display: flex; align-items: center; justify-content: space-between; padding: 5px 7px 7px; }
 .mxp-discovery-composer > div > div > span,
@@ -610,9 +610,9 @@
 .mxp-consult-main { min-height: 0; overflow: auto; padding: 44px 28px 150px; }
 .mxp-consult-main > * { width: min(100%, 720px); margin-inline: auto; }
 .mxp-consult-main > header { text-align: center; }
-.mxp-consult-main > header > span { display: block; margin-top: 10px; color: var(--mxp-muted); font-size: var(--ds-text-xs); font-weight: 650; letter-spacing: normal; text-transform: none; }
-.mxp-consult-main > header h1 { margin: 8px 0 8px; font-size: clamp(27px, 3.4vw, 41px); font-weight: 520; letter-spacing: -0.047em; }
-.mxp-consult-main > header p { max-width: 600px; margin: 0 auto; color: var(--mxp-muted); font-size: var(--ds-text-xs); line-height: 1.5; }
+.mxp-consult-main > header > span { display: block; margin-top: 10px; color: var(--mxp-muted); font-size: var(--ds-text-xs); font-weight: var(--ds-weight-medium); letter-spacing: normal; text-transform: none; }
+.mxp-consult-main > header h1 { margin: 8px 0 8px; font-size: var(--ds-text-greeting); line-height: var(--ds-lh-greeting); font-weight: var(--ds-weight-regular); letter-spacing: var(--ds-track-greeting); } /* the live Architect greeting, 28/36 regular */
+.mxp-consult-main > header p { max-width: 600px; margin: 0 auto; color: var(--mxp-muted); font-size: var(--ds-text-sm); line-height: var(--ds-lh-sm); }
 .mxp-consult-thread { margin-top: 38px; }
 .mxp-answer-actions { display: flex; gap: 7px; margin-top: 12px; }
 .mxp-answer-actions button { display: flex; min-height: 29px; align-items: center; gap: 5px; padding: 0 8px; font-size: var(--ds-text-xs); }

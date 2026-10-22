@@ -9,7 +9,7 @@ function shellMenu(page: import("@playwright/test").Page) {
 }
 
 async function openShellMenu(page: import("@playwright/test").Page) {
-	await page.getByRole("button", { name: "Open command menu" }).click()
+	await page.getByRole("button", { name: "Search workspace" }).click()
 	await expect(shellMenu(page)).toBeVisible()
 	return shellMenu(page)
 }

@@ -6,7 +6,7 @@
  */
 
 /* ---- Topbar extras ------------------------------------------------------------ */
-.aop-demo-button { display: inline-flex; align-items: center; gap: var(--ds-space-1); height: var(--ds-control-h-sm); padding: 0 var(--ds-space-3); border: 1px solid var(--ds-border); border-radius: var(--ds-radius-full); background: var(--ds-bg); color: var(--ds-fg); font-size: var(--ds-text-xs); font-weight: var(--ds-weight-medium); transition: background var(--ds-duration) var(--ds-ease), border-color var(--ds-duration) var(--ds-ease); }
+.aop-demo-button { display: inline-flex; align-items: center; gap: var(--ds-space-1); height: var(--ds-control-h-sm); padding: 0 var(--ds-space-3); border: 1px solid var(--ds-border); border-radius: var(--ds-radius-full); background: var(--ds-bg); color: var(--ds-fg); font-size: var(--ds-text-chip); font-weight: var(--ds-weight-medium); transition: background var(--ds-duration) var(--ds-ease), border-color var(--ds-duration) var(--ds-ease); }
 .aop-demo-button:hover { border-color: var(--ds-border-strong); background: var(--ds-bg-hover); }
 .aop-demo-button > svg { color: var(--ds-fg-subtle); }
 .aop-root .ds-crumb.aop-crumb-engagement { padding-inline: var(--ds-space-1); color: var(--ds-fg-subtle); }
@@ -27,23 +27,36 @@
 .aop-eng[data-panel="pinned"] { grid-template-columns: minmax(0, 1fr) calc(var(--ds-panel-w) + var(--ds-space-8)); }
 .aop-eng-main { display: flex; flex-direction: column; min-width: 0; min-height: 0; }
 .aop-eng-scroll { container: aop-work / inline-size; flex: 1; min-height: 0; overflow-y: auto; }
-.aop-eng-head { display: grid; gap: var(--ds-space-3); padding: var(--ds-space-5) var(--ds-space-8) var(--ds-space-4); }
+.aop-eng-head { display: grid; gap: var(--ds-space-4); padding: var(--ds-page-top) var(--ds-gutter-page) var(--ds-space-6); }
 .aop-eng-head .aop-callout.aop-strip { margin: 0; }
-.aop-eng-tabs { position: sticky; top: 0; z-index: 2; display: flex; align-items: stretch; height: var(--ds-tabstrip-h); padding: 0 var(--ds-space-8) 0 calc(var(--ds-space-8) - var(--ds-space-3)); border-bottom: 1px solid var(--ds-border); background: var(--ds-bg); }
+.aop-eng-tabs { position: sticky; top: 0; z-index: 2; display: flex; align-items: stretch; height: var(--ds-tabstrip-h); padding: 0 var(--ds-gutter-page) 0 calc(var(--ds-gutter-page) - var(--ds-space-3)); border-bottom: 1px solid var(--ds-border); background: var(--ds-bg); }
 .aop-eng-tabs .aop-tab { margin-bottom: -1px; }
 .aop-eng-tabs .aop-tab[aria-selected="true"] { color: var(--ds-fg); }
-.aop-tab-flag { margin-left: var(--ds-space-1); padding: 0 var(--ds-space-2); border-radius: var(--ds-radius-full); background: var(--ds-warning-bg); color: var(--ds-warning-fg); font-size: var(--ds-text-xs); line-height: var(--ds-lh-xs); font-weight: var(--ds-weight-medium); }
-.aop-eng-body { padding: var(--ds-space-6) var(--ds-space-8) var(--ds-space-8); }
-.aop-eng-dock { display: grid; flex-shrink: 0; gap: var(--ds-space-2); padding: var(--ds-space-3) var(--ds-space-8) var(--ds-space-4); border-top: 1px solid var(--ds-border); background: var(--ds-bg); }
+.aop-tab-flag { margin-left: var(--ds-space-1); padding: 0 var(--ds-space-2); border-radius: var(--ds-radius-full); background: var(--ds-warning-bg); color: var(--ds-warning-fg); font-size: var(--ds-text-chip); line-height: var(--ds-lh-chip); font-weight: var(--ds-weight-medium); }
+.aop-eng-body { padding: var(--ds-space-8) var(--ds-gutter-page) var(--ds-space-12); }
+.aop-eng-dock { display: grid; flex-shrink: 0; gap: var(--ds-space-2); padding: var(--ds-space-2) var(--ds-gutter-page) var(--ds-space-4); background: var(--ds-bg); }
+/* At rest the composer is one line, so the work keeps its height (the live app keeps its assistant out of the work
+ * area); writing in it opens the full composer, with who it goes to and what it is about. A phone is too narrow
+ * for one line and keeps the full composer. */
+@media (min-width: 601px) {
+	.aop-eng-dock .ws-composer:not(:focus-within, :has(textarea:not(:placeholder-shown))) { grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: var(--ds-space-3); padding: var(--ds-space-1) var(--ds-space-1) var(--ds-space-1) var(--ds-space-4); }
+	.aop-eng-dock .ws-composer:not(:focus-within, :has(textarea:not(:placeholder-shown))) textarea { padding-top: 0; }
+	.aop-eng-dock .ws-composer:not(:focus-within, :has(textarea:not(:placeholder-shown))) .aop-composer-to { display: none; }
+}
 .aop-quiet { color: var(--ds-fg-subtle); font-size: var(--ds-text-sm); line-height: var(--ds-lh-sm); }
 
 /* ---- Work ----------------------------------------------------------------------- */
-.aop-work-layout { display: grid; grid-template-columns: minmax(0, 1fr) var(--ds-meta-panel-w); align-items: start; gap: var(--ds-space-8); }
-.aop-work-main { display: grid; align-content: start; gap: var(--ds-space-6); min-width: 0; }
-.aop-work-aside { position: sticky; top: calc(var(--ds-tabstrip-h) + var(--ds-space-6)); display: grid; gap: var(--ds-space-6); min-width: 0; }
+.aop-work-layout { display: grid; grid-template-columns: minmax(0, 1fr) var(--ds-meta-panel-w); align-items: start; gap: var(--ds-space-12); }
+.aop-work-main { display: grid; align-content: start; gap: var(--ds-space-8); min-width: 0; }
+.aop-work-aside { position: sticky; top: calc(var(--ds-tabstrip-h) + var(--ds-space-8)); display: grid; gap: var(--ds-space-8); min-width: 0; }
 
 /* Now and Achieved: the two answers, side by side on the callout fill. */
-.aop-now { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--ds-space-6); padding: var(--ds-space-3) var(--ds-space-4); border-radius: var(--ds-radius-lg); background: var(--ds-bg-callout); }
+/* Now and Achieved are two plain columns: the decision below is the one surface on the page. */
+.aop-now { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--ds-space-8); }
+/* A role in the team list is a quiet word, not a chip. */
+.aop-role-note { color: var(--ds-fg-subtle); font-size: var(--ds-text-xs); line-height: var(--ds-lh-xs); font-weight: var(--ds-weight-regular); }
+/* A criterion is evidenced in words; the record's one Verified badge carries the colour. */
+.aop-evidenced { flex-shrink: 0; color: var(--ds-fg-subtle); font-size: var(--ds-text-xs); line-height: var(--ds-lh-xs); }
 .aop-now-part { display: grid; align-content: start; gap: var(--ds-space-1); min-width: 0; }
 .aop-now-label { display: inline-flex; align-items: center; gap: var(--ds-space-1); color: var(--ds-fg-subtle); font-size: var(--ds-text-xs); line-height: var(--ds-lh-xs); font-weight: var(--ds-weight-medium); }
 .aop-now-part p { font-size: var(--ds-text-sm); line-height: var(--ds-lh-sm); overflow-wrap: anywhere; }
@@ -75,11 +88,11 @@
 .aop-history-toggle:hover { color: var(--ds-fg); }
 
 /* The aside: team presence, operation and what was achieved, each a titled group on one hairline. */
-.aop-aside-section { display: grid; gap: var(--ds-space-2); min-width: 0; }
+.aop-aside-section { display: grid; gap: var(--ds-space-3); min-width: 0; }
 .aop-aside-section > .aop-subhead { margin-bottom: 0; padding-bottom: var(--ds-space-2); border-bottom: 1px solid var(--ds-border); }
 .aop-root .ds-text-button.aop-aside-link { color: var(--ds-fg-subtle); font-size: var(--ds-text-xs); line-height: var(--ds-lh-xs); }
 .aop-root .ds-text-button.aop-aside-link:hover { color: var(--ds-fg); }
-.aop-presence, .aop-achieved { display: grid; margin: 0; padding: 0; list-style: none; }
+.aop-presence, .aop-achieved { display: grid; gap: var(--ds-space-2); margin: 0; padding: 0; list-style: none; }
 .aop-presence button, .aop-achieved button { display: flex; align-items: flex-start; gap: var(--ds-space-3); width: 100%; padding: var(--ds-space-2); border: 0; border-radius: var(--ds-radius-md); background: none; color: var(--ds-fg); font: inherit; text-align: left; transition: background var(--ds-duration) var(--ds-ease); }
 .aop-presence button:hover, .aop-achieved button:hover { background: var(--ds-bg-hover); }
 .aop-presence .ds-mark { margin-top: 2px; }
@@ -112,8 +125,8 @@
 
 /* Decisions: a compact version for the Work view, with its context beside the question. */
 .aop-decision-kicker { color: var(--ds-fg-subtle); font-size: var(--ds-text-xs); line-height: var(--ds-lh-xs); }
-.aop-decision.is-compact { gap: var(--ds-space-3); padding: var(--ds-space-4) var(--ds-space-5); }
-.aop-decision.is-compact .aop-decision-foot { padding-top: var(--ds-space-3); }
+.aop-decision.is-compact { gap: var(--ds-space-4); padding: var(--ds-space-5) var(--ds-space-6); }
+.aop-decision.is-compact .aop-decision-foot { padding-top: var(--ds-space-4); }
 .aop-decision-facts { display: grid; grid-template-columns: max-content minmax(0, 1fr); gap: var(--ds-space-1) var(--ds-space-4); margin: 0; font-size: var(--ds-text-xs); line-height: var(--ds-lh-xs); }
 .aop-decision-facts > div { display: contents; }
 .aop-decision-facts dt { color: var(--ds-fg-subtle); }
@@ -140,7 +153,7 @@
 .aop-results-list { position: sticky; top: calc(var(--ds-tabstrip-h) + var(--ds-space-6)); display: grid; gap: var(--ds-space-8); min-width: 0; }
 .aop-results-list section { display: grid; gap: var(--ds-space-2); }
 .aop-results-list .aop-subhead { margin: 0 0 var(--ds-space-1); padding: 0 var(--ds-space-3); }
-.aop-results-list .aop-subhead :is(h2, h3) { font-weight: var(--ds-weight-semibold); letter-spacing: var(--ds-track-name); font-variation-settings: var(--ds-opsz-display); }
+.aop-results-list .aop-subhead :is(h2, h3) { font-weight: var(--ds-weight-medium); letter-spacing: var(--ds-track-name); font-variation-settings: var(--ds-opsz-display); }
 .aop-results-list ul { display: grid; gap: var(--ds-space-1); margin: 0; padding: 0; list-style: none; }
 .aop-root .aop-results-list button { display: flex; align-items: center; gap: var(--ds-space-3); width: 100%; padding: var(--ds-space-3); border: 0; border-radius: var(--ds-radius-lg); background: none; color: var(--ds-fg); font: inherit; text-align: left; transition: background var(--ds-duration) var(--ds-ease); }
 .aop-root .aop-results-list button:hover { background: var(--ds-bg-hover); }
@@ -156,10 +169,12 @@
 /* The title and its facts, then the actions on their own row: nothing crowds the name. */
 .aop-result-head { display: flex; flex-direction: column; align-items: flex-start; gap: var(--ds-space-4); }
 .aop-result-head > div:first-child { display: grid; gap: var(--ds-space-1); min-width: 0; }
-.aop-result-head h2 { font-size: var(--ds-text-title); line-height: var(--ds-lh-title); font-weight: var(--ds-weight-semibold); letter-spacing: var(--ds-track-name); font-variation-settings: var(--ds-opsz-display); }
+.aop-result-head h2 { font-size: var(--ds-text-title); line-height: var(--ds-lh-title); font-weight: var(--ds-weight-medium); letter-spacing: var(--ds-track-name); font-variation-settings: var(--ds-opsz-display); }
 .aop-result-head h2:focus { outline: none; }
+/* The ghost action lines its words up with the title above it, not its own padding. */
+.aop-result-head .aop-actions { margin-left: calc(-1 * var(--ds-space-3) - 1px); }
 .aop-result-meta { display: flex; flex-wrap: wrap; align-items: center; gap: var(--ds-space-2) var(--ds-space-3); color: var(--ds-fg-subtle); font-size: var(--ds-text-xs); line-height: var(--ds-lh-xs); }
-.aop-data-label { display: inline-flex; align-items: center; gap: var(--ds-space-1); height: var(--ds-space-6); padding: 0 var(--ds-space-2); border: 1px dashed var(--ds-border-strong); border-radius: var(--ds-radius-full); color: var(--ds-fg-subtle); font-size: var(--ds-text-xs); font-weight: var(--ds-weight-medium); white-space: nowrap; }
+.aop-data-label { display: inline-flex; align-items: center; gap: var(--ds-space-1); height: var(--ds-space-6); padding: 0 var(--ds-space-2); border: 1px dashed var(--ds-border-strong); border-radius: var(--ds-radius-full); color: var(--ds-fg-subtle); font-size: var(--ds-text-chip); font-weight: var(--ds-weight-medium); white-space: nowrap; }
 .aop-data-label.is-production { border-style: solid; border-color: transparent; background: var(--ds-positive-bg); color: var(--ds-positive-fg); }
 .aop-evidence { display: grid; gap: var(--ds-space-2); padding: var(--ds-space-4); border-radius: var(--ds-radius-lg); background: var(--ds-bg-inset); }
 .aop-evidence .aop-subhead { margin-bottom: 0; }
@@ -188,7 +203,7 @@
 /* Pipeline stages: numbered steps from source to dashboard. */
 .aop-flow { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: var(--ds-space-2); margin: 0; padding: 0; list-style: none; counter-reset: stage; }
 .aop-flow > li { display: grid; align-content: start; gap: var(--ds-space-2); min-width: 0; padding: var(--ds-space-3); border: 1px solid var(--ds-border); border-radius: var(--ds-radius-lg); background: var(--ds-bg); }
-.aop-flow-index { display: grid; place-items: center; width: var(--ds-step-dot); height: var(--ds-step-dot); border-radius: var(--ds-radius-full); background: var(--ds-bg-muted); font-size: var(--ds-text-xs); font-weight: var(--ds-weight-medium); }
+.aop-flow-index { display: grid; place-items: center; width: var(--ds-step-dot); height: var(--ds-step-dot); border-radius: var(--ds-radius-full); background: var(--ds-bg-muted); font-size: var(--ds-text-chip); font-weight: var(--ds-weight-medium); }
 .aop-checks { display: grid; }
 
 /* The dashboard preview: three tiles over a regional bar chart. */
@@ -215,7 +230,7 @@ button.aop-dash-region:hover { text-decoration: underline; text-underline-offset
 
 /* The runbook reads as a document. */
 .aop-doc { display: grid; gap: var(--ds-space-2); max-width: 72ch; font-size: var(--ds-text-sm); line-height: var(--ds-lh-sm); }
-.aop-doc h3 { margin-top: var(--ds-space-3); font-size: var(--ds-text-md); line-height: var(--ds-lh-md); font-weight: var(--ds-weight-semibold); }
+.aop-doc h3 { margin-top: var(--ds-space-3); font-size: var(--ds-text-md); line-height: var(--ds-lh-md); font-weight: var(--ds-weight-medium); }
 
 /* Versions: newest first, the shown one selected; compare and releases beneath. */
 .aop-versions { display: grid; gap: var(--ds-space-2); padding-top: var(--ds-space-5); border-top: 1px solid var(--ds-border); }
@@ -247,18 +262,16 @@ button.aop-dash-region:hover { text-decoration: underline; text-underline-offset
 .aop-activity-row:has(+ .is-continued) { padding-bottom: var(--ds-space-4); }
 .aop-activity-row:not(:last-child)::before { position: absolute; top: calc(var(--ds-space-6) + var(--ds-space-2)); bottom: var(--ds-space-2); left: calc(var(--ds-space-6) / 2); width: 1px; background: var(--ds-border); content: ""; }
 .aop-activity-icon { display: grid; place-items: center; width: var(--ds-space-6); height: var(--ds-space-6); color: var(--ds-fg-subtle); }
-.aop-activity-row.is-positive .aop-activity-icon { color: var(--ds-positive-fg); }
 .aop-activity-row.is-attention .aop-activity-icon { color: var(--ds-warning-fg); }
 .aop-activity-row.is-danger .aop-activity-icon { color: var(--ds-danger-fg); }
-.aop-activity-row.is-live .aop-activity-icon { color: var(--ds-tint-1-fg); }
 .aop-activity-body { display: grid; gap: var(--ds-space-1); min-width: 0; padding-top: 2px; }
 .aop-activity-meta { display: flex; flex-wrap: wrap; align-items: center; gap: var(--ds-space-2); color: var(--ds-fg-subtle); font-size: var(--ds-text-xs); line-height: var(--ds-lh-xs); font-variant-numeric: tabular-nums; }
 .aop-activity-actor { display: inline-flex; align-items: center; gap: var(--ds-space-2); color: var(--ds-fg); font-size: var(--ds-text-md); line-height: var(--ds-lh-md); font-weight: var(--ds-weight-semibold); letter-spacing: var(--ds-track-name); font-variation-settings: var(--ds-opsz-display); }
 .aop-activity-text { max-width: 72ch; font-size: var(--ds-text-md); line-height: var(--ds-lh-relaxed); overflow-wrap: anywhere; }
 /* What an entry or a message touched: quiet links in a row, never a strip of bordered chips. */
 .aop-refs { display: flex; flex-wrap: wrap; align-items: baseline; gap: var(--ds-space-1) var(--ds-space-4); margin: var(--ds-space-1) 0 0; color: var(--ds-fg-subtle); font-size: var(--ds-text-xs); line-height: var(--ds-lh-xs); font-variant-numeric: tabular-nums; }
-.aop-root .aop-ref { min-height: var(--ds-control-h-xs); padding: 0; border: 0; background: none; color: var(--ds-fg-subtle); font: inherit; text-align: left; text-decoration: underline; text-decoration-color: var(--ds-border-strong); text-underline-offset: var(--ds-underline-offset); cursor: pointer; transition: color var(--ds-duration) var(--ds-ease), text-decoration-color var(--ds-duration) var(--ds-ease); }
-.aop-root .aop-ref:hover { color: var(--ds-fg); text-decoration-color: currentColor; }
+.aop-root .aop-ref { min-height: var(--ds-control-h-xs); padding: 0; border: 0; background: none; color: var(--ds-fg-subtle); font: inherit; text-align: left; text-decoration: none; text-decoration-color: var(--ds-border-strong); text-underline-offset: var(--ds-underline-offset); cursor: pointer; transition: color var(--ds-duration) var(--ds-ease), text-decoration-color var(--ds-duration) var(--ds-ease); }
+.aop-root .aop-ref:hover { color: var(--ds-fg); text-decoration: underline; text-decoration-color: currentColor; }
 /* A reference is one word: it never breaks at its hyphen. */
 .aop-root .aop-keep { white-space: nowrap; }
 .aop-operations ul { display: grid; gap: var(--ds-space-1); margin: var(--ds-space-2) 0 0; padding: var(--ds-space-3) var(--ds-space-4); border-radius: var(--ds-radius-md); background: var(--ds-bg-inset); color: var(--ds-fg-subtle); font-family: var(--ds-font-mono); font-size: var(--ds-text-xs); line-height: var(--ds-lh-xs); list-style: none; }
@@ -272,12 +285,12 @@ button.aop-dash-region:hover { text-decoration: underline; text-underline-offset
 .aop-composer .ws-composer-tools .aop-unread { color: var(--ds-fg-on-primary); font-weight: var(--ds-weight-medium); }
 .aop-scope-action { min-height: var(--ds-control-h-xs); padding: 0; border: 0; background: none; color: var(--ds-fg-subtle); font: inherit; text-decoration: underline; text-decoration-color: var(--ds-border-strong); text-underline-offset: 2px; }
 .aop-scope-action:hover { color: var(--ds-fg); text-decoration-color: currentColor; }
-.aop-unread { display: inline-grid; place-items: center; min-width: var(--ds-avatar-xs); height: var(--ds-avatar-xs); margin-left: var(--ds-space-1); padding: 0 var(--ds-space-1); border-radius: var(--ds-radius-full); background: var(--ds-primary); color: var(--ds-fg-on-primary); font-size: var(--ds-text-xs); line-height: var(--ds-lh-xs); }
+.aop-unread { display: inline-grid; place-items: center; min-width: var(--ds-avatar-xs); height: var(--ds-avatar-xs); margin-left: var(--ds-space-1); padding: 0 var(--ds-space-1); border-radius: var(--ds-radius-full); background: var(--ds-primary); color: var(--ds-fg-on-primary); font-size: var(--ds-text-chip); line-height: var(--ds-lh-chip); }
 .aop-latest { display: flex; flex-wrap: wrap; align-items: center; gap: var(--ds-space-2) var(--ds-space-3); padding: var(--ds-space-2) var(--ds-space-3); border-radius: var(--ds-radius-lg); background: var(--ds-bg-callout); font-size: var(--ds-text-sm); line-height: var(--ds-lh-sm); }
 .aop-latest > p { flex: 1 1 calc(var(--ds-space-12) * 6); display: -webkit-box; min-width: 0; overflow: hidden; -webkit-box-orient: vertical; -webkit-line-clamp: 2; }
 .aop-latest-time { color: var(--ds-fg-subtle); }
 .aop-latest-actions { display: inline-flex; flex-wrap: wrap; align-items: center; gap: var(--ds-space-2); font-size: var(--ds-text-xs); }
-.aop-icon-button { display: inline-grid; flex-shrink: 0; place-items: center; width: var(--ds-control-h-sm); height: var(--ds-control-h-sm); padding: 0; border: 0; border-radius: var(--ds-radius-md); background: none; color: var(--ds-fg-subtle); }
+.aop-icon-button { display: inline-grid; flex-shrink: 0; place-items: center; width: var(--ds-control-h-sm); height: var(--ds-control-h-sm); padding: 0; border: 0; border-radius: var(--ds-radius-button); background: none; color: var(--ds-fg-subtle); }
 .aop-icon-button:hover, .aop-icon-button[aria-pressed="true"] { background: var(--ds-bg-hover); color: var(--ds-fg); }
 
 .aop-conversation { display: flex; flex-direction: column; min-width: 0; min-height: 0; border-left: 1px solid var(--ds-border); background: var(--ds-bg); }
@@ -393,7 +406,7 @@ button.aop-dash-region:hover { text-decoration: underline; text-underline-offset
 
 /* ---- Page-level placements ------------------------------------------------------ */
 /* In a workspace, toasts rise above the composer dock so they never cover Send. */
-.aop-root:has(.aop-eng-dock) .aop-toast-region { bottom: calc(var(--ds-space-12) * 3); }
+.aop-root:has(.aop-eng-dock) .aop-toast-region { bottom: calc(var(--ds-space-12) * 2); }
 .aop-deploy-bar > .aop-actions { flex-shrink: 0; flex-wrap: nowrap; }
 .aop-deploy-bar .aop-deploy-text { max-width: 48ch; text-align: right; }
 @media (max-width: 600px) {

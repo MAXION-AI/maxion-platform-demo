@@ -2035,6 +2035,7 @@ export function DiscoveryAutonomousPrototypePage({ embedded = false, active = tr
 							scenarioKey={scenarioKey}
 							missionBrief={missionBrief}
 							missionDecision={missionDecision}
+							deadline={missionDeadline}
 							phase={phase}
 							paused={paused}
 							people={people}
@@ -2193,14 +2194,15 @@ function ToastRegion({ toast, className }: { toast: ToastNote | null; className?
 	)
 }
 
+// The column is headed "Updated", so the cell says only when (and stays on one line).
 function relativeDiscoveryTime(timestamp: string) {
 	const elapsedMinutes = Math.max(0, Math.round((Date.now() - new Date(timestamp).getTime()) / 60_000))
-	if (elapsedMinutes < 1) return "Updated just now"
-	if (elapsedMinutes < 60) return `Updated ${elapsedMinutes} min ago`
+	if (elapsedMinutes < 1) return "Just now"
+	if (elapsedMinutes < 60) return `${elapsedMinutes} min ago`
 	const elapsedHours = Math.round(elapsedMinutes / 60)
-	if (elapsedHours < 24) return `Updated ${elapsedHours} hr${elapsedHours === 1 ? "" : "s"} ago`
+	if (elapsedHours < 24) return `${elapsedHours} hr${elapsedHours === 1 ? "" : "s"} ago`
 	const elapsedDays = Math.round(elapsedHours / 24)
-	return `Updated ${elapsedDays} day${elapsedDays === 1 ? "" : "s"} ago`
+	return `${elapsedDays} day${elapsedDays === 1 ? "" : "s"} ago`
 }
 
 // Ledger entries are stamped from the run's own start time plus the elapsed
@@ -2347,7 +2349,7 @@ function DiscoveryIndex({
 										<div className="hub-template-grid">
 											{templates().slice(0, 3).map(template => (
 												<button key={template.name} type="button" onClick={() => onNewFromTemplate(template.brief)}>
-													<span className="hub-template-name"><Mark seed={template.name} size="xs" />{template.name}</span>
+													<span className="hub-template-name"><Mark tone="neutral" seed={template.name} size="xs" />{template.name}</span>
 													<span className="hub-template-detail">{template.detail}</span>
 												</button>
 											))}
@@ -2358,22 +2360,7 @@ function DiscoveryIndex({
 							) : null}
 						</AnimatePresence>
 
-						{waiting.length ? (
-							<section className="hub-waiting" aria-label="Needs your input">
-								<p className="callout-line"><ShieldCheck size={16} />{waiting.length === 1 ? "One Discovery needs your input" : `${waiting.length} Discoveries need your input`}</p>
-								<div className="hub-waiting-list">
-									{waiting.slice(0, 3).map(record => (
-										<button key={record.id} type="button" className="hub-waiting-row" onClick={() => onReviewDecision(record)}>
-											<Mark seed={record.id} size="xs" />
-											<span className="hub-waiting-title">{record.title}</span>
-											<span className="hub-waiting-meta">{discoveryActivity(record)}</span>
-											<span className="hub-waiting-action">{waitingAction(record)}<ArrowRight size={14} /></span>
-										</button>
-									))}
-								</div>
-							</section>
-						) : null}
-
+						{/* What waits on you is the row's own pill and Review decision; a callout above the table said it a second time. */}
 						<div className="discovery-index-toolbar">
 							<DsSearchInput label="Search discoveries" value={query} onChange={event => setQuery(event.target.value)} onClear={() => setQuery("")} placeholder="Search discoveries…" />
 							<DsSegmentedTabs
@@ -2521,7 +2508,7 @@ function TemplateBrowser({ onBack, onUse }: { onBack: () => void; onUse: (brief:
 										onClick={() => setSelected(template.name)}
 										onDoubleClick={() => onUse(template.brief)}
 										{...cardMotion}>
-										<span className="tpl-card-name"><Mark seed={template.name} size="xs" />{template.name}</span>
+										<span className="tpl-card-name"><Mark tone="neutral" seed={template.name} size="xs" />{template.name}</span>
 										<span className="tpl-card-detail" id={`tpl-${template.name.replace(/\W+/g, "-")}`}>{template.detail}</span>
 									</motion.button>
 								))}
@@ -2537,7 +2524,7 @@ function TemplateBrowser({ onBack, onUse }: { onBack: () => void; onUse: (brief:
 					{current && scenario ? (
 						<motion.div key={current.name} className="tpl-preview-inner" {...previewMotion}>
 							<div className="tpl-preview-head">
-								<Mark seed={current.name} size="sm" />
+								<Mark tone="neutral" seed={current.name} size="sm" />
 								<div>
 									<h2>{current.name}</h2>
 									<p>{current.category}</p>
@@ -2772,7 +2759,7 @@ function SetupScreen({
 								<div className="create-template-grid">
 									{templates().slice(0, 4).map((template) => (
 										<button type="button" key={template.name} aria-label={template.name} aria-pressed={missionBrief === template.brief} aria-describedby={`template-${template.name.replace(/\W+/g, "-")}`} onClick={() => { onMissionBriefChange(template.brief); briefRef.current?.focus() }}>
-											<Mark seed={template.name} size="xs" />
+											<Mark tone="neutral" seed={template.name} size="xs" />
 											<span className="template-name">{template.name}</span>
 											<span className="template-detail" id={`template-${template.name.replace(/\W+/g, "-")}`}>{template.detail}</span>
 										</button>
@@ -3030,7 +3017,7 @@ function WorkspaceShell({
 		: decisionPending ? { label: "1 decision needs you", tone: "warning" as const }
 		: paused ? { label: "Paused", tone: "neutral" as const }
 		: { label: "Running", tone: "positive" as const }
-	const showDock = view === "autonomy" || view === "workshop"
+
 	const pauseLabel = paused ? "Resume" : "Pause"
 	// A finished run takes questions, not direction.
 	const steerLabel = complete ? "Ask MAX" : "Steer MAX"
@@ -3038,6 +3025,9 @@ function WorkspaceShell({
 	// On a phone Pause and Setup ride in the overflow menu so the bar keeps one
 	// row of actions; cockpit.css hides their bar buttons at the same query.
 	const phoneActions = useMediaQuery(PHONE_ACTIONS_QUERY)
+	// The right-hand Details panel opens on demand, as the live app's side panels do; the work keeps the width.
+	const [detailsOpen, setDetailsOpen] = useState(false)
+	const dockable = view === "autonomy" || view === "workshop"
 	return (
 		<div className="workspace-shell">
 			<div className="workspace-body">
@@ -3051,11 +3041,10 @@ function WorkspaceShell({
 						</button>
 					</div>
 					<div className="ds-topbar-end">
-						{deadline ? <span className="workspace-pill">{deadline}</span> : null}
-						<DsButton size="sm" className="workspace-action workspace-steer" title={steerLabel} onClick={onSteer}><ChatCircleText size={14} /><span className="workspace-action-label">{steerLabel}</span></DsButton>
+						<DsButton size="sm" variant="ghost" className="workspace-action workspace-steer" title={steerLabel} onClick={onSteer}><ChatCircleText size={14} /><span className="workspace-action-label">{steerLabel}</span></DsButton>
 						{/* A finished run has nothing to pause; the status pill already says so. */}
 						{complete ? null : (
-							<DsButton size="sm" className="workspace-action workspace-pause" title={pauseLabel} onClick={onTogglePause}>
+							<DsButton size="sm" variant="ghost" className="workspace-action workspace-pause" title={pauseLabel} onClick={onTogglePause}>
 								{paused ? <Play size={14} weight="fill" /> : <Pause size={14} weight="fill" />}
 								<span className="workspace-action-label">{pauseLabel}</span>
 							</DsButton>
@@ -3071,7 +3060,8 @@ function WorkspaceShell({
 								onClick={onContinueToAgentix}>
 								Continue to {destination}
 							</DsButton>}
-						<DsButton size="sm" icon className="workspace-setup" aria-label="Open setup" title="Setup" onClick={onOpenSetup}><GearSix size={16} /></DsButton>
+						{dockable ? <DsButton size="sm" variant="ghost" className="workspace-action workspace-details" aria-pressed={detailsOpen} title="Details" onClick={() => setDetailsOpen(open => !open)}><SidebarSimple size={16} /><span className="workspace-action-label">Details</span></DsButton> : null}
+						<DsButton size="sm" variant="ghost" icon className="workspace-setup" aria-label="Open setup" title="Setup" onClick={onOpenSetup}><GearSix size={16} /></DsButton>
 						<OverflowMenu label="More Discovery actions" items={[
 							...(phoneActions && !complete ? [{ label: pauseLabel, onSelect: onTogglePause }] : []),
 							...(phoneActions ? [{ label: "Setup", onSelect: onOpenSetup }] : []),
@@ -3091,9 +3081,9 @@ function WorkspaceShell({
 					))}
 				</nav>
 
-				<div className={`workspace-panes${showDock ? " has-dock" : ""}`}>
+				<div className={`workspace-panes${dockable && detailsOpen ? " has-dock" : ""}`}>
 					<main className="workspace-content">{children}</main>
-					{showDock ? (
+					{dockable && detailsOpen ? (
 						<NeedsYouDock
 							scenarioKey={scenarioKey}
 							phase={phase}
@@ -3103,7 +3093,9 @@ function WorkspaceShell({
 							interviewIndex={interviewIndex}
 							handoffId={handoffId}
 							charterPending={complete && handoffBlocked && !handoffId}
+							deadline={deadline}
 							showJourney={view !== "autonomy"}
+							showNeedsYou={view !== "autonomy"}
 							onJumpToDecision={onJumpToDecision}
 							onOpenThread={() => onViewChange("thread")}
 							onOpenHandoff={onContinueToAgentix}
@@ -3138,7 +3130,7 @@ function OverflowMenu({ label, items }: { label: string; items: Array<{ label: s
 	return (
 		// Focus that moves anywhere outside the menu closes it, as a click outside does.
 		<div className="overflow-menu" ref={rootRef} onBlur={event => { if (open && event.relatedTarget instanceof Node && !event.currentTarget.contains(event.relatedTarget)) setOpen(false) }}>
-			<DsButton ref={triggerRef} size="sm" icon aria-label={label} aria-haspopup="menu" aria-expanded={open} onClick={() => setOpen(current => !current)}><DotsThree size={16} weight="bold" /></DsButton>
+			<DsButton ref={triggerRef} size="sm" variant="ghost" icon aria-label={label} aria-haspopup="menu" aria-expanded={open} onClick={() => setOpen(current => !current)}><DotsThree size={16} weight="bold" /></DsButton>
 			{open ? (
 				<div className="overflow-menu-list" role="menu" aria-label={label}
 					onKeyDown={event => {
@@ -3295,7 +3287,7 @@ function runJourney({ scenarioKey, phase, paused, decision, interviewClosed, han
 }
 
 const JOURNEY_STATUS_LABEL: Record<JourneyStageStatus, string> = { complete: "Done", current: "In progress", blocked: "Waiting on you", paused: "Paused", pending: "Queued" }
-const JOURNEY_EDGE_LABEL: Record<JourneyStageStatus | "parallel", string> = { complete: "Done", current: "In progress", blocked: "Needs you", paused: "Paused", pending: "", parallel: "" }
+const JOURNEY_EDGE_LABEL: Record<JourneyStageStatus | "parallel", string> = { complete: "Done", current: "In progress", blocked: "Waiting", paused: "Paused", pending: "", parallel: "" }
 const JOURNEY_RAIL_LABEL: Record<JourneyStageStatus, string> = { complete: "Done", current: "Now", blocked: "Waiting", paused: "Paused", pending: "" }
 const REVEAL_EASE = [0.2, 0, 0, 1] as const
 
@@ -3487,7 +3479,8 @@ function Overview({
 		{ key: "actions", label: "Verified actions", value: <AnimatedStat value={autonomousActions} />, unit: autonomousActions === null ? undefined : "actions" },
 		{ key: "records", label: "Records screened", value: <AnimatedStat value={sourcesRead ? sourceRecords : null} />, unit: sourcesRead ? "records" : undefined },
 		// Read like its neighbours ("18 actions"): a count and its unit, not "0 + 0".
-		{ key: "interviews", label: "Interviews and follow-ups", value: <AnimatedStat value={interviewed} />, unit: followUps ? `interviews · ${followUps} follow-ups` : interviewed === 1 ? "interview" : "interviews" },
+		// One short label and one short value, so the four figures share a baseline.
+		{ key: "interviews", label: "Interviews", value: <AnimatedStat value={interviewed} />, unit: followUps ? `+ ${followUps} follow-ups` : interviewed === 1 ? "interview" : "interviews" },
 		{ key: "interruptions", label: "Owner interruptions", value: <AnimatedStat value={interruptions} /> },
 	]
 	// A tablist moves with the arrow keys and holds one tab stop (the selected tab).
@@ -3559,11 +3552,18 @@ function Overview({
 
 	const authorityCard = (
 		<section key="authority" ref={authorityRef} tabIndex={-1} className={`autonomy-card overview-attention${decisionPending ? " needs-decision" : ""}`} aria-labelledby="authority-heading">
-			<div className="autonomy-card-head">
-				<h2 className="autonomy-card-title">Human authority</h2>
-				{decisionPending || awaitingOwner ? <span className="ds-count">1</span> : <CheckCircle size={16} weight="fill" className="autonomy-clear-icon" />}
-			</div>
-			<p id="authority-heading" className="autonomy-card-value">{decisionPending ? "1 decision needs you" : awaitingOwner ? "Your interview answer" : complete ? "Nothing needs you" : "Nothing right now"}</p>
+			{decisionPending ? (
+				// The decision titles itself below; the card says only whose it is.
+				<div className="autonomy-card-head"><h2 id="authority-heading" className="autonomy-card-title">Your decision</h2></div>
+			) : (
+				<>
+					<div className="autonomy-card-head">
+						<h2 className="autonomy-card-title">Human authority</h2>
+						{awaitingOwner ? <span className="ds-count">1</span> : <CheckCircle size={16} weight="fill" className="autonomy-clear-icon" />}
+					</div>
+					<p id="authority-heading" className="autonomy-card-value">{awaitingOwner ? "Your interview answer" : complete ? "Nothing needs you" : "Nothing right now"}</p>
+				</>
+			)}
 			{decisionPending ? (
 				<DecisionBoundary scenarioKey={scenarioKey} compact onResolve={(next) => {
 					onResolveDecision(next)
@@ -3590,7 +3590,8 @@ function Overview({
 			<section className={`overview-main${decisionPending ? " is-gated" : ""}`} aria-label="Autonomy overview" tabIndex={0}>
 				<div className="autonomy-page">
 					<div className="autonomy-topline">
-						<span className={`autonomy-live${liveTone}`}><i aria-hidden="true" /><span>{complete ? "Run complete" : paused ? "Paused" : decisionPending ? "Waiting on one decision" : running ? `Working · ${OPERATIONS[phase].label}` : "Interviewing you"}</span></span>
+						{/* A waiting decision is named once on this screen, by the bar's status and the decision itself. */}
+						{decisionPending ? <span /> : <span className={`autonomy-live${liveTone}`}><i aria-hidden="true" /><span>{complete ? "Run complete" : paused ? "Paused" : running ? `Working · ${OPERATIONS[phase].label}` : "Interviewing you"}</span></span>}
 						<div className="autonomy-mission" ref={briefRef}>
 							<DsButton ref={briefButtonRef} size="sm" aria-expanded={briefOpen} onClick={() => setBriefOpen(current => !current)}>Discovery brief</DsButton>
 							<SwapPresence instant={reducedMotion} mode="sync">
@@ -3601,7 +3602,8 @@ function Overview({
 
 					<header className="autonomy-hero">
 						<div>
-							<p className="autonomy-eyebrow">{missionTitle}</p>
+							{/* The bar's breadcrumb names the mission; the eyebrow says where and when it is decided. */}
+							<p className="autonomy-eyebrow">{deadline ? `Decision forum · ${deadline}` : missionTitle}</p>
 							<h1 className="ds-page-title">{complete ? "MAX ran the Discovery." : paused ? "The Discovery is paused." : interviewClosed ? "MAX is running the Discovery." : "MAX is forming the mission with you."}</h1>
 							<p className="ds-page-desc">{journeyNextAction(phase, journey)}</p>
 						</div>
@@ -3660,7 +3662,7 @@ function Overview({
 											{scenario.sources.map((source, index) => (
 												<li key={source.name}>
 													<motion.span className="metric-bar" initial={{ width: 0 }} animate={{ width: `${sourcesRead ? Math.max(8, (sourceSizes[index] / largestSource) * 100) : 4}%` }} transition={{ duration: 0.6, delay: index * 0.06, ease: REVEAL_EASE }} />
-													<span className="metric-bar-label"><Mark seed={source.name} size="xs" />{source.name}<small>{source.system}</small></span>
+													<span className="metric-bar-label"><Mark tone="neutral" seed={source.name} size="xs" />{source.name}<small>{source.system}</small></span>
 													<span className="metric-bar-value">{sourcesRead ? source.records : awaitingOwner ? "bound" : "reading"}</span>
 												</li>
 											))}
@@ -3712,7 +3714,7 @@ function Overview({
 								<li key={item.id} className={`analysis-row is-${item.state}${openRow === item.id ? " is-open" : ""}`}>
 									<button type="button" className="analysis-row-main" aria-expanded={openRow === item.id} onClick={() => toggleRow(item.id)}>
 										{/* Seeds checked to give the four rows four shapes in four tints. */}
-										<span className="analysis-cell analysis-cell-name"><CaretRight size={12} className="analysis-caret" /><Mark seed={`workstream:${item.id}`} size="xs" /><strong>{item.label}</strong></span>
+										<span className="analysis-cell analysis-cell-name"><CaretRight size={12} className="analysis-caret" /><Mark tone="neutral" seed={`workstream:${item.id}`} size="xs" /><strong>{item.label}</strong></span>
 										<span className="analysis-cell">{item.title}</span>
 										<span className="analysis-cell is-end"><DsBadge tone={item.state === "attention" ? "warning" : item.state === "complete" ? "positive" : "neutral"} dot={item.state === "active" && !paused}>{stateLabel[item.state]}</DsBadge></span>
 									</button>
@@ -3998,6 +4000,7 @@ function Thread({
 	scenarioKey,
 	missionBrief,
 	missionDecision,
+	deadline,
 	phase,
 	paused,
 	people,
@@ -4029,6 +4032,8 @@ function Thread({
 	scenarioKey: ScenarioKey
 	missionBrief: string
 	missionDecision: string
+	/* The decision forum and date the owner confirmed at Create. */
+	deadline?: string
 	phase: number
 	paused: boolean
 	people: Person[]
@@ -4418,13 +4423,15 @@ function Thread({
 					<button type="button" className="panel-close" aria-label="Hide details" onClick={closeDetails}><X size={16} /></button>
 				</header>
 
-				<NeedsYouGroup items={needsYou} headingId="thread-needs-you" />
+				{/* The thread carries the decision card itself; the panel names only what is not on screen. */}
+				{needsYou.some(item => item.kind !== "Authority") ? <NeedsYouGroup items={needsYou.filter(item => item.kind !== "Authority")} headingId="thread-needs-you" /> : null}
 				<JourneyGroup phase={phase} context={journey} headingId="thread-journey" />
 				{interviewing || facts.length ? <HeardGroup scenarioKey={scenarioKey} facts={facts} interviewIndex={interviewIndex} interviewing={interviewing} /> : null}
 
 				<section className="panel-group" aria-labelledby="thread-brief">
 					<h3 id="thread-brief">Discovery brief</h3>
 					<p className="panel-desc panel-brief">{missionBrief || missionDecision}</p>
+					{deadline ? <p className="panel-desc">Decision forum · {deadline}</p> : null}
 				</section>
 
 				<section className="panel-group" aria-labelledby="thread-coverage">
@@ -4767,9 +4774,10 @@ function Deliverables({ scenarioKey, phase, paused, written, decision, interview
 												className={`deliverable-item is-${state.tone}${index === position ? " selected" : ""}`}
 												aria-current={index === position ? "page" : undefined}
 												onClick={() => onSelect(position)}>
-												<Mark seed={item.name} size="xs" />
+												<Mark tone="neutral" seed={item.name} size="xs" />
 												<span className="deliverable-name">{item.name}</span>{" "}
-												<span className="deliverable-state">{state.tone === "writing" ? <ShimmerText>{state.label}</ShimmerText> : state.label}</span>
+												{/* "Current" is every document's resting state; the list only says a state when it differs. */}
+												{state.label === "Current" ? <span className="visually-hidden">Current</span> : <span className="deliverable-state">{state.tone === "writing" ? <ShimmerText>{state.label}</ShimmerText> : state.label}</span>}
 												{state.tone === "approved" || (state.tone === "current" && index === position) ? <CheckCircle size={16} weight="fill" className="deliverable-check" /> : null}
 											</button>
 										)
@@ -4795,7 +4803,8 @@ function Deliverables({ scenarioKey, phase, paused, written, decision, interview
 						) : <p>{subtitle}</p>}
 					</div>
 					<div className="package-actions">
-						<DsBadge tone={ready ? "positive" : "neutral"} dot={!ready}>{ready ? <CheckCircle size={12} weight="bold" aria-hidden="true" /> : null}{status}</DsBadge>
+						{/* Verified is said once, by each document's "Evidence bound" mark and the bar's status; the badge is for every other state. */}
+						{ready && !handoff ? null : <DsBadge tone={ready ? "positive" : "neutral"} dot={!ready}>{ready ? <CheckCircle size={12} weight="bold" aria-hidden="true" /> : null}{status}</DsBadge>}
 						<DsButton size="sm" disabled={!ready} title={ready ? undefined : "Available once the package is verified"} onClick={exportAll}><DownloadSimple size={14} />Export all</DsButton>
 						{handoff && onOpenPlan ? <DsButton size="sm" variant="primary" onClick={onOpenPlan}><ArrowUpRight size={14} />Open in {destination}</DsButton> : null}
 					</div>
@@ -4825,7 +4834,7 @@ function Deliverables({ scenarioKey, phase, paused, written, decision, interview
 								)
 							) : null}
 							<div className={`reader-heading${ready ? "" : " is-pending"}`}>
-								<Mark seed={deliverable.name} />
+								<Mark tone="neutral" seed={deliverable.name} />
 								<div>
 									<p className="reader-audience">{deliverable.audience}</p>
 									<h2>{deliverable.name}</h2>
@@ -4932,7 +4941,7 @@ function CharterApprovalDialog({ open, documentName, audience, destination, onCl
 				<DsButton variant="primary" disabled={!enough} onClick={() => onApprove(reason.trim())}>Approve charter</DsButton>
 			</>}>
 			<div className="dialog-object">
-				<Mark seed={documentName} />
+				<Mark tone="neutral" seed={documentName} />
 				<div><strong>{documentName}</strong><span>{audience}</span></div>
 				<DsBadge tone="warning">Owner approval</DsBadge>
 			</div>
@@ -5000,7 +5009,7 @@ function HandoffDialog({ open, scenarioKey, missionDecision, decision, excluded,
 					<ul>
 						{included.map((position) => {
 							const item = DELIVERABLES[position]
-							return <li key={item.name}><Mark seed={item.name} size="xs" /><span className="handoff-name">{item.name}</span><span className="handoff-state">{position === CHARTER_DELIVERABLE_INDEX ? <DsBadge tone={charterApproval ? "positive" : "warning"}>{charterApproval ? "Approved" : "Needs approval"}</DsBadge> : null}</span><code>{deliverableHash(scenarioKey, position, decision)}</code></li>
+							return <li key={item.name}><Mark tone="neutral" seed={item.name} size="xs" /><span className="handoff-name">{item.name}</span><span className="handoff-state">{position === CHARTER_DELIVERABLE_INDEX ? <DsBadge tone={charterApproval ? "positive" : "warning"}>{charterApproval ? "Approved" : "Needs approval"}</DsBadge> : null}</span><code>{deliverableHash(scenarioKey, position, decision)}</code></li>
 						})}
 					</ul>
 				</div>
@@ -5059,7 +5068,7 @@ function ManifestSection({ manifest }: { manifest: ManifestControl }) {
 					return (
 						<li key={deliverable.name}>
 							<label className={`manifest-row${on ? "" : " is-off"}${locked ? " is-locked" : ""}`}>
-								<Mark seed={deliverable.name} size="sm" />
+								<Mark tone="neutral" seed={deliverable.name} size="sm" />
 								<span className="manifest-text">
 									<strong>{deliverable.name}{REQUIRED_OUTPUTS.has(index) ? <DsBadge>Required</DsBadge> : null}</strong>
 									<small>{deliverable.audience} · {deliverable.rationale}</small>
@@ -5288,7 +5297,7 @@ function DrawerPanel({ type, scenarioKey, people, onPeopleChange, manifest, toas
 										<div className="sheet-card-text">
 											<h3>Sources</h3>
 											<p>{scenario.sources.length} connected, read automatically within the approved scopes.</p>
-											<span className="sheet-marks">{scenario.sources.map(source => <Mark key={source.name} seed={source.name} size="xs" />)}</span>
+											<span className="sheet-marks">{scenario.sources.map(source => <Mark key={source.name} tone="neutral" seed={source.name} size="xs" />)}</span>
 										</div>
 										<DsButton size="sm" onClick={() => onFocusSection("sources")}>Open connected sources</DsButton>
 									</section>
@@ -5335,7 +5344,7 @@ function DrawerPanel({ type, scenarioKey, people, onPeopleChange, manifest, toas
 									<ul className="sheet-list">
 										{scenario.sources.map((source) => (
 											<li key={source.name} className="source-row">
-												<Mark seed={source.name} size="sm" />
+												<Mark tone="neutral" seed={source.name} size="sm" />
 												<div><strong>{source.name}</strong><span>{source.system} · {source.scope}</span><small>{source.records} · indexed incrementally</small></div>
 												<DsBadge tone="positive">Scope verified</DsBadge>
 											</li>
@@ -5506,7 +5515,7 @@ function WorkshopRoom({ scenarioKey, missionTitle, phase, paused, finalized, han
 								)}
 								<div className="workshop-evidence" aria-label="Workshop evidence">
 									<p className="workshop-pane-title">Evidence in the room</p>
-									<div>{scenario.sources.slice(0, 3).map(source => <span key={source.name} className="workshop-source"><Mark seed={source.name} size="xs" />{source.name}<small>{source.records}</small></span>)}</div>
+									<div>{scenario.sources.slice(0, 3).map(source => <span key={source.name} className="workshop-source"><Mark tone="neutral" seed={source.name} size="xs" />{source.name}<small>{source.records}</small></span>)}</div>
 								</div>
 								<p className="workshop-foot">{bound
 									? `All ${agenda.length} agenda items are agreed and bound to readiness snapshot v7 as cited evidence.`
@@ -5564,7 +5573,7 @@ function needsYouItems({ scenarioKey, phase, decision, interviewClosed, intervie
  * owner's outstanding items and the health of the bound sources, so the owner
  * never has to change tab to learn whether anything is waiting on them.
  */
-function NeedsYouDock({ scenarioKey, phase, paused, decision, interviewClosed, interviewIndex, handoffId, charterPending, showJourney = true, onJumpToDecision, onOpenThread, onOpenHandoff, onOpenSources }: {
+function NeedsYouDock({ scenarioKey, phase, paused, decision, interviewClosed, interviewIndex, handoffId, charterPending, deadline, showJourney = true, showNeedsYou = true, onJumpToDecision, onOpenThread, onOpenHandoff, onOpenSources }: {
 	scenarioKey: ScenarioKey
 	phase: number
 	paused: boolean
@@ -5576,6 +5585,10 @@ function NeedsYouDock({ scenarioKey, phase, paused, decision, interviewClosed, i
 	charterPending?: boolean
 	/* The Autonomy tab draws the journey as its canvas, so the rail does not repeat it there. */
 	showJourney?: boolean
+	/* Autonomy shows the waiting decision itself, so the rail does not list it again there. */
+	showNeedsYou?: boolean
+	/* The decision forum and date the owner confirmed at Create. */
+	deadline?: string
 	onJumpToDecision: () => void
 	onOpenThread: () => void
 	onOpenHandoff?: () => void
@@ -5589,7 +5602,8 @@ function NeedsYouDock({ scenarioKey, phase, paused, decision, interviewClosed, i
 	return (
 		<aside className="needs-you-dock" aria-label="Needs you">
 			<header className="panel-head"><h2>Details</h2></header>
-			<NeedsYouGroup items={items} headingId="dock-needs-you" />
+			{deadline ? <section className="panel-group" aria-labelledby="dock-forum"><h3 id="dock-forum">Decision forum</h3><p className="panel-desc">{deadline}</p></section> : null}
+			{showNeedsYou ? <NeedsYouGroup items={items} headingId="dock-needs-you" /> : null}
 			{showJourney ? <JourneyGroup phase={phase} context={journey} headingId="dock-journey" /> : null}
 			<section className="panel-group" aria-labelledby="dock-sources">
 				<h3 id="dock-sources">Sources</h3>
@@ -5597,7 +5611,7 @@ function NeedsYouDock({ scenarioKey, phase, paused, decision, interviewClosed, i
 				<div className="panel-card">
 					{scenario.sources.map(source => (
 						<button key={source.name} type="button" className="panel-row is-stacked" onClick={onOpenSources}>
-							<Mark seed={source.name} size="xs" className="panel-row-icon" />
+							<Mark tone="neutral" seed={source.name} size="xs" className="panel-row-icon" />
 							<span className="panel-row-label">{source.name}</span>{" "}
 							<span className="panel-row-value">{sourceState} · {source.records}</span>
 							<CaretRight size={14} className="panel-row-caret" />

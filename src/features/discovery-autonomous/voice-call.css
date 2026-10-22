@@ -6,7 +6,7 @@
 /* Bar: back, what this call is, and its live facts. */
 .prototype .vc-bar { display: flex; align-items: center; gap: var(--ds-space-4); min-height: var(--ds-topbar-h); padding: 0 var(--ds-space-4); border-bottom: 1px solid var(--ds-border); }
 .prototype .vc-bar-title { display: flex; align-items: baseline; gap: var(--ds-space-2); min-width: 0; }
-.prototype .vc-bar-title h2 { overflow: hidden; margin: 0; font-size: var(--ds-text-md); line-height: var(--ds-lh-md); font-weight: var(--ds-weight-semibold); text-overflow: ellipsis; white-space: nowrap; }
+.prototype .vc-bar-title h2 { overflow: hidden; margin: 0; font-size: var(--ds-text-md); line-height: var(--ds-lh-md); font-weight: var(--ds-weight-medium); text-overflow: ellipsis; white-space: nowrap; }
 .prototype .vc-bar-mission { overflow: hidden; color: var(--ds-fg-subtle); font-size: var(--ds-text-sm); text-overflow: ellipsis; white-space: nowrap; }
 .prototype .vc-bar-meta { display: flex; align-items: center; gap: var(--ds-space-3); margin-left: auto; color: var(--ds-fg-subtle); font-size: var(--ds-text-sm); white-space: nowrap; }
 .prototype .vc-clock { color: var(--ds-fg); font-variant-numeric: tabular-nums; }
@@ -50,12 +50,12 @@
 .prototype .vc-control.is-end { color: var(--ds-danger-fg); }
 .prototype .vc-control:focus-visible, .prototype .vc-mode button:focus-visible { outline: 2px solid var(--ds-ring); outline-offset: 1px; }
 .prototype .vc-mode { display: inline-flex; padding: 2px; border-radius: var(--ds-radius-full); background: var(--ds-bg-muted); }
-.prototype .vc-mode button { height: var(--ds-control-h-sm); padding: 0 var(--ds-space-3); border: 0; border-radius: var(--ds-radius-full); background: transparent; color: var(--ds-fg-subtle); font: inherit; font-size: var(--ds-text-xs); font-weight: var(--ds-weight-medium); cursor: pointer; }
+.prototype .vc-mode button { height: var(--ds-control-h-sm); padding: 0 var(--ds-space-3); border: 0; border-radius: var(--ds-radius-full); background: transparent; color: var(--ds-fg-subtle); font: inherit; font-size: var(--ds-text-chip); font-weight: var(--ds-weight-medium); cursor: pointer; }
 .prototype .vc-mode button.is-on { background: var(--ds-bg); color: var(--ds-fg); outline: 1px solid var(--ds-border); outline-offset: -1px; }
 
 /* Consent and the end of the interview: one centred column. */
 .prototype .vc-consent, .prototype .vc-complete { display: flex; flex-direction: column; align-items: center; gap: var(--ds-space-2); max-width: var(--ds-create-w); text-align: center; }
-.prototype .vc-consent h3, .prototype .vc-complete h3 { margin: 0; font-size: var(--ds-text-xl); line-height: var(--ds-lh-xl); letter-spacing: var(--ds-track-xl); font-weight: var(--ds-weight-semibold); }
+.prototype .vc-consent h3, .prototype .vc-complete h3 { margin: 0; font-size: var(--ds-text-xl); line-height: var(--ds-lh-xl); letter-spacing: var(--ds-track-xl); font-weight: var(--ds-weight-regular); }
 .prototype .vc-consent > p:not(.vc-state), .prototype .vc-complete > p:not(.vc-state) { margin: 0; color: var(--ds-fg-subtle); font-size: var(--ds-text-md); line-height: var(--ds-lh-md); }
 .prototype .vc-consent-points { display: grid; gap: var(--ds-space-1); margin: var(--ds-space-2) 0 var(--ds-space-3); padding: 0; list-style: none; text-align: left; font-size: var(--ds-text-sm); }
 .prototype .vc-consent-points li { display: flex; align-items: center; gap: var(--ds-space-2); }
@@ -66,7 +66,7 @@
 .prototype .vc-rail { display: grid; grid-template-rows: auto minmax(0, 1fr) auto; min-height: 0; border-left: 1px solid var(--ds-border); }
 .prototype .vc-heard { padding: var(--ds-space-4) var(--ds-space-4) var(--ds-space-2); border-bottom: 1px solid var(--ds-border); }
 .prototype .vc-heard header { display: flex; align-items: baseline; justify-content: space-between; margin-bottom: var(--ds-space-1); }
-.prototype .vc-heard h3, .prototype .vc-transcript h3 { margin: 0; font-size: var(--ds-text-sm); line-height: var(--ds-lh-sm); font-weight: var(--ds-weight-semibold); }
+.prototype .vc-heard h3, .prototype .vc-transcript h3 { margin: 0; font-size: var(--ds-text-sm); line-height: var(--ds-lh-sm); font-weight: var(--ds-weight-medium); }
 .prototype .vc-heard header span { color: var(--ds-fg-subtle); font-size: var(--ds-text-xs); }
 .prototype .vc-heard ol, .prototype .vc-transcript ol { margin: 0; padding: 0; list-style: none; }
 .prototype .vc-fact { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: start; gap: var(--ds-space-2); padding: var(--ds-space-2) 0; }
@@ -127,6 +127,9 @@
 	.prototype .vc-caption p { font-size: var(--ds-text-lg); line-height: var(--ds-lh-lg); }
 	.prototype .vc-controls { position: static; flex-wrap: wrap; justify-content: center; border: 0; background: none; transform: none; white-space: normal; box-shadow: none; }
 	.prototype .vc-control span { display: none; }
+	/* Ending the call stays a labelled button on a phone: the one control that cannot be undone. */
+	.prototype .vc-control.is-end { border: 1px solid var(--ds-border); }
+	.prototype .vc-control.is-end span { display: inline; }
 	.prototype .vc-consent h3, .prototype .vc-complete h3 { font-size: var(--ds-text-title); line-height: var(--ds-lh-title); }
 	.prototype .vc-consent .vo--lg { width: var(--ds-orb-sm); height: var(--ds-orb-sm); }
 	.prototype .vc-consent-points { display: none; }

@@ -1,0 +1,49 @@
+/*
+ * Consult MAX, set as the live app's assistant page. Tokens only. The shared 48px top bar,
+ * one centred conversation at the reading measure, and one floating composer: the single lift
+ * on the screen, as the reference's test-agent composer. Earlier conversations open in a sheet
+ * (account-pages.css: .acc-panel) instead of a second sidebar.
+ */
+.cst-frame { display: flex; flex-direction: column; height: 100%; min-height: 0; background: var(--ds-bg); }
+.cst-frame .ds-topbar-start { min-width: 0; }
+.cst-frame .ds-crumb { color: var(--ds-fg-subtle); }
+.cst-scroll { flex: 1; min-height: 0; overflow-y: auto; }
+.cst-main { width: min(100%, var(--ds-reader-max)); margin: 0 auto; padding: var(--ds-page-top) var(--ds-space-4) var(--ds-space-6); }
+
+.cst-hero { display: grid; justify-items: start; gap: var(--ds-space-2); margin-bottom: var(--ds-space-8); }
+.cst-hero h1 { font-size: var(--ds-text-greeting); line-height: var(--ds-lh-greeting); letter-spacing: var(--ds-track-greeting); font-weight: var(--ds-weight-regular); }
+.cst-hero p { color: var(--ds-fg-subtle); font-size: var(--ds-text-sm); line-height: var(--ds-lh-sm); }
+
+/* Conversation text sits at 15/24, the owner's reading size for chat (2026-10-12). */
+.cst-thread { display: grid; gap: var(--ds-space-6); }
+.cst-turn { display: grid; justify-items: start; gap: var(--ds-space-2); }
+.cst-who { display: inline-flex; align-items: center; gap: var(--ds-space-2); color: var(--ds-fg); font-size: var(--ds-text-sm); line-height: var(--ds-lh-sm); font-weight: var(--ds-weight-medium); }
+.cst-turn > p { color: var(--ds-fg); font-size: var(--ds-text-lg); line-height: var(--ds-lh-read); letter-spacing: var(--ds-track-read); }
+.cst-turn.is-user { justify-items: end; }
+.cst-turn.is-user > p { max-width: 85%; padding: var(--ds-space-2) var(--ds-space-4); border-radius: var(--ds-radius-xl); background: var(--ds-bg-muted); }
+.cst-actions { display: flex; flex-wrap: wrap; gap: var(--ds-space-2); }
+.cst-actions .ds-button svg { width: var(--ds-text-chip); height: var(--ds-text-chip); }
+.cst-turn > p.cst-thinking { display: inline-flex; align-items: center; gap: var(--ds-space-2); color: var(--ds-fg-subtle); font-size: var(--ds-text-sm); line-height: var(--ds-lh-sm); }
+
+.cst-composer { display: grid; flex-shrink: 0; gap: var(--ds-space-2); width: min(calc(100% - var(--ds-space-8)), var(--ds-reader-max)); margin: 0 auto var(--ds-space-6); padding: var(--ds-space-3) var(--ds-space-3) var(--ds-space-2) var(--ds-space-4); border: 1px solid var(--ds-border); border-radius: var(--ds-radius-xl); background: var(--ds-bg); box-shadow: var(--ds-shadow-float); transition: border-color var(--ds-duration) var(--ds-ease); }
+.cst-composer:focus-within { border-color: var(--ds-border-strong); }
+.cst-composer textarea { display: block; width: 100%; min-height: var(--ds-control-h); padding: 0; border: 0; background: transparent; color: var(--ds-fg); font-size: var(--ds-text-lg); line-height: var(--ds-lh-read); resize: none; }
+.cst-composer textarea:focus, .cst-composer textarea:focus-visible { outline: none; }
+.cst-composer-foot { display: flex; align-items: center; justify-content: space-between; gap: var(--ds-space-2); }
+.cst-scope { position: relative; display: inline-flex; align-items: center; }
+.cst-scope select { height: var(--ds-control-h-xs); padding: 0 var(--ds-space-6) 0 var(--ds-space-2); border: 1px solid var(--ds-border); border-radius: var(--ds-radius-full); background: var(--ds-bg); color: var(--ds-fg); font-size: var(--ds-text-chip); line-height: var(--ds-lh-chip); font-weight: var(--ds-weight-medium); letter-spacing: var(--ds-track-chip); cursor: pointer; appearance: none; }
+.cst-scope svg { position: absolute; right: var(--ds-space-2); width: var(--ds-text-chip); height: var(--ds-text-chip); color: var(--ds-fg-subtle); pointer-events: none; }
+
+.cst-history > li { padding: var(--ds-space-1) 0; }
+.cst-history button { display: grid; width: 100%; padding: var(--ds-space-2); border: 0; border-radius: var(--ds-radius-md); background: transparent; color: var(--ds-fg); text-align: left; cursor: pointer; transition: background var(--ds-duration) var(--ds-ease); }
+.cst-history button:hover { background: var(--ds-bg-hover); }
+.cst-history button[aria-current] { background: var(--ds-bg-selected); }
+
+@media (max-width: 860px) {
+	.cst-frame .ds-topbar { padding-left: calc(var(--ds-mobile-nav-offset) + var(--ds-space-4)); }
+}
+@media (max-width: 600px) {
+	.cst-frame .ds-crumb, .cst-frame .ds-crumb-sep { display: none; }
+	.cst-composer { width: calc(100% - var(--ds-space-6)); margin-bottom: var(--ds-space-3); }
+	.cst-hero h1 { font-size: var(--ds-text-xl); line-height: var(--ds-lh-xl); letter-spacing: var(--ds-track-xl); }
+}

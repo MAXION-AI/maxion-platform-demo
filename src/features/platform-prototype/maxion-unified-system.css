@@ -292,7 +292,8 @@
 	.aex-steer,
 	.exd-composer,
 	.mxp-discovery-composer > div,
-	.mxp-consult-composer > div
+	.mxp-consult-composer > div,
+	.cst-composer
 ) textarea:focus-visible {
 	outline: none !important;
 	outline-offset: 0;
@@ -366,14 +367,14 @@
 
 /* Pointer focus on a composer is quiet; the ring is for keyboard focus only.
  * This lived in the retired override layer. */
-.maxion-platform-prototype:not(.mxp-keyboard-navigation) :is(.ws-composer, .thread-composer):focus-within { outline: none; }
+.maxion-platform-prototype:not(.mxp-keyboard-navigation) :is(.ws-composer, .thread-composer, .cst-composer):focus-within { outline: none; }
 .maxion-platform-prototype :is(.ws-composer, .thread-composer, .aop-brief-card) textarea:focus-visible { outline: none !important; }
 /* Pointer focus draws no ring; keyboard focus rings the composer frame instead of
  * the textarea. The shell's global focus rule above carries !important, so this
  * exception has to as well. */
 .maxion-platform-prototype:not(.mxp-keyboard-navigation) :is(.ws-composer, .thread-composer, .brief-editor, .voice-compose, .aop-brief-card) textarea:focus,
 .maxion-platform-prototype:not(.mxp-keyboard-navigation) :is(.ws-composer, .thread-composer, .brief-editor, .voice-compose, .aop-brief-card) textarea:focus-visible { outline: none !important; }
-.maxion-platform-prototype.mxp-keyboard-navigation :is(.ws-composer, .thread-composer, .aop-brief-card):has(textarea:focus-visible) { outline: 2px solid var(--ds-ring); outline-offset: 2px; }
+.maxion-platform-prototype.mxp-keyboard-navigation :is(.ws-composer, .thread-composer, .aop-brief-card, .cst-composer):has(textarea:focus-visible) { outline: 2px solid var(--ds-ring); outline-offset: 2px; }
 
 /* Text fields take a pointer focus quietly, with a darker border; keyboard focus keeps the ring. */
 .maxion-platform-prototype:not(.mxp-keyboard-navigation) :is(.ds-input, .ds-textarea):focus,

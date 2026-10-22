@@ -171,7 +171,7 @@ export function EngagementWorkspace({ state, engagementId, update, onDetails, on
 							<button key={tab.id} id={`aop-tab-${tab.id}`} type="button" role="tab" aria-selected={nav.view === tab.id} aria-controls="aop-eng-panel" tabIndex={nav.view === tab.id ? 0 : -1} className="aop-tab" onKeyDown={event => onTabKey(event, index)} onClick={() => { remember(); setNav({ view: tab.id }) }}>
 								{tab.label}
 								<span className="aop-tab-count">{tab.id === "work" ? open_ : tab.id === "results" ? produced + verified : ""}</span>
-								{tab.id === "work" && waiting ? <span className="aop-tab-flag">{waiting} need{waiting === 1 ? "s" : ""} you</span> : null}
+								
 								{nav.view === tab.id ? <span className="aop-tab-underline" /> : null}
 							</button>
 						))}

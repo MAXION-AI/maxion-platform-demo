@@ -60,12 +60,11 @@ function NeedsYou({ state, items, onOpen }: { state: AgentixState; items: NeedsY
 	if (!items.length) return <p className="aop-inbox-clear"><CheckCircle size={16} weight="fill" aria-hidden="true" />You're up to date. Every engagement is handling its current work.</p>
 	return (
 		<section className="aop-owner-inbox" aria-label="Your next actions">
-			<header className="aop-inbox-head"><WarningCircle size={16} weight="fill" aria-hidden="true" /><h2>Needs you</h2><Count>{items.length}</Count><span className="aop-inbox-note">Everything else continues on its own.</span></header>
+			<header className="aop-inbox-head"><WarningCircle size={16} weight="fill" aria-hidden="true" /><h2>Needs you</h2><Count>{items.length}</Count></header>
 			<div className="aop-inbox-list">
 				<AnimatePresence initial={false}>
 					{shown.map(item => (
 						<motion.button key={item.key} type="button" className="aop-inbox-row" {...rise} onClick={() => onOpen(item)}>
-							<Mark seed={item.engagementId} size="xs" />
 							<span className="aop-inbox-title">{item.title}</span>
 							<span className="aop-inbox-meta">{state.engagements[item.engagementId]?.name} · {item.detail}</span>
 							<span className="aop-inbox-action">{KIND_ACTION[item.kind]}<ArrowRight size={14} aria-hidden="true" /></span>
@@ -269,6 +268,8 @@ export function DeployedAgentsPage({ intentSignal, onAttentionChange, onOpenDisc
 	}
 
 	const inbox = needsYou(state)
+	// What the Needs you list shows before it folds; those engagements need no second signal on their cards.
+	const listed = new Set((inbox.length > INBOX_LIMIT ? inbox.slice(0, INBOX_LIMIT - 1) : inbox).map(item => item.engagementId))
 	const attentionCount = Object.values(state.engagements).filter(entry => inbox.some(item => item.engagementId === entry.id)).length
 	const current = nav.workId ? itemBy(state, nav.workId) : undefined
 	const result = nav.resultId ? artifactBy(state, nav.resultId) ?? itemBy(state, nav.resultId) : undefined
@@ -283,7 +284,7 @@ export function DeployedAgentsPage({ intentSignal, onAttentionChange, onOpenDisc
 						: <span className="ds-topbar-title">Agentix</span>}
 					{nav.creating ? <><span className="ds-crumb-sep">/</span><span className="ds-crumb-current">Assign work</span></> : null}
 					{engagement && !nav.creating ? <>
-						<span className="ds-crumb-sep">/</span><Mark seed={engagement.id} size="xs" className="aop-crumb-mark" />
+						<span className="ds-crumb-sep">/</span>
 						{crumb || reviewing ? <button type="button" className="ds-crumb aop-crumb-engagement" onClick={() => openEngagement(engagement.id, { view: nav.view })}>{engagement.name}</button> : <span className="ds-crumb-current">{engagement.name}</span>}
 						{reviewing ? <><span className="ds-crumb-sep">/</span><span className="ds-crumb-current">Proposal</span></> : null}
 						{crumb ? <><span className="ds-crumb-sep">/</span><span className="ds-crumb-current">{crumb}</span></> : null}
@@ -311,12 +312,11 @@ export function DeployedAgentsPage({ intentSignal, onAttentionChange, onOpenDisc
 					<EngagementWorkspace key={engagement.id} state={state} engagementId={engagement.id} update={update} onDetails={section => setSheet({ kind: "details", section })} onReview={() => openReview(engagement.id)} onToast={setToast} />
 				) : (
 					<>
-						<PageHeader titleTabIndex={-1} title="Engagements" description="Agents that own ongoing work. See what they're doing, decide what needs you, and use what they've verified." actions={<DsButton variant="primary" onClick={() => setNav({ creating: true })}><Plus size={16} />Assign work</DsButton>} />
+						<PageHeader titleTabIndex={-1} title="Engagements" description="Agents that own ongoing work, and what they have verified." actions={<DsButton variant="primary" onClick={() => setNav({ creating: true })}><Plus size={16} />Assign work</DsButton>} />
 						<NeedsYou state={state} items={inbox} onOpen={openItem} />
 						<div className="aop-landing-list">
 							<div className="aop-list-tools"><SearchInput label="Search engagements" value={query} onChange={event => setQuery(event.target.value)} onClear={() => setQuery("")} placeholder="Search engagements, systems or owners…" /><SegmentedTabs label="Engagement filter" value={filter} onChange={setFilter} options={[{ value: "all", label: "All" }, { value: "attention", label: "Needs attention", count: attentionCount }]} /></div>
-							<Fleet state={state} query={query} filter={filter} onOpen={id => openEngagement(id)} onReset={() => { setQuery(""); setFilter("all") }} />
-							<p className="aop-footnote aop-landing-note">{demoActive() ? "Work advances while Agentix is on screen" : "Work advances while MAXION is open"} and stops when the browser closes.</p>
+							<Fleet state={state} query={query} filter={filter} listed={listed} onOpen={id => openEngagement(id)} onReset={() => { setQuery(""); setFilter("all") }} />
 						</div>
 					</>
 				)}

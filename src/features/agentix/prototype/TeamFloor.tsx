@@ -1,14 +1,14 @@
-import { useEffect, useId, useLayoutEffect, useMemo, useRef, useState, type CSSProperties } from "react"
+import { useEffect, useId, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type KeyboardEvent } from "react"
 import { useReducedMotion } from "motion/react"
 import { Play } from "@phosphor-icons/react"
 import { ArrowsClockwise, Bell, Database, Hammer, Lock, PencilSimpleLine, Rocket, SpeakerHigh, UserCircle, Waveform } from "./glyphs"
 
 import { Button as DsButton, Mark } from "@/design/primitives"
 import { MINUTE } from "./engine/engine"
-import { SCENARIOS, type Capability } from "./engine/scenarios"
+import { SCENARIOS, scheduleLabel, type Capability } from "./engine/scenarios"
 import { accountable, clockLabel, needsYou, shortTime } from "./engine/selectors"
 import type { AgentixState } from "./engine/types"
-import { checksOf, floorMinWidth, floorPlan, labelPoint, layoutFloor, liveFlows, latestVerifiedCycle, packetsFor, presenceById, roundedPath, route, type FloorPlan, type Measure, type Packet } from "./floor"
+import { checksOf, floorMinWidth, floorPlan, handsOff, layoutFloor, liveFlows, latestVerifiedCycle, packetsFor, presenceById, teamLines, teamPath, type FloorPlan, type Measure, type Packet, type TeamLine } from "./floor"
 import { AgentRoom, type RoomSelection } from "./AgentRoom"
 import { FloorTalk, briefingFor } from "./FloorTalk"
 import "./team-floor.css"
@@ -19,12 +19,13 @@ import "./team-floor.css"
  * teammate opened its milestone, and every message went to the accountable agent.
  *
  * Here the team reads as one calm hierarchy: you at the top, the accountable agent under you, the
- * specialists in a row, and the systems they may use along the bottom. Only the team's own lines
- * are always drawn. What the engine is doing right now draws on top: a line to a system runs while a
- * step uses it, work handed between specialists travels along the team's lines, a decision climbs
- * to you, a failed check marks the seat that built it, and a lost release acknowledgement is read
- * back rather than resent. Looking at an agent shows where it may reach. Selecting a seat opens
- * that teammate's room, where the owner can talk to it.
+ * specialists in a row, and the systems they may use along the bottom. The only lines are the team's
+ * own, as the reference canvas draws only its transitions. A system in use is named in the footer of
+ * the agent using it, as the reference node lists its tools, and the system's tile says how it stands.
+ * Work handed between the team travels along the team's lines, a failed check marks the seat that
+ * built it, and a lost release acknowledgement is read back rather than resent. Looking at an agent
+ * quiets the systems it may not use. Selecting a seat opens that teammate's room, where the owner
+ * can talk to it.
  *
  * It is a view, not an editor: nothing is wired or configured here (the operating model's rule).
  */
@@ -33,12 +34,12 @@ type Size = { width: number; height: number }
 /* Engagements whose team has already assembled on screen this session. */
 const assembled = new Set<string>()
 
-const CAPABILITY: Record<Capability, { label: string; icon: JSX.Element }> = {
-	read: { label: "Read only", icon: <Database size={14} /> },
-	build: { label: "Build and test", icon: <Hammer size={14} /> },
-	production: { label: "Production", icon: <Rocket size={14} /> },
-	update: { label: "Record update", icon: <PencilSimpleLine size={14} /> },
-	notify: { label: "Notify", icon: <Bell size={14} /> },
+const CAPABILITY: Record<Capability, { label: string; icon: JSX.Element; chip: JSX.Element }> = {
+	read: { label: "Read only", icon: <Database size={14} />, chip: <Database size={12} /> },
+	build: { label: "Build and test", icon: <Hammer size={14} />, chip: <Hammer size={12} /> },
+	production: { label: "Production", icon: <Rocket size={14} />, chip: <Rocket size={12} /> },
+	update: { label: "Record update", icon: <PencilSimpleLine size={14} />, chip: <PencilSimpleLine size={12} /> },
+	notify: { label: "Notify", icon: <Bell size={14} />, chip: <Bell size={12} /> },
 }
 
 export function TeamFloor({ state, engagementId, update, onDecide, onOpenWork, onOpenResult, onToast }: {
@@ -87,6 +88,20 @@ export function TeamFloor({ state, engagementId, update, onDecide, onOpenWork, o
 		setReturnTo(null)
 	}, [returnTo])
 	const closeRoom = () => { if (selected) setReturnTo(selected.kind === "owner" ? "owner" : selected.id); setSelected(null) }
+	// A room chosen from a seat is brought into view when it opens below the floor (narrow screens),
+	// so tapping a teammate never seems to do nothing.
+	const scrollToRoom = useRef(false)
+	// One thing open at a time: choosing a seat closes the talk bar, as opening the talk bar closes a room.
+	const openRoom = (selection: RoomSelection) => { scrollToRoom.current = true; setTalkOpen(false); setBriefing(null); setSpotlight([]); setSelected(selection) }
+	useEffect(() => {
+		if (!selected || !scrollToRoom.current) return
+		scrollToRoom.current = false
+		const room = sectionRef.current?.querySelector<HTMLElement>(".tf-room")
+		const canvas = canvasRef.current
+		if (!room || !canvas) return
+		const below = room.getBoundingClientRect().top >= canvas.getBoundingClientRect().bottom - 1
+		if (below) room.scrollIntoView({ block: "start", behavior: reduced ? "auto" : "smooth" })
+	}, [selected, reduced])
 	const [briefing, setBriefing] = useState<string | null>(null)
 	const [replay, setReplay] = useState<{ index: number; ids: string[] } | null>(null)
 	const [arriving] = useState(() => {
@@ -125,7 +140,7 @@ export function TeamFloor({ state, engagementId, update, onDecide, onOpenWork, o
 		if (!context) return undefined
 		return (text, kind) => {
 			const family = canvasRef.current ? getComputedStyle(canvasRef.current).fontFamily : "Inter, sans-serif"
-			context.font = `600 ${kind === "agent" ? 13 : 12}px ${family}`
+			context.font = kind === "agent" ? `400 14px ${family}` : `500 12px ${family}`
 			return context.measureText(text).width
 		}
 		// eslint-disable-next-line react-hooks/exhaustive-deps
@@ -142,13 +157,13 @@ export function TeamFloor({ state, engagementId, update, onDecide, onOpenWork, o
 		seen.current = Math.max(...fresh.map(event => Number(event.id.replace(/\D/g, ""))))
 		if (reduced) return
 		// Only what has a line to travel on: nothing waits off screen to fly in late.
-		const next = packetsFor(state, engagementId, fresh).filter(packet => !compactRef.current && route(layout, plan, packet.from, packet.to)).map(packet => ({ ...packet, key: `${packet.id}:${Math.random().toString(36).slice(2, 7)}` }))
+		const next = packetsFor(state, engagementId, fresh).filter(packet => !compactRef.current && teamPath(layout, plan, packet.from, packet.to)).map(packet => ({ ...packet, key: `${packet.id}:${Math.random().toString(36).slice(2, 7)}` }))
 		if (next.length) setPackets(current => [...current, ...next].slice(-4))
 		// The log is capped, so its length can stop changing; its newest id never does.
 		// eslint-disable-next-line react-hooks/exhaustive-deps
 	}, [state.events.at(-1)?.id])
 
-	useEffect(() => { setPackets(current => current.filter(packet => !compactRef.current && route(layout, plan, packet.from, packet.to))) }, [layout, plan])
+	useEffect(() => { setPackets(current => current.filter(packet => !compactRef.current && teamPath(layout, plan, packet.from, packet.to))) }, [layout, plan])
 
 	// The assembly: the package arrives with the accountable agent, then each milestone goes to its first specialist.
 	useEffect(() => {
@@ -172,7 +187,7 @@ export function TeamFloor({ state, engagementId, update, onDecide, onOpenWork, o
 		const event = record.find(entry => entry.id === replay.ids[replay.index])
 		if (event && !reduced) {
 			const packet = packetsFor(state, engagementId, [event])[0]
-			if (packet && route(layout, plan, packet.from, packet.to)) setPackets(current => [...current, { ...packet, key: `${packet.id}:replay:${replay.index}` }].slice(-4))
+			if (packet && teamPath(layout, plan, packet.from, packet.to)) setPackets(current => [...current, { ...packet, key: `${packet.id}:replay:${replay.index}` }].slice(-4))
 		}
 		const id = window.setTimeout(() => setReplay(current => current ? { ...current, index: current.index + 1 } : current), reduced ? 900 : 650)
 		return () => window.clearTimeout(id)
@@ -184,6 +199,21 @@ export function TeamFloor({ state, engagementId, update, onDecide, onOpenWork, o
 	const cycle = latestVerifiedCycle(state, engagementId)
 	const playBriefing = () => { setBriefing(briefingFor(state, engagementId)); setTalkOpen(true); setSelected(null) }
 	const toggleTalk = () => { setBriefing(null); setTalkOpen(value => !value); setSelected(null) }
+	const closeTalk = () => { setTalkOpen(false); setBriefing(null); setSpotlight([]); setReturnTo("talk") }
+	// Escape closes the innermost open thing on the floor: the talk bar first, then a room.
+	const onFloorKeyDown = (event: KeyboardEvent<HTMLElement>) => {
+		if (event.key !== "Escape" || event.defaultPrevented) return
+		// Escape closes what it was pressed in; from the canvas, the innermost open thing.
+		const target = event.target as HTMLElement
+		const inRoom = !!target.closest(".tf-room")
+		const inTalk = !!target.closest(".tf-talk-dock")
+		if (inRoom && selected) closeRoom()
+		else if (inTalk && talkOpen) closeTalk()
+		else if (talkOpen) closeTalk()
+		else if (selected) closeRoom()
+		else return
+		event.preventDefault()
+	}
 
 	const lit = new Set([...spotlight, ...(replayEvent ? [replayEvent.actor] : [])])
 	const focus = hovered ?? (selected?.kind === "agent" ? selected.id : null)
@@ -198,15 +228,22 @@ export function TeamFloor({ state, engagementId, update, onDecide, onOpenWork, o
 		if (!box) return { display: "none" }
 		return { left: box.x - box.width / 2, top: box.y - box.height / 2, width: box.width, height: box.height }
 	}
-	const line = (from: string, to: string) => { const runs = route(layout, plan, from, to); return runs ? { d: roundedPath(runs), at: labelPoint(runs, boxes) } : null }
 
-	// The team's lines: you to the accountable agent, and the accountable agent to each specialist.
-	const team = [line("owner", lead.id), ...plan.agents.filter(agent => !agent.accountable).map(agent => line(lead.id, agent.id))].filter(Boolean)
-	// Who waits on you: their line up to your seat turns amber (your seat says how many).
-	const askers = Object.values(presence).filter(entry => entry.state === "decision" && boxes[entry.member.id]).map(entry => entry.member.id)
+	// The team's lines: you to the accountable agent, and the accountable agent to each specialist. Each always
+	// carries a label, as the reference canvas labels every transition: on yours, what starts the team's work; on
+	// a specialist's, the step it is handed. What moves along a line names itself there while it travels.
+	const team = teamLines(layout, plan)
+	const trigger = engagement.cycles !== "off" ? scheduleLabel(engagement.workflowId, engagement.cycles) : engagement.trigger === "Assignment" ? "Work you assign" : "Each incoming event"
+	const labelOf = (edge: TeamLine): { text: string; tone: string; moving: boolean } => {
+		const moving = [...packets].reverse().find(packet => edge.from === "owner" ? packet.from === "owner" || packet.to === "owner" : packet.to === edge.to || (packet.from === edge.to && packet.to !== "owner"))
+		if (moving) return { text: moving.label, tone: moving.tone, moving: true }
+		if (edge.from === "owner") return { text: trigger, tone: "neutral", moving: false }
+		return { text: handsOff(state, engagementId, edge.to) ?? "Ready for work", tone: "neutral", moving: false }
+	}
 	// The toolbar keeps its words while it has room beside your seat, then keeps only Talk's, then none.
 	const room = boxes.owner ? (size.width - boxes.owner.width) / 2 - 24 : 0
-	const labels = compact || room >= 360 ? "all" : room >= 190 ? "talk" : "none"
+	// Thresholds for the 32px toolbar buttons (13/500, 12px padding), with the briefing button when there is one.
+	const labels = compact || room >= (cycle ? 440 : 300) ? "all" : room >= (cycle ? 250 : 210) ? "talk" : "none"
 	const toolbar = (
 		<div className={`tf-tools is-${labels}`} role="toolbar" aria-label="Floor">
 			{cycle ? <DsButton size="sm" aria-label="Morning briefing" title="Morning briefing" onClick={playBriefing}><SpeakerHigh size={14} /><span className="tf-tool-label">Morning briefing</span></DsButton> : null}
@@ -215,10 +252,9 @@ export function TeamFloor({ state, engagementId, update, onDecide, onOpenWork, o
 		</div>
 	)
 	const ownerSeat = (
-		<button type="button" className={`tf-seat tf-owner${selected?.kind === "owner" ? " is-selected" : ""}${waiting.length ? " is-asking" : ""}`} style={place("owner")} data-focus-key="owner" onClick={() => setSelected({ kind: "owner" })} aria-label={`You, ${engagement.owner}${waiting.length ? `, ${waiting.length} waiting on you` : ""}`}>
+		<button type="button" className={`tf-seat tf-owner${selected?.kind === "owner" ? " is-selected" : ""}`} style={place("owner")} data-focus-key="owner" onClick={() => openRoom({ kind: "owner" })} aria-expanded={selected?.kind === "owner"} aria-label={`You, ${engagement.owner}${waiting.length ? `, ${waiting.length} waiting on you` : ""}`}>
 			<UserCircle size={20} aria-hidden="true" />
 			<span className="tf-seat-text"><strong>You</strong><small>{engagement.owner}</small></span>
-			{waiting.length ? <span className="tf-count" aria-hidden="true">{waiting.length}</span> : null}
 		</button>
 	)
 
@@ -226,6 +262,8 @@ export function TeamFloor({ state, engagementId, update, onDecide, onOpenWork, o
 		const entry = presence[agent.id]
 		const checks = checksOf(state, engagementId, agent.id)
 		const item = entry?.workId ? state.work.find(work => work.id === entry.workId) : undefined
+		const reach = plan.reach.filter(each => each.agent === agent.id).map(each => plan.systems.find(system => system.id === each.system)?.link.name).filter((name): name is string => !!name)
+		const using = flows.filter(flow => flow.agent === agent.id).map(flow => ({ flow, system: plan.systems.find(system => system.id === flow.system) })).filter((entry): entry is { flow: typeof entry.flow; system: FloorPlan["systems"][number] } => !!entry.system)
 		// The reference sits in its own tag, so the sentence doesn't repeat it.
 		const sentence = (entry?.sentence ?? "Ready for incoming work").replace(item ? new RegExp(`\\s·\\s${item.reference.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}$`) : /$^/, "").replace(/^./, char => char.toUpperCase())
 		return (
@@ -236,22 +274,29 @@ export function TeamFloor({ state, engagementId, update, onDecide, onOpenWork, o
 				style={{ ...place(agent.id), "--tf-delay": `${260 + index * 140}ms` } as CSSProperties}
 				data-focus-key={agent.id}
 				data-lines={compact ? undefined : Math.min(2, layout.lines[agent.id] ?? 1)}
-				onClick={() => setSelected({ kind: "agent", id: agent.id })}
+				onClick={() => openRoom({ kind: "agent", id: agent.id })}
+				aria-expanded={selected?.kind === "agent" && selected.id === agent.id}
 				onMouseEnter={() => setHovered(agent.id)}
 				onMouseLeave={() => setHovered(null)}
 				onFocus={() => setHovered(agent.id)}
 				onBlur={() => setHovered(null)}
-				aria-label={`${agent.member.name}${agent.accountable ? ", accountable" : ""}: ${entry?.sentence ?? "ready"}. Open its room.`}>
-				<span className="tf-agent-head">
-					<Mark seed={`${engagement.workflowId}:${agent.id}`} size="xs" />
-					<strong>{agent.member.name}</strong>
-					<span className={`tf-state is-${entry?.state ?? "ready"}`} aria-hidden="true" />
+				aria-label={`${agent.member.name}${agent.accountable ? ", accountable" : ""}: ${entry?.sentence ?? "ready"}.${using.length ? ` Using ${using.map(each => each.system.link.name).join(", ")}.` : ""} Open its room.`}>
+				<span className="tf-agent-body">
+					<span className="tf-agent-head">
+						<Mark seed={`${engagement.workflowId}:${agent.id}`} size="xs" />
+						<strong>{agent.member.name}</strong>
+						<span className={`tf-state is-${entry?.state ?? "ready"}`} aria-hidden="true" />
+					</span>
+					<span className="tf-agent-now">{sentence}</span>
 				</span>
-				<span className="tf-agent-now">{sentence}</span>
-				<span className="tf-agent-meta">
-					{agent.accountable ? <span className="tf-role">Accountable</span> : null}
-					{item ? <span className="tf-tag is-mono">{item.reference}</span> : null}
-					{checks ? <span className={`tf-tag${checks.failed ? " is-danger" : ""}`}>{checks.failed ? `${checks.failed} of ${checks.total} failed` : `${checks.passed} of ${checks.total} checks`}{checks.repairing ? " · repaired" : ""}</span> : null}
+				{/* The reference node's footer band: what the agent holds, how its checks stand, the systems it is using
+				 * now (the reference lists a node's tools here; the floor draws no line to them), and where it may reach. */}
+				<span className="tf-agent-foot">
+					{item ? <span className="tf-chip">{item.reference}</span> : null}
+					{checks ? <span className={`tf-chip${checks.failed ? " is-danger" : ""}`}>{checks.failed ? `${checks.failed} of ${checks.total} failed` : `${checks.passed} of ${checks.total} checks`}{checks.repairing ? " · repaired" : ""}</span> : null}
+					{using.map(({ flow, system }) => <span key={system.id} className="tf-chip is-system" title={flow.label}>{system.link.capability === "production" ? <Lock size={12} /> : CAPABILITY[system.link.capability].chip}<span className="tf-chip-text">{system.link.name}</span></span>)}
+					{/* An idle seat says where it may reach instead; the room lists each system. */}
+					{!item && !checks && !using.length && reach.length ? <span className="tf-foot-note" title={`May use ${reach.join(", ")}`}>May use {reach.length === 1 ? reach[0] : `${reach.length} systems`}</span> : null}
 				</span>
 			</button>
 		)
@@ -270,52 +315,34 @@ export function TeamFloor({ state, engagementId, update, onDecide, onOpenWork, o
 	}
 
 	return (
-		<section ref={sectionRef} className={`tf${arriving ? " is-arriving" : ""}${talkOpen ? " is-talking" : ""}`} aria-label="Team floor">
+		<section ref={sectionRef} className={`tf${arriving ? " is-arriving" : ""}${talkOpen ? " is-talking" : ""}`} aria-label="Team floor" onKeyDown={onFloorKeyDown}>
 			<div className={`tf-body${selected ? " has-room" : ""}`}>
 				<div className={`tf-canvas${compact ? " is-compact" : ""}${layout.tight && !compact ? " is-tight" : ""}`} ref={canvasRef}>
 					{ready && !compact ? (
 						<>
 							<svg className="tf-edges" width={size.width} height={size.height} aria-hidden="true">
 								<defs>
-									{(["line", "flow", "ask"] as const).map(tone => (
-										<marker key={tone} id={`${markers}-${tone}`} className={`tf-arrow is-${tone}`} viewBox="0 0 8 8" refX="7" refY="4" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M 0 0.5 L 7 4 L 0 7.5 z" /></marker>
-									))}
+									<marker id={`${markers}-line`} className="tf-arrow" viewBox="0 0 10 18" refX="9" refY="9" markerWidth="10" markerHeight="18" markerUnits="userSpaceOnUse" orient="auto-start-reverse"><path d="M 1 1 L 9 9 L 1 17" /></marker>
 								</defs>
-								{team.map((edge, index) => <path key={`team-${index}`} className="tf-edge" d={edge!.d} markerEnd={`url(#${markers}-line)`} />)}
-								{/* Where the agent you are looking at may reach: shown for that agent only. */}
-								{focus ? plan.reach.filter(reach => reach.agent === focus && !flows.some(flow => flow.agent === reach.agent && flow.system === reach.system)).map(reach => {
-									const edge = line(reach.agent, `system:${reach.system}`)
-									return edge ? <path key={`reach-${reach.system}`} className={`tf-edge is-reach is-${reach.capability}`} d={edge.d} /> : null
-								}) : null}
-								{askers.map(id => { const edge = line(id, "owner"); return edge ? <path key={`ask-${id}`} className="tf-edge is-ask" d={edge.d} markerEnd={`url(#${markers}-ask)`} /> : null })}
-								{/* What is moving now: reads come in to the agent, writes go out to the system. */}
-								{flows.map(flow => {
-									const edge = flow.direction === "in" ? line(`system:${flow.system}`, flow.agent) : line(flow.agent, `system:${flow.system}`)
-									if (!edge) return null
-									return (
-										<g key={`${flow.agent}-${flow.system}`} className={`tf-reach is-active is-${flow.state} is-${flow.direction}`}>
-											<path className="tf-edge is-live" d={edge.d} markerEnd={`url(#${markers}-flow)`} />
-											<path className="tf-flow" d={edge.d} />
-										</g>
-									)
-								})}
+								{team.map(edge => <path key={`team-${edge.to}`} className="tf-edge" d={edge.d} markerEnd={`url(#${markers}-line)`} />)}
 							</svg>
 
-							{/* Packets travel along the lines, under the seats, so they pass behind whoever they go through. */}
+							{/* Packets travel along the team's lines, under the seats, so they pass behind whoever they go through. */}
 							{packets.map(packet => {
-								const edge = line(packet.from, packet.to)
-								if (!edge) return null
-								return <span key={packet.key} className={`tf-travel is-${packet.tone}`} style={{ offsetPath: `path("${edge.d}")` }} onAnimationEnd={() => setPackets(current => current.filter(entry => entry.key !== packet.key))} aria-hidden="true" />
+								const d = teamPath(layout, plan, packet.from, packet.to)
+								if (!d) return null
+								return <span key={packet.key} className={`tf-travel is-${packet.tone}`} style={{ offsetPath: `path("${d}")` }} onAnimationEnd={() => setPackets(current => current.filter(entry => entry.key !== packet.key))} aria-hidden="true" />
 							})}
 
 							{ownerSeat}
 							{plan.agents.map(seatOf)}
 							{layout.systems ? plan.systems.map(systemOf) : null}
 
-							{/* Labels sit on the lines, as the reference's edge pills do, and only where one fits clear of the cards. */}
-							{packets.map(packet => {
-								const edge = line(packet.from, packet.to)
-								return edge?.at ? <span key={`label-${packet.key}`} className={`tf-pill is-travelling is-${packet.tone}`} style={{ left: edge.at.x, top: edge.at.y }} aria-hidden="true">{packet.label}</span> : null
+							{/* Every team line carries its label in the middle of its gap, as the reference's edge pills do. */}
+							{team.map(edge => {
+								if (!edge.at) return null
+								const label = labelOf(edge)
+								return <span key={`label-${edge.to}`} className={`tf-label is-${label.tone}${label.moving ? " is-moving" : ""}`} style={{ left: edge.at.x, top: edge.at.y, maxWidth: edge.room }} title={label.text} aria-hidden="true">{label.text}</span>
 							})}
 
 							{toolbar}
@@ -337,7 +364,7 @@ export function TeamFloor({ state, engagementId, update, onDecide, onOpenWork, o
 								update={update}
 								script={briefing}
 								onSpotlight={setSpotlight}
-								onClose={() => { setTalkOpen(false); setBriefing(null); setSpotlight([]); setReturnTo("talk") }} />
+								onClose={closeTalk} />
 						</div>
 					) : null}
 				</div>
@@ -353,7 +380,8 @@ export function TeamFloor({ state, engagementId, update, onDecide, onOpenWork, o
 					onOpenResult={onOpenResult}
 					onToast={onToast} /> : null}
 			</div>
-			<FloorTimeline state={state} engagementId={engagementId} replaying={replayEvent ?? null} />
+			{/* The timeline is Replay's scrubber; at rest the floor and its rooms are the whole view. */}
+			{replayEvent ? <FloorTimeline state={state} engagementId={engagementId} replaying={replayEvent} /> : null}
 		</section>
 	)
 }

@@ -6,7 +6,7 @@
 import { existsSync, readFileSync, writeFileSync } from "node:fs"
 
 const STRICT = ["src/design/primitives.css", "src/components/motion/motion-kit.css", "src/components/voice/voice.css", "src/features/discovery-autonomous/voice-call.css", "src/features/discovery-autonomous/stakeholder-calls.css", "src/components/workspace/workspace-composer.css", "src/features/platform-prototype/portal-shell.css", "src/features/discovery-autonomous/cockpit.css", "src/features/agentix/prototype/operations.css", "src/features/agentix/prototype/handoff.css", "src/features/agentix/prototype/engagement.css", "src/features/agentix/prototype/team-floor.css",
-	"src/features/agentix/prototype/glyphs.css", "src/features/platform-prototype/workspace-home.css", "src/features/demo/demo.css"]
+	"src/features/agentix/prototype/glyphs.css", "src/features/platform-prototype/workspace-home.css", "src/features/demo/demo.css", "src/features/platform-prototype/account-pages.css", "src/features/platform-prototype/consult.css"]
 const RATCHET = []
 const BASELINE = "scripts/design-token-baseline.json"
 const COLOR = /#[0-9a-f]{3,8}\b|\b(?:rgba?|hsla?)\(/gi

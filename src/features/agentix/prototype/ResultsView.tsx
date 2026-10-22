@@ -165,11 +165,10 @@ function OutcomeResult({ state, workId, callbacks }: { state: AgentixState; work
 				<div className="aop-actions"><DsButton variant="ghost" onClick={() => callbacks.onOpenWork(item.id)}>Open work item<CaretRight size={12} /></DsButton></div>
 			</header>
 			<ul className="aop-criteria">
-				{item.obligations.map(obligation => <li key={obligation.id}><span className="aop-check-text"><span>{obligation.id === "decision" ? "Decision bound to this record" : obligation.id === "notified" ? "Required notification accepted" : obligation.id === "recorded" || obligation.id === "assigned" || obligation.id === "requisition" ? "Record change verified by read-back" : `Required outcome: ${obligation.id}`}</span><small>{obligation.evidence ?? "Read-back"}</small></span><Status label="Evidenced" tone="positive" /></li>)}
+				{item.obligations.map(obligation => <li key={obligation.id}><span className="aop-check-text"><span>{obligation.id === "decision" ? "Decision bound to this record" : obligation.id === "notified" ? "Notification accepted by the provider" : obligation.id === "recorded" || obligation.id === "assigned" || obligation.id === "requisition" ? "Record change verified by read-back" : `Required outcome: ${obligation.id}`}</span><small>{obligation.evidence ?? "Read-back"}</small></span><span className="aop-evidenced">Evidenced</span></li>)}
 			</ul>
 			{item.effects.length ? <p className="aop-receipts"><Receipt size={14} />{item.effects.map(effect => `${effect.system}: ${effect.sends} dispatch${effect.sends === 1 ? "" : "es"}${effect.reference ? ` (${effect.reference})` : ""}`).join(" · ")}{item.flags.reconciled ? " · uncertain outcome reconciled, no duplicate" : ""}</p> : null}
 			{item.humanReference ? <p className="aop-receipts"><Mark seed="owner" size="xs" />Owner confirmation {item.humanReference}</p> : null}
-			<p className="aop-footnote">Effects and receipts. “Notification accepted” is the provider's acceptance, not proof that someone read it.</p>
 		</article>
 	)
 }

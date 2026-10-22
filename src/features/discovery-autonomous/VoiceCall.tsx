@@ -507,15 +507,15 @@ function CallSession({ host, onClose, onSubmit, onOpenAutonomy, messages, interv
 						)}
 						{phase === "live" ? (
 							<div className="vc-controls" role="group" aria-label="Call controls">
-								<button type="button" className="vc-control" aria-pressed={muted} onClick={toggleMute}>{muted ? <MicrophoneSlash size={16} /> : <Microphone size={16} />}<span>{muted ? "Unmute" : "Mute"}</span></button>
-								<button type="button" className="vc-control" aria-pressed={captions} onClick={() => setCaptions(value => !value)}><ClosedCaptioning size={16} /><span>Captions</span></button>
+								<button type="button" className="vc-control" aria-label={muted ? "Unmute" : "Mute"} aria-pressed={muted} onClick={toggleMute}>{muted ? <MicrophoneSlash size={16} /> : <Microphone size={16} />}<span>{muted ? "Unmute" : "Mute"}</span></button>
+								<button type="button" className="vc-control" aria-label="Captions" aria-pressed={captions} onClick={() => setCaptions(value => !value)}><ClosedCaptioning size={16} /><span>Captions</span></button>
 								<div className="vc-mode" role="radiogroup" aria-label="Turn-taking">
 									{(["hands-free", "push-to-talk"] as Mode[]).map(option => (
 										<button key={option} type="button" role="radio" aria-checked={mode === option} className={mode === option ? "is-on" : undefined} onClick={() => setMode(option)}>{option === "hands-free" ? "Hands-free" : "Push to talk"}</button>
 									))}
 								</div>
-								<button type="button" className="vc-control" onClick={typeInstead}><Keyboard size={16} /><span>Type instead</span></button>
-								<button type="button" className="vc-control is-end" onClick={onClose}><PhoneDisconnect size={16} /><span>End call</span></button>
+								<button type="button" className="vc-control" aria-label="Type instead" onClick={typeInstead}><Keyboard size={16} /><span>Type instead</span></button>
+								<button type="button" className="vc-control is-end" aria-label="End call" onClick={onClose}><PhoneDisconnect size={16} /><span>End call</span></button>
 							</div>
 						) : null}
 						{recordedNote && phase === "live" ? <p className="vc-source">{recordedNote}</p> : null}
