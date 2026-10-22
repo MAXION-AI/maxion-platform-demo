@@ -1,11 +1,11 @@
 {
-  "sourceCommit": "f3adf5e9efbb0a31fdb948418541cc9690024352",
+  "sourceCommit": "05e8afb7cca4882b37e4cb1e600f942c77423e71",
   "sourceBranch": "main",
   "builtLocally": true,
-  "javascript": "assets/index-Nz9nhZNI.js",
-  "stylesheet": "assets/index-BrG-N_Z8.css",
-  "previousSourceCommit": "6f7673d28a22b96e9247dde82cc2251ad4828f9c",
-  "previousPagesCommit": "7644614",
+  "javascript": "assets/index-CM6XW6rG.js",
+  "stylesheet": "assets/index-DKY4KRkR.css",
+  "previousSourceCommit": "f3adf5e9efbb0a31fdb948418541cc9690024352",
+  "previousPagesCommit": "e37d512",
   "deploymentMethod": "locally built with GITHUB_PAGES=true; the preceding release's hashed assets retained for CDN propagation",
   "contains": [
     "revenue",
@@ -14,6 +14,8 @@
     "s4hana",
     "stakeholder-interview",
     "discovery-voice-call",
-    "agentix-team-floor"
+    "agentix-team-floor",
+    "elevenlabs-refresh",
+    "review-fixes-2026-10-19"
   ]
 }
