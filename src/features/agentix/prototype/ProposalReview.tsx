@@ -7,6 +7,8 @@ import { packageFor, SCENARIOS } from "./engine/scenarios"
 import { boundaryRules, readinessSplit, shortTime, teamOf } from "./engine/selectors"
 import type { AgentixState, Engagement } from "./engine/types"
 import { EngagementSteps } from "./EngagementStart"
+import { ConnectionPicker } from "@/features/organization/ConnectionPicker"
+import { demoSession } from "@/features/demo/session"
 import { ReadinessRows, Status } from "./OperationsViews"
 
 const CAPABILITY = { read: "Read", build: "Build & test", production: "Production change", update: "Record update", notify: "Notify" } as const
@@ -69,6 +71,13 @@ export function ProposalReview({ state, engagement, onAnswer, onEdit, onAction, 
 						{pkg?.milestones.length ? <div><dt>Starts</dt><dd>{pkg.milestones.map(milestone => milestone.title).join(", ")}{scenario.delivery ? `; then a daily ${scenario.delivery.cycle.noun} at ${String(scenario.delivery.cycle.hour).padStart(2, "0")}:00 London once delivery is verified.` : "."}</dd></div> : <div><dt>Starts</dt><dd>New work from activation onward. An existing backlog is only processed if you assign it.</dd></div>}
 					</dl>
 				</section>
+
+				{/* D-056: pick the connections a new engagement may use; a customer demo keeps its scripted systems. */}
+				{!expansion && !demoSession() ? (
+					<section className="aop-step-section" aria-label="Connections">
+						<ConnectionPicker work="engagement" />
+					</section>
+				) : null}
 
 				{pkg?.questions.length ? (
 					<section className="aop-step-section" aria-label="Open questions">

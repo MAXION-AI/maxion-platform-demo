@@ -178,6 +178,24 @@ SCREENS.push(
 	},
 )
 
+// The organization's own pages (Settings, Integrations, Knowledge) and MAXION's staff admin panel.
+// Each account page mounts its own frame, so the root is the one in the visible stage.
+const visibleFrame = ".mxp-stage-view:not([hidden]) .acc-frame"
+const settingsTab = name => async page => {
+	await page.getByRole("tab", { name, exact: true }).click()
+	await page.waitForTimeout(500)
+}
+SCREENS.push(
+	{ name: "integrations", path: "/maxion-prototype?section=integrations", root: visibleFrame },
+	{ name: "settings-general", path: "/maxion-prototype?section=settings", root: visibleFrame },
+	{ name: "settings-members", path: "/maxion-prototype?section=settings", root: visibleFrame, prepare: settingsTab("Members") },
+	{ name: "settings-policy", path: "/maxion-prototype?section=settings", root: visibleFrame, prepare: settingsTab("Policy") },
+	{ name: "settings-audit", path: "/maxion-prototype?section=settings", root: visibleFrame, prepare: settingsTab("Audit log") },
+	{ name: "knowledge", path: "/maxion-prototype?section=knowledge", root: ".kn-root" },
+	{ name: "admin-tenants", path: "/maxion-admin", root: ".adm-main" },
+	{ name: "admin-tenant", path: "/maxion-admin?tenant=northstar&tab=access", root: ".adm-main" },
+)
+
 const audit = (page, rootSelector) =>
 	page.evaluate(selector => {
 		const cs = element => getComputedStyle(element)

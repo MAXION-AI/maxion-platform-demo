@@ -8,6 +8,7 @@ export type MaxionModuleId =
 	| "consult"
 	| "settings"
 	| "integrations"
+	| "knowledge"
 	| "approvals"
 	| "usage"
 	| "help"

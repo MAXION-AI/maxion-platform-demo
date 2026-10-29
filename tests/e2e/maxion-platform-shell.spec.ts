@@ -73,8 +73,13 @@ test("keeps the canonical MAXION shell functional across core modules", async ({
 	await navigation.getByRole("button", { name: "Integrations" }).click()
 	await expect(page.getByRole("heading", { name: "Integrations" })).toBeVisible()
 	await page.getByRole("searchbox", { name: "Search integrations" }).fill("Workday")
-	await page.getByRole("button", { name: "Connect" }).click()
-	await expect(page.getByText("Workday connected.")).toBeVisible()
+	await page.getByRole("button", { name: "Connect Workday" }).click()
+	await page.getByRole("button", { name: /Continue to Workday/ }).click()
+	await page.getByRole("dialog", { name: "Confirm the account" }).getByRole("button", { name: "Confirm account" }).click()
+	await expect(page.getByText("Workday connected with reads only and no projects.")).toBeVisible()
+	await page.getByRole("button", { name: "Later" }).click()
+	// Axe reads the page once the dialog has finished leaving, not mid-fade.
+	await expect(page.getByRole("dialog")).toHaveCount(0)
 
 	const accessibility = await new AxeBuilder({ page }).analyze()
 	expect(accessibility.violations.filter((violation) => violation.impact === "critical" || violation.impact === "serious")).toEqual([])

@@ -1,8 +1,10 @@
 import { fireEvent, render, screen, within } from "@testing-library/react"
 import { MemoryRouter } from "react-router-dom"
-import { describe, expect, it } from "vitest"
+import { beforeEach, describe, expect, it } from "vitest"
 
 import { MaxionPlatformPrototypePage } from "../MaxionPlatformPrototypePage"
+import { resetOrganizationStore } from "@/features/organization/store"
+import { resetKnowledgeStore } from "@/features/organization/knowledge"
 
 function renderPrototype(path = "/maxion-prototype") {
 	return render(
@@ -17,6 +19,9 @@ function portalNavigation() {
 }
 
 describe("MaxionPlatformPrototypePage", () => {
+	// The organization store lives for the tab; each case starts from the seed.
+	beforeEach(() => { resetOrganizationStore(); resetKnowledgeStore() })
+
 	it("opens on the canonical MAXION dashboard and exposes the complete platform shell", () => {
 		renderPrototype()
 
@@ -111,16 +116,29 @@ describe("MaxionPlatformPrototypePage", () => {
 		expect(screen.getByRole("heading", { name: "Final plan and recommendations" })).toBeInTheDocument()
 	})
 
-	it("manages an integration connection and exposes its governed access log", async () => {
+	it("connects an account through the provider and confirmation, then finds it in the organization audit log", async () => {
 		renderPrototype()
-		fireEvent.click(screen.getByRole("button", { name: "Integrations" }))
-		expect(screen.getByRole("heading", { name: "Integrations" })).toBeInTheDocument()
+		fireEvent.click(portalNavigation().getByRole("button", { name: "Integrations" }))
+		expect(screen.getByRole("heading", { name: "Integrations", level: 1 })).toBeInTheDocument()
 		fireEvent.change(screen.getByPlaceholderText("Search integrations"), { target: { value: "Workday" } })
-		fireEvent.click(screen.getByRole("button", { name: "Connect" }))
-		expect(await screen.findByText("Workday connected.")).toBeInTheDocument()
-		fireEvent.click(screen.getByRole("button", { name: "Access log" }))
-		expect(screen.getByRole("complementary", { name: "Integration access log" })).toBeInTheDocument()
-		expect(screen.getByText("Salesforce records read")).toBeInTheDocument()
+		fireEvent.click(screen.getByRole("button", { name: "Connect Workday" }))
+		fireEvent.click(screen.getByRole("button", { name: /Continue to Workday/ }))
+		const confirm = await screen.findByRole("dialog", { name: "Confirm the account" }, { timeout: 4000 })
+		fireEvent.click(within(confirm).getByRole("button", { name: "Confirm account" }))
+		expect(await screen.findByText("Workday connected with reads only and no projects.")).toBeInTheDocument()
+		fireEvent.click(screen.getByRole("button", { name: "Later" }))
+		fireEvent.click(screen.getByRole("button", { name: "Audit log" }))
+		expect(await screen.findByRole("tab", { name: "Audit log", selected: true })).toBeInTheDocument()
+		expect(screen.getByRole("combobox", { name: "Type" })).toHaveValue("connections")
+		expect(within(screen.getByRole("table", { name: "Audit events" })).getByText("Connection activated")).toBeInTheDocument()
+	})
+
+	it("places Knowledge beside Integrations in the account navigation", () => {
+		renderPrototype()
+		const labels = portalNavigation().getAllByRole("button").map((button) => button.textContent?.replace(/\d+$/, "").trim())
+		expect(labels.slice(labels.indexOf("Settings"), labels.indexOf("Settings") + 4)).toEqual(["Settings", "Integrations", "Knowledge", "My approvals"])
+		fireEvent.click(portalNavigation().getByRole("button", { name: /^Knowledge/ }))
+		expect(screen.getByRole("heading", { name: "Knowledge", level: 1 })).toBeInTheDocument()
 	})
 
 	it("embeds Agentix and lets Consult MAX route across platform boundaries", async () => {

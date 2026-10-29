@@ -73,6 +73,8 @@ export const PRIMARY_NAVIGATION: NavigationItem[] = [
 export const ACCOUNT_NAVIGATION: NavigationItem[] = [
 	{ id: "settings", label: "Settings", glyph: "settings" },
 	{ id: "integrations", label: "Integrations", glyph: "integrations" },
+	// What agents should know about the organization sits beside the systems they reach (D-088).
+	{ id: "knowledge", label: "Knowledge", glyph: "knowledge" },
 	// No seeded number here: the approvals badge is only ever the count the approvals
 	// surface itself can show, passed down as a live badge override.
 	{ id: "approvals", label: "My approvals", glyph: "approvals" },

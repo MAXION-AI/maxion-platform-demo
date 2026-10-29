@@ -207,3 +207,29 @@ Mobbin answered "requires a paid plan" on 2026-10-11, so no new screens were cap
 | Team floor (`TeamFloor.tsx`) | Agent Workflow tab: dot-grid canvas, hairline node cards, connecting edges | [aa384f7c](https://mobbin.com/screens/aa384f7c-33b2-436e-a01a-3f20dff0b6e1) and [ElevenLabs Agent Workflows](https://elevenlabs.io/docs/eleven-agents/customization/agent-workflows); here view-only, never edited |
 | Agent room (`AgentRoom.tsx`) | Conversation Metadata panel beside the transcript | [b547338d](https://mobbin.com/screens/b547338d-1640-4ae4-a999-10ab8552ddeb) |
 | Stakeholder calls (`StakeholderCalls.tsx`) | No direct reference; composed as columns with one hairline (composition over containers) | — |
+
+## Organization surfaces (2026-10-28)
+
+Settings, Integrations, Knowledge and MAXION's staff admin panel were added from the platform plan
+(`maxion-agent-platform` docs 08, 10, 13, 21, 22 and the INT-1, IAM-3, IAM-4, ADM-2, ADM-4 and EVD-4
+program plans). The live ElevenLabs app needs the owner's sign-in, which this session did not
+have, so each surface was referenced from the screenshots in ElevenLabs' own documentation, the
+newest public captures of the same screens (checked 2026-10-28).
+
+| Surface | ElevenLabs screen | Source |
+| --- | --- | --- |
+| Settings frame, General tab | Workspace settings, General: title, underline tab strip, label and description rows with the action at the right edge | [Workspaces overview](https://elevenlabs.io/docs/overview/administration/workspaces/overview) |
+| Settings › Members, Invite | Invite Member dialog: one address, then the role with what each role may do | [Members](https://elevenlabs.io/docs/overview/administration/workspaces/members) |
+| Settings › Policy (models) | Model approvals: a model list the workspace admin narrows | [Model approvals](https://elevenlabs.io/docs/overview/administration/workspaces/model-approvals) |
+| Settings › Provider keys | Secrets list: a lock tile, the name and its state, actions at the right edge | [Cal.com integration](https://elevenlabs.io/docs/eleven-agents/customization/integrations/calcom) |
+| Settings › Audit log | Workspace audit logs (event classes, read-only record) | [Audit logs](https://elevenlabs.io/docs/overview/administration/workspaces/audit-logs) |
+| Knowledge library | Knowledge Base: title, search, filter chips, a Name / Created by / Last updated table | [Manage documents](https://elevenlabs.io/docs/eleven-agents/customization/knowledge-base/manage-documents) |
+| Knowledge new item, Integrations connect | Add URL and Create Folder dialogs: labelled fields with descriptions, toggles with a line of explanation, one primary action at the bottom right | [Manage documents](https://elevenlabs.io/docs/eleven-agents/customization/knowledge-base/manage-documents) |
+| Integrations list | The demo's own Integrations page (the D-057 baseline INT-1 maps from), rebuilt on the plan's connection model | — |
+| Staff admin panel | Workspace settings composition, extended to tenant detail tabs (D-057: screens the demo lacks extend its language) | [Workspaces overview](https://elevenlabs.io/docs/overview/administration/workspaces/overview) |
+
+**What the Workspace settings page contributed.** No box around a group: each setting is a row
+split from the next by one hairline, its name at 14/500 with a 14/400 description under it, and
+its value and one button at the right edge. Sections are a heading and whitespace. Settings,
+Policy and the staff panel's tenant tabs all take this shape; the only bordered surface on the
+organization pages is Knowledge's "Waiting on you".
