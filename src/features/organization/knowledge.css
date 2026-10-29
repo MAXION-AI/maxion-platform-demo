@@ -1,0 +1,66 @@
+/*
+ * Knowledge: the live app's Knowledge Base list (search, filters, a quiet table) under the account
+ * pages' title and facts line. One bordered surface, "Waiting on you", for the things that need an
+ * Owner or Admin; the library is rows split by a hairline. Tokens only.
+ */
+
+/* The one emphasised surface: what waits on the viewer. */
+.kn-waiting { margin-bottom: var(--ds-space-6); padding: var(--ds-space-1) var(--ds-space-4); border: 1px solid var(--ds-border); border-radius: var(--ds-radius-xl); }
+.kn-waiting > h2 { padding: var(--ds-space-3) 0 var(--ds-space-1); color: var(--ds-fg); font-size: var(--ds-text-sm); line-height: var(--ds-lh-sm); font-weight: var(--ds-weight-medium); }
+.kn-waiting-row { display: flex; align-items: center; justify-content: space-between; gap: var(--ds-space-3); min-height: var(--ds-row-h); padding: var(--ds-space-2) 0; }
+.kn-waiting-row + .kn-waiting-row { border-top: 1px solid var(--ds-border); }
+.kn-waiting-main { display: grid; min-width: 0; }
+.kn-waiting-main > strong { display: flex; flex-wrap: wrap; align-items: center; gap: var(--ds-space-2); color: var(--ds-fg); font-size: var(--ds-text-sm); line-height: var(--ds-lh-sm); font-weight: var(--ds-weight-medium); }
+.kn-waiting-main > small { overflow: hidden; color: var(--ds-fg-subtle); font-size: var(--ds-text-meta); line-height: var(--ds-lh-meta); text-overflow: ellipsis; white-space: nowrap; }
+
+/* Search, then the section filter, as the reference sets its search over its filter chips. */
+.kn-root .kn-search { margin-bottom: var(--ds-space-3); }
+.kn-root .kn-filter { display: flex; flex-wrap: wrap; margin-bottom: var(--ds-space-4); }
+.kn-root .kn-table .ds-table-row { text-align: left; }
+.kn-cell-text { overflow: hidden; color: var(--ds-fg-subtle); font-size: var(--ds-text-sm); line-height: var(--ds-lh-sm); text-overflow: ellipsis; white-space: nowrap; }
+.kn-root .kn-table .ds-cell-end svg { width: var(--ds-icon); height: var(--ds-icon); }
+
+/* The item sheet. */
+.kn-body { display: grid; gap: var(--ds-space-3); color: var(--ds-fg); font-size: var(--ds-text-sm); line-height: var(--ds-lh-sm); white-space: pre-line; overflow-wrap: anywhere; }
+.kn-files { display: grid; margin: var(--ds-space-3) 0 0; padding: 0; list-style: none; }
+.kn-files > li { display: flex; align-items: center; gap: var(--ds-space-3); padding: var(--ds-space-2) 0; border-top: 1px solid var(--ds-border); }
+.kn-files > li:last-child { border-bottom: 1px solid var(--ds-border); }
+.kn-files svg { flex-shrink: 0; width: var(--ds-icon); height: var(--ds-icon); color: var(--ds-fg-subtle); }
+.kn-files span { display: grid; min-width: 0; }
+.kn-files strong { overflow: hidden; color: var(--ds-fg); font-size: var(--ds-text-sm); line-height: var(--ds-lh-sm); font-weight: var(--ds-weight-medium); text-overflow: ellipsis; white-space: nowrap; }
+.kn-files small { color: var(--ds-fg-subtle); font-size: var(--ds-text-meta); line-height: var(--ds-lh-meta); }
+.kn-link { display: inline-flex; align-items: center; gap: var(--ds-space-1); padding: 0; border: 0; background: none; color: var(--ds-fg); font-weight: var(--ds-weight-medium); text-decoration: underline; text-decoration-color: var(--ds-border-strong); text-underline-offset: var(--ds-underline-offset); cursor: pointer; }
+.kn-link svg { width: var(--ds-icon); height: var(--ds-icon); }
+.kn-hint { margin-top: var(--ds-space-2); color: var(--ds-fg-subtle); font-size: var(--ds-text-meta); line-height: var(--ds-lh-meta); }
+.kn-versions { display: grid; margin: 0; padding: 0; list-style: none; }
+.kn-versions > li { display: grid; grid-template-columns: var(--ds-space-8) minmax(0, 1fr); gap: var(--ds-space-3); padding: var(--ds-space-2) 0; border-top: 1px solid var(--ds-border); color: var(--ds-fg); font-size: var(--ds-text-sm); line-height: var(--ds-lh-sm); }
+.kn-versions > li:last-child { border-bottom: 1px solid var(--ds-border); }
+.kn-versions strong { font-weight: var(--ds-weight-medium); font-variant-numeric: tabular-nums; }
+.kn-versions span { display: grid; min-width: 0; }
+.kn-versions small { color: var(--ds-fg-subtle); font-size: var(--ds-text-meta); line-height: var(--ds-lh-meta); }
+.kn-actions { display: grid; gap: var(--ds-space-3); }
+.kn-actions .org-sheet-actions { margin-top: 0; }
+.kn-confirm { justify-content: flex-start; }
+.kn-reject { display: grid; gap: var(--ds-space-3); }
+.kn-optional { color: var(--ds-fg-subtle); font-weight: var(--ds-weight-regular); }
+.kn-dismiss { display: flex; flex-wrap: wrap; align-items: center; gap: var(--ds-space-2); }
+.kn-error { display: flex; align-items: flex-start; gap: var(--ds-space-2); color: var(--ds-danger-fg); font-size: var(--ds-text-sm); line-height: var(--ds-lh-sm); }
+.kn-error svg { flex-shrink: 0; width: var(--ds-icon); height: var(--ds-icon); margin-top: 2px; }
+
+/* The editor dialog: fields, then named optional groups. */
+.kn-editor .ds-field > small { font-size: var(--ds-text-meta); line-height: var(--ds-lh-meta); }
+.kn-editor-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: var(--ds-space-2); }
+.kn-group { display: grid; gap: var(--ds-space-1); margin: 0; padding: var(--ds-space-3) 0 0; border: 0; border-top: 1px solid var(--ds-border); min-width: 0; }
+.kn-group > legend { float: left; width: 100%; padding: 0; color: var(--ds-fg); font-size: var(--ds-text-sm); line-height: var(--ds-lh-sm); font-weight: var(--ds-weight-medium); }
+.kn-group > legend + * { clear: both; }
+.kn-people { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 12rem), 1fr)); gap: 0 var(--ds-space-4); padding-left: var(--ds-space-6); }
+.kn-file { display: grid; gap: var(--ds-space-1); color: var(--ds-fg-subtle); font-size: var(--ds-text-meta); line-height: var(--ds-lh-meta); }
+.kn-file > input { max-width: 100%; color: var(--ds-fg); font-size: var(--ds-text-sm); }
+.kn-file-state { color: var(--ds-fg); font-size: var(--ds-text-sm); line-height: var(--ds-lh-sm); overflow-wrap: anywhere; }
+
+@media (max-width: 640px) {
+	.kn-waiting { padding: var(--ds-space-1) var(--ds-space-3); }
+	.kn-waiting-main > small { white-space: normal; }
+	.kn-root .kn-table .kn-cell-text { font-size: var(--ds-text-meta); line-height: var(--ds-lh-meta); }
+	.kn-people { padding-left: 0; }
+}

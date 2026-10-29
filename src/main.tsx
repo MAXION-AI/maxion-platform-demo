@@ -1,5 +1,5 @@
 import { MotionConfig } from "motion/react"
-import { StrictMode } from "react"
+import { lazy, StrictMode, Suspense } from "react"
 import { createRoot } from "react-dom/client"
 import { BrowserRouter, HashRouter, Navigate, Route, Routes, useLocation } from "react-router-dom"
 
@@ -12,6 +12,9 @@ import "./styles.css"
 import "./design/tokens.css"
 import "./design/primitives.css"
 import "@/features/platform-prototype/portal-shell.css"
+
+// MAXION's staff admin panel is a separate app in the product, so it loads as its own chunk here.
+const AdminPanelPage = lazy(() => import("@/features/admin/AdminPanelPage").then((module) => ({ default: module.AdminPanelPage })))
 
 const root = document.getElementById("root")
 const Router = import.meta.env.BASE_URL === "/" ? BrowserRouter : HashRouter
@@ -45,6 +48,8 @@ createRoot(root).render(
           <Route path="/demo" element={<DemoRedirect />} />
           <Route path="/demo-guide" element={<PresenterGuidePage />} />
           <Route path="/stakeholder-interview" element={<StakeholderInterviewPage />} />
+          {/* MAXION's staff admin panel: a separate app in the product (admin.max-ion.ai), its own route here. */}
+          <Route path="/maxion-admin" element={<Suspense fallback={null}><AdminPanelPage /></Suspense>} />
           <Route path="/" element={<Navigate to="/maxion-prototype" replace />} />
           <Route path="*" element={<Navigate to="/maxion-prototype" replace />} />
         </Routes>

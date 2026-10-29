@@ -11,7 +11,11 @@ The prototype mirrors the current MAXION portal shell and connects the product m
 - Discovery — autonomous inquiry, interviews, evidence, exceptions, and verified packages
 - Agentix — deployed agents with ongoing intake, concurrent cases, scoped steering, readiness/repair and verified outcomes
 - Consult MAX — cross-platform explanation and routing
-- Integrations — Nango, Merge Unified API, and native connection management with scopes and access history
+- Settings — the organization's own administration: members and invitations, policy over what MAXION grants, provider keys and the audit log
+- Integrations — personal connections through Merge or MAXION native adapters, with project grants, read/write classes and tracked disconnects
+- Knowledge — what agents should know about the organization: profile, rules, compliance, procedures, brand kit and glossary, with review and versions
+
+MAXION's staff admin panel (tenants and their controls) is a separate app in the product; here it is its own route, [http://127.0.0.1:4317/maxion-admin](http://127.0.0.1:4317/maxion-admin). What these surfaces are and which plan documents they come from: [docs/changes/2026-10-28-organization-surfaces](docs/changes/2026-10-28-organization-surfaces/README.md).
 
 The sidebar, account surfaces, responsive drawer, MAXION lockup, and spiral geometry use the current portal patterns and brand assets. A Discovery's package goes straight to Agentix, which builds, releases and runs the work; Plan and Execute are disabled and unreachable, and their code stays only so restoring their navigation entries would bring them back.
 

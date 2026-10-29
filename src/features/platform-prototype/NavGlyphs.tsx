@@ -8,7 +8,7 @@ import type { ReactNode } from "react"
  * open, and a moving part (`nv-move`) with a small, reduced-motion-safe hover
  * gesture. Styles live in portal-shell.css.
  */
-export type NavGlyphName = "dashboard" | "projects" | "discovery" | "plan" | "execute" | "agentix" | "settings" | "integrations" | "approvals" | "usage" | "help"
+export type NavGlyphName = "dashboard" | "projects" | "discovery" | "plan" | "execute" | "agentix" | "settings" | "integrations" | "knowledge" | "approvals" | "usage" | "help"
 
 const FIGURES: Record<NavGlyphName, ReactNode> = {
 	// Overview: a composed board, one tall panel beside two tiles, the live one filled.
@@ -64,6 +64,12 @@ const FIGURES: Record<NavGlyphName, ReactNode> = {
 	integrations: <>
 		<circle className="nv-move" cx="9" cy="12" r="5.5" />
 		<circle className="nv-accent nv-move nv-move-back" cx="15" cy="12" r="5.5" />
+	</>,
+	// Knowledge: what every piece of work rests on, a base under two blocks of different weight.
+	knowledge: <>
+		<rect className="nv-back" x="3" y="3" width="7.5" height="13" rx="2.6" />
+		<rect className="nv-move" x="13" y="7" width="8" height="9" rx="2.6" />
+		<rect className="nv-solid nv-accent" x="3" y="18.5" width="18" height="2.6" rx="1.3" />
 	</>,
 	// Approvals: a stamp and the mark it leaves.
 	approvals: <>

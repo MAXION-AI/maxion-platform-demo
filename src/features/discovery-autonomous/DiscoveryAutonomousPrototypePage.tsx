@@ -66,6 +66,8 @@ import {
 } from "@/design/primitives"
 
 import { DeliverableExhibit } from "./deliverables"
+import { ConnectionPicker, defaultPicked, pickedNames } from "@/features/organization/ConnectionPicker"
+import { useOrganization } from "@/features/organization/store"
 import {
 	DELIVERABLES,
 	OPERATIONS,
@@ -2633,6 +2635,8 @@ function SetupScreen({
 	const [outcomeBrief, setOutcomeBrief] = useState("")
 	const [reviewed, setReviewed] = useState(false)
 	const [draft, setDraft] = useState<MissionDraft>({ title: "", decision: "", deadline: "" })
+	const organization = useOrganization()
+	const [pickedConnections, setPickedConnections] = useState<string[]>(defaultPicked)
 	const [briefFocusedByPointer, setBriefFocusedByPointer] = useState(false)
 	const briefRef = useRef<HTMLTextAreaElement | null>(null)
 	// A step the owner moved to takes focus when it mounts, so nobody is left on <body>.
@@ -2713,12 +2717,15 @@ function SetupScreen({
 		moveTo("idle")
 	}
 
+	// The evidence MAX may read through is what the owner picks below, from their own connections (D-056).
+	const evidence = pickedNames(pickedConnections, organization.connections)
 	const authority = [
 		{ icon: <Target size={16} />, label: "Business outcome", value: firstSentence(outcomeBrief || missionBrief) },
 		{ icon: <EnvelopeSimple size={16} />, label: "External sends", value: "Up to 3, each approved by you" },
 		{ icon: <ChatsCircle size={16} />, label: "Interview modalities", value: "Text · Voice · Workshop" },
 		{ icon: <ShieldCheck size={16} />, label: "Approvals", value: "You approve exceptions; routine work runs" },
-		{ icon: <Database size={16} />, label: "Evidence sources", value: `${scenario.sources.length} connected · ${scenario.sources.map(source => source.system).join(", ")}` },
+		// A customer demo tells another company's story, so it keeps its scripted sources rather than this workspace's connections.
+		{ icon: <Database size={16} />, label: "Evidence sources", value: demo ? `${scenario.sources.length} connected · ${scenario.sources.map(source => source.system).join(", ")}` : evidence.length ? `${evidence.length} picked · ${evidence.join(", ")}` : "Uploads and interviews only; no connections picked" },
 		// The workspace MAX may contact is the one its stakeholders are in, not a fixed name.
 		{ icon: <Globe size={16} />, label: "Recipient domains", value: recipientDomains(scenario) },
 	]
@@ -2847,6 +2854,10 @@ function SetupScreen({
 									))}
 								</ul>
 							</section>
+
+							{/* D-056: the owner picks which of their connections this Discovery may read through. The
+							    customer demos tell other companies' stories, so this workspace's connections stay out of them. */}
+							{demo ? null : <ConnectionPicker work="Discovery" picked={pickedConnections} onPickedChange={setPickedConnections} />}
 
 							{/* The confirmation is one row, as the reference's "Chat only" row: the check and what it confirms. */}
 							<label className="create-confirm">

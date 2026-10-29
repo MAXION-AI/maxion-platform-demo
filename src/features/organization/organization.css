@@ -1,0 +1,140 @@
+/*
+ * Organization pages: Settings (the customer's administration), Integrations and Knowledge.
+ * Tokens only, on the account-page frame (account-pages.css). The composition is the live app's
+ * Workspace settings: a 24/30 title, an underline tab strip, then label-and-description rows split
+ * by one hairline with the value and its action at the right edge. No box around a group; a
+ * section is a 16/24 heading and whitespace.
+ */
+
+.org-tabs { margin-bottom: var(--ds-space-6); }
+.org-tabs.ds-tabstrip { overflow-x: auto; scrollbar-width: none; }
+
+.org-section + .org-section { margin-top: var(--ds-space-8); }
+.org-section-head { display: flex; align-items: flex-end; justify-content: space-between; gap: var(--ds-space-3); margin-bottom: var(--ds-space-2); }
+.org-section-head h2 { color: var(--ds-fg); font-size: var(--ds-text-section); line-height: var(--ds-lh-section); font-weight: var(--ds-weight-medium); }
+.org-section-head p { margin-top: var(--ds-space-1); color: var(--ds-fg-subtle); font-size: var(--ds-text-sm); line-height: var(--ds-lh-sm); }
+
+.org-rows { border-top: 1px solid var(--ds-border); }
+.org-row { display: flex; align-items: center; justify-content: space-between; gap: var(--ds-space-4); min-height: var(--ds-row-h); padding: var(--ds-space-3) 0; border-bottom: 1px solid var(--ds-border); }
+.org-row-main { display: grid; min-width: 0; }
+.org-row-main > strong { display: flex; flex-wrap: wrap; align-items: center; gap: var(--ds-space-2); color: var(--ds-fg); font-size: var(--ds-text-sm); line-height: var(--ds-lh-sm); font-weight: var(--ds-weight-medium); }
+.org-row-main > small { color: var(--ds-fg-subtle); font-size: var(--ds-text-sm); line-height: var(--ds-lh-sm); }
+.org-row-aside { display: flex; flex-shrink: 0; align-items: center; justify-content: flex-end; gap: var(--ds-space-2); text-align: right; }
+.org-value { color: var(--ds-fg); font-size: var(--ds-text-sm); line-height: var(--ds-lh-sm); font-variant-numeric: tabular-nums; }
+.org-value small { display: block; color: var(--ds-fg-subtle); font-size: var(--ds-text-meta); line-height: var(--ds-lh-meta); }
+.org-person { display: inline-grid; flex-shrink: 0; place-items: center; width: var(--ds-avatar-sm); height: var(--ds-avatar-sm); border-radius: var(--ds-radius-full); background: var(--ds-bg-muted); color: var(--ds-fg); font-size: var(--ds-text-chip); line-height: var(--ds-lh-chip); font-weight: var(--ds-weight-medium); }
+.org-row-lead { display: flex; align-items: center; gap: var(--ds-space-3); min-width: 0; }
+
+/* A source line: where a value comes from, and why it can't go further. */
+.org-source { color: var(--ds-fg-subtle); font-size: var(--ds-text-meta); line-height: var(--ds-lh-meta); }
+
+/* Facts as one quiet line, as the account pages set them. */
+.ds-scope .org-facts { display: flex; flex-wrap: wrap; gap: var(--ds-space-1) var(--ds-space-5); margin-bottom: var(--ds-space-5); color: var(--ds-fg-subtle); font-size: var(--ds-text-sm); line-height: var(--ds-lh-sm); }
+.org-facts strong { color: var(--ds-fg); font-weight: var(--ds-weight-medium); font-variant-numeric: tabular-nums; }
+.org-facts .is-attention strong { color: var(--ds-warning-fg); }
+
+.org-status { display: inline-flex; align-items: center; gap: var(--ds-space-2); color: var(--ds-fg-subtle); font-size: var(--ds-text-sm); line-height: var(--ds-lh-sm); }
+.org-status svg { width: var(--ds-icon); height: var(--ds-icon); }
+.org-status.is-applied svg { color: var(--ds-positive-fg); }
+
+/* Select drawn as the field primitive. */
+.org-select { position: relative; display: inline-flex; align-items: center; min-width: 0; }
+.org-select > select { width: 100%; height: var(--ds-control-h-sm); padding: 0 calc(var(--ds-space-3) + var(--ds-icon)) 0 var(--ds-space-3); border: 1px solid var(--ds-border); border-radius: var(--ds-radius-button); background: var(--ds-bg); color: var(--ds-fg); font-size: var(--ds-text-sm); line-height: var(--ds-lh-sm); font-weight: var(--ds-weight-medium); -webkit-appearance: none; appearance: none; cursor: pointer; }
+.org-select > select:hover { border-color: var(--ds-border-strong); }
+.org-select > select:disabled { color: var(--ds-fg-subtle); cursor: default; }
+.org-select > svg { position: absolute; right: var(--ds-space-2); width: var(--ds-icon); height: var(--ds-icon); color: var(--ds-fg-subtle); pointer-events: none; }
+.org-select.is-field { display: flex; }
+.org-select.is-field > select { height: var(--ds-control-h); border-radius: var(--ds-radius-input); font-weight: var(--ds-weight-regular); }
+
+/* Fresh sign-in, one line in a confirmation. */
+.org-fresh { display: flex; align-items: center; gap: var(--ds-space-2); color: var(--ds-fg-subtle); font-size: var(--ds-text-meta); line-height: var(--ds-lh-meta); }
+.org-fresh svg { flex-shrink: 0; width: var(--ds-icon); height: var(--ds-icon); }
+.org-fresh.is-stale { justify-content: space-between; color: var(--ds-warning-fg); }
+.org-fresh.is-stale > p { display: flex; align-items: center; gap: var(--ds-space-2); }
+
+/* A confirmation's exact change. */
+.org-change { display: grid; margin: 0; }
+.org-change > div { display: grid; grid-template-columns: minmax(0, 9rem) minmax(0, 1fr); gap: var(--ds-space-3); padding: var(--ds-space-2) 0; border-top: 1px solid var(--ds-border); font-size: var(--ds-text-sm); line-height: var(--ds-lh-sm); }
+.org-change > div:last-child { border-bottom: 1px solid var(--ds-border); }
+.org-change dt { color: var(--ds-fg-subtle); }
+.org-change dd { display: flex; flex-wrap: wrap; align-items: baseline; gap: var(--ds-space-2); margin: 0; color: var(--ds-fg); }
+.org-change s { color: var(--ds-fg-subtle); text-decoration-color: var(--ds-border-strong); }
+.org-change strong { font-weight: var(--ds-weight-medium); }
+.org-note { color: var(--ds-fg-subtle); font-size: var(--ds-text-sm); line-height: var(--ds-lh-sm); }
+
+/* Choice rows in a dialog or sheet: a control beside its label and what it means. */
+.org-choices { display: grid; gap: var(--ds-space-1); min-width: 0; margin: 0; padding: 0; border: 0; }
+.org-choices > legend { margin-bottom: var(--ds-space-1); padding: 0; }
+.org-choice { display: flex; align-items: flex-start; gap: var(--ds-space-3); padding: var(--ds-space-2) 0; color: var(--ds-fg); font-size: var(--ds-text-sm); line-height: var(--ds-lh-sm); cursor: pointer; }
+.org-choice > input { flex-shrink: 0; margin-top: calc(var(--ds-space-1) - 1px); accent-color: var(--ds-fg); }
+.org-choice > span { display: grid; min-width: 0; }
+.org-choice strong { font-weight: var(--ds-weight-medium); }
+.org-choice small { color: var(--ds-fg-subtle); font-size: var(--ds-text-meta); line-height: var(--ds-lh-meta); }
+.org-choice.is-disabled { cursor: default; }
+.org-choice.is-disabled strong { color: var(--ds-fg-subtle); }
+
+/* Sheet sections (Integrations connection detail, Knowledge item). */
+.org-sheet { width: min(var(--ds-sheet-w) * 1.25, 100%); }
+.org-sheet-body { display: grid; align-content: start; gap: var(--ds-space-6); min-height: 0; overflow-y: auto; padding: var(--ds-space-2) var(--ds-space-6) var(--ds-space-8); }
+.org-sheet-section h3 { margin-bottom: var(--ds-space-2); color: var(--ds-fg); font-size: var(--ds-text-sm); line-height: var(--ds-lh-sm); font-weight: var(--ds-weight-medium); }
+.org-sheet-section > p { color: var(--ds-fg-subtle); font-size: var(--ds-text-sm); line-height: var(--ds-lh-sm); }
+.org-sheet-section .org-rows .org-row { min-height: 0; padding: var(--ds-space-2) 0; }
+.org-sheet-actions { display: flex; flex-wrap: wrap; gap: var(--ds-space-2); margin-top: var(--ds-space-3); }
+.org-terms { display: grid; margin: 0; }
+.org-terms > div { display: grid; grid-template-columns: minmax(0, 8rem) minmax(0, 1fr); gap: var(--ds-space-3); padding: var(--ds-space-2) 0; border-bottom: 1px solid var(--ds-border); font-size: var(--ds-text-sm); line-height: var(--ds-lh-sm); }
+.org-terms > div:first-child { border-top: 1px solid var(--ds-border); }
+.org-terms dt { color: var(--ds-fg-subtle); }
+.org-terms dd { margin: 0; color: var(--ds-fg); overflow-wrap: anywhere; }
+
+.org-live { position: absolute; top: 0; left: 0; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+
+@media (max-width: 640px) {
+	.org-row { flex-wrap: wrap; }
+	.org-row-aside { width: 100%; justify-content: flex-start; text-align: left; }
+	.org-change > div, .org-terms > div { grid-template-columns: minmax(0, 1fr); gap: 0; }
+}
+
+/* Operations a connector offers: what it is, then whether it's available here. */
+.ds-scope .org-ops { display: grid; margin: var(--ds-space-2) 0 0; padding: 0; list-style: none; }
+.org-ops > li { display: flex; align-items: baseline; justify-content: space-between; gap: var(--ds-space-4); padding: var(--ds-space-2) 0; border-bottom: 1px solid var(--ds-border); color: var(--ds-fg); font-size: var(--ds-text-sm); line-height: var(--ds-lh-sm); }
+.org-ops > li:first-child { border-top: 1px solid var(--ds-border); }
+.org-ops > li > span { display: grid; min-width: 0; }
+.org-ops > li small { color: var(--ds-fg-subtle); font-size: var(--ds-text-meta); line-height: var(--ds-lh-meta); }
+.org-ops > li > small { flex-shrink: 0; max-width: 50%; text-align: right; }
+
+/* The one destructive confirm: filled, in the danger ink. */
+.ds-scope .ds-button.ds-button--primary.org-danger { border-color: var(--ds-danger-fg); background: var(--ds-danger-fg); color: var(--ds-fg-on-primary); }
+.ds-scope .ds-button.ds-button--primary.org-danger:hover:not(:disabled) { opacity: 0.9; }
+.org-status .spin, .org-status.spin { animation: org-spin 900ms linear infinite; }
+@keyframes org-spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { .org-status .spin { animation: none; } }
+
+.org-error { color: var(--ds-danger-fg); font-size: var(--ds-text-meta); line-height: var(--ds-lh-meta); }
+.ds-scope .ds-field > small.org-error { color: var(--ds-danger-fg); }
+.org-row-edit { align-items: flex-end; }
+.org-row-field { flex: 1; max-width: 28rem; }
+.ds-scope .org-keys-note { margin-top: var(--ds-space-4); max-width: 70ch; }
+
+/* Audit log: the filters on one line, then the table. */
+.org-audit-refresh { display: inline-flex; flex-shrink: 0; align-items: center; gap: var(--ds-space-3); }
+.org-audit-filters { display: flex; flex-wrap: wrap; align-items: center; gap: var(--ds-space-2); margin-bottom: var(--ds-space-3); }
+.org-audit-filters > .ds-search { flex: 1 1 16rem; min-width: 0; }
+.org-audit .ds-table-row { min-height: calc(var(--ds-row-h) - var(--ds-space-2)); }
+.org-audit .ds-cell { min-width: 0; overflow: hidden; color: var(--ds-fg-subtle); font-size: var(--ds-text-sm); line-height: var(--ds-lh-sm); text-overflow: ellipsis; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.org-audit .ds-cell-primary strong, .org-audit .org-audit-target { color: var(--ds-fg); font-weight: var(--ds-weight-medium); }
+.org-audit .org-audit-target { font-weight: var(--ds-weight-regular); }
+.org-audit .ds-cell.is-attention { color: var(--ds-warning-fg); }
+.ds-scope .org-audit-foot { margin-top: var(--ds-space-3); }
+@media (max-width: 640px) {
+	.org-section-head { flex-wrap: wrap; align-items: flex-start; }
+	.org-audit-filters > .org-select { flex: 1 1 8rem; }
+	.org-audit .ds-cell { white-space: normal; }
+}
+
+/* The connection picker inside Discover's mission review and Agentix's activation review. */
+.org-picker { display: grid; gap: var(--ds-space-2); }
+.org-picker-head h2, .org-picker-head h3 { color: var(--ds-fg); font-size: var(--ds-text-section); line-height: var(--ds-lh-section); font-weight: var(--ds-weight-medium); }
+.ds-scope .org-picker-head p { margin-top: var(--ds-space-1); color: var(--ds-fg-subtle); font-size: var(--ds-text-sm); line-height: var(--ds-lh-sm); }
+.org-picker .org-choice { padding: var(--ds-space-1) 0; }
+.ds-scope .org-picker-link { justify-self: start; display: inline-flex; align-items: center; gap: var(--ds-space-1); }
+.ds-scope .org-picker-link svg { width: var(--ds-icon); height: var(--ds-icon); }

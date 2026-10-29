@@ -78,9 +78,12 @@ import {
 	agentixCaseIntent,
 	DashboardModule,
 	ExecuteHubModule,
-	IntegrationsModule,
 	ProjectsModule,
 } from "./PortalReplicaModules"
+import { IntegrationsPage } from "@/features/organization/IntegrationsPage"
+import { KnowledgePage, useKnowledgeReviewCount } from "@/features/organization/KnowledgePage"
+import { SettingsPage } from "@/features/organization/SettingsPage"
+import { SHELL_SECTION_EVENT } from "@/features/organization/store"
 import {
 	EXECUTE_FLAGSHIP_ENGAGEMENT,
 	EXECUTE_TASKS,
@@ -1112,7 +1115,7 @@ function buildShellCommandItems(context: ShellCommandContext): ShellCommandItem[
 	}
 
 	const agentixHint = agentixWorkHint(work)
-	for (const item of [...PRIMARY_NAVIGATION, ...ACCOUNT_NAVIGATION.filter((entry) => entry.id === "integrations" || entry.id === "approvals")]) {
+	for (const item of [...PRIMARY_NAVIGATION, ...ACCOUNT_NAVIGATION.filter((entry) => entry.id === "settings" || entry.id === "integrations" || entry.id === "knowledge" || entry.id === "approvals")]) {
 		const spiral = "spiral" in item && Boolean(item.spiral)
 		const hint = item.id === context.active
 			? "Current module"
@@ -1237,13 +1240,13 @@ function CommandMenu({ context, onClose }: { context: ShellCommandContext; onClo
 
 // Shell pages own no keyboard of their own; the modules do. These are the surfaces where
 // '/' is unclaimed, so the shell may map it to the one search the whole platform shares.
-const ADDRESSABLE_MODULES: MaxionModuleId[] = ["dashboard", "projects", "discovery", "agentix", "consult", "settings", "integrations", "approvals", "usage", "help"]
+const ADDRESSABLE_MODULES: MaxionModuleId[] = ["dashboard", "projects", "discovery", "agentix", "consult", "settings", "integrations", "knowledge", "approvals", "usage", "help"]
 function sectionFromSearch(search: string): MaxionModuleId | null {
 	const section = new URLSearchParams(search).get("section")
 	return ADDRESSABLE_MODULES.find((module) => module === section) ?? null
 }
 
-const SHELL_KEYBOARD_MODULES: MaxionModuleId[] = ["dashboard", "projects", "consult", "integrations", "settings", "approvals", "usage", "help"]
+const SHELL_KEYBOARD_MODULES: MaxionModuleId[] = ["dashboard", "projects", "consult", "integrations", "knowledge", "settings", "approvals", "usage", "help"]
 
 export function MaxionPlatformPrototypePage() {
 	// The customer demo opens where its story starts: Discover, or its finished Discovery's package.
@@ -1396,6 +1399,18 @@ export function MaxionPlatformPrototypePage() {
 			routerNavigate({ pathname: location.pathname, search: search ? `?${search}` : "" })
 		}
 	}
+	// Organization pages (and the connection pickers inside Discover and Agentix) ask for another
+	// section through one event; the page they open consumes the details from the shared store.
+	const navigateRef = useRef(navigate)
+	navigateRef.current = navigate
+	useEffect(() => {
+		const onSection = (event: Event) => {
+			const module = (event as CustomEvent<MaxionModuleId>).detail
+			if (ADDRESSABLE_MODULES.includes(module)) navigateRef.current(module)
+		}
+		window.addEventListener(SHELL_SECTION_EVENT, onSection)
+		return () => window.removeEventListener(SHELL_SECTION_EVENT, onSection)
+	}, [])
 	const startDiscoverySetup = () => {
 		// Signal Discovery to open its setup screen instead of dropping the user
 		// wherever the module last was.
@@ -1472,13 +1487,15 @@ export function MaxionPlatformPrototypePage() {
 	const pendingApprovalCases = useMemo(() => (agentixShell.pending ?? []).filter((item) => item.phase === "approval"), [agentixShell])
 	// My approvals counts the cases waiting on an approval, not whether any exists.
 	const pendingApprovals = pendingApprovalCases.length
+	// Knowledge suggestions and conflicts wait on an Owner or Admin; the viewer is the Owner.
+	const knowledgeReviews = useKnowledgeReviewCount()
 	const currentLabel = PRIMARY_NAVIGATION.find((item) => item.id === activeModule)?.label ??
-		({ settings: "Settings", integrations: "Integrations", approvals: "My approvals", usage: "Usage", help: "Help" } as const)[activeModule as "settings" | "integrations" | "approvals" | "usage" | "help"] ??
+		({ settings: "Settings", integrations: "Integrations", knowledge: "Knowledge", approvals: "My approvals", usage: "Usage", help: "Help" } as const)[activeModule as "settings" | "integrations" | "knowledge" | "approvals" | "usage" | "help"] ??
 		"MAXION"
 
 	return (
 		<div className={`maxion-platform-prototype mxp-root${activeModule === "execute" ? " mxp-root--execute" : ""}${activeModule === "agentix" ? " mxp-root--agentix" : ""}${sidebarCollapsed ? " mxp-root--sidebar-collapsed" : ""}${keyboardNavigation ? " mxp-keyboard-navigation" : ""}`}>
-			<PortalSidebar active={activeModule} onNavigate={navigate} onCommand={() => setCommandOpen(true)} mobileOpen={mobileNavOpen} onMobileOpenChange={setMobileNavOpen} collapsed={sidebarCollapsed} onCollapsedChange={setSidebarCollapsed} badges={{ agentix: agentixAttention.count, approvals: pendingApprovals, execute: executeVerified ? 0 : 1 }} demo={script ? <PresenterDock script={script} collapsed={sidebarCollapsed} onRun={runDemoAction} /> : undefined} />
+			<PortalSidebar active={activeModule} onNavigate={navigate} onCommand={() => setCommandOpen(true)} mobileOpen={mobileNavOpen} onMobileOpenChange={setMobileNavOpen} collapsed={sidebarCollapsed} onCollapsedChange={setSidebarCollapsed} badges={{ agentix: agentixAttention.count, approvals: pendingApprovals, knowledge: knowledgeReviews, execute: executeVerified ? 0 : 1 }} demo={script ? <PresenterDock script={script} collapsed={sidebarCollapsed} onRun={runDemoAction} /> : undefined} />
 			{/* Plan and Execute are disabled: their modules are not mounted, and nothing navigates to them. */}
 			<div ref={stageRef} className="mxp-stage" aria-label={`${currentLabel} module`}>
 				<div className={stageClass("dashboard")} hidden={activeModule !== "dashboard"}><DashboardModule projects={projects} active={activeModule === "dashboard"} onNavigate={navigate} onStartDiscovery={startDiscoverySetup} onOpenDiscoveryRecord={openDiscoveryRecord} onOpenAgentix={openAgentix} agentix={agentixShell} discoveryReady={discoveryWaiting === null} planSent={planSent} planPacket={planPacket} executeVerified={executeVerified} onCommand={() => setCommandOpen(true)} onCreateProject={() => { setProjectCreateSignal((tick) => tick + 1); navigate("projects") }} /></div>
@@ -1486,8 +1503,10 @@ export function MaxionPlatformPrototypePage() {
 				<div className={stageClass("discovery", "mxp-stage-view--discovery")} hidden={activeModule !== "discovery"}><div hidden={operationalDiscovery !== null} style={{ height: "100%" }}><DiscoveryAutonomousPrototypePage embedded active={activeModule === "discovery" && operationalDiscovery === null} setupSignal={discoverySetupSignal} openSignal={discoveryOpen} onContinueToAgentix={receiveDiscoveryHandoff} operationalPackages={<OperationalDiscoveryEntry onOpen={openOperationalDiscovery} />} /></div>{operationalDiscovery ? <DiscoveryHandoffWorkspace key={operationalDiscovery.id} workflowId={operationalDiscovery.id} origin={operationalDiscovery.origin} onBack={() => setOperationalDiscovery(null)} onBackToOrigin={handoffOrigin ? () => openAgentix({ type: "engagement", id: handoffOrigin.engagementId }) : undefined} onSend={(id) => openAgentix(handoffOrigin ? { type: "engagement", id: handoffOrigin.engagementId } : { type: "import", id })} /> : null}</div>
 				<div className={stageClass("agentix")} hidden={activeModule !== "agentix"}><AgentixInitiativesPage intentSignal={agentixIntent} onAttentionChange={reportAgentixAttention} onOpenDiscovery={openOperationalDiscovery} onOpenDiscoveryRecord={(recordId) => openDiscoveryRecord(recordId, "package")} active={activeModule === "agentix"} /></div>
 				<div className={stageClass("consult")} hidden={activeModule !== "consult"}><ConsultModule state={{ agentix: agentixAttention, discoveryWaiting, planSent, planSnapshot, executeVerified }} onCommand={() => setCommandOpen(true)} onNavigate={navigate} onOpenAgentix={openAgentix} onOpenDiscoveryRecord={openDiscoveryRecord} /></div>
-				<div className={stageClass("integrations")} hidden={activeModule !== "integrations"}><IntegrationsModule onCommand={() => setCommandOpen(true)} /></div>
-				{(["settings", "approvals", "usage", "help"] as const).map((module) => <div key={module} className={stageClass(module)} hidden={activeModule !== module}><AccountUtilityModule module={module} onNavigate={navigate} onCommand={() => setCommandOpen(true)} approvals={pendingApprovalCases} onOpenAgentix={openAgentix} /></div>)}
+				<div className={stageClass("settings")} hidden={activeModule !== "settings"}><SettingsPage onCommand={() => setCommandOpen(true)} onNavigate={navigate} /></div>
+				<div className={stageClass("integrations")} hidden={activeModule !== "integrations"}><IntegrationsPage active={activeModule === "integrations"} onCommand={() => setCommandOpen(true)} /></div>
+				<div className={stageClass("knowledge")} hidden={activeModule !== "knowledge"}><KnowledgePage onCommand={() => setCommandOpen(true)} onOpenAgentix={openAgentix} onOpenDiscoveryRecord={(recordId) => openDiscoveryRecord(recordId, "resume")} /></div>
+				{(["approvals", "usage", "help"] as const).map((module) => <div key={module} className={stageClass(module)} hidden={activeModule !== module}><AccountUtilityModule module={module} onNavigate={navigate} onCommand={() => setCommandOpen(true)} approvals={pendingApprovalCases} onOpenAgentix={openAgentix} /></div>)}
 			</div>
 			<AnimatePresence>{commandOpen ? <CommandMenu context={commandContext} onClose={() => setCommandOpen(false)} /> : null}</AnimatePresence>
 			<div className="mxp-shell-toast-region" role="status" aria-live="polite" style={shellToastShown && shellToastLift !== null ? { bottom: `calc(${shellToastLift}px + var(--ds-space-3))` } : undefined}>
