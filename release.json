@@ -1,11 +1,15 @@
 {
-  "sourceCommit": "05e8afb7cca4882b37e4cb1e600f942c77423e71",
+  "sourceCommit": "aa568b56ee267b17270296d6d623cab4337c7ef5",
   "sourceBranch": "main",
   "builtLocally": true,
-  "javascript": "assets/index-CM6XW6rG.js",
-  "stylesheet": "assets/index-DKY4KRkR.css",
-  "previousSourceCommit": "f3adf5e9efbb0a31fdb948418541cc9690024352",
-  "previousPagesCommit": "e37d512",
+  "javascript": "assets/index-DCy3JIQo.js",
+  "stylesheet": "assets/index-B0IDuDkr.css",
+  "lazyChunks": [
+    "assets/AdminPanelPage-ByBNI9wq.js",
+    "assets/AdminPanelPage-2atw3u9S.css"
+  ],
+  "previousSourceCommit": "05e8afb7cca4882b37e4cb1e600f942c77423e71",
+  "previousPagesCommit": "190932b",
   "deploymentMethod": "locally built with GITHUB_PAGES=true; the preceding release's hashed assets retained for CDN propagation",
   "contains": [
     "revenue",
@@ -16,6 +20,11 @@
     "discovery-voice-call",
     "agentix-team-floor",
     "elevenlabs-refresh",
-    "review-fixes-2026-10-19"
+    "review-fixes-2026-10-19",
+    "organization-settings",
+    "integrations-connection-model",
+    "knowledge",
+    "connection-picker",
+    "staff-admin-panel"
   ]
 }
