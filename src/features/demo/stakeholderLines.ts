@@ -10,10 +10,10 @@ export function topicsFor(person: Person) {
 	return person.focus.split(/,\s*/).map(topic => topic.trim()).filter(Boolean)
 }
 
-/* MAX says why it is here once, not before every question. */
+/* MAX says why it is here once, not before every question, and it says first that it is an AI, what is kept and who sees it (D-124). */
 export function greetingFor(person: Person, title: string, count: number) {
 	const first = person.name.split(" ")[0]
-	return `${first}, thank you for the time. I am MAX, running the Discovery on ${title}. ${count} question${count === 1 ? "" : "s"} on your ground, then I will leave you to it. Nothing here is attributed to you by name.`
+	return `${first}, thank you for the time. I am MAX, an AI interviewer running the Discovery on ${title}, and everything I ask comes from an AI. I keep a written transcript with your name on it, and no audio. The Discovery owner and the project team can read it, and the deliverables may cite you by name. ${count} question${count === 1 ? "" : "s"} on your ground, then I will leave you to it.`
 }
 
 /* The topic is written as the scenario wrote it: a proper noun stays a proper noun. */

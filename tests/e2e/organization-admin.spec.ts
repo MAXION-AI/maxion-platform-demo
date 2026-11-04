@@ -131,3 +131,100 @@ test("MAXION's staff admin panel lists tenants and explains each control's effec
 	await expect(page.getByText(/The customer narrowed this to GPT-6 Luna/)).toBeVisible()
 	expect(await seriousViolations(page)).toEqual([])
 })
+
+const commit = async (dialog: ReturnType<Page["getByRole"]>, reason: string, ticket: string) => {
+	await dialog.getByLabel("Reason").selectOption(reason)
+	await dialog.getByLabel(/^Ticket/).fill(ticket)
+	await dialog.getByRole("button", { name: "Publish" }).click()
+	await expect(dialog).toBeHidden()
+}
+
+test("staff create a tenant with its agreement and first Owner binding, and it starts Pending setup", async ({ page }) => {
+	await page.setViewportSize({ width: 1440, height: 900 })
+	await page.goto("/maxion-admin")
+	await page.getByRole("button", { name: "New tenant" }).click()
+	const dialog = page.getByRole("dialog", { name: "New tenant" })
+	await expect(dialog.getByRole("button", { name: "Publish" })).toBeDisabled()
+	await dialog.getByLabel("Organization name").fill("Marlow Freight")
+	await dialog.getByLabel("Onboarding reference").fill("ONB-1042")
+	await dialog.getByRole("button", { name: "Issue a simulated code" }).click()
+	await dialog.getByLabel("Seats").fill("25")
+	await dialog.getByLabel("Agreement ends").fill(`${new Date().getFullYear() + 1}-06-30`)
+	const preview = dialog.getByRole("region", { name: "Preview" })
+	await expect(preview).toContainText("Global user")
+	await expect(preview).toContainText("Draft, version 1")
+	expect(await seriousViolations(page)).toEqual([])
+	await commit(dialog, "customer_agreement", "SAL-2301")
+
+	await expect(page.getByRole("heading", { name: "Marlow Freight", level: 1 })).toBeVisible()
+	await expect(page.getByRole("status")).toContainText("Organization and first Owner")
+	await expect(page.getByRole("region", { name: "Setup" })).toContainText("Waiting to activate")
+	await expect(page.getByRole("region", { name: "Setup" })).toContainText("Draft, version 1")
+	expect(await seriousViolations(page)).toEqual([])
+
+	await page.getByRole("button", { name: "Tenants", exact: true }).first().click()
+	await expect(page.getByRole("button", { name: "Marlow Freight · Pending setup" })).toBeVisible()
+	await page.getByRole("button", { name: "Marlow Freight · Pending setup" }).click()
+	await page.getByRole("tab", { name: "History" }).click()
+	await expect(page.getByRole("article", { name: /Agreement draft/ })).toContainText("SAL-2301")
+})
+
+test("Support sees reasons instead of editors and can resend an invitation", async ({ page }) => {
+	await page.setViewportSize({ width: 1440, height: 900 })
+	await page.goto("/maxion-admin?tenant=northstar")
+	await page.getByRole("combobox", { name: "View as" }).selectOption("tessa-lind")
+	await expect(page.getByText(/You're viewing as Support/)).toBeVisible()
+	await expect(page.getByRole("button", { name: "Change seats" })).toHaveCount(0)
+	await expect(page.getByText("Needs Operator or Platform Owner").first()).toBeVisible()
+	expect(await seriousViolations(page)).toEqual([])
+
+	await page.getByRole("button", { name: /Resend the invitation to t/ }).click()
+	await commit(page.getByRole("dialog"), "customer_request", "SUP-9100")
+	await expect(page.getByRole("status")).toContainText("Invitation resent")
+	await expect(page.getByText(/link generation 2/)).toBeVisible()
+
+	await page.getByRole("tab", { name: "Usage" }).click()
+	await expect(page.getByRole("region", { name: "Costs" })).toContainText("Not shown")
+	await expect(page.getByRole("main")).not.toContainText("$3,550")
+})
+
+test("staff see provider cost against the same units the customer sees, with the unknown cost stated", async ({ page }) => {
+	await page.setViewportSize({ width: 1440, height: 900 })
+	await page.goto("/maxion-prototype?section=usage")
+	await expect(page.getByText(/18,800 of 108,000 units used/)).toBeVisible()
+	await page.goto("/maxion-admin?tenant=northstar&tab=usage")
+	await expect(page.getByText(/18,800 of 108,000 units settled/)).toBeVisible()
+	const costs = page.getByRole("region", { name: "Costs" })
+	await expect(costs).toContainText("Simulated figures")
+	await expect(costs.getByRole("article", { name: "Agentix case AR-2291" })).toContainText("Unknown")
+	await expect(costs).toContainText("Charging mode is set on the agreement")
+	expect(await seriousViolations(page)).toEqual([])
+})
+
+test("Staff access lists fixed roles and protects the last Platform Owner", async ({ page }) => {
+	await page.setViewportSize({ width: 1440, height: 900 })
+	await page.goto("/maxion-admin")
+	await page.getByRole("button", { name: "Staff access" }).click()
+	await expect(page.getByRole("heading", { name: "Staff access", level: 1 })).toBeVisible()
+	await expect(page.getByRole("article", { name: "Tessa Lind", exact: true })).toContainText("Support")
+	expect(await seriousViolations(page)).toEqual([])
+	await page.getByRole("button", { name: "Manage Maya Chen" }).click()
+	await expect(page.getByRole("dialog").getByRole("checkbox", { name: /Platform Owner/ })).toBeDisabled()
+	await page.keyboard.press("Escape")
+
+	await page.getByRole("combobox", { name: "View as" }).selectOption("luis-ortega")
+	await expect(page.getByText("Staff access is for Platform Owners")).toBeVisible()
+})
+
+test("the staff panel's new screens fit a phone without clipping", async ({ page }) => {
+	await page.setViewportSize(PHONE)
+	for (const path of ["/maxion-admin", "/maxion-admin?tenant=northstar", "/maxion-admin?tenant=northstar&tab=usage", "/maxion-admin?view=staff"]) {
+		await page.goto(path)
+		await page.waitForTimeout(400)
+		expect(await overflowing(page, ".adm-root"), path).toEqual([])
+	}
+	await page.goto("/maxion-admin")
+	await page.getByRole("button", { name: "New tenant" }).click()
+	await page.waitForTimeout(400)
+	expect(await overflowing(page, ".ds-dialog")).toEqual([])
+})

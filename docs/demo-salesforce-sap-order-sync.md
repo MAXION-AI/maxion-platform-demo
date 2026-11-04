@@ -1,6 +1,6 @@
 # Customer demo: Salesforce–SAP order sync, Discovery to Agentix
 
-One repeatable demo that tells a single story end to end. A VP of revenue operations asks MAXION to stop booked Salesforce orders failing on the way into SAP, and to settle which system owns the customer. Discovery investigates it and produces a nine-document decision package. Agentix receives that package and creates the engagement from nothing, and an agent team builds, tests, releases and then runs the work every morning.
+One repeatable demo that tells a single story end to end. A VP of revenue operations asks MAXION to stop booked Salesforce orders failing on the way into SAP, and to settle which system owns the customer. Discovery investigates it and produces a eight-document decision package. Agentix receives that package and creates the engagement from nothing, and an agent team builds, tests, releases and then runs the work every morning.
 
 Everything is simulated in the browser. No Salesforce, SAP, integration platform or Teams action happens, and no real customer data is used. The company (Arcline Technologies), the people and the figures are synthetic.
 
@@ -33,29 +33,35 @@ The number on each heading matches the sidebar count. To show a stakeholder's si
 
 **2 · Answer the owner interview.** Six questions, filled from the sidebar with **Fill answer**, sent with Enter. Or make it a call: choose **Start the call** in the sidebar row (or in the Thread), then **Continue with voice**. On the call, **Fill answer** arrives as speech and sends itself after the pause; **What MAX heard** fills on the right, and on the second answer MAX reads the source during the call (an early signal, verified later). The call ends on a summary: choose **Watch MAX work** to open the stakeholder calls.
 
-**3 · Let MAX investigate, then decide.** MAX reads the four sources and interviews the four owners, then stops at one decision: 187 active accounts carry a different address and tax jurisdiction in Salesforce than in SAP, and tax was determined by whichever system posted first — $612,480.90 of orders. Choose **Make the SAP business partner authoritative**.
+**3 · Approve the interview briefs.** When the owner interview closes, MAX drafts one brief per stakeholder and the interviews wait. Choose **Review briefs** (or **Open the briefs** in the sidebar) to show one exactly as the interviewer will receive it, then **Approve all**. These are real approvals on the record, not automated by the script.
+*Say:* Everything the interviewer holds counts as shown to that person, so a person approves it first.
+
+**4 · Let MAX investigate, then decide.** MAX reads the four sources and interviews the four owners, then stops at one decision: 187 active accounts carry a different address and tax jurisdiction in Salesforce than in SAP, and tax was determined by whichever system posted first — $612,480.90 of orders. Choose **Make the SAP business partner authoritative**.
 *Say:* Each system is internally consistent; which one is the master is finance policy, so MAX stops and asks.
 
-**4 · Read the package and approve the charter.** Nine documents land. Show the **Executive decision brief** (1,340 failures, 4.2 days each), then the **RAID register**. Choose **Continue to Agentix** and approve the project charter with a reason.
+**5 · Read the package and approve the charter.** The eight selected documents land. Show the **Executive decision brief** (1,340 failures, 4.2 days each), then the **RAID register**. Choose **Approve package** and, from its blocker row, approve the project charter with a reason.
 
-**5 · Hand the package to Agentix.** Add a note if you like and choose **Continue to Agentix**.
+**6 · Approve the package version.** Choose **Approve package** (or **Open the approval** in the sidebar). The dialog names the exact package version, the manifest and each document's hash; confirm it. **Continue to Agentix** only opens after this. **Return to MAX** and **Withdraw approval** sit beside it.
+*Say:* Approval binds one exact version. If anyone edits a document afterwards, the version moves and this approval no longer holds. It starts nothing in Agentix.
+
+**7 · Hand the package to Agentix.** Add a note if you like and choose **Continue to Agentix**.
 
 ### Agentix
 
-**6 · Create the engagement in Agentix.** Nothing existed in Agentix for this until the handoff. Answer the two questions (**Ask me before each pipeline release**, **The synthetic 30-day order sample**), choose **Run the read-only check**, then **Activate engagement**. The engagement opens on its **Floor**: the team assembles, with the Discovery package going to the coordinator and each milestone to the specialist who takes it first.
+**8 · Create the engagement in Agentix.** Nothing existed in Agentix for this until the handoff. Answer the two questions (**Ask me before each pipeline release**, **The synthetic 30-day order sample**), choose **Run the read-only check**, then **Activate engagement**. The engagement opens on its **Floor**: the team assembles, with the Discovery package going to the coordinator and each milestone to the specialist who takes it first.
 
-**7 · Decide the unmapped-SKU rule.** MS-1 asks about 94 Salesforce SKUs with no SAP material. Choose **Block the order and raise it to product ops**. On the Floor, the specialist's packet climbs to **You** and your room opens with the decision; decide it there, or in **Work**.
+**9 · Decide the unmapped-SKU rule.** MS-1 asks about 94 Salesforce SKUs with no SAP material. Choose **Block the order and raise it to product ops**. On the Floor, the specialist's packet climbs to **You** and your room opens with the decision; decide it there, or in **Work**.
 *Say:* Posting them against a placeholder would bill the wrong thing, so the specialist asks rather than choosing.
 
-**8 · Watch a check fail and the repair.** In MS-2, pipeline v1 resolves customers from Salesforce, so two of its twelve checks fail: tax determination and pricing. Open v1 to show the 187 accounts. The integration specialist repairs the resolution, and v2 passes all twelve.
+**10 · Watch a check fail and the repair.** In MS-2, pipeline v1 resolves customers from Salesforce, so two of its twelve checks fail: tax determination and pricing. Open v1 to show the 187 accounts. The integration specialist repairs the resolution, and v2 passes all twelve.
 
-**9 · Approve the production release.** Review the target, checks and recovery limits, then choose **Approve release**. The adapter times out *after* posting on purpose; the coordinator checks the idempotency key rather than creating a second sales order.
+**11 · Approve the production release.** Review the target, checks and recovery limits, then choose **Approve release**. The adapter times out *after* posting on purpose, so the release stops at **Outcome unknown**. Choose **Investigate** in MS-2: the coordinator checks the idempotency key rather than creating a second sales order, and the read-back only reads.
 
-**10 · Open the verified cockpit.** MS-3 publishes under policy ITGC-SOX-4. Open **Results → Order exception cockpit**. When you're ready, choose **Controls → Run the next scheduled cycle now**.
+**12 · Open the verified cockpit.** MS-3 publishes a file version under policy ITGC-SOX-4. Open **Results → Order exception cockpit**, then show **Download** and **Save to SharePoint** under **Publish as files**. When you're ready, choose **Controls → Run the next scheduled cycle now**.
 
-**11 · Run tomorrow morning.** The morning sync reads the booked orders, resolves each one, posts under its key and refreshes the cockpit. Use **Controls → Skip** until it is verified.
+**13 · Run tomorrow morning.** The morning sync reads the booked orders, resolves each one, posts under its key and refreshes the cockpit. Use **Controls → Skip** until it is verified.
 
-**12 · Close the story.** Open **Activity** to show the verified sync and its evidence.
+**14 · Close the story.** Open **Activity** to show the verified sync and its evidence.
 
 ## Scripted answers
 
@@ -63,11 +69,21 @@ The number on each heading matches the sidebar count. To show a stakeholder's si
 2. Anything where the data is simply wrong in one system, they fix without asking. Anything where a SKU doesn't exist in SAP, or the price doesn't match the quote, always needs someone to decide.
 3. SAP wins. The business partner is what we bill and pay tax against, so if Salesforce disagrees, Salesforce is the one that's wrong.
 4. We must never create a second sales order. Cancelling a duplicate leaves a trail we have to explain at audit, so if a post times out, check before you post again.
-5. Nobody owns production SAP changes today, so treat that as open. Cockpit publishing to the finance group is already covered by policy ITGC-SOX-4.
+5. Nobody owns production SAP changes today, so treat that as open. Publishing the cockpit as files is already covered by policy ITGC-SOX-4.
 6. Every booked order has an SAP number the same day, nothing above $50,000 posts without me, and I stop hearing about duplicates entirely.
 
 - **Charter approval reason:** Scope, owners and the five exclusions match what revenue operations and internal controls agreed.
 - **Handoff note (optional):** Start with the mapping; the unmapped-SKU rule is product operations' to decide.
+
+## Showing a failure
+
+From the **…** menu in the Discovery header, or by searching "simulate" in the Discovery command menu (⌘K):
+
+- **Simulate: budget exhausted** pauses the run at its limit, names the limit, and keeps evidence, drafts and the package readable. **Raise the limit and resume** carries on.
+- **Simulate: connection revoked** pauses reads from one named source and lists the documents affected. **Reconnect** resumes it; **Open Integrations** goes to the real page.
+- **Simulate: a colleague edits** lands a change during your next review or edit, so the approval is refused or the edit reports a conflict and keeps your text.
+
+All three are simulated in the browser. The stakeholder interview window opens beside the demo and doesn't read the demo's briefs.
 
 ## Figures (the same in every document and screen)
 
@@ -88,6 +104,6 @@ The number on each heading matches the sidebar count. To show a stakeholder's si
 
 ## How it works
 
-This demo is a script (`src/features/demo/scripts/salesforceSap.ts`) on the same harness as the other two: the address picks the demo, and the session, storage, ownership, presenter dock and guide all read the script. Its Discovery lives in `SCENARIOS.ordersync` with nine documents in `deliverables/ordersync.ts`; its Agentix engagement is the `orders` scenario in `engine/scenarios.ts`, whose package `pkg_order_sync_v2` is held back until this Discovery sends it.
+This demo is a script (`src/features/demo/scripts/salesforceSap.ts`) on the same harness as the other two: the address picks the demo, and the session, storage, ownership, presenter dock and guide all read the script. Its Discovery lives in `SCENARIOS.ordersync` with eleven documents in `deliverables/ordersync.ts`; its Agentix engagement is the `orders` scenario in `engine/scenarios.ts`, whose package `pkg_order_sync_v2` is held back until this Discovery sends it.
 
 Tests: `tests/e2e/salesforce-sap-demo.spec.ts` covers the full journey, storage isolation from both other demos and the everyday prototype, and a second Discovery that starts Agentix again from zero. `src/features/agentix/prototype/__tests__/OrdersEngine.spec.ts` drives the engagement arc from nothing to a verified morning, and asserts this engagement carries its own Thursday 21:00 release window rather than another demo's.

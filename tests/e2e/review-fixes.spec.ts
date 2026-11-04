@@ -100,16 +100,17 @@ test("an integrations search with no match says so and can be cleared", async ({
 	await expect(page.getByText("Salesforce", { exact: true })).toBeVisible()
 })
 
-test("Consult and Help no longer route to the disabled Plan and Execute modules", async ({ page }) => {
+test("Consult MAX is out of the first release and Help doesn't route to retired modules", async ({ page }) => {
 	await page.goto("/maxion-prototype?section=consult")
-	await expect(page.getByText(/I can answer across your authorized MAXION context/)).toBeVisible()
-	await expect(page.getByText(/Plan decisions|Execute state/)).toHaveCount(0)
-	await page.getByRole("textbox", { name: "Message Consult MAX" }).fill("What needs my attention?")
-	await page.getByRole("button", { name: "Send to Consult MAX" }).click()
-	await expect(page.getByRole("button", { name: /Open the ERP plan|Open the Execute engagement/ })).toHaveCount(0)
-	await expect(page.getByText(/Execute has not been given the work/)).toHaveCount(0)
+	// The old address lands on the Dashboard, with nothing left to reach it by.
+	await expect(page.getByRole("heading", { name: /Good afternoon/ })).toBeVisible()
+	await expect(page.getByRole("button", { name: /Consult Max|Ask MAX/ })).toHaveCount(0)
 	await page.goto("/maxion-prototype?section=help")
 	await expect(page.getByRole("button", { name: /Move a Plan into Execute/ })).toHaveCount(0)
+	await page.getByRole("searchbox", { name: "Search help" }).fill("zzzz")
+	await expect(page.getByRole("button", { name: /Consult MAX/ })).toHaveCount(0)
+	await page.getByRole("button", { name: "Show all topics" }).click()
+	await expect(page.getByRole("button", { name: "Create and manage projects" })).toBeVisible()
 })
 
 test("the team floor closes its talk bar and rooms on Escape, and a phone brings a room into view", async ({ page }) => {
@@ -238,16 +239,4 @@ test("the phone sheet hands the keyboard to the command menu and never leaves th
 	await page.getByRole("button", { name: "Open navigation" }).click()
 	await page.setViewportSize({ width: 1280, height: 900 })
 	await expect(page.locator(".mxp-stage")).not.toHaveAttribute("inert", "")
-})
-
-test("Consult's history sheet takes focus, closes on Escape and returns focus", async ({ page }) => {
-	await page.goto("/maxion-prototype?section=consult")
-	const history = page.getByRole("button", { name: "History" })
-	await history.click()
-	const sheet = page.getByRole("complementary", { name: "Consult MAX history" })
-	await expect(sheet).toBeVisible()
-	expect(await sheet.evaluate(node => node.contains(document.activeElement))).toBe(true)
-	await page.keyboard.press("Escape")
-	await expect(sheet).toHaveCount(0)
-	await expect(history).toBeFocused()
 })

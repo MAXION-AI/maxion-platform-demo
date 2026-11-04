@@ -10,6 +10,8 @@ async function startServiceNowDiscovery(page: import("@playwright/test").Page) {
 	await page.getByRole("textbox", { name: "Discovery brief" }).fill(SERVICENOW_BRIEF)
 	await page.getByRole("button", { name: "Start autonomous Discovery" }).click()
 	// Intake drafts the mission, then the authority review gates creation.
+	// Outputs are chosen per mission; this one also wants the executive brief.
+	await page.getByRole("checkbox", { name: /Executive decision brief/ }).check()
 	await page.getByRole("checkbox", { name: "Mission authority reviewed" }).check()
 	await page.getByRole("button", { name: "Create Discovery" }).click()
 	const composer = page.getByRole("textbox", { name: "Message MAX" })
@@ -42,6 +44,7 @@ test("a ServiceNow financial brief runs the enterprise scenario end to end", asy
 	await composer.press("Enter")
 	await expect(page.getByText(/enough owner context for this pass/i)).toBeVisible()
 
+	await page.locator('[data-notice="briefs"]').getByRole("button", { name: "Approve all" }).click()
 	// The exception must be the segregation-of-duties one.
 	await expect(page.getByRole("heading", { name: "Proposed ownership violates segregation of duties" })).toBeVisible({ timeout: 25_000 })
 	await page.getByRole("button", { name: "Open design resolution" }).click()

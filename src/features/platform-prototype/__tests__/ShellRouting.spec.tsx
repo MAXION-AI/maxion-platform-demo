@@ -69,7 +69,8 @@ describe("MAXION shell routing", () => {
 
 	it("opens the waiting Agentix case from the Dashboard and counts approvals exactly", async () => {
 		renderShell()
-		await waitFor(() => expect(navigation().getByRole("button", { name: /^My approvals/ })).toHaveTextContent("1"))
+		// One Agentix case and the Discovery decision the seed is waiting on.
+		await waitFor(() => expect(navigation().getByRole("button", { name: /^My approvals/ })).toHaveTextContent("2"))
 		const activity = screen.getByRole("heading", { name: "Workspace activity" }).closest("section")!
 		const row = within(activity).getByRole("button", { name: /price variance|Invoice variance/ })
 		// The seeded case was already waiting when the session opened.
@@ -93,14 +94,21 @@ describe("MAXION shell routing", () => {
 		expect(screen.getByText("Setup requests 1")).toBeVisible()
 	})
 
-	it("lists each pending approval and opens it in Agentix", async () => {
+	it("lists pending approvals from both modules and opens each in its own module", async () => {
 		renderShell()
 		fireEvent.click(navigation().getByRole("button", { name: /^My approvals/ }))
 		const inbox = screen.getByRole("region", { name: "Pending approvals" })
-		await waitFor(() => expect(within(inbox).getAllByRole("article")).toHaveLength(1))
+		await waitFor(() => expect(within(inbox).getAllByRole("article")).toHaveLength(2))
+		const discovery = within(inbox).getByRole("article", { name: /One external interview needs your approval/ })
+		expect(discovery).toHaveTextContent("Discovery · Third-party onboarding control redesign")
 		const item = within(inbox).getByRole("article", { name: /INV-20841/ })
 		expect(item).toHaveTextContent("Revenue reconciliation · INV-20841")
+		// The row names what the decision binds, not just the case.
+		expect(item).toHaveTextContent("INV-20841 v2")
 		fireEvent.click(within(item).getByRole("button", { name: /^Review decision/ }))
 		expect(await screen.findByRole("heading", { name: "Approve the $240 price variance?" })).toBeVisible()
+		fireEvent.click(navigation().getByRole("button", { name: /^My approvals/ }))
+		fireEvent.click(within(discovery).getByRole("button", { name: /^Review/ }))
+		expect(screen.getByText("Opened seed-tprm-control-redesign at decision")).toBeVisible()
 	})
 })

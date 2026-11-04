@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest"
-import { activate, activationBlockers, actOnEngagement, advanceSchedule, answerQuestion, awaitingCreation, decide, itemBy, latest, receivePackage, releaseWindowFor, tick, visiblePackage } from "../engine/engine"
+import { activate, activationBlockers, actOnEngagement, advanceSchedule, answerQuestion, awaitingCreation, decide, itemBy, latest, receivePackage, releaseWindowFor, tick, visiblePackage, investigateEffect } from "../engine/engine"
 import { SCENARIOS } from "../engine/scenarios"
 import { demoInitialState } from "../engine/seed"
 import { achievements, needsYou, teamPresence } from "../engine/selectors"
@@ -19,6 +19,14 @@ const LINK = { recordId: "demo-salesforce-sap-discovery", packetId: "HP-ORD812",
 const run = (state: AgentixState, until: (s: AgentixState) => boolean, max = 200) => {
 	let current = state
 	for (let i = 0; i < max && !until(current); i++) current = tick(current)
+	if (!until(current)) throw new Error("condition not reached")
+	return current
+}
+/* A person reads the target back whenever an outcome is unknown; nothing else settles one. */
+const readBacks = (state: AgentixState) => state.work.reduce((current, entry) => { const effect = entry.effects.find(value => value.status === "unknown" && !value.investigating); return effect ? investigateEffect(current, entry.id, effect.id) : current }, state)
+const runReading = (state: AgentixState, until: (s: AgentixState) => boolean, max = 200) => {
+	let current = state
+	for (let i = 0; i < max && !until(current); i++) current = tick(readBacks(current))
 	if (!until(current)) throw new Error("condition not reached")
 	return current
 }
@@ -128,13 +136,13 @@ describe("order sync: the milestone arc", () => {
 		expect(approval.kind).toBe("release")
 		expect(needsYou(state, ORDERS).some(entry => entry.kind === "release")).toBe(true)
 		state = decide(state, approval.id, "approve")
-		state = run(state, s => s.releases.some(r => r.engagementId === ORDERS && (r.status === "applied" || r.status === "verified")))
+		state = runReading(state, s => s.releases.some(r => r.engagementId === ORDERS && (r.status === "applied" || r.status === "verified")))
 		const pipelineReleases = state.releases.filter(r => r.engagementId === ORDERS && r.workItemId === item(state, "MS-2").id)
 		expect(pipelineReleases).toHaveLength(1)
 		expect(pipelineReleases[0].attempts).toBe(1)
 
 		// Delivery is verified and the engagement moves into its daily operation.
-		state = run(state, s => item(s, "MS-2").status === "verified" && item(s, "MS-3").status === "verified")
+		state = runReading(state, s => item(s, "MS-2").status === "verified" && item(s, "MS-3").status === "verified")
 		expect(artifact(state, "pipeline").productionVersion).toBe(repaired.version)
 		expect(artifact(state, "runbook")).toBeDefined()
 		expect(state.engagements[ORDERS].cycles).toBe("daily")
@@ -145,7 +153,7 @@ describe("order sync: the milestone arc", () => {
 		const cycle = state.work.find(entry => entry.engagementId === ORDERS && entry.kind === "cycle")!
 		expect(cycle.reference).toMatch(/^ORD-/)
 		expect(cycle.title).toContain("Daily order sync")
-		state = run(state, s => itemBy(s, cycle.id)!.status === "verified")
+		state = runReading(state, s => itemBy(s, cycle.id)!.status === "verified")
 	})
 
 	it("reconciles an uncertain release in its own words, not the revenue demo's", () => {
@@ -154,7 +162,7 @@ describe("order sync: the milestone arc", () => {
 		state = decide(state, openDecision(state, item(state, "MS-1").id)!.id, "block")
 		state = run(state, s => !!openDecision(s, item(s, "MS-2").id))
 		state = decide(state, openDecision(state, item(state, "MS-2").id)!.id, "approve")
-		state = run(state, s => s.events.some(e => e.engagementId === ORDERS && e.text.includes("reconciled: read-back found")))
+		state = runReading(state, s => s.events.some(e => e.engagementId === ORDERS && e.text.includes("reconciled: read-back found")))
 		const line = state.events.filter(e => e.engagementId === ORDERS && e.text.includes("reconciled: read-back found")).at(-1)!
 		// The scripted acknowledgement loss fires for every engagement, so its wording must be theirs.
 		expect(line.text).toContain("the posting service and the daily sync registered")

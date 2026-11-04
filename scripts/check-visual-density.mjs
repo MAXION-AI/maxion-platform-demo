@@ -194,6 +194,26 @@ SCREENS.push(
 	{ name: "knowledge", path: "/maxion-prototype?section=knowledge", root: ".kn-root" },
 	{ name: "admin-tenants", path: "/maxion-admin", root: ".adm-main" },
 	{ name: "admin-tenant", path: "/maxion-admin?tenant=northstar&tab=access", root: ".adm-main" },
+	{ name: "admin-usage", path: "/maxion-admin?tenant=northstar&tab=usage", root: ".adm-main" },
+	{ name: "admin-staff", path: "/maxion-admin?view=staff", root: ".adm-main" },
+	{
+		name: "admin-support-view",
+		path: "/maxion-admin?tenant=northstar&tab=access",
+		root: ".adm-main",
+		async prepare(page) {
+			await page.getByRole("combobox", { name: "View as" }).selectOption("tessa-lind")
+			await page.waitForTimeout(300)
+		},
+	},
+	{
+		name: "admin-new-tenant",
+		path: "/maxion-admin",
+		root: ".ds-dialog",
+		async prepare(page) {
+			await page.getByRole("button", { name: "New tenant" }).click()
+			await page.waitForTimeout(500)
+		},
+	},
 )
 
 const audit = (page, rootSelector) =>

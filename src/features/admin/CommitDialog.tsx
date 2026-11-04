@@ -37,7 +37,7 @@ export type Fact = { label: string; value: ReactNode }
  * expiry, the work it reaches and when that was counted; then a reason code, a ticket and a
  * current MFA before Publish. An emergency stop is the same frame with the ticket optional.
  */
-export function CommitDialog({ title, description, children, summary, facts, warning, ready, emergency = false, publishLabel = "Publish", onPublish, onClose }: {
+export function CommitDialog({ title, description, children, summary, facts, warning, ready, notReady = "Change a value to preview it", emergency = false, publishLabel = "Publish", onPublish, onClose }: {
 	title: string
 	description: string
 	children?: ReactNode
@@ -45,6 +45,8 @@ export function CommitDialog({ title, description, children, summary, facts, war
 	facts: Fact[]
 	warning?: ReactNode
 	ready: boolean
+	// What's still missing, when that's more than an unchanged value.
+	notReady?: string
 	emergency?: boolean
 	publishLabel?: string
 	onPublish: (reason: ReasonCode, ticket: string) => void
@@ -55,7 +57,7 @@ export function CommitDialog({ title, description, children, summary, facts, war
 	const [ticket, setTicket] = useState("")
 	const { fresh } = useMfa()
 	const ticketOk = emergency || ticket.trim().length > 0
-	const blocker = !ready ? "Change a value to preview it" : !reason ? "Choose a reason" : !ticketOk ? "Add the ticket" : !fresh ? "Verify with MFA" : null
+	const blocker = !ready ? notReady : !reason ? "Choose a reason" : !ticketOk ? "Add the ticket" : !fresh ? "Verify with MFA" : null
 	return (
 		<Dialog open size="lg" title={title} description={description} onClose={onClose}
 			footer={<>

@@ -94,4 +94,6 @@ export const DELIVERABLES = [
 	{ name: "Target operating model", audience: "Operating owners", rationale: "Decision rights, controls, roles, and handoffs" },
 	{ name: "RAID register", audience: "Program governance", rationale: "Risks, assumptions, issues, decisions, and owners" },
 	{ name: "Implementation roadmap", audience: "Transformation lead", rationale: "Sequenced work, dependencies, and checkpoints" },
+	{ name: "Project plan and WBS", audience: "Project manager and PMO", rationale: "Work packages, owners, dependencies, and exit criteria" },
+	{ name: "Use case catalog", audience: "Process owners and Agentix", rationale: "Triggers, actors, steps, decision rules, and exception paths" },
 ] as const

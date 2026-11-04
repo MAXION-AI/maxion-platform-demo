@@ -58,7 +58,7 @@ test("Discovery keeps an unstarted brief, exposes planned deliverables and expor
   await page.getByRole("button", { name: "Resume ServiceNow financial-control integration, Working autonomously" }).click()
   await page.getByRole("button", { name: "Package", exact: true }).click()
   await expect(page.getByRole("heading", { name: "Planned deliverables", exact: true })).toBeVisible()
-  await expect(page.getByRole("navigation", { name: "Deliverable list" }).getByRole("button")).toHaveCount(9)
+  await expect(page.getByRole("navigation", { name: "Deliverable list" }).getByRole("button")).toHaveCount(11)
   await expect(page.getByRole("button", { name: "Export all" })).toBeDisabled()
   await page.getByRole("button", { name: "All discoveries", exact: true }).click()
   await page.getByRole("button", { name: "Resume NorthBridge acquisition diligence, Completed" }).click()
@@ -68,7 +68,7 @@ test("Discovery keeps an unstarted brief, exposes planned deliverables and expor
   const download = await downloadPromise
   expect(download.suggestedFilename()).toBe("discovery-diligence-deliverables.md")
   const content = await readFile((await download.path())!, "utf8")
-  expect(content.match(/^# /gm)).toHaveLength(9)
+  expect(content.match(/^# /gm)).toHaveLength(11)
   expect(content).toContain("## Next steps")
   expect(content).toContain("Sources:")
 })

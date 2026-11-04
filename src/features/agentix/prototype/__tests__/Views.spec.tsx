@@ -1,7 +1,7 @@
 import { fireEvent, render, screen, within } from "@testing-library/react"
 import { createRef } from "react"
 import { describe, expect, it, vi } from "vitest"
-import { activate, answerQuestion, decide, latest, receivePackage, tick } from "../engine/engine"
+import { activate, answerQuestion, decide, latest, receivePackage, tick, investigateEffect } from "../engine/engine"
 import { initialState } from "../engine/seed"
 import { teamPresence, workSummary } from "../engine/selectors"
 import { sendInstruction } from "../engine/steering"
@@ -18,6 +18,14 @@ const REV = "invoice"
 const run = (state: AgentixState, until: (s: AgentixState) => boolean, max = 120) => {
 	let current = state
 	for (let i = 0; i < max && !until(current); i++) current = tick(current)
+	if (!until(current)) throw new Error("condition not reached")
+	return current
+}
+/* A person reads the target back whenever an outcome is unknown; nothing else settles one. */
+const readBacks = (state: AgentixState) => state.work.reduce((current, entry) => { const effect = entry.effects.find(value => value.status === "unknown" && !value.investigating); return effect ? investigateEffect(current, entry.id, effect.id) : current }, state)
+const runReading = (state: AgentixState, until: (s: AgentixState) => boolean, max = 200) => {
+	let current = state
+	for (let i = 0; i < max && !until(current); i++) current = tick(readBacks(current))
 	if (!until(current)) throw new Error("condition not reached")
 	return current
 }
@@ -61,7 +69,7 @@ describe("Work detail", () => {
 		state = decide(state, openDecision(state, "MS-1")!.id, "unassigned")
 		state = run(state, s => !!openDecision(s, "MS-2"))
 		const noop = vi.fn()
-		render(<WorkDetail state={state} workId={item(state, "MS-2").id} callbacks={{ onDecide: noop, onFulfill: noop, onWork: noop, onRelease: noop, onRestore: noop, onReconnect: noop, onOpenResult: noop, onOpenWork: noop, onMessage: noop }} />)
+		render(<WorkDetail state={state} workId={item(state, "MS-2").id} callbacks={{ onDecide: noop, onFulfill: noop, onWork: noop, onRelease: noop, onRestore: noop, onReconnect: noop, onOpenResult: noop, onOpenWork: noop, onMessage: noop, onReviewChange: noop, onInvestigate: noop, onBudget: noop }} />)
 		const runs = screen.getByRole("list", { name: "Test runs for Ingestion and transformation pipeline" })
 		expect(within(runs).getByText(/v1/).closest("li")).toHaveTextContent("first build · 2 of 9 checks failed")
 		expect(within(runs).getByText(/v2/).closest("li")).toHaveTextContent("automatic repair · 9 of 9 checks passed")
@@ -86,16 +94,16 @@ describe("Dashboard preview", () => {
 })
 
 describe("Results", () => {
-	it("follows production to the newly released version and labels the old one as previously live", () => {
+	it("follows the published file to the newly published version and labels the old one as published earlier", () => {
 		let state = run(activated(), s => !!openDecision(s, "MS-1"))
 		state = decide(state, openDecision(state, "MS-1")!.id, "unassigned")
 		state = run(state, s => !!openDecision(s, "MS-2"))
 		state = decide(state, openDecision(state, "MS-2")!.id, "approve")
-		state = run(state, s => s.engagements[REV].cycles === "daily")
+		state = runReading(state, s => s.engagements[REV].cycles === "daily")
 		const id = artifact(state, "dashboard")!.id
 		state = tick(sendInstruction(state, REV, { kind: "artifact", id }, "Add regional drill-down to this dashboard"))
 		// Opened by the person: the heading takes focus once, and the request is spent.
-		const callbacks = { onSelect: vi.fn(), onRequestChange: vi.fn(), onOpenWork: vi.fn(), focusRequest: { current: id as string | null } }
+		const callbacks = { onSelect: vi.fn(), onRequestChange: vi.fn(), onOpenWork: vi.fn(), focusRequest: { current: id as string | null }, update: vi.fn() }
 		const { rerender, unmount } = render(<ResultsView state={state} engagementId={REV} resultId={id} callbacks={callbacks} />)
 		expect(screen.getByRole("heading", { name: /Revenue dashboard v1/ })).toBeInTheDocument()
 		expect(screen.getByRole("heading", { name: /Revenue dashboard v1/ })).toHaveFocus()
@@ -104,11 +112,11 @@ describe("Results", () => {
 		state = run(state, s => artifact(s, "dashboard")!.productionVersion === 2)
 		rerender(<ResultsView state={state} engagementId={REV} resultId={id} callbacks={callbacks} />)
 		expect(screen.getByRole("heading", { name: /Revenue dashboard v2/ })).toBeInTheDocument()
-		expect(screen.getAllByText("Production").length).toBeGreaterThan(0)
+		expect(screen.getAllByText("Published file").length).toBeGreaterThan(0)
 		fireEvent.click(screen.getByRole("button", { name: "AMER" }))
 		expect(screen.getByRole("list", { name: "AMER countries" })).toHaveTextContent("United States")
 		fireEvent.click(screen.getByRole("button", { name: /^v1/ }))
-		expect(screen.getAllByText("Previously in production").length).toBeGreaterThan(0)
+		expect(screen.getAllByText("Published earlier").length).toBeGreaterThan(0)
 		// Shown again on a revisit (the tab remounts with the same selection), it leaves focus where it was.
 		unmount()
 		const tab = document.createElement("button")
@@ -144,7 +152,7 @@ describe("Composer", () => {
 describe("Controls", () => {
 	it("falls back to an existing engagement when the one in focus no longer exists (after a reset)", () => {
 		const noop = vi.fn()
-		render(<DemoControls state={initialState()} titleId="t" focusId="eng-gone" onClose={noop} onTick={noop} onSkip={noop} onWindow={noop} onSchedule={noop} onIncoming={noop} onExpire={noop} onLosePermission={noop} onAckLoss={noop} onReset={noop} />)
+		render(<DemoControls state={initialState()} titleId="t" focusId="eng-gone" onClose={noop} onTick={noop} onSkip={noop} onWindow={noop} onSchedule={noop} onIncoming={noop} onExpire={noop} onLosePermission={noop} onAckLoss={noop} onChangeRequest={noop} onWriteLoss={noop} onReadBackMiss={noop} onSandboxLoss={noop} onExhaust={noop} onSaveFailure={noop} onReset={noop} />)
 		expect(screen.getByRole("heading", { name: "Controls" })).toBeInTheDocument()
 		expect(screen.getByText("Run the next scheduled cycle now")).toBeInTheDocument()
 	})

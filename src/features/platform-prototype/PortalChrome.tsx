@@ -67,7 +67,6 @@ export const PRIMARY_NAVIGATION: NavigationItem[] = [
 	{ id: "discovery", label: "Discover", glyph: "discovery" },
 	// Plan and Execute are disabled: a Discovery's package goes straight to Agentix, which runs the work.
 	{ id: "agentix", label: "Agentix", glyph: "agentix", badge: 2 },
-	{ id: "consult", label: "Consult Max", spiral: true },
 ]
 
 export const ACCOUNT_NAVIGATION: NavigationItem[] = [
@@ -95,6 +94,11 @@ type PortalSidebarProps = {
 	badges?: Partial<Record<MaxionModuleId, number>>
 	// The customer demo's presenter row, under the modules; absent everywhere else.
 	demo?: ReactNode
+	// The organization and project switcher; the customer demo runs in one fixed scope and has none.
+	scope?: ReactNode
+	// The units meter belongs to an organization that lets this person see its usage.
+	showUsage?: boolean
+	organizationName?: string
 }
 
 export function PortalSidebar({
@@ -107,6 +111,9 @@ export function PortalSidebar({
 	onCollapsedChange,
 	badges,
 	demo,
+	scope,
+	showUsage = true,
+	organizationName = "Enterprise workspace",
 }: PortalSidebarProps) {
 	const [notice, setNotice] = useState("")
 	const triggerRef = useRef<HTMLButtonElement>(null)
@@ -228,22 +235,25 @@ export function PortalSidebar({
 					</button>
 				</div>
 
+				{scope}
 				<button type="button" className="ws-sidebar-search" aria-label="Search workspace" aria-keyshortcuts="Meta+K Control+K" onClick={() => { onMobileOpenChange(false); onCommand() }}><MagnifyingGlass size={16} /><span>Search workspace</span><kbd>⌘K</kbd></button>
 				<nav className="mxp-portal-sidebar-scroll" aria-label="Portal sections">
 					<ul className="ds-nav">{PRIMARY_NAVIGATION.map((item) => renderItem(item))}</ul>
 					{demo}
 					<div className="mxp-account-nav">
 						<div className="mxp-account-divider ds-sidebar-section"><span>Account</span></div>
-						<button type="button" className="mxp-unit-balance" onClick={() => navigate("usage")}>
-							<span><strong>Workspace units</strong><small>{WORKSPACE_UNITS_PERCENT}% used this cycle</small></span>
-							<span className="mxp-unit-track"><i style={{ width: `${WORKSPACE_UNITS_PERCENT}%` }} /></span>
-						</button>
+						{showUsage ? (
+							<button type="button" className="mxp-unit-balance" onClick={() => navigate("usage")}>
+								<span><strong>Workspace units</strong><small>{WORKSPACE_UNITS_PERCENT}% used this cycle</small></span>
+								<span className="mxp-unit-track"><i style={{ width: `${WORKSPACE_UNITS_PERCENT}%` }} /></span>
+							</button>
+						) : null}
 						<ul className="ds-nav">{ACCOUNT_NAVIGATION.map((item) => renderItem(item, true))}</ul>
 					</div>
 				</nav>
 
 				<footer className="mxp-portal-sidebar-footer">
-					<div className="mxp-sidebar-user" title={collapsed ? "Root Admin · Enterprise workspace" : undefined}><span>RA</span><div><strong>Root Admin</strong><small>Enterprise workspace</small></div></div>
+					<div className="mxp-sidebar-user" title={collapsed ? `Root Admin · ${organizationName}` : undefined}><span>RA</span><div><strong>Root Admin</strong><small>{organizationName}</small></div></div>
 					<div className="mxp-sidebar-actions">
 						<button type="button" aria-label="Logout" title={collapsed ? "Logout" : undefined} onClick={() => setNotice("Prototype session remains active.")}><SignOut size={14} /><span>Logout</span></button>
 					</div>

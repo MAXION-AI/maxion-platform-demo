@@ -29,7 +29,7 @@ describe("MaxionPlatformPrototypePage", () => {
 		expect(screen.getByRole("complementary", { name: "Main navigation" })).toBeInTheDocument()
 		// The brand anchor carries the lockup artwork, not a typed word.
 		expect(within(screen.getByRole("button", { name: "Open MAXION dashboard" })).getByRole("img", { name: "MAXION" })).toBeInTheDocument()
-		for (const module of ["Dashboard", "Projects", "Discover", "Consult Max", "Integrations"]) {
+		for (const module of ["Dashboard", "Projects", "Discover", "Integrations"]) {
 			expect(screen.getByRole("button", { name: module })).toBeInTheDocument()
 		}
 		expect(portalNavigation().getByRole("button", { name: /^Agentix/ })).toBeInTheDocument()
@@ -82,6 +82,11 @@ describe("MaxionPlatformPrototypePage", () => {
 		fireEvent.keyDown(discoveryComposer, { key: "Enter", code: "Enter" })
 		expect(await screen.findByRole("region", { name: "Autonomous work summary" }, { timeout: 20_000 })).toBeInTheDocument()
 		expect(screen.getByRole("button", { name: "Open autonomy" })).toBeInTheDocument()
+		// Interviews wait until their briefs are approved.
+		fireEvent.click(await screen.findByRole("button", { name: "Review briefs" }, { timeout: 20_000 }))
+		const briefs = await screen.findByRole("dialog", { name: "Interview briefs" })
+		fireEvent.click(within(briefs).getByRole("button", { name: "Approve all" }))
+		fireEvent.click(within(briefs).getByRole("button", { name: "Done" }))
 		expect(await screen.findByRole("heading", { name: "One external interview needs your approval" }, { timeout: 25_000 })).toBeInTheDocument()
 		expect(screen.getByText("Discovery is internal by default")).toBeInTheDocument()
 		expect(screen.getByText(/Neither source contains the vendor’s retention commitment/)).toBeInTheDocument()
@@ -89,8 +94,15 @@ describe("MaxionPlatformPrototypePage", () => {
 
 		expect(await screen.findByRole("heading", { name: "Final plan and recommendations" }, { timeout: 30_000 })).toBeInTheDocument()
 		fireEvent.click(screen.getAllByRole("button", { name: /Review deliverables/ })[0])
-		expect(screen.getByText("Readiness snapshot v7 · manifest v4")).toBeInTheDocument()
-		expect(screen.getByRole("button", { name: /Executive decision brief Current/ })).toBeInTheDocument()
+		// Outputs the mission left out are counted, and nobody is told they removed them.
+		expect(screen.getByText(/Manifest v\d+ · \d+ not selected/)).toBeInTheDocument()
+		expect(screen.getByRole("button", { name: /Technical assessment Current/ })).toBeInTheDocument()
+		// The new package waits for its exact approval, in the module and in My approvals.
+		expect(portalNavigation().getByRole("button", { name: /^My approvals/ })).toHaveTextContent(/[1-9]/)
+		fireEvent.click(screen.getAllByRole("button", { name: "Approve package v1" })[0])
+		const approval = await screen.findByRole("dialog", { name: "Approve package v1" })
+		fireEvent.click(within(approval).getByRole("button", { name: "Approve package v1" }))
+		expect(await screen.findByText("Package v1 approved")).toBeInTheDocument()
 		fireEvent.click(portalNavigation().getByRole("button", { name: /^Agentix/ }))
 		fireEvent.click(screen.getByRole("button", { name: "Discover" }))
 		expect(screen.getByRole("heading", { name: "Final plan and recommendations" })).toBeInTheDocument()
@@ -141,17 +153,10 @@ describe("MaxionPlatformPrototypePage", () => {
 		expect(screen.getByRole("heading", { name: "Knowledge", level: 1 })).toBeInTheDocument()
 	})
 
-	it("embeds Agentix and lets Consult MAX route across platform boundaries", async () => {
+	it("embeds Agentix in the shell and offers no Consult MAX", async () => {
 		renderPrototype("/agentix-prototype")
 		expect(await screen.findByRole("main", { name: "Agentix workspace" })).toBeInTheDocument()
 		expect(screen.getByRole("complementary", { name: "Main navigation" })).toBeInTheDocument()
-
-		fireEvent.click(screen.getByRole("button", { name: "Consult Max" }))
-		const composer = await screen.findByLabelText("Message Consult MAX")
-		fireEvent.change(composer, { target: { value: "How does Agentix work?" } })
-		fireEvent.click(screen.getByRole("button", { name: "Send to Consult MAX" }))
-		expect(screen.getByText(/The deployed invoice agent has one case waiting/)).toBeInTheDocument()
-		fireEvent.click(screen.getByRole("button", { name: "Open Agentix approval" }))
-		expect(await screen.findByRole("main", { name: "Agentix workspace" })).toBeInTheDocument()
+		expect(screen.queryByRole("button", { name: /Consult Max|Ask MAX/ })).toBeNull()
 	})
 })

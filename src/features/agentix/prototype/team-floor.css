@@ -26,7 +26,7 @@
 /* The team's labels, always on, as the reference canvas labels every edge: a dark pill in the middle of the
  * gap, its words cut short before they reach a neighbour. Something waiting on you is amber; what is moving
  * along the line takes the label while it travels. */
-.aop-root .tf-label { position: absolute; z-index: 3; display: block; box-sizing: border-box; height: var(--ds-control-h-xs); padding: 0 calc(var(--ds-space-2) + 2px); overflow: hidden; border-radius: var(--ds-radius-full); background: var(--ds-fg); color: var(--ds-bg); font-size: var(--ds-text-chip); line-height: var(--ds-control-h-xs); font-weight: var(--ds-weight-medium); letter-spacing: var(--ds-track-chip); text-overflow: ellipsis; white-space: nowrap; transform: translate(-50%, -50%); }
+.aop-root .tf-label { position: absolute; z-index: 3; display: block; box-sizing: border-box; height: var(--ds-control-h-xs); padding: 0 var(--ds-space-2); overflow: hidden; border-radius: var(--ds-radius-full); background: var(--ds-fg); color: var(--ds-bg); font-size: var(--ds-text-chip); line-height: var(--ds-control-h-xs); font-weight: var(--ds-weight-medium); letter-spacing: var(--ds-track-chip); text-overflow: ellipsis; white-space: nowrap; transform: translate(-50%, -50%); }
 .aop-root .tf-label.is-attention { background: var(--ds-warning-bg); color: var(--ds-warning-fg); }
 .aop-root .tf-label.is-moving { animation: tf-label-in 240ms var(--ds-ease); }
 @keyframes tf-label-in { from { opacity: 0.4; } to { opacity: 1; } }

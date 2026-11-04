@@ -49,12 +49,43 @@ describe("where the presenter is", () => {
 		const deciding = current(record({ interviewClosed: true, phase: 4 }))
 		expect(deciding.detail).toBe("The decision is waiting for you.")
 		expect(deciding.action?.run).toEqual({ kind: "discovery", recordId: "rec-1", jump: "decision" })
-		expect(current(record({ interviewClosed: true, phase: 5, decision: "approved" })).detail).toBe("MAX is writing the nine documents.")
+		expect(current(record({ interviewClosed: true, phase: 5, decision: "approved" })).detail).toBe("MAX is writing the selected documents.")
 		// The package stays the step while the presenter reads it; approving the charter moves on to the handoff.
 		const ready = current(record({ interviewClosed: true, phase: 7, decision: "approved" }))
 		expect(ready.id).toBe("package")
-		expect(ready.detail).toBe("The nine documents are ready.")
-		expect(current(record({ interviewClosed: true, phase: 7, decision: "modified", charterApproval: { reason: "ok", approvedAt: "x" } })).id).toBe("handoff")
+		expect(ready.detail).toBe("The selected documents are ready.")
+		const charterDone = record({ interviewClosed: true, phase: 7, decision: "modified", charterApproval: { reason: "ok", approvedAt: "x" } })
+		expect(current(charterDone).id).toBe("approve")
+	})
+
+	it("holds at the interview briefs until none waits", () => {
+		const closed = record({ interviewClosed: true, phase: 2, work: { briefs: [{ status: "draft" }, { status: "draft" }, { status: "approved" }] } })
+		const step = current(closed)
+		expect(step.id).toBe("briefs")
+		expect(step.detail).toBe("2 interview briefs waiting for you.")
+		expect(step.action?.run).toEqual({ kind: "discovery", recordId: "rec-1", jump: "briefs" })
+		expect(current(record({ interviewClosed: true, phase: 2, work: { briefs: [{ status: "approved" }] } })).id).toBe("decision")
+	})
+
+	it("moves past the package approval only once the record says approved", () => {
+		const charterApproval = { reason: "ok", approvedAt: "x" }
+		const base = { interviewClosed: true, phase: 7, decision: "approved", charterApproval }
+		const waiting = current(record({ ...base, work: { package: { status: "pending", version: 2 } } }))
+		expect(waiting.id).toBe("approve")
+		expect(waiting.detail).toBe("Package v2 is waiting for your approval.")
+		expect(waiting.action?.run).toEqual({ kind: "discovery", recordId: "rec-1", jump: "package-approval" })
+		expect(current(record({ ...base, work: { package: { status: "returned", version: 2 } } })).detail).toMatch(/back with MAX/)
+		expect(current(record({ ...base, work: { package: { status: "withdrawn", version: 2 } } })).id).toBe("approve")
+		const approved = current(record({ ...base, work: { package: { status: "approved", version: 2 } } }))
+		expect(approved.id).toBe("handoff")
+		expect(approved.detail).toBe("Package v2 approved.")
+		// A package with no charter selected has no charter to wait for.
+		expect(current(record({ interviewClosed: true, phase: 7, decision: "approved", excludedOutputs: ["Project charter and governance"] })).id).toBe("approve")
+	})
+
+	it("tells the fourteen beats, with both new approvals in order", () => {
+		expect(DEMO_STEP_ORDER).toHaveLength(14)
+		expect(DEMO_STEP_ORDER.slice(0, 7)).toEqual(["start", "interview", "briefs", "decision", "package", "approve", "handoff"])
 	})
 
 	it("creates the engagement in Agentix step by step, then moves on to the mapping", () => {

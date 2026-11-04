@@ -121,14 +121,16 @@ export function StakeholderInterviewPage() {
 						<Lockup />
 						<p className="mxd-kicker">Stakeholder interview</p>
 						<h1>{scenario.title}</h1>
-						<p>You have been invited to take part in a stakeholder interview.</p>
+						<p>You have been invited to a stakeholder interview, run by MAX, an AI interviewer.</p>
 						<p className="mxd-detail">Decision deadline · {scenario.deadline}</p>
 					</header>
 
 					<section className="mxd-si-context" aria-label="Interview context">
 						<div><Briefcase size={18} aria-hidden="true" /><span><small>Your role</small><strong>{person.role}, {person.department}</strong></span></div>
 						<div><Clock size={18} aria-hidden="true" /><span><small>Estimated time</small><strong>~{Math.max(6, topics.length * 3)} minutes</strong></span></div>
-						<div className="is-wide"><ShieldCheck size={18} aria-hidden="true" /><span><small>Confidentiality</small><strong>Your answers are anonymised in every deliverable</strong></span></div>
+						<div className="is-wide"><ShieldCheck size={18} aria-hidden="true" /><span><small>Who is asking</small><strong>MAX is an AI interviewer, not a person</strong></span></div>
+						<div className="is-wide"><span><small>What is kept</small><strong>A written transcript of your answers, with your name on it. Audio is never recorded or kept, including on a voice interview.</strong></span></div>
+						<div className="is-wide"><span><small>Who sees it</small><strong>The Discovery owner and the project team. Deliverables may cite what you said by name.</strong></span></div>
 						<div className="is-wide"><span><small>Interview focus</small><strong className="mxd-si-focus">{scenario.objective}</strong></span></div>
 					</section>
 
@@ -139,7 +141,7 @@ export function StakeholderInterviewPage() {
 
 					<label className="mxd-si-consent">
 						<input type="checkbox" checked={consent} onChange={event => setConsent(event.target.checked)} />
-						<span>I understand my answers inform this Discovery, and I consent to take part.</span>
+						<span>I understand I am talking to an AI, that my answers are kept as a written transcript under my name, and I consent to take part.</span>
 					</label>
 
 					<div className="mxd-actions">
@@ -175,7 +177,7 @@ export function StakeholderInterviewPage() {
 						onAnswer={send}
 						suggest={() => suggestionFor(current, asking, asking === topics.length - 1)}
 						onTypeInstead={() => setView("interview")}
-						onSubmit={() => close("Submitted", "Thank you. Your answers went to MAX, anonymised, and the Discovery continues without you having to chase it.")} />
+						onSubmit={() => close("Submitted", "Thank you. Your answers are in the Discovery under your name, for the owner and the project team, and it continues without you having to chase it. No audio was kept.")} />
 				) : null}
 
 				<div className={`mxd-si-thread${view === "voice" ? " is-transcript" : ""}`} ref={thread} role={view === "voice" ? "region" : undefined} aria-label={view === "voice" ? "Transcript" : undefined}>
@@ -204,7 +206,7 @@ export function StakeholderInterviewPage() {
 						<div className="mxd-actions">
 							<DsButton onClick={() => close("Progress saved", "The same link brings you back to this interview with your answers intact.")}>Continue later</DsButton>
 							<DsButton type="submit" disabled={!draft.trim()}>Send<PaperPlaneRight size={13} /></DsButton>
-							<DsButton variant="primary" disabled={!answered} onClick={() => close("Submitted", "Thank you. Your answers went to MAX, anonymised, and the Discovery continues without you having to chase it.")}>Finish and submit</DsButton>
+							<DsButton variant="primary" disabled={!answered} onClick={() => close("Submitted", "Thank you. Your answers are in the Discovery under your name, for the owner and the project team, and it continues without you having to chase it. No audio was kept.")}>Finish and submit</DsButton>
 						</div>
 					</div>
 				</form>}

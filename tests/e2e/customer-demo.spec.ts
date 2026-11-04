@@ -25,6 +25,16 @@ async function demoControls(page: Page, button: string, times = 1) {
 	await page.getByRole("button", { name: "Close controls" }).click()
 }
 
+/* The first pipeline release loses its acknowledgement on purpose: it stays unknown until a person reads the target back from MS-2. */
+async function investigate(page: Page) {
+	await demoControls(page, "Skip")
+	await page.getByRole("tab", { name: /^Work/ }).click()
+	await page.locator('[data-work="MS-2"]').first().click()
+	await expect(page.getByRole("region", { name: /^Outcome unknown:/ })).toBeVisible()
+	await page.getByRole("button", { name: "Investigate", exact: true }).click()
+	await page.getByRole("button", { name: "Work", exact: true }).click()
+}
+
 const replaceNote = (page: Page) => page.getByRole("note").filter({ hasText: "Customer demo:" })
 
 async function startRevenueDiscovery(page: Page, beforeCreate?: () => Promise<void>) {
@@ -46,20 +56,24 @@ async function finishDiscovery(page: Page) {
 		await expect(composer(page)).toBeFocused()
 		await composer(page).press("Enter")
 	}
+	await page.locator('[data-notice="briefs"]').getByRole("button", { name: "Approve all" }).click()
 	await expect(page.getByRole("heading", { name: "The close workbooks convert currency on a different date than the ledger" })).toBeVisible({ timeout: 25_000 })
 	await page.getByRole("button", { name: "Adopt posting-date rates" }).first().click()
 	await expect(page.getByRole("heading", { name: "Final plan and recommendations" })).toBeVisible({ timeout: 30_000 })
 }
 
-/* The charter approval, then the packet to Agentix. */
+/* The charter and package approvals, then the packet to Agentix. */
 async function handOff(page: Page) {
-	await page.locator(".workspace-header").getByRole("button", { name: "Continue to Agentix" }).click()
-	const handoff = page.getByRole("dialog", { name: "Continue to Agentix" })
-	await handoff.getByRole("button", { name: "Approve charter" }).click()
+	await page.getByRole("button", { name: "Package", exact: true }).click()
+	await page.locator(".package-actions").getByRole("button", { name: /^Approve package v/ }).click()
+	const approval = page.getByRole("dialog", { name: /^Approve package v/ })
+	await approval.getByRole("button", { name: "Approve charter" }).click()
 	const charter = page.getByRole("dialog", { name: "Approve the project charter" })
 	await charter.getByRole("textbox", { name: "Approval reason" }).fill("Scope, owners and the five exclusions match what finance leadership agreed.")
 	await charter.getByRole("button", { name: "Approve charter" }).click()
-	await handoff.getByRole("button", { name: "Continue to Agentix" }).click()
+	await approval.getByRole("button", { name: /^Approve package v/ }).click()
+	await page.locator(".workspace-header").getByRole("button", { name: "Continue to Agentix" }).click()
+	await page.getByRole("dialog", { name: "Continue to Agentix" }).getByRole("button", { name: "Continue to Agentix" }).click()
 }
 
 const savedDemo = (page: Page) => page.evaluate(() => ({
@@ -71,7 +85,7 @@ const savedDemo = (page: Page) => page.evaluate(() => ({
 async function createEngagement(page: Page) {
 	await expect(page.getByRole("heading", { name: "Review Revenue reconciliation" })).toBeVisible({ timeout: 10_000 })
 	await expect(page.getByText(/From Discovery · Revenue reconciliation: SQL Server to AWS · packet HP-/)).toBeVisible()
-	await expect(dockRow(page)).toContainText("6/12")
+	await expect(dockRow(page)).toContainText("8/14")
 	const questions = page.locator(".aop-questions")
 	await questions.getByText("Ask me before each pipeline release").click()
 	await questions.getByText("The synthetic 30-day sample").click()
@@ -101,7 +115,7 @@ test("the revenue demo runs from a new Discovery to a verified morning in Agenti
 
 	await page.goto(DEMO)
 	await expect(page.getByRole("heading", { name: "Continue where MAX left off." })).toBeVisible()
-	await expect(dockRow(page)).toContainText("1/12")
+	await expect(dockRow(page)).toContainText("1/14")
 	// Agentix starts from zero: no design, this demo's or another's, is queued to send.
 	await expect(page.getByText(/ready to send/)).toHaveCount(0)
 	// The first revenue Discovery replaces nothing, so the setup doesn't say it will.
@@ -124,27 +138,46 @@ test("the revenue demo runs from a new Discovery to a verified morning in Agenti
 	}
 	await expect(page.getByText(/enough owner context for this pass/i)).toBeVisible()
 
+	// Interviews wait until a person has approved each interviewer's brief; the demo's own step says so.
+	await expect(dockRow(page)).toContainText("3/14")
+	await expect(page.locator('[data-notice="briefs"]')).toContainText("4 interview briefs need your review")
+	await page.locator('[data-notice="briefs"]').getByRole("button", { name: "Review briefs" }).click()
+	const briefs = page.getByRole("dialog", { name: "Interview briefs" })
+	await expect(briefs).toContainText("Everything the interviewer holds counts as shown to the participant.")
+	await briefs.getByRole("button", { name: "Approve all" }).click()
+	await briefs.getByRole("button", { name: "Done" }).click()
+
 	// One decision reaches the owner; both paths keep the ledger's convention in the pipeline.
 	await expect(page.getByRole("heading", { name: "The close workbooks convert currency on a different date than the ledger" })).toBeVisible({ timeout: 25_000 })
-	await expect(dockRow(page)).toContainText("3/12")
+	await expect(dockRow(page)).toContainText("4/14")
 	await page.getByRole("button", { name: "Adopt posting-date rates" }).first().click()
 
 	await expect(page.getByRole("heading", { name: "Final plan and recommendations" })).toBeVisible({ timeout: 30_000 })
 	await page.getByRole("button", { name: "Package", exact: true }).click()
 	await expect(page.getByText(/Revenue can reconcile itself before finance arrives/)).toBeVisible()
-	// The package stays the step while it is read; the charter approval moves on to the handoff.
-	await expect(dockRow(page)).toContainText("4/12")
+	// The package stays the step while it is read; the charter approval moves on to the package approval.
+	await expect(dockRow(page)).toContainText("5/14")
 
-	// The charter is the one blocker; the packet goes to Agentix, not Plan.
-	await page.locator(".workspace-header").getByRole("button", { name: "Continue to Agentix" }).click()
-	const handoff = page.getByRole("dialog", { name: "Continue to Agentix" })
-	await expect(handoff).toContainText("Opens in Agentix")
-	await expect(handoff.getByRole("button", { name: "Continue to Agentix" })).toBeDisabled()
-	await handoff.getByRole("button", { name: "Approve charter" }).click()
+	// Continue stays closed until one exact version is approved; a run that completes waits for a person.
+	const headerContinue = page.locator(".workspace-header").getByRole("button", { name: "Continue to Agentix" })
+	await expect(headerContinue).toBeDisabled()
+	await page.locator(".package-actions").getByRole("button", { name: "Approve package v1" }).click()
+	const approval = page.getByRole("dialog", { name: "Approve package v1" })
+	await expect(approval.getByTestId("package-bound")).toContainText("Manifest")
+	await expect(approval.getByRole("button", { name: "Approve package v1" })).toBeDisabled()
+	// The charter is the one blocker on approving, and its fix sits in that row.
+	await approval.getByRole("button", { name: "Approve charter" }).click()
 	const charter = page.getByRole("dialog", { name: "Approve the project charter" })
 	await charter.getByRole("textbox", { name: "Approval reason" }).fill("Scope, owners and the five exclusions match what finance leadership agreed.")
 	await charter.getByRole("button", { name: "Approve charter" }).click()
-	await expect(dockRow(page)).toContainText("5/12")
+	await expect(dockRow(page)).toContainText("6/14")
+	await approval.getByRole("button", { name: "Approve package v1" }).click()
+	await expect(approval).toBeHidden()
+	await expect(dockRow(page)).toContainText("7/14")
+	await headerContinue.click()
+	const handoff = page.getByRole("dialog", { name: "Continue to Agentix" })
+	await expect(handoff).toContainText("Opens in Agentix")
+	await expect(handoff.getByRole("button", { name: "Continue to Agentix" })).toBeEnabled()
 	await page.getByRole("textbox", { name: "Handoff note (optional)" }).fill("Start with the mapping; the region rule is mine to decide.")
 	await handoff.getByRole("button", { name: "Continue to Agentix" }).click()
 
@@ -152,19 +185,20 @@ test("the revenue demo runs from a new Discovery to a verified morning in Agenti
 	await createEngagement(page)
 
 	// The region rule, the repaired pipeline and the release the owner approves.
-	await expect(dockRow(page)).toContainText("7/12")
+	await expect(dockRow(page)).toContainText("9/14")
 	await demoControls(page, "Skip")
 	await page.getByRole("button", { name: "Show them as Unassigned" }).click()
-	await expect(dockRow(page)).toContainText("8/12")
+	await expect(dockRow(page)).toContainText("10/14")
 	for (let i = 0; i < 6 && !(await page.getByRole("heading", { name: /Release ingestion and transformation pipeline v2 to production\?/ }).count()); i++) await demoControls(page, "Skip")
 	await expect(page.getByRole("heading", { name: /Release ingestion and transformation pipeline v2 to production\?/ })).toBeVisible()
-	await expect(dockRow(page)).toContainText("9/12")
+	await expect(dockRow(page)).toContainText("11/14")
 	await page.getByRole("button", { name: "Approve release" }).first().click()
+	await investigate(page)
 
 	// The dashboard publishes under policy and stays the step while it is shown; running the next cycle moves on.
 	for (let i = 0; i < 8 && !(await page.getByText("3 of 3 milestones verified").count()); i++) await demoControls(page, "Skip")
 	await expect(page.getByText("3 of 3 milestones verified")).toBeVisible()
-	await expect(dockRow(page)).toContainText("10/12")
+	await expect(dockRow(page)).toContainText("12/14")
 	await openDock(page)
 	await expect(page.locator(".mxd-panel")).toContainText("Published under FIN-DASH-2.")
 	await page.keyboard.press("Escape")
@@ -183,9 +217,9 @@ test("the revenue demo runs from a new Discovery to a verified morning in Agenti
 		await page.getByRole("tab", { name: /^Work/ }).click()
 	}
 	await demoControls(page, "Run")
-	await expect(dockRow(page)).toContainText("11/12")
-	for (let i = 0; i < 4 && !(await dockRow(page).textContent())?.includes("12/12"); i++) await demoControls(page, "Skip")
-	await expect(dockRow(page)).toContainText("12/12")
+	await expect(dockRow(page)).toContainText("13/14")
+	for (let i = 0; i < 4 && !(await dockRow(page).textContent())?.includes("14/14"); i++) await demoControls(page, "Skip")
+	await expect(dockRow(page)).toContainText("14/14")
 	await openDock(page)
 	await expect(page.locator(".mxd-panel")).toContainText("Close the story")
 
@@ -211,14 +245,14 @@ test("each new tab starts clean, a reload keeps the presenter's place, and the e
 	await composer(page).press("Enter")
 	await expect(page.getByText("Reconciliation gaps · 2 of 6")).toBeVisible()
 	await page.reload()
-	await expect(dockRow(page)).toContainText("2/12")
+	await expect(dockRow(page)).toContainText("2/14")
 	await expect(page.getByRole("button", { name: /Resume Revenue reconciliation: SQL Server to AWS/ })).toBeVisible()
 
 	// A second tab is a fresh demo for the next customer.
 	const next = await context.newPage()
 	await next.emulateMedia({ reducedMotion: "reduce" })
 	await next.goto(DEMO)
-	await expect(dockRow(next)).toContainText("1/12")
+	await expect(dockRow(next)).toContainText("1/14")
 	await expect(next.getByRole("button", { name: /Resume Revenue reconciliation/ })).toHaveCount(0)
 	await next.close()
 
@@ -244,7 +278,7 @@ test("restart from the finished package, hand off, and restart again from the be
 	await expect(page).toHaveURL(/start=package/)
 	await expect(page.locator(".workspace-header")).toContainText("Revenue reconciliation: SQL Server to AWS")
 	await expect(page.getByText(/Revenue can reconcile itself before finance arrives/)).toBeVisible()
-	await expect(dockRow(page)).toContainText("4/12")
+	await expect(dockRow(page)).toContainText("5/14")
 	await handOff(page)
 	await expect(page.getByRole("heading", { name: "Review Revenue reconciliation" })).toBeVisible({ timeout: 10_000 })
 
@@ -263,7 +297,7 @@ test("restart from the finished package, hand off, and restart again from the be
 	await page.getByRole("button", { name: "From the beginning" }).click()
 	await expect(page).toHaveURL(/demo=revenue$/)
 	await expect(page.getByRole("heading", { name: "Continue where MAX left off." })).toBeVisible()
-	await expect(dockRow(page)).toContainText("1/12")
+	await expect(dockRow(page)).toContainText("1/14")
 	// Agentix starts again from its seed: the revenue package is held back for the next Discovery.
 	const fresh = await page.evaluate(() => JSON.parse(localStorage.getItem("maxion-agentix-operations-v4::demo-revenue") ?? "null"))
 	expect(fresh === null || (fresh.engagements.invoice.proposal === undefined && fresh.demo.gated.includes("pkg_revenue_v2"))).toBe(true)
@@ -277,10 +311,10 @@ test("every new revenue Discovery starts Agentix again from zero and runs the wh
 
 	// The first customer's run: the finished package handed over and the engagement created and working.
 	await page.goto(`${DEMO}&start=package`)
-	await expect(dockRow(page)).toContainText("4/12")
+	await expect(dockRow(page)).toContainText("5/14")
 	await handOff(page)
 	await createEngagement(page)
-	await expect(dockRow(page)).toContainText("7/12")
+	await expect(dockRow(page)).toContainText("9/14")
 	const first = await savedDemo(page)
 	const firstRecord = first.discovery.find(record => record.scenarioKey === "revenue")!.id
 	expect(first.agentix.engagements.invoice.status).toBe("active")
@@ -294,7 +328,7 @@ test("every new revenue Discovery starts Agentix again from zero and runs the wh
 		// The note describes the button that does it.
 		expect(await page.getByRole("button", { name: "Create Discovery" }).getAttribute("aria-describedby")).toBe(await replaceNote(page).getAttribute("id"))
 	})
-	await expect(dockRow(page)).toContainText("2/12")
+	await expect(dockRow(page)).toContainText("2/14")
 
 	// One revenue Discovery remains, the new one; Agentix holds nothing of the earlier run.
 	const reset = await savedDemo(page)
@@ -315,7 +349,7 @@ test("every new revenue Discovery starts Agentix again from zero and runs the wh
 	await finishDiscovery(page)
 	await handOff(page)
 	await createEngagement(page)
-	await expect(dockRow(page)).toContainText("7/12")
+	await expect(dockRow(page)).toContainText("9/14")
 	const second = await savedDemo(page)
 	// The engagement names the new Discovery as its source.
 	expect(second.agentix.engagements.invoice.origin.discovery.recordId).toBe(revenue[0].id)
@@ -340,7 +374,7 @@ test("the presenter window opened from the product never takes the demo over", a
 	// The demo tab still owns its run: no "Continues in another tab".
 	await page.bringToFront()
 	await expect(dockRow(page)).not.toContainText("Continues in another tab")
-	await expect(dockRow(page)).toContainText("2/12")
+	await expect(dockRow(page)).toContainText("2/14")
 	await guide.close()
 })
 
@@ -365,7 +399,7 @@ test("the presenter window follows the demo and fills an answer in it", async ({
 	await guide.getByRole("button", { name: "Restart…" }).click()
 	await guide.getByRole("button", { name: "From the beginning" }).click()
 	await expect(page.getByRole("heading", { name: "Continue where MAX left off." })).toBeVisible()
-	await expect(dockRow(page)).toContainText("1/12")
+	await expect(dockRow(page)).toContainText("1/14")
 	await expect(guide.getByRole("region", { name: "Current step" })).toContainText("Start the Discovery")
 })
 
@@ -382,7 +416,7 @@ test("only the newest demo tab saves; the older one says so and can take the dem
 	const next = await context.newPage()
 	await next.emulateMedia({ reducedMotion: "reduce" })
 	await next.goto(DEMO)
-	await expect(dockRow(next)).toContainText("1/12")
+	await expect(dockRow(next)).toContainText("1/14")
 	await expect(dockRow(page)).toContainText("Continues in another tab")
 	// Reloading the displaced tab straight away keeps its run: it was copied privately the moment it lost the demo.
 	await page.reload()
@@ -392,7 +426,7 @@ test("only the newest demo tab saves; the older one says so and can take the dem
 	await composer(page).fill("Within $50 per region each day.")
 	await composer(page).press("Enter")
 	await expect(page.getByText("Tolerance · 3 of 6")).toBeVisible()
-	await expect(dockRow(next)).toContainText("1/12")
+	await expect(dockRow(next)).toContainText("1/14")
 	expect(await next.evaluate(() => localStorage.getItem("maxion.prototype.discovery-records.v1::demo-revenue") ?? "")).not.toContain("Revenue reconciliation: SQL Server to AWS")
 
 	// Reloading the older tab keeps its own run (kept privately in that tab), still deferring to the newer one.
@@ -404,7 +438,7 @@ test("only the newest demo tab saves; the older one says so and can take the dem
 	await openDock(page)
 	await page.locator(".mxd-panel").getByRole("button", { name: "Continue here" }).click()
 	await expect(dockRow(page)).toBeFocused()
-	await expect(dockRow(page)).toContainText("2/12")
+	await expect(dockRow(page)).toContainText("2/14")
 	await openDock(page)
 	await expect(page.locator(".mxd-panel")).toContainText("Question 3 of 6")
 	await expect(dockRow(next)).toContainText("Continues in another tab")
@@ -422,7 +456,7 @@ test("exit is safe to undo, and the presenter panel stays on screen at tablet wi
 	await expect(page).toHaveURL(/\/maxion-prototype$/)
 	await expect(dockRow(page)).toHaveCount(0)
 	await page.goBack()
-	await expect(dockRow(page)).toContainText("2/12")
+	await expect(dockRow(page)).toContainText("2/14")
 
 	// At 820px the sidebar is a drawer; the panel opens as a sheet inside the window, not inside the drawer.
 	await page.setViewportSize({ width: 820, height: 900 })
@@ -445,7 +479,7 @@ test("the presenter window says when no demo tab is open, and opens one", async 
 	await expect(guide.getByRole("status")).toContainText("No demo tab is open", { timeout: 5_000 })
 	const [opened] = await Promise.all([context.waitForEvent("page"), guide.getByRole("button", { name: "Open the full demo" }).click()])
 	await opened.waitForLoadState()
-	await expect(dockRow(opened)).toContainText("1/12")
+	await expect(dockRow(opened)).toContainText("1/14")
 	await expect(opened).not.toHaveURL(/fresh=1/)
 	await expect(guide.getByRole("status")).toContainText("Connected to the demo tab", { timeout: 8_000 })
 })
@@ -477,19 +511,19 @@ test("back after a restart never wipes the run, and /demo keeps its start point"
 	await openDock(page)
 	await page.locator(".mxd-panel").getByRole("button", { name: "Restart…" }).click()
 	await page.locator(".mxd-panel").getByRole("button", { name: "From the finished package" }).click()
-	await expect(dockRow(page)).toContainText("4/12")
+	await expect(dockRow(page)).toContainText("5/14")
 	// The restart replaced the history entry, so Back leaves the demo instead of landing on the cleared start.
 	await page.goBack()
 	await expect(page).not.toHaveURL(/demo=revenue/)
 	await page.goForward()
-	await expect(dockRow(page)).toContainText("4/12")
+	await expect(dockRow(page)).toContainText("5/14")
 	await expect(page.getByText(/Revenue can reconcile itself before finance arrives/)).toBeVisible()
 
 	await page.goto("/demo?start=package")
 	await expect(page).toHaveURL(/demo=revenue&start=package/)
-	await expect(dockRow(page)).toContainText("4/12")
+	await expect(dockRow(page)).toContainText("5/14")
 	await page.reload()
-	await expect(dockRow(page)).toContainText("4/12")
+	await expect(dockRow(page)).toContainText("5/14")
 })
 
 test("the presenter panel reads as part of its row for keyboard users", async ({ page }) => {
@@ -544,7 +578,7 @@ test("the presenter panel stays inside a laptop window with every step listed", 
 	await openDock(page)
 	const panel = page.locator(".mxd-panel")
 	await panel.getByText("All steps").click()
-	await expect(panel.getByText("12. Close the story")).toBeVisible()
+	await expect(panel.getByText("14. Close the story")).toBeVisible()
 	const box = (await panel.boundingBox())!
 	expect(box.y + box.height).toBeLessThanOrEqual(720)
 	await panel.getByRole("button", { name: "Exit" }).scrollIntoViewIfNeeded()

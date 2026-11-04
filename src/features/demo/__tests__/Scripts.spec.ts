@@ -26,6 +26,12 @@ describe.each(Object.values(DEMO_SCRIPTS))("the $id demo's interview", script =>
 		expect(script.heard[index].open).toBe(true)
 	})
 
+	it("names both approvals a person now gives, and doesn't promise nine documents", () => {
+		expect(script.steps.briefs.does).toMatch(/Approve all/)
+		expect(script.steps.approve.does).toMatch(/exact version/)
+		expect(JSON.stringify(script.steps)).not.toMatch(/nine documents/i)
+	})
+
 	it("calls only people the Discovery mapped, and names a real disagreement", () => {
 		const people = scenario.people.map(person => person.id)
 		expect(script.calls.map(call => call.person).sort()).toEqual([...people].sort())

@@ -4,7 +4,7 @@ import type { ScenarioKey } from "@/features/discovery-autonomous/model"
 
 /*
  * A customer demo is a script: which Discovery starts it, which package it hands to Agentix,
- * which engagement Agentix creates from that package, and the twelve beats the presenter walks.
+ * which engagement Agentix creates from that package, and the fourteen beats the presenter walks.
  * The harness (session, progress, the dock and the guide) reads only this shape, so a new demo
  * is a new script rather than a new code path.
  */
@@ -17,13 +17,13 @@ import type { ScenarioKey } from "@/features/discovery-autonomous/model"
 export type DemoId = "revenue" | "servicenow" | "salesforce-sap" | "s4hana"
 
 /*
- * Every demo tells the same twelve-beat story, so the dock, the guide and the progress
- * reader stay one implementation: Discovery investigates and decides, the package is
- * approved and handed over, and an agent team is created from nothing, builds, is corrected
+ * Every demo tells the same fourteen-beat story, so the dock, the guide and the progress
+ * reader stay one implementation: Discovery investigates (a person approves each interviewer's
+ * brief) and decides, a person approves one exact package version and it is handed over, and an agent team is created from nothing, builds, is corrected
  * by a failing check, releases under policy, publishes, and then runs the work every morning.
  */
 export type DemoStepId =
-	| "start" | "interview" | "decision" | "package" | "handoff" | "proposal"
+	| "start" | "interview" | "briefs" | "decision" | "package" | "approve" | "handoff" | "proposal"
 	| "mapping" | "pipeline" | "release" | "dashboard" | "cycle" | "close"
 
 export type DemoStepCopy = {
@@ -89,6 +89,6 @@ export type DemoScript = {
 }
 
 export const DEMO_STEP_ORDER: DemoStepId[] = [
-	"start", "interview", "decision", "package", "handoff", "proposal",
+	"start", "interview", "briefs", "decision", "package", "approve", "handoff", "proposal",
 	"mapping", "pipeline", "release", "dashboard", "cycle", "close",
 ]

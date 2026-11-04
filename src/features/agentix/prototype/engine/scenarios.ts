@@ -18,7 +18,7 @@ export interface Specialist {
 	package?: string
 }
 
-export type Capability = "read" | "build" | "production" | "update" | "notify"
+export type Capability = "read" | "build" | "production" | "update" | "notify" | "files"
 export interface SystemLink { id: string; name: string; capability: Capability; access: string; detail: string; package?: string }
 
 export interface StepTemplate {
@@ -60,7 +60,12 @@ export interface ArtifactSpec {
 	/* How a failed check is repaired: the variant the fix adds, and the one it supersedes. */
 	repair?: Record<string, { variant: string; replaces?: string; summary: string; change: string }>
 	amendments: AmendmentSpec[]
-	release?: { target: string; authority: "policy" | "approval" | "answer"; policy?: string; changes: (version: number, variant: string[]) => string[]; impact: string; recovery: string }
+	/*
+	 * How a tested version leaves the isolated workspace. A governed effect changes a customer system
+	 * under its release policy. A generated dashboard or app (`files`) only ever becomes a published
+	 * file version: download it, or save it to OneDrive or SharePoint. Hosted publishing is deferred (D-095).
+	 */
+	release?: { target: string; authority: "policy" | "approval" | "answer"; policy?: string; changes: (version: number, variant: string[]) => string[]; impact: string; recovery: string; files?: boolean }
 }
 
 export interface DecisionOption { id: string; label: string; primary?: boolean; consequence: string; outcome: "approve" | "decline" | "variant" | "release" | "release-window" | "keep-in-test"; variant?: { add: string; remove?: string; summary: string } }
@@ -276,13 +281,13 @@ const revenue: Scenario = {
 		{ id: "coordinator", name: "Revenue coordinator", accountable: true, duty: "Owns each outcome, the decisions, production releases and the single ERP write-back.", tools: "ERP exception update · release adapter · Teams finance channel", scope: "Cannot edit the billing ledger, release payments or message customers." },
 		{ id: "analyst", name: "Reconciliation analyst", duty: "Investigates invoice, receipt and ledger evidence and prepares exception decisions.", tools: "ERP, receiving and billing ledger · read only", scope: "Read only. Prepares decisions; never posts them." },
 		{ id: "data", name: "Data specialist", package: "pkg_revenue_v2", duty: "Maps billing fields, then builds and tests the ingestion and transformation pipeline in isolation.", tools: "SQL Server billing ledger · read only (existing gateway) · isolated AWS test workspace · private change set", scope: "No production credentials. Test data is synthetic and redacted." },
-		{ id: "dashboard", name: "Dashboard specialist", package: "pkg_revenue_v2", duty: "Builds and validates the revenue dashboard on the validated schema.", tools: "Dashboard authoring · reconciled schema read only", scope: "Publishes only through the coordinator's release." },
+		{ id: "dashboard", name: "Dashboard specialist", package: "pkg_revenue_v2", duty: "Builds and validates the revenue dashboard on the validated schema.", tools: "Dashboard authoring · reconciled schema read only", scope: "Publishes only as versioned files, through the coordinator." },
 	],
 	systems: [
 		{ id: "ledger", name: "SQL Server billing ledger", capability: "read", access: "Read only · existing secure gateway", detail: "dbo.Invoices, dbo.InvoiceLines, dbo.Credits, dbo.FxRates", package: "pkg_revenue_v2" },
 		{ id: "sandbox", name: "AWS test workspace", capability: "build", access: "Build and test · isolated", detail: "Disposable runs, synthetic 30-day sample, no production credentials", package: "pkg_revenue_v2" },
 		{ id: "schema", name: "AWS PostgreSQL revenue schema", capability: "production", access: "Release adapter · per release policy", detail: "Production target; migrations and the nightly load job", package: "pkg_revenue_v2" },
-		{ id: "dash", name: "Finance workspace dashboards", capability: "production", access: "Publish · preauthorized for the finance group", detail: "Policy FIN-DASH-2", package: "pkg_revenue_v2" },
+		{ id: "dash", name: "Versioned files", capability: "files", access: "Publish tested versions · preauthorized", detail: "Download, or OneDrive and SharePoint through Integrations. Policy FIN-DASH-2", package: "pkg_revenue_v2" },
 		{ id: "erp", name: "ERP accounts payable", capability: "update", access: "One governed update per exception", detail: "Exception status and resolution note" },
 		{ id: "teams", name: "Microsoft Teams", capability: "notify", access: "Notification only", detail: "Finance channel and the AP owner" },
 	],
@@ -335,14 +340,14 @@ const revenue: Scenario = {
 			id: "dashboard", kind: "milestone",
 			obligations: [
 				{ id: "tested", label: "Dashboard tiles match reconciled totals in test", evidence: "Check results bound to the version" },
-				{ id: "released", label: "Published to the finance group", evidence: "Release record" },
-				{ id: "verified", label: "Production tiles match the reconciled totals", evidence: "Tile read-back" },
+				{ id: "released", label: "Published as a versioned file", evidence: "File version record" },
+				{ id: "verified", label: "The published file's tiles match the reconciled totals", evidence: "Tile read-back" },
 			],
 			steps: [
-				{ id: "build", title: "Build the dashboard", owner: "dashboard", kind: "build", ticks: 2, artifact: "dashboard", doing: "Building revenue tiles and the regional view on the validated schema", done: "Built dashboard v1", system: "Dashboards", tools: ["Dataset · revenue.region_totals (test schema)", "Dashboard draft · finance workspace sandbox"] },
-				{ id: "test", title: "Test against reconciled totals", owner: "dashboard", kind: "test", artifact: "dashboard", doing: "Checking tiles against the reconciled test totals", done: "Dashboard checks passed", obligation: "tested", system: "Dashboards" },
-				{ id: "release", title: "Publish to the finance group", owner: "coordinator", kind: "release", artifact: "dashboard", after: { template: "pipeline", step: "release" }, doing: "Publishing the tested dashboard", done: "Dashboard published", obligation: "released", system: "Dashboards" },
-				{ id: "verify", title: "Verify production tiles", owner: "dashboard", kind: "verify", ticks: 2, doing: "Reading back production tiles against the reconciled totals", done: "Production tiles match the reconciled totals", obligation: "verified", system: "Dashboards" },
+				{ id: "build", title: "Build the dashboard", owner: "dashboard", kind: "build", ticks: 2, artifact: "dashboard", doing: "Building revenue tiles and the regional view on the validated schema", done: "Built dashboard v1", system: "AWS test workspace", tools: ["Dataset · revenue.region_totals (test schema)", "Dashboard draft · isolated test workspace"] },
+				{ id: "test", title: "Test against reconciled totals", owner: "dashboard", kind: "test", artifact: "dashboard", doing: "Checking tiles against the reconciled test totals", done: "Dashboard checks passed", obligation: "tested", system: "AWS test workspace" },
+				{ id: "release", title: "Publish as a file version", owner: "coordinator", kind: "release", artifact: "dashboard", after: { template: "pipeline", step: "release" }, doing: "Publishing the tested dashboard as a file version", done: "Dashboard published as a file version", obligation: "released", system: "Versioned files" },
+				{ id: "verify", title: "Verify the published file", owner: "dashboard", kind: "verify", ticks: 2, doing: "Reading the published file's tiles back against the reconciled totals", done: "The published file's tiles match the reconciled totals", obligation: "verified", system: "Versioned files" },
 			],
 		},
 		cycle: {
@@ -356,7 +361,7 @@ const revenue: Scenario = {
 			steps: [
 				{ id: "load", title: "Load yesterday's ledger", owner: "data", kind: "refresh", doing: "Loading yesterday's ledger through the released pipeline", done: "Ledger loaded", obligation: "loaded", system: "AWS PostgreSQL", tools: ["Nightly load job · pipeline in production", "Row count read-back"] },
 				{ id: "reconcile", title: "Reconcile totals by region", owner: "analyst", kind: "analyze", ticks: 2, doing: "Reconciling ledger totals with the revenue schema by region", done: "Totals agree within tolerance", obligation: "matched", system: "SQL Server + AWS PostgreSQL", tools: ["Ledger totals · read only", "revenue.region_totals · read only"] },
-				{ id: "refresh", title: "Refresh the dashboard", owner: "dashboard", kind: "refresh", doing: "Refreshing the dashboard with verified totals", done: "Dashboard refreshed", obligation: "fresh", system: "Dashboards" },
+				{ id: "refresh", title: "Refresh the dashboard file", owner: "dashboard", kind: "refresh", doing: "Writing verified totals into a fresh dashboard file", done: "Dashboard file refreshed", obligation: "fresh", system: "Versioned files" },
 				notify("coordinator", "Posting the daily summary to the finance channel", "Daily summary posted; acceptance receipt kept"),
 				{ id: "verify", title: "Verify the cycle", owner: "coordinator", kind: "verify", doing: "Checking every obligation for this cycle", done: "Cycle verified" },
 			],
@@ -422,17 +427,17 @@ const revenue: Scenario = {
 				{ id: "tiles", label: "Tiles match reconciled totals", scope: "Test schema · synthetic sample day 30" },
 				{ id: "sum", label: "Regions add up to the company total", scope: "Test schema · synthetic sample day 30" },
 				{ id: "fresh", label: "The dashboard shows when it was loaded", scope: "Test schema" },
-				{ id: "access", label: "Only the finance group can view it", scope: "Test workspace · access policy" },
+				{ id: "access", label: "The file holds only what the finance group may see", scope: "Test workspace · content scan" },
 				{ id: "drill", label: "Country drill-down adds up to its region", scope: "Test schema · synthetic sample day 30", dependsOn: "region-drilldown" },
 			],
 			amendments: [
 				{ id: "region-drilldown", pattern: /\b(region(al)?)\b.*\b(drill|breakdown|break down)|\bdrill[- ]?down\b.*\bregion/i, label: "Add regional drill-down", variant: "region-drilldown", summary: "Adds drill-down from region to country", changes: ["Each region opens its countries", "New check: country totals add up to their region"] },
 			],
 			release: {
-				target: "Finance workspace · Revenue dashboard", authority: "policy", policy: "Dashboard publishing to the finance group is preauthorized (policy FIN-DASH-2).",
+				target: "Versioned files · Revenue dashboard", authority: "policy", files: true, policy: "Publishing a tested dashboard version as a file is preauthorized (policy FIN-DASH-2).",
 				changes: (version, variant) => [`Dashboard v${version}`, ...variant.includes("region-drilldown") ? ["Adds drill-down from region to country"] : ["Revenue tiles, regional view and exceptions"]],
-				impact: "Finance group viewers see this version. No data changes.",
-				recovery: "The previous version can be republished. Anyone who viewed this version has already seen it.",
+				impact: "Records a new file version to download, or to save to OneDrive or SharePoint. No data changes.",
+				recovery: "Earlier file versions stay available. A copy someone already downloaded or saved can't be recalled.",
 			},
 		},
 		reconciliation: { key: "reconciliation", kind: "reconciliation", title: "Reconciliation evidence", owner: "analyst", dependsOn: ["pipeline"], variant: [], summary: "Ledger and revenue schema compared by region", changes: [], checks: [], amendments: [] },
@@ -496,7 +501,7 @@ const revenue: Scenario = {
 			inScope: ["Billing ledger to AWS revenue schema", "Daily reconciliation", "Revenue dashboard", "Exception routing"],
 			outScope: ["Ledger edits", "Payment release", "Customer communication", "Tax reporting"],
 			questions: [
-				{ id: "release", label: "How should pipeline releases to production be authorized?", detail: "Discovery couldn't confirm this. Testing never needs it. Dashboard publishing to the finance group is already pre-authorized by policy FIN-DASH-2.", options: [{ id: "approval", label: "Ask me before each pipeline release", recommended: true, effect: "Each pipeline release waits for your approval with its target, checks and recovery limits." }, { id: "window", label: "Release the pipeline in the Saturday 02:00 window", effect: "Tested pipeline versions release in the window under policy, without a separate approval." }] },
+				{ id: "release", label: "How should pipeline releases to production be authorized?", detail: "Discovery couldn't confirm this. Testing never needs it. Publishing the dashboard as files is already pre-authorized by policy FIN-DASH-2.", options: [{ id: "approval", label: "Ask me before each pipeline release", recommended: true, effect: "Each pipeline release waits for your approval with its target, checks and recovery limits." }, { id: "window", label: "Release the pipeline in the Saturday 02:00 window", effect: "Tested pipeline versions release in the window under policy, without a separate approval." }] },
 				{ id: "testdata", label: "What data may isolated tests use?", detail: "Tests run away from production either way.", options: [{ id: "synthetic", label: "The synthetic 30-day sample", recommended: true, effect: "Ready now. Results say they come from synthetic data." }, { id: "masked", label: "A masked production extract", effect: "Needs the data owner's approval before build and test can start." }] },
 			],
 			milestones: [
@@ -504,7 +509,7 @@ const revenue: Scenario = {
 				{ template: "pipeline", reference: "MS-2", title: "Ingestion and transformation pipeline", dependsOn: [{ reference: "MS-1" }] },
 				{ template: "dashboard", reference: "MS-3", title: "Revenue dashboard", dependsOn: [{ reference: "MS-2", step: "test" }] },
 			],
-			needs: ["Read the billing ledger through the existing gateway", "An isolated AWS test workspace with synthetic data", "The release adapter for the revenue schema and dashboards", "A daily 06:00 London schedule once delivery is verified"],
+			needs: ["Read the billing ledger through the existing gateway", "An isolated AWS test workspace with synthetic data", "The release adapter for the revenue schema; the dashboard publishes as versioned files", "A daily 06:00 London schedule once delivery is verified"],
 			offeredWhen: /\b(pipeline|dashboard|sql server|aws|data platform|ingest|etl|warehouse|schema|reconcil\w* revenue|revenue reconcil\w*)\b/i,
 		},
 	],
@@ -558,7 +563,7 @@ const revenue: Scenario = {
 				{ name: "S3 landing", detail: "Existing ingestion account" },
 				{ name: "Transform", detail: "revenue_transform job" },
 				{ name: "AWS PostgreSQL", detail: "Tables daily_invoices and region_totals" },
-				{ name: "Revenue dashboard", detail: "Finance workspace" },
+				{ name: "Revenue dashboard", detail: "Published as versioned files" },
 			],
 			rows: variant => [
 				{ label: "Exchange rates", value: variant.includes("fx-invoice-date") ? "Looked up by invoice date (fails the ledger check)" : "Looked up by posting date, as the ledger does" },
@@ -591,7 +596,7 @@ const revenue: Scenario = {
 			lede: "How Revenue reconciliation runs from now on. Written by the Revenue coordinator from the verified delivery.",
 			daily: drill => `At 05:30 London the released pipeline loads yesterday's billing rows. At 06:00 the reconciliation cycle compares ledger and revenue schema by region, routes exceptions and refreshes the dashboard by 07:00, then posts a summary to the finance channel.${drill ? " On the dashboard, each region opens to its country totals, which add up to the region." : ""}`,
 			verified: "Each cycle is verified only when the load read-back, the regional totals within $50, the dashboard refresh time and the channel receipt all have evidence. A missing receipt leaves the cycle partial; nothing else is repeated.",
-			needsPerson: release => `Variances above $200 go to the revenue owner. Pipeline releases go out ${release}. Dashboard publishing to the finance group is pre-authorized by policy FIN-DASH-2. Region and source-field rules are business decisions and are never chosen by a specialist.`,
+			needsPerson: release => `Variances above $200 go to the revenue owner. Pipeline releases go out ${release}. Publishing the dashboard as files is pre-authorized by policy FIN-DASH-2. Region and source-field rules are business decisions and are never chosen by a specialist.`,
 			recovery: "An uncertain release or write is reconciled by reading the target back before any retry. Schema objects can be dropped and the job disabled; rows a downstream reader already used can't be recalled. The billing ledger is never changed.",
 		},
 		sampleDay: REVENUE_FIGURES.day, testDataLabel: "Test data · synthetic 30-day sample", approvedOnlyVariant: "approved-fields",
@@ -644,14 +649,14 @@ const payables: Scenario = {
 		{ id: "coordinator", name: "Exception coordinator", accountable: true, duty: "Owns each outcome, the decisions, production releases and the single case write-back.", tools: "ServiceNow case update · release adapter · Teams finance channel", scope: "Cannot release a payment, change a supplier master or amend a purchase order." },
 		{ id: "analyst", name: "Exception analyst", duty: "Investigates invoice, receipt and contract evidence and prepares exception decisions.", tools: "ServiceNow queue, purchase orders and goods receipts · read only", scope: "Read only. Prepares decisions; never posts them." },
 		{ id: "data", name: "Triage specialist", package: "pkg_ap_exceptions_v2", duty: "Classifies the exception queue, then builds and tests the triage and routing pipeline in isolation.", tools: "ServiceNow Finance Operations · read only · isolated sub-production instance · private update set", scope: "No production credentials. Test data is a synthetic sweep." },
-		{ id: "dashboard", name: "Reporting specialist", package: "pkg_ap_exceptions_v2", duty: "Builds and validates the AP exception dashboard on the triaged queue.", tools: "Dashboard authoring · triaged queue read only", scope: "Publishes only through the coordinator's release." },
+		{ id: "dashboard", name: "Reporting specialist", package: "pkg_ap_exceptions_v2", duty: "Builds and validates the AP exception dashboard on the triaged queue.", tools: "Dashboard authoring · triaged queue read only", scope: "Publishes only as versioned files, through the coordinator." },
 	],
 	systems: [
 		{ id: "queue", name: "ServiceNow Finance Operations", capability: "read", access: "Read only · integration user", detail: "fin_exception, fin_case_evidence, sys_user_delegate", package: "pkg_ap_exceptions_v2" },
 		{ id: "contracts", name: "SAP Ariba contract register", capability: "read", access: "Read only · integration user", detail: "212 active contracts and their negotiated tolerances", package: "pkg_ap_exceptions_v2" },
 		{ id: "subprod", name: "ServiceNow sub-production", capability: "build", access: "Build and test · isolated", detail: "Disposable update sets, synthetic sweep of 1,904 cases, no production credentials", package: "pkg_ap_exceptions_v2" },
 		{ id: "prod", name: "ServiceNow production", capability: "production", access: "Release adapter · per release policy", detail: "Production target; update sets land in the Wednesday window", package: "pkg_ap_exceptions_v2" },
-		{ id: "dash", name: "Finance workspace dashboards", capability: "production", access: "Publish · preauthorized for the finance group", detail: "Policy FIN-AP-7", package: "pkg_ap_exceptions_v2" },
+		{ id: "dash", name: "Versioned files", capability: "files", access: "Publish tested versions · preauthorized", detail: "Download, or OneDrive and SharePoint through Integrations. Policy FIN-AP-7", package: "pkg_ap_exceptions_v2" },
 		{ id: "case", name: "ServiceNow case record", capability: "update", access: "One governed update per exception", detail: "Closure code, rule applied and evidence" },
 		{ id: "teams", name: "Microsoft Teams", capability: "notify", access: "Notification only", detail: "Finance channel and the AP owner" },
 	],
@@ -704,14 +709,14 @@ const payables: Scenario = {
 			id: "dashboard", kind: "milestone",
 			obligations: [
 				{ id: "tested", label: "Dashboard tiles match the triaged queue in test", evidence: "Check results bound to the version" },
-				{ id: "released", label: "Published to the finance group", evidence: "Release record" },
-				{ id: "verified", label: "Production tiles match the triaged queue", evidence: "Tile read-back" },
+				{ id: "released", label: "Published as a versioned file", evidence: "File version record" },
+				{ id: "verified", label: "The published file's tiles match the triaged queue", evidence: "Tile read-back" },
 			],
 			steps: [
-				{ id: "build", title: "Build the dashboard", owner: "dashboard", kind: "build", ticks: 2, artifact: "dashboard", doing: "Building exception tiles and the ageing view on the triaged queue", done: "Built dashboard v1", system: "Dashboards", tools: ["Dataset · fin_exception triaged (test instance)", "Dashboard draft · finance workspace sandbox"] },
-				{ id: "test", title: "Test against the triaged queue", owner: "dashboard", kind: "test", artifact: "dashboard", doing: "Checking tiles against the triaged test queue", done: "Dashboard checks passed", obligation: "tested", system: "Dashboards" },
-				{ id: "release", title: "Publish to the finance group", owner: "coordinator", kind: "release", artifact: "dashboard", after: { template: "pipeline", step: "release" }, doing: "Publishing the tested dashboard", done: "Dashboard published", obligation: "released", system: "Dashboards" },
-				{ id: "verify", title: "Verify production tiles", owner: "dashboard", kind: "verify", ticks: 2, doing: "Reading back production tiles against the triaged queue", done: "Production tiles match the triaged queue", obligation: "verified", system: "Dashboards" },
+				{ id: "build", title: "Build the dashboard", owner: "dashboard", kind: "build", ticks: 2, artifact: "dashboard", doing: "Building exception tiles and the ageing view on the triaged queue", done: "Built dashboard v1", system: "ServiceNow sub-production", tools: ["Dataset · fin_exception triaged (test instance)", "Dashboard draft · isolated test workspace"] },
+				{ id: "test", title: "Test against the triaged queue", owner: "dashboard", kind: "test", artifact: "dashboard", doing: "Checking tiles against the triaged test queue", done: "Dashboard checks passed", obligation: "tested", system: "ServiceNow sub-production" },
+				{ id: "release", title: "Publish as a file version", owner: "coordinator", kind: "release", artifact: "dashboard", after: { template: "pipeline", step: "release" }, doing: "Publishing the tested dashboard as a file version", done: "Dashboard published as a file version", obligation: "released", system: "Versioned files" },
+				{ id: "verify", title: "Verify the published file", owner: "dashboard", kind: "verify", ticks: 2, doing: "Reading the published file's tiles back against the triaged queue", done: "The published file's tiles match the triaged queue", obligation: "verified", system: "Versioned files" },
 			],
 		},
 		cycle: {
@@ -725,7 +730,7 @@ const payables: Scenario = {
 			steps: [
 				{ id: "load", title: "Sweep the overnight exceptions", owner: "data", kind: "refresh", doing: "Sweeping the open queue through the released pipeline", done: "Queue swept", obligation: "loaded", system: "ServiceNow production", tools: ["Scheduled sweep · pipeline in production", "Case count read-back"] },
 				{ id: "reconcile", title: "Clear the mechanical cases", owner: "analyst", kind: "analyze", ticks: 2, doing: "Testing each mechanical case against its negotiated tolerance", done: "Mechanical cases cleared within policy", obligation: "matched", system: "ServiceNow + Ariba", tools: ["Contract register · read only", "fin_exception · read only"] },
-				{ id: "refresh", title: "Refresh the dashboard", owner: "dashboard", kind: "refresh", doing: "Refreshing the dashboard with the cleared queue", done: "Dashboard refreshed", obligation: "fresh", system: "Dashboards" },
+				{ id: "refresh", title: "Refresh the dashboard file", owner: "dashboard", kind: "refresh", doing: "Writing the cleared queue into a fresh dashboard file", done: "Dashboard file refreshed", obligation: "fresh", system: "Versioned files" },
 				notify("coordinator", "Posting the daily summary to the finance channel", "Daily summary posted; acceptance receipt kept"),
 				{ id: "verify", title: "Verify the cycle", owner: "coordinator", kind: "verify", doing: "Checking every obligation for this cycle", done: "Cycle verified" },
 			],
@@ -793,17 +798,17 @@ const payables: Scenario = {
 				{ id: "tiles", label: "Tiles match the triaged queue", scope: "Test instance · synthetic sweep 30" },
 				{ id: "sum", label: "Classes add up to the open queue", scope: "Test instance · synthetic sweep 30" },
 				{ id: "fresh", label: "The dashboard shows when it was swept", scope: "Test instance" },
-				{ id: "access", label: "Only the finance group can view it", scope: "Test workspace · access policy" },
+				{ id: "access", label: "The file holds only what the finance group may see", scope: "Test workspace · content scan" },
 				{ id: "drill", label: "Approver drill-down adds up to its class", scope: "Test instance · synthetic sweep 30", dependsOn: "approver-drilldown" },
 			],
 			amendments: [
 				{ id: "approver-drilldown", pattern: /\b(approver|authority)\b.*\b(drill|breakdown|break down)|\bdrill[- ]?down\b.*\b(approver|authority)/i, label: "Add approver drill-down", variant: "approver-drilldown", summary: "Adds drill-down from class to approver", changes: ["Each class opens the approvers waiting on it", "New check: approver totals add up to their class"] },
 			],
 			release: {
-				target: "Finance workspace · AP exception dashboard", authority: "policy", policy: "Dashboard publishing to the finance group is preauthorized (policy FIN-AP-7).",
+				target: "Versioned files · AP exception dashboard", authority: "policy", files: true, policy: "Publishing a tested dashboard version as a file is preauthorized (policy FIN-AP-7).",
 				changes: (version, variant) => [`Dashboard v${version}`, ...variant.includes("approver-drilldown") ? ["Adds drill-down from class to approver"] : ["Exception tiles, class view and ageing"]],
-				impact: "Finance group viewers see this version. No case data changes.",
-				recovery: "The previous version can be republished. Anyone who viewed this version has already seen it.",
+				impact: "Records a new file version to download, or to save to OneDrive or SharePoint. No case data changes.",
+				recovery: "Earlier file versions stay available. A copy someone already downloaded or saved can't be recalled.",
 			},
 		},
 		reconciliation: { key: "reconciliation", kind: "reconciliation", title: "Clearance evidence", owner: "analyst", dependsOn: ["pipeline"], variant: [], summary: "Cleared cases compared against their negotiated terms", changes: [], checks: [], amendments: [] },
@@ -860,7 +865,7 @@ const payables: Scenario = {
 			inScope: ["Exception classification", "Tolerance testing against contracts", "Approval routing", "Exception dashboard"],
 			outScope: ["Payment release", "Supplier master changes", "Purchase-order amendment", "Payroll and expenses"],
 			questions: [
-				{ id: "release", label: "How should production ServiceNow changes be authorized?", detail: "Discovery couldn't confirm this. Testing never needs it. Dashboard publishing to the finance group is already pre-authorized by policy FIN-AP-7.", options: [{ id: "approval", label: "Ask me before each pipeline release", recommended: true, effect: "Each pipeline release waits for your approval with its target, checks and recovery limits." }, { id: "window", label: "Release in the Wednesday 22:00 change window", effect: "Tested pipeline versions release in the window under policy, without a separate approval." }] },
+				{ id: "release", label: "How should production ServiceNow changes be authorized?", detail: "Discovery couldn't confirm this. Testing never needs it. Publishing the dashboard as files is already pre-authorized by policy FIN-AP-7.", options: [{ id: "approval", label: "Ask me before each pipeline release", recommended: true, effect: "Each pipeline release waits for your approval with its target, checks and recovery limits." }, { id: "window", label: "Release in the Wednesday 22:00 change window", effect: "Tested pipeline versions release in the window under policy, without a separate approval." }] },
 				{ id: "testdata", label: "What data may isolated tests use?", detail: "Tests run away from production either way.", options: [{ id: "synthetic", label: "The synthetic sweep of 1,904 cases", recommended: true, effect: "Ready now. Results say they come from synthetic data." }, { id: "masked", label: "A masked production extract", effect: "Needs the data owner's approval before build and test can start." }] },
 			],
 			milestones: [
@@ -868,7 +873,7 @@ const payables: Scenario = {
 				{ template: "pipeline", reference: "MS-2", title: "Triage and routing pipeline", dependsOn: [{ reference: "MS-1" }] },
 				{ template: "dashboard", reference: "MS-3", title: "AP exception dashboard", dependsOn: [{ reference: "MS-2", step: "test" }] },
 			],
-			needs: ["Read the exception queue and the contract register through the integration user", "An isolated sub-production instance with a synthetic sweep", "The release adapter for the production instance and dashboards", "A daily 06:00 London schedule once delivery is verified"],
+			needs: ["Read the exception queue and the contract register through the integration user", "An isolated sub-production instance with a synthetic sweep", "The release adapter for the production instance; the dashboard publishes as versioned files", "A daily 06:00 London schedule once delivery is verified"],
 		},
 	],
 	assignments: [
@@ -911,7 +916,7 @@ const payables: Scenario = {
 				{ name: "Classification", detail: "Seven classes from the taxonomy" },
 				{ name: "Tolerance test", detail: "SAP Ariba contract register" },
 				{ name: "Close or route", detail: "Closure code and evidence on the case" },
-				{ name: "AP exception dashboard", detail: "Finance workspace" },
+				{ name: "AP exception dashboard", detail: "Published as versioned files" },
 			],
 			rows: variant => [
 				{ label: "Price tolerance", value: variant.includes("tolerance-purchase-order") ? "Tested against the purchase order (fails the contract check)" : "Tested against the negotiated contract, as procurement agreed" },
@@ -952,7 +957,7 @@ const payables: Scenario = {
 			lede: "How AP invoice exceptions run from now on. Written by the Exception coordinator from the verified delivery.",
 			daily: drill => `At 06:00 London the released pipeline sweeps the open exception queue. Mechanical cases are tested against the negotiated contract and closed with their evidence; everything else routes to an approver resolved against the authority matrix, and the dashboard refreshes by 08:00.${drill ? " On the dashboard, each class opens to the approvers waiting on it." : ""}`,
 			verified: "Each sweep is verified only when the queue read-back, the closure evidence on every cleared case, the dashboard refresh time and the channel receipt all have evidence. A missing receipt leaves the sweep partial; no case is closed twice.",
-			needsPerson: release => `Anything above $5,000, outside the applicable tolerance, or with no contract on file goes to a named approver. Pipeline releases go out ${release}. Dashboard publishing to the finance group is pre-authorized by policy FIN-AP-7. Tolerance authority and the no-contract rule are commercial decisions and are never chosen by a specialist.`,
+			needsPerson: release => `Anything above $5,000, outside the applicable tolerance, or with no contract on file goes to a named approver. Pipeline releases go out ${release}. Publishing the dashboard as files is pre-authorized by policy FIN-AP-7. Tolerance authority and the no-contract rule are commercial decisions and are never chosen by a specialist.`,
 			recovery: "An uncertain release or write is reconciled by reading the case back before any retry. The flow can be disabled and the update set backed out; an approver who was already notified can't be un-notified. No payment is ever released.",
 		},
 		sampleDay: AP_FIGURES.day, testDataLabel: "Test data · synthetic sweep of 1,904 cases", approvedOnlyVariant: "approved-classes",
@@ -1003,14 +1008,14 @@ const orders: Scenario = {
 		{ id: "coordinator", name: "Order sync coordinator", accountable: true, duty: "Owns each outcome, the decisions, production releases and the single Salesforce write-back.", tools: "Salesforce order update · release adapter · Teams revenue channel", scope: "Cannot change a price, a quote or a contract, or touch invoicing." },
 		{ id: "analyst", name: "Order exception analyst", duty: "Investigates order, quote and customer evidence and prepares blocked-order decisions.", tools: "Salesforce orders and quotes · SAP sales orders · read only", scope: "Read only. Prepares decisions; never posts them." },
 		{ id: "data", name: "Integration specialist", package: "pkg_order_sync_v2", duty: "Maps customers and materials, then builds and tests the order sync pipeline in isolation.", tools: "Salesforce CPQ · read only · isolated SAP sandbox · private transport", scope: "No production credentials. Test data is a synthetic 30-day order sample." },
-		{ id: "dashboard", name: "Reporting specialist", package: "pkg_order_sync_v2", duty: "Builds and validates the order exception cockpit on the posted orders.", tools: "Cockpit authoring · posted orders read only", scope: "Publishes only through the coordinator's release." },
+		{ id: "dashboard", name: "Reporting specialist", package: "pkg_order_sync_v2", duty: "Builds and validates the order exception cockpit on the posted orders.", tools: "Cockpit authoring · posted orders read only", scope: "Publishes only as versioned files, through the coordinator." },
 	],
 	systems: [
 		{ id: "sfdc", name: "Salesforce CPQ", capability: "read", access: "Read only · integration user", detail: "Booked orders, order lines, quotes and account records", package: "pkg_order_sync_v2" },
 		{ id: "master", name: "SAP business partner and material master", capability: "read", access: "Read only · integration user", detail: "2,418 active accounts and the material master", package: "pkg_order_sync_v2" },
 		{ id: "sandbox", name: "SAP S/4HANA sandbox", capability: "build", access: "Build and test · isolated", detail: "Disposable transports, synthetic 30-day order sample, no production credentials", package: "pkg_order_sync_v2" },
 		{ id: "prod", name: "SAP S/4HANA production", capability: "production", access: "Release adapter · per release policy", detail: "Production target; transports land in the Thursday window", package: "pkg_order_sync_v2" },
-		{ id: "cockpit", name: "Finance workspace dashboards", capability: "production", access: "Publish · preauthorized for the finance group", detail: "Policy ITGC-SOX-4", package: "pkg_order_sync_v2" },
+		{ id: "cockpit", name: "Versioned files", capability: "files", access: "Publish tested versions · preauthorized", detail: "Download, or OneDrive and SharePoint through Integrations. Policy ITGC-SOX-4", package: "pkg_order_sync_v2" },
 		{ id: "sfdcwrite", name: "Salesforce order record", capability: "update", access: "One governed update per order", detail: "SAP order number, or the block reason" },
 		{ id: "teams", name: "Microsoft Teams", capability: "notify", access: "Notification only", detail: "Revenue channel and the order owner" },
 	],
@@ -1063,14 +1068,14 @@ const orders: Scenario = {
 			id: "dashboard", kind: "milestone",
 			obligations: [
 				{ id: "tested", label: "Cockpit tiles match the posted orders in test", evidence: "Check results bound to the version" },
-				{ id: "released", label: "Published to the finance group", evidence: "Release record" },
-				{ id: "verified", label: "Production tiles match the posted orders", evidence: "Tile read-back" },
+				{ id: "released", label: "Published as a versioned file", evidence: "File version record" },
+				{ id: "verified", label: "The published file's tiles match the posted orders", evidence: "Tile read-back" },
 			],
 			steps: [
-				{ id: "build", title: "Build the cockpit", owner: "dashboard", kind: "build", ticks: 2, artifact: "dashboard", doing: "Building posted, blocked and at-risk tiles on the posted orders", done: "Built cockpit v1", system: "Dashboards", tools: ["Dataset · posted orders (sandbox)", "Cockpit draft · finance workspace sandbox"] },
-				{ id: "test", title: "Test against the posted orders", owner: "dashboard", kind: "test", artifact: "dashboard", doing: "Checking tiles against the posted test orders", done: "Cockpit checks passed", obligation: "tested", system: "Dashboards" },
-				{ id: "release", title: "Publish to the finance group", owner: "coordinator", kind: "release", artifact: "dashboard", after: { template: "pipeline", step: "release" }, doing: "Publishing the tested cockpit", done: "Cockpit published", obligation: "released", system: "Dashboards" },
-				{ id: "verify", title: "Verify production tiles", owner: "dashboard", kind: "verify", ticks: 2, doing: "Reading back production tiles against the posted orders", done: "Production tiles match the posted orders", obligation: "verified", system: "Dashboards" },
+				{ id: "build", title: "Build the cockpit", owner: "dashboard", kind: "build", ticks: 2, artifact: "dashboard", doing: "Building posted, blocked and at-risk tiles on the posted orders", done: "Built cockpit v1", system: "SAP S/4HANA sandbox", tools: ["Dataset · posted orders (sandbox)", "Cockpit draft · isolated test workspace"] },
+				{ id: "test", title: "Test against the posted orders", owner: "dashboard", kind: "test", artifact: "dashboard", doing: "Checking tiles against the posted test orders", done: "Cockpit checks passed", obligation: "tested", system: "SAP S/4HANA sandbox" },
+				{ id: "release", title: "Publish as a file version", owner: "coordinator", kind: "release", artifact: "dashboard", after: { template: "pipeline", step: "release" }, doing: "Publishing the tested cockpit as a file version", done: "Cockpit published as a file version", obligation: "released", system: "Versioned files" },
+				{ id: "verify", title: "Verify the published file", owner: "dashboard", kind: "verify", ticks: 2, doing: "Reading the published file's tiles back against the posted orders", done: "The published file's tiles match the posted orders", obligation: "verified", system: "Versioned files" },
 			],
 		},
 		cycle: {
@@ -1084,7 +1089,7 @@ const orders: Scenario = {
 			steps: [
 				{ id: "load", title: "Read yesterday's booked orders", owner: "data", kind: "refresh", doing: "Reading the day's booked orders through the released pipeline", done: "Booked orders read", obligation: "loaded", system: "Salesforce", tools: ["Scheduled sync · pipeline in production", "Order count read-back"] },
 				{ id: "reconcile", title: "Post each order once", owner: "analyst", kind: "analyze", ticks: 2, doing: "Posting each resolved order under its idempotency key", done: "Every order posted once; blocked orders routed", obligation: "matched", system: "SAP S/4HANA", tools: ["Sales orders by external reference · read only", "Business partner · read only"] },
-				{ id: "refresh", title: "Refresh the cockpit", owner: "dashboard", kind: "refresh", doing: "Refreshing the cockpit with the posted orders", done: "Cockpit refreshed", obligation: "fresh", system: "Dashboards" },
+				{ id: "refresh", title: "Refresh the cockpit file", owner: "dashboard", kind: "refresh", doing: "Writing the posted orders into a fresh cockpit file", done: "Cockpit file refreshed", obligation: "fresh", system: "Versioned files" },
 				notify("coordinator", "Posting the daily summary to the revenue channel", "Daily summary posted; acceptance receipt kept"),
 				{ id: "verify", title: "Verify the cycle", owner: "coordinator", kind: "verify", doing: "Checking every obligation for this cycle", done: "Cycle verified" },
 			],
@@ -1153,17 +1158,17 @@ const orders: Scenario = {
 				{ id: "tiles", label: "Tiles match the posted orders", scope: "Sandbox · synthetic sample day 30" },
 				{ id: "sum", label: "Block reasons add up to the blocked total", scope: "Sandbox · synthetic sample day 30" },
 				{ id: "fresh", label: "The cockpit shows when it was synced", scope: "Sandbox" },
-				{ id: "access", label: "Only the finance group can view it", scope: "Sandbox · access policy" },
+				{ id: "access", label: "The file holds only what the finance group may see", scope: "Sandbox · content scan" },
 				{ id: "drill", label: "Owner drill-down adds up to its block reason", scope: "Sandbox · synthetic sample day 30", dependsOn: "owner-drilldown" },
 			],
 			amendments: [
 				{ id: "owner-drilldown", pattern: /\b(owner|assignee)\b.*\b(drill|breakdown|break down)|\bdrill[- ]?down\b.*\b(owner|assignee)/i, label: "Add owner drill-down", variant: "owner-drilldown", summary: "Adds drill-down from block reason to owner", changes: ["Each block reason opens the owners waiting on it", "New check: owner totals add up to their reason"] },
 			],
 			release: {
-				target: "Finance workspace · Order exception cockpit", authority: "policy", policy: "Cockpit publishing to the finance group is preauthorized (policy ITGC-SOX-4).",
+				target: "Versioned files · Order exception cockpit", authority: "policy", files: true, policy: "Publishing a tested cockpit version as a file is preauthorized (policy ITGC-SOX-4).",
 				changes: (version, variant) => [`Cockpit v${version}`, ...variant.includes("owner-drilldown") ? ["Adds drill-down from block reason to owner"] : ["Order tiles, block reasons and quarter risk"]],
-				impact: "Finance group viewers see this version. No order data changes.",
-				recovery: "The previous version can be republished. Anyone who viewed this version has already seen it.",
+				impact: "Records a new file version to download, or to save to OneDrive or SharePoint. No order data changes.",
+				recovery: "Earlier file versions stay available. A copy someone already downloaded or saved can't be recalled.",
 			},
 		},
 		reconciliation: { key: "reconciliation", kind: "reconciliation", title: "Posting evidence", owner: "analyst", dependsOn: ["pipeline"], variant: [], summary: "Posted sales orders compared with their Salesforce source", changes: [], checks: [], amendments: [] },
@@ -1220,7 +1225,7 @@ const orders: Scenario = {
 			inScope: ["Customer master resolution", "Material mapping", "Order posting under an idempotency key", "Order exception cockpit"],
 			outScope: ["Price, discount or quote change", "Contract amendment", "Invoicing and collections", "Credit limits"],
 			questions: [
-				{ id: "release", label: "How should production SAP changes be authorized?", detail: "Discovery couldn't confirm this. Testing never needs it. Cockpit publishing to the finance group is already pre-authorized by policy ITGC-SOX-4.", options: [{ id: "approval", label: "Ask me before each pipeline release", recommended: true, effect: "Each pipeline release waits for your approval with its target, checks and recovery limits." }, { id: "window", label: "Release in the Thursday 21:00 change window", effect: "Tested pipeline versions release in the window under policy, without a separate approval." }] },
+				{ id: "release", label: "How should production SAP changes be authorized?", detail: "Discovery couldn't confirm this. Testing never needs it. Publishing the cockpit as files is already pre-authorized by policy ITGC-SOX-4.", options: [{ id: "approval", label: "Ask me before each pipeline release", recommended: true, effect: "Each pipeline release waits for your approval with its target, checks and recovery limits." }, { id: "window", label: "Release in the Thursday 21:00 change window", effect: "Tested pipeline versions release in the window under policy, without a separate approval." }] },
 				{ id: "testdata", label: "What data may isolated tests use?", detail: "Tests run away from production either way.", options: [{ id: "synthetic", label: "The synthetic 30-day order sample", recommended: true, effect: "Ready now. Results say they come from synthetic data." }, { id: "masked", label: "A masked production extract", effect: "Needs the data owner's approval before build and test can start." }] },
 			],
 			milestones: [
@@ -1228,7 +1233,7 @@ const orders: Scenario = {
 				{ template: "pipeline", reference: "MS-2", title: "Order sync pipeline", dependsOn: [{ reference: "MS-1" }] },
 				{ template: "dashboard", reference: "MS-3", title: "Order exception cockpit", dependsOn: [{ reference: "MS-2", step: "test" }] },
 			],
-			needs: ["Read booked orders and both customer records through the integration user", "An isolated SAP sandbox with a synthetic order sample", "The release adapter for production SAP and the cockpit", "A daily 06:00 London schedule once delivery is verified"],
+			needs: ["Read booked orders and both customer records through the integration user", "An isolated SAP sandbox with a synthetic order sample", "The release adapter for production SAP; the cockpit publishes as versioned files", "A daily 06:00 London schedule once delivery is verified"],
 		},
 	],
 	assignments: [
@@ -1278,7 +1283,7 @@ const orders: Scenario = {
 				{ name: "Customer resolution", detail: "SAP business partner and material master" },
 				{ name: "Post sales order", detail: "Under the idempotency key" },
 				{ name: "Write back", detail: "SAP order number onto the Salesforce order" },
-				{ name: "Order exception cockpit", detail: "Finance workspace" },
+				{ name: "Order exception cockpit", detail: "Published as versioned files" },
 			],
 			rows: variant => [
 				{ label: "Customer master", value: variant.includes("master-salesforce") ? "Resolved from Salesforce (fails tax determination)" : "Resolved from the SAP business partner, as finance decided" },
@@ -1319,7 +1324,7 @@ const orders: Scenario = {
 			lede: "How Salesforce–SAP order sync runs from now on. Written by the Order sync coordinator from the verified delivery.",
 			daily: drill => `At 06:00 London the released pipeline reads the day's booked Salesforce orders, resolves each to one SAP business partner and every line to a material, and posts the sales order under its idempotency key. The SAP order number is written back by 07:00 and the cockpit refreshes by 08:00.${drill ? " On the cockpit, each block reason opens to the owners waiting on it." : ""}`,
 			verified: "Each sync is verified only when the order read-back by external reference, the write-back to Salesforce, the cockpit refresh time and the channel receipt all have evidence. A timed-out post is reconciled by key; no order is ever posted twice.",
-			needsPerson: release => `Anything above $50,000, with an unmapped SKU, or priced differently from its quote is blocked for a named owner. Pipeline releases go out ${release}. Cockpit publishing to the finance group is pre-authorized by policy ITGC-SOX-4. The customer master and the unmapped-SKU rule are business decisions and are never chosen by a specialist.`,
+			needsPerson: release => `Anything above $50,000, with an unmapped SKU, or priced differently from its quote is blocked for a named owner. Pipeline releases go out ${release}. Publishing the cockpit as files is pre-authorized by policy ITGC-SOX-4. The customer master and the unmapped-SKU rule are business decisions and are never chosen by a specialist.`,
 			recovery: "An uncertain post is reconciled by reading SAP back on the idempotency key before any retry. The posting service can be disabled and the transport backed out; a sales order already posted can be cancelled, but a cancelled order stays on the books as an audit item. No invoice is ever raised.",
 		},
 		sampleDay: ORDER_FIGURES.day, testDataLabel: "Test data · synthetic 30-day order sample", approvedOnlyVariant: "active-only",
@@ -1370,14 +1375,14 @@ const conversion: Scenario = {
 		{ id: "coordinator", name: "Conversion coordinator", accountable: true, duty: "Owns each outcome, the decisions, production releases and the single transport call.", tools: "CTS release adapter · Teams programme channel", scope: "Cannot edit code or change a disposition." },
 		{ id: "analyst", name: "Custom code analyst", duty: "Reads the repository, usage and findings, and prepares the disposition of each object.", tools: "ECC repository · usage statistics · ATC findings · read only", scope: "Read only. Prepares dispositions; never transports them." },
 		{ id: "data", name: "Remediation specialist", package: "pkg_s4_conversion_v2", duty: "Builds and tests remediation against the disposition map in an isolated sandbox.", tools: "ECC repository · read only · isolated S/4HANA sandbox · private transport", scope: "No production credentials. Test data is a sandbox copy of the repository." },
-		{ id: "dashboard", name: "Readiness dashboard specialist", package: "pkg_s4_conversion_v2", duty: "Builds and validates the conversion readiness dashboard on the sweep results.", tools: "Dashboard authoring · sweep results read only", scope: "Publishes only through the coordinator's release." },
+		{ id: "dashboard", name: "Readiness dashboard specialist", package: "pkg_s4_conversion_v2", duty: "Builds and validates the conversion readiness dashboard on the sweep results.", tools: "Dashboard authoring · sweep results read only", scope: "Publishes only as versioned files, through the coordinator." },
 	],
 	systems: [
 		{ id: "ecc", name: "SAP ECC repository", capability: "read", access: "Read only · analysis user", detail: "11,842 custom objects and twelve months of usage statistics", package: "pkg_s4_conversion_v2" },
 		{ id: "atc", name: "SAP ATC readiness findings", capability: "read", access: "Read only · analysis user", detail: "27,415 findings across 4,102 objects", package: "pkg_s4_conversion_v2" },
 		{ id: "sandbox", name: "SAP S/4HANA sandbox", capability: "build", access: "Build and test · isolated", detail: "Disposable transports, a sandbox copy of the repository, no production credentials", package: "pkg_s4_conversion_v2" },
 		{ id: "prod", name: "SAP S/4HANA production", capability: "production", access: "Release adapter · per release policy", detail: "Production target; transports land in the Thursday window", package: "pkg_s4_conversion_v2" },
-		{ id: "board", name: "Programme workspace dashboards", capability: "production", access: "Publish · preauthorized for the programme board", detail: "Policy ITGC-SAP-3", package: "pkg_s4_conversion_v2" },
+		{ id: "board", name: "Versioned files", capability: "files", access: "Publish tested versions · preauthorized", detail: "Download, or OneDrive and SharePoint through Integrations. Policy ITGC-SAP-3", package: "pkg_s4_conversion_v2" },
 		{ id: "cts", name: "SAP CTS transport queue", capability: "update", access: "One governed block per transport", detail: "A refusal, and the reason on the transport" },
 		{ id: "teams", name: "Microsoft Teams", capability: "notify", access: "Notification only", detail: "Programme channel and the object owner" },
 	],
@@ -1430,14 +1435,14 @@ const conversion: Scenario = {
 			id: "dashboard", kind: "milestone",
 			obligations: [
 				{ id: "tested", label: "Dashboard tiles match the sweep results in test", evidence: "Check results bound to the version" },
-				{ id: "released", label: "Published to the programme board", evidence: "Release record" },
-				{ id: "verified", label: "Production tiles match the sweep results", evidence: "Tile read-back" },
+				{ id: "released", label: "Published as a versioned file", evidence: "File version record" },
+				{ id: "verified", label: "The published file's tiles match the sweep results", evidence: "Tile read-back" },
 			],
 			steps: [
-				{ id: "build", title: "Build the readiness dashboard", owner: "dashboard", kind: "build", ticks: 2, artifact: "dashboard", doing: "Building remaining, blocked and drift tiles on the sweep results", done: "Built dashboard v1", system: "Dashboards", tools: ["Dataset · sweep results (sandbox)", "Dashboard draft · programme workspace sandbox"] },
-				{ id: "test", title: "Test against the sweep results", owner: "dashboard", kind: "test", artifact: "dashboard", doing: "Checking tiles against the tested sweep results", done: "Dashboard checks passed", obligation: "tested", system: "Dashboards" },
-				{ id: "release", title: "Publish to the programme board", owner: "coordinator", kind: "release", artifact: "dashboard", after: { template: "pipeline", step: "release" }, doing: "Publishing the tested dashboard", done: "Dashboard published", obligation: "released", system: "Dashboards" },
-				{ id: "verify", title: "Verify production tiles", owner: "dashboard", kind: "verify", ticks: 2, doing: "Reading back production tiles against the sweep results", done: "Production tiles match the sweep results", obligation: "verified", system: "Dashboards" },
+				{ id: "build", title: "Build the readiness dashboard", owner: "dashboard", kind: "build", ticks: 2, artifact: "dashboard", doing: "Building remaining, blocked and drift tiles on the sweep results", done: "Built dashboard v1", system: "SAP S/4HANA sandbox", tools: ["Dataset · sweep results (sandbox)", "Dashboard draft · isolated test workspace"] },
+				{ id: "test", title: "Test against the sweep results", owner: "dashboard", kind: "test", artifact: "dashboard", doing: "Checking tiles against the tested sweep results", done: "Dashboard checks passed", obligation: "tested", system: "SAP S/4HANA sandbox" },
+				{ id: "release", title: "Publish as a file version", owner: "coordinator", kind: "release", artifact: "dashboard", after: { template: "pipeline", step: "release" }, doing: "Publishing the tested dashboard as a file version", done: "Dashboard published as a file version", obligation: "released", system: "Versioned files" },
+				{ id: "verify", title: "Verify the published file", owner: "dashboard", kind: "verify", ticks: 2, doing: "Reading the published file's tiles back against the sweep results", done: "The published file's tiles match the sweep results", obligation: "verified", system: "Versioned files" },
 			],
 		},
 		cycle: {
@@ -1451,7 +1456,7 @@ const conversion: Scenario = {
 			steps: [
 				{ id: "load", title: "Read the day's transports", owner: "data", kind: "refresh", doing: "Reading the day's transports through the released pipeline", done: "Transports read", obligation: "loaded", system: "SAP CTS", tools: ["Scheduled sweep · pipeline in production", "Transport count read-back"] },
 				{ id: "reconcile", title: "Test each transport for drift", owner: "analyst", kind: "analyze", ticks: 2, doing: "Running the readiness variant against each transport", done: "Drifting transports blocked; clean ones released", obligation: "matched", system: "SAP ATC", tools: ["Readiness variant · read only", "Disposition map · read only"] },
-				{ id: "refresh", title: "Refresh the dashboard", owner: "dashboard", kind: "refresh", doing: "Refreshing the dashboard with the sweep results", done: "Dashboard refreshed", obligation: "fresh", system: "Dashboards" },
+				{ id: "refresh", title: "Refresh the dashboard file", owner: "dashboard", kind: "refresh", doing: "Writing the sweep results into a fresh dashboard file", done: "Dashboard file refreshed", obligation: "fresh", system: "Versioned files" },
 				notify("coordinator", "Posting the nightly summary to the programme channel", "Nightly summary posted; acceptance receipt kept"),
 				{ id: "verify", title: "Verify the cycle", owner: "coordinator", kind: "verify", doing: "Checking every obligation for this cycle", done: "Cycle verified" },
 			],
@@ -1520,17 +1525,17 @@ const conversion: Scenario = {
 				{ id: "tiles", label: "Tiles match the sweep results", scope: "Sandbox · sandbox copy 12" },
 				{ id: "sum", label: "Dispositions add up to the repository total", scope: "Sandbox · sandbox copy 12" },
 				{ id: "fresh", label: "The dashboard shows when it was swept", scope: "Sandbox" },
-				{ id: "access", label: "Only the programme board can view it", scope: "Sandbox · access policy" },
+				{ id: "access", label: "The file holds only what the programme board may see", scope: "Sandbox · content scan" },
 				{ id: "drill", label: "Owner drill-down adds up to its disposition", scope: "Sandbox · sandbox copy 12", dependsOn: "owner-drilldown" },
 			],
 			amendments: [
 				{ id: "owner-drilldown", pattern: /\b(owner|developer)\b.*\b(drill|breakdown|break down)|\bdrill[- ]?down\b.*\b(owner|developer)/i, label: "Add owner drill-down", variant: "owner-drilldown", summary: "Adds drill-down from disposition to owner", changes: ["Each disposition opens the owners waiting on it", "New check: owner totals add up to their disposition"] },
 			],
 			release: {
-				target: "Programme workspace · Conversion readiness dashboard", authority: "policy", policy: "Dashboard publishing to the programme board is preauthorized (policy ITGC-SAP-3).",
+				target: "Versioned files · Conversion readiness dashboard", authority: "policy", files: true, policy: "Publishing a tested dashboard version as a file is preauthorized (policy ITGC-SAP-3).",
 				changes: (version, variant) => [`Dashboard v${version}`, ...variant.includes("owner-drilldown") ? ["Adds drill-down from disposition to owner"] : ["Disposition tiles, drift and remaining work"]],
-				impact: "Programme board viewers see this version. No object or transport changes.",
-				recovery: "The previous version can be republished. Anyone who viewed this version has already seen it.",
+				impact: "Records a new file version to download, or to save to OneDrive or SharePoint. No object or transport changes.",
+				recovery: "Earlier file versions stay available. A copy someone already downloaded or saved can't be recalled.",
 			},
 		},
 		reconciliation: { key: "reconciliation", kind: "reconciliation", title: "Disposition evidence", owner: "analyst", dependsOn: ["pipeline"], variant: [], summary: "Dispositioned objects compared with the repository", changes: [], checks: [], amendments: [] },
@@ -1587,7 +1592,7 @@ const conversion: Scenario = {
 			inScope: ["Object disposition", "Remediation of what carries forward", "Standard adoption", "Nightly readiness sweep and dashboard"],
 			outScope: ["Master data and business partner conversion", "Authorisation and role redesign", "Non-SAP interfaces", "Fiori adoption", "Cutover decisions"],
 			questions: [
-				{ id: "release", label: "How should production S/4HANA changes be authorized?", detail: "Discovery couldn't confirm this. Testing never needs it. Dashboard publishing to the programme board is already pre-authorized by policy ITGC-SAP-3.", options: [{ id: "approval", label: "Ask me before each pipeline release", recommended: true, effect: "Each pipeline release waits for your approval with its target, checks and recovery limits." }, { id: "window", label: "Release in the Thursday 20:00 change window", effect: "Tested pipeline versions release in the window under policy, without a separate approval." }] },
+				{ id: "release", label: "How should production S/4HANA changes be authorized?", detail: "Discovery couldn't confirm this. Testing never needs it. Publishing the dashboard as files is already pre-authorized by policy ITGC-SAP-3.", options: [{ id: "approval", label: "Ask me before each pipeline release", recommended: true, effect: "Each pipeline release waits for your approval with its target, checks and recovery limits." }, { id: "window", label: "Release in the Thursday 20:00 change window", effect: "Tested pipeline versions release in the window under policy, without a separate approval." }] },
 				{ id: "testdata", label: "What data may isolated tests use?", detail: "Tests run away from production either way.", options: [{ id: "synthetic", label: "The sandbox copy of the repository", recommended: true, effect: "Ready now. Results say they come from a sandbox copy." }, { id: "masked", label: "A masked production extract", effect: "Needs the data owner's approval before build and test can start." }] },
 			],
 			milestones: [
@@ -1595,7 +1600,7 @@ const conversion: Scenario = {
 				{ template: "pipeline", reference: "MS-2", title: "Remediation and readiness pipeline", dependsOn: [{ reference: "MS-1" }] },
 				{ template: "dashboard", reference: "MS-3", title: "Conversion readiness dashboard", dependsOn: [{ reference: "MS-2", step: "test" }] },
 			],
-			needs: ["Read the repository, usage statistics and readiness findings through the analysis user", "An isolated S/4HANA sandbox with a copy of the repository", "The release adapter for production S/4HANA and the dashboard", "A nightly 22:00 CET schedule once delivery is verified"],
+			needs: ["Read the repository, usage statistics and readiness findings through the analysis user", "An isolated S/4HANA sandbox with a copy of the repository", "The release adapter for production S/4HANA; the dashboard publishes as versioned files", "A nightly 22:00 CET schedule once delivery is verified"],
 		},
 	],
 	assignments: [
@@ -1644,7 +1649,7 @@ const conversion: Scenario = {
 				{ name: "Readiness variant", detail: "ATC on the sandbox" },
 				{ name: "Disposition check", detail: "Against the published map" },
 				{ name: "Block or release", detail: "One governed write per transport" },
-				{ name: "Readiness dashboard", detail: "Programme workspace" },
+				{ name: "Readiness dashboard", detail: "Published as versioned files" },
 			],
 			rows: variant => [
 				{ label: "Behaviour exceptions", value: variant.includes("disposition-bulk") ? "Dispositioned in bulk (fails the behaviour check)" : "Tested individually, as the owner decided" },
@@ -1683,7 +1688,7 @@ const conversion: Scenario = {
 			lede: "How S/4HANA conversion readiness runs from now on. Written by the Conversion coordinator from the verified delivery.",
 			daily: drill => `At 22:00 CET the released pipeline reads the day's transports, tests each against the readiness variant and the published disposition map, and refuses any that reintroduce a removed pattern. The refusal reaches the developer by 23:00 and the dashboard refreshes by 07:00.${drill ? " On the dashboard, each disposition opens to the owners waiting on it." : ""}`,
 			verified: "Each sweep is verified only when the transport read-back, the block record in CTS, the dashboard refresh time and the channel receipt all have evidence. A transport is refused before it enters the queue, never after.",
-			needsPerson: release => `Any transport reintroducing a removed pattern, any change to a disposition, and any object in use with no named owner are held for a named owner. Pipeline releases go out ${release}. Dashboard publishing to the programme board is pre-authorized by policy ITGC-SAP-3. The archive threshold and the behaviour exceptions are business decisions and are never chosen by a specialist.`,
+			needsPerson: release => `Any transport reintroducing a removed pattern, any change to a disposition, and any object in use with no named owner are held for a named owner. Pipeline releases go out ${release}. Publishing the dashboard as files is pre-authorized by policy ITGC-SAP-3. The archive threshold and the behaviour exceptions are business decisions and are never chosen by a specialist.`,
 			recovery: "The gate can be disabled and the transport backed out. A transport already blocked stays blocked until someone releases it, and nothing that was blocked has reached production. An archived object is revived by a named decision, not by a silent restore.",
 		},
 		sampleDay: S4_FIGURES.day, testDataLabel: "Test data · sandbox copy of the repository", approvedOnlyVariant: "used-only",

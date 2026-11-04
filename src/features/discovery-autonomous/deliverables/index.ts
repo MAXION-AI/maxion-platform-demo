@@ -7,23 +7,31 @@ import { S4HANA_APPROVED_REVISIONS, S4HANA_DELIVERABLES } from "./s4hana"
 import { REVENUE_APPROVED_REVISIONS, REVENUE_DELIVERABLES } from "./revenue"
 import { SERVICENOW_APPROVED_REVISIONS, SERVICENOW_DELIVERABLES } from "./servicenow"
 import { TPRM_APPROVED_REVISIONS, TPRM_DELIVERABLES } from "./tprm"
+import * as DILIGENCE_PLANNING from "./planning/diligence"
+import * as ENTERPRISE_PLANNING from "./planning/enterprise"
+import * as ORDERSYNC_PLANNING from "./planning/ordersync"
+import * as REVENUE_PLANNING from "./planning/revenue"
+import * as S4HANA_PLANNING from "./planning/s4hana"
+import * as SERVICENOW_PLANNING from "./planning/servicenow"
+import * as TPRM_PLANNING from "./planning/tprm"
 import { DELIVERABLES as DELIVERABLES_MANIFEST } from "./types"
 import type { DeliverableBody, DeliverableRevision } from "./types"
 
 export { DELIVERABLES } from "./types"
 export type { DeliverableBody, DeliverableRevision, DeliverableSection, Exhibit } from "./types"
 export { DeliverableExhibit } from "./DeliverableExhibit"
+export { hasStructuredView, structuredRowCount, structuredTables, type StructuredTable } from "./structured"
 
 // Each deliverable in the package reads as its own document. Bodies are indexed
 // parallel to DELIVERABLES so the reader switches content, not just the header.
 export const DELIVERABLE_CONTENT: Record<ScenarioKey, DeliverableBody[]> = {
-	tprm: TPRM_DELIVERABLES,
-	diligence: DILIGENCE_DELIVERABLES,
-	enterprise: ENTERPRISE_DELIVERABLES,
-	revenue: REVENUE_DELIVERABLES,
-	servicenow: SERVICENOW_DELIVERABLES,
-	ordersync: ORDERSYNC_DELIVERABLES,
-	s4hana: S4HANA_DELIVERABLES,
+	tprm: [...TPRM_DELIVERABLES, TPRM_PLANNING.WBS, TPRM_PLANNING.CATALOG],
+	diligence: [...DILIGENCE_DELIVERABLES, DILIGENCE_PLANNING.WBS, DILIGENCE_PLANNING.CATALOG],
+	enterprise: [...ENTERPRISE_DELIVERABLES, ENTERPRISE_PLANNING.WBS, ENTERPRISE_PLANNING.CATALOG],
+	revenue: [...REVENUE_DELIVERABLES, REVENUE_PLANNING.WBS, REVENUE_PLANNING.CATALOG],
+	servicenow: [...SERVICENOW_DELIVERABLES, SERVICENOW_PLANNING.WBS, SERVICENOW_PLANNING.CATALOG],
+	ordersync: [...ORDERSYNC_DELIVERABLES, ORDERSYNC_PLANNING.WBS, ORDERSYNC_PLANNING.CATALOG],
+	s4hana: [...S4HANA_DELIVERABLES, S4HANA_PLANNING.WBS, S4HANA_PLANNING.CATALOG],
 }
 
 // The reader maps a manifest entry to a body by index. A scenario that falls out

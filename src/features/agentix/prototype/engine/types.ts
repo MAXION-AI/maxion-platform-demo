@@ -36,6 +36,10 @@ export type WaitReason =
 	| { kind: "window"; until: number }
 	| { kind: "permission"; system: string }
 	| { kind: "release"; releaseId: string }
+	/* A write's outcome is unknown, or read back as not applied: only a person moves it on. */
+	| { kind: "effect"; effectId: string }
+	/* The scoped allowance is used up: no paid work until it changes. */
+	| { kind: "budget" }
 
 export type StepKind = "read" | "analyze" | "build" | "test" | "repair" | "decision" | "human" | "write" | "release" | "verify" | "notify" | "refresh"
 export type StepStatus = "pending" | "working" | "done" | "waiting" | "failed" | "skipped"
@@ -45,7 +49,22 @@ export interface StepState { id: string; status: StepStatus; ticks: number; star
 export interface ObligationState { id: string; status: "pending" | "met" | "outstanding" | "not_met"; evidence?: string }
 
 /* A change the work made (or tried to make) in another system. `sends` counts dispatches, so a duplicate is visible. */
-export interface EffectState { id: string; system: string; operation: string; sends: number; status: "applied" | "unknown" | "verified" | "failed"; reference?: string }
+export interface EffectState {
+	id: string; system: string; operation: string; sends: number
+	status: "applied" | "unknown" | "verified" | "failed" | "not_applied"
+	reference?: string
+	/* A person asked for a read-back of the target. It only reads, and it never resends. */
+	investigating?: boolean
+	/* What that read-back found. A finding is the only thing that settles an unknown outcome. */
+	readBack?: { at: number; finding: "applied" | "not_applied"; detail: string }
+}
+
+/* One useful milestone whose output has been copied out, verified and committed. Everything before it survives a lost sandbox. */
+export interface Checkpoint { id: string; at: number; stepIndex: number; stepTitle: string; artifactId: string; version: number; hash: string; session: number }
+/* Output being copied out of the sandbox. It counts as saved only when it becomes a checkpoint. */
+export interface OutputSave { id: string; artifactId: string; version: number; stepIndex: number; phase: "preparing" | "transferring"; startedAt: number }
+/* A sandbox was lost: what survived, what must be redone, and the session the work resumes in. */
+export interface SandboxRecovery { at: number; lastConfirmed?: string; checkpoint?: string; inFlight: string[]; redo: string[]; fromSession: number; toSession: number; status: "resuming" | "resumed" }
 
 export type Flag = "needsApproval" | "approved" | "declined" | "writeTimeout" | "reconciled" | "missed" | "humanDone" | "released"
 
@@ -73,7 +92,13 @@ export interface WorkItem {
 	pausedFrom?: WorkStatus
 	/* A sub-stage of the current step: repairing a failed check, or reconciling an uncertain effect. */
 	stage?: "repairing" | "reconciling"
+	/* Paid work this item has used, in usage units. The name is historical: it holds units, not money. */
 	costCents: number
+	/* The provider session the sandbox work runs in; a lost sandbox moves it on, never the case. */
+	session?: number
+	saves?: OutputSave[]
+	checkpoints?: Checkpoint[]
+	recovery?: SandboxRecovery
 	humanReference?: string
 	flags: Partial<Record<Flag, boolean>>
 	notes: string[]
@@ -95,6 +120,9 @@ export interface ArtifactVersion {
 	checks: CheckState[]
 	source: "build" | "repair" | "amendment" | "decision"
 	instructionId?: string
+	/* When this version's bytes were confirmed in saved storage, and the hash they were verified against. */
+	savedAt?: number
+	hash?: string
 }
 
 export interface Artifact {
@@ -105,12 +133,12 @@ export interface Artifact {
 	title: string
 	workItemId: string
 	versions: ArtifactVersion[]
-	/* The version live in the (simulated) production target, if any. */
+	/* The version live in the (simulated) production target, or, for a generated app, its published file version. */
 	productionVersion?: number
 	dependsOn: string[]
 }
 
-export type ReleaseStatus = "preparing" | "awaiting_approval" | "held" | "blocked" | "releasing" | "unknown" | "applied" | "verified" | "stopped" | "superseded" | "declined"
+export type ReleaseStatus = "preparing" | "awaiting_approval" | "held" | "blocked" | "releasing" | "unknown" | "not_applied" | "applied" | "verified" | "stopped" | "superseded" | "declined"
 
 export interface Release {
 	id: string
@@ -147,6 +175,56 @@ export interface Decision {
 	resolvedAt?: number
 	/* What the decision is bound to, so a changed object can't inherit it. */
 	binding: string
+	/* Set when the exact content changed while this waited: the approval no longer applies, and says so. */
+	changed?: DecisionChange
+	/* Why this request is a revision of an earlier one, when it has no artifact version to say so. */
+	revision?: { number: number; reason: string }
+}
+
+export interface DecisionChange {
+	from: string
+	to: string
+	at: number
+	reason: string
+	/* The artifact whose later versions are the current one, when there is an artifact. */
+	artifactId?: string
+	/* Someone tried to approve the old version; it was refused. */
+	refused?: { at: number; option: string }
+	/* The owner has seen the change and moved on to the current version. */
+	reviewedAt?: number
+}
+
+/* ---- Published files ------------------------------------------------------ */
+export type FileTarget = "download" | "onedrive" | "sharepoint"
+/*
+ * One artifact version published as one file to one place. The id is its durable identity: asking
+ * again never creates a second file, and only a confirmed save reads as saved.
+ *   preparing  building the file and verifying its bytes
+ *   saving     transferring it to the destination
+ *   saved      confirmed in the destination
+ *   failed     nothing was written; retrySafe says whether retrying is safe
+ *   uncertain  it timed out mid-transfer, so the file may exist; only a check moves it on
+ *   checking   reading the destination back
+ */
+export interface FilePublication {
+	id: string
+	engagementId: string
+	artifactId: string
+	version: number
+	target: FileTarget
+	connectionId?: string
+	fileName: string
+	bytes: number
+	hash: string
+	location: string
+	status: "preparing" | "saving" | "saved" | "failed" | "uncertain" | "checking"
+	attempts: number
+	requestedAt: number
+	savedAt?: number
+	failure?: string
+	retrySafe?: boolean
+	/* How many times a download was taken; each is its own activity line. */
+	downloads?: number
 }
 
 export type ObjectRef = { kind: "work"; id: string } | { kind: "artifact"; id: string; version?: number } | { kind: "release"; id: string } | { kind: "decision"; id: string }
@@ -248,7 +326,11 @@ export interface Engagement {
 	holdNotifications: boolean
 	nextOccurrence: string
 	notes: string[]
+	/* The scoped allowance for paid work, in usage units. Absent means the standard allowance. */
+	budget?: EngagementBudget
 }
+
+export interface EngagementBudget { allowance: number; requestedAt?: number }
 
 export type View = "floor" | "work" | "results" | "activity"
 export interface Nav {
@@ -272,17 +354,22 @@ export interface AgentixState {
 	artifacts: Artifact[]
 	releases: Release[]
 	decisions: Decision[]
+	/* Published file versions. Absent in a state saved before files existed. */
+	publications?: FilePublication[]
 	events: ActivityEvent[]
 	messages: Message[]
 	drafts: Record<string, string>
 	nav: Nav
 	ui: { conversationPinned: boolean }
-	/* Demo-only switches: a failure armed for the next release, and the scripted scenario a brief is matched to. */
 	/*
-	 * Demo-only switches: a failure armed for the next release, the scripted scenario a brief is matched to,
+	 * Demo-only switches: failures armed for what happens next, the scripted scenario a brief is matched to,
 	 * and, in the customer demo, quiet intake (the presenter adds work) and packages that must come from their Discovery first.
+	 *   ackLoss       the next release's acknowledgement is lost
+	 *   writeLoss     the next record write's acknowledgement is lost
+	 *   readBackMiss  the next read-back finds nothing there
+	 *   saveFailure   the next file save is refused, or times out mid-transfer
 	 */
-	demo: { ackLoss: boolean; scenario: WorkflowId | ""; quiet?: boolean; gated?: string[] }
+	demo: { ackLoss: boolean; scenario: WorkflowId | ""; quiet?: boolean; gated?: string[]; writeLoss?: boolean; readBackMiss?: boolean; saveFailure?: "refused" | "timeout" }
 }
 
 export const scopeKey = (engagementId: string, scope: ScopeRef) => scope.kind === "engagement" ? `eng:${engagementId}` : `${scope.kind}:${scope.id}`

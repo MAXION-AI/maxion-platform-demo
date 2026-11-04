@@ -4,7 +4,7 @@ import { SCENARIOS, SCENARIO_ORDER, WORKFLOW_IDS } from "./scenarios"
 import { demoInitialState, initialState, seedEngagement } from "./seed"
 import { demoScript } from "@/features/demo/scripts"
 import { demoSession, moduleStorage, storageKey } from "@/features/demo/session"
-import type { AgentixState, Engagement, Message, WorkItem, WorkStatus } from "./types"
+import type { AgentixState, Engagement, FilePublication, Message, WorkItem, WorkStatus } from "./types"
 
 /*
  * Saved demo state. Version 4 lives under its own key. A browser that still
@@ -20,6 +20,7 @@ const STATUSES: WorkStatus[] = ["scheduled", "queued", "working", "waiting", "ve
 const str = (value: unknown, max = 4000) => typeof value === "string" && value.length <= max
 const bool = (value: unknown) => typeof value === "boolean"
 const record = (value: unknown): value is Record<string, unknown> => !!value && typeof value === "object" && !Array.isArray(value)
+const count = (value: unknown) => typeof value === "number" && Number.isFinite(value) && value >= 0
 
 /* ---- Version 4 ------------------------------------------------------------ */
 function validEngagement(id: string, value: unknown): value is Engagement {
@@ -34,6 +35,7 @@ function validEngagement(id: string, value: unknown): value is Engagement {
 		&& ["ready", "expired"].includes(e.connection) && ["ready", "lost"].includes(e.permission) && ["off", "weekdays", "daily"].includes(e.cycles)
 		&& str(e.mapping, 80) && Number.isFinite(Date.parse(e.nextOccurrence)) && Array.isArray(e.notes) && e.notes.every(n => str(n))
 		&& (e.proposal === undefined || (record(e.proposal) && ["discovery", "prompt"].includes(e.proposal.origin) && record(e.proposal.answers) && str(e.proposal.brief, 2000)))
+		&& (e.budget === undefined || (record(e.budget) && count(e.budget.allowance)))
 }
 
 function validItem(state: AgentixState, value: unknown): value is WorkItem {
@@ -46,6 +48,16 @@ function validItem(state: AgentixState, value: unknown): value is WorkItem {
 		&& Array.isArray(w.obligations) && Array.isArray(w.effects) && w.effects.every(effect => Number.isInteger(effect.sends) && effect.sends >= 0 && effect.sends <= 1)
 		&& Array.isArray(w.dependsOn) && Array.isArray(w.artifactIds) && Array.isArray(w.releaseIds) && Array.isArray(w.notes) && w.notes.every(n => str(n))
 		&& Number.isFinite(w.started) && Number.isFinite(w.costCents) && w.costCents >= 0 && bool(w.held) && ["Normal", "High"].includes(w.priority) && record(w.flags)
+		// A state saved before these existed has none of them; one that has them must have the right shape.
+		&& (w.session === undefined || Number.isInteger(w.session)) && (w.saves === undefined || Array.isArray(w.saves)) && (w.checkpoints === undefined || Array.isArray(w.checkpoints)) && (w.recovery === undefined || record(w.recovery))
+}
+
+const FILE_TARGETS = ["download", "onedrive", "sharepoint"]
+const FILE_STATUSES = ["preparing", "saving", "saved", "failed", "uncertain", "checking"]
+function validPublication(state: AgentixState, value: unknown) {
+	if (!record(value)) return false
+	const p = value as unknown as FilePublication
+	return str(p.id, 300) && Object.hasOwn(state.engagements, p.engagementId) && str(p.artifactId, 200) && Number.isInteger(p.version) && FILE_TARGETS.includes(p.target) && FILE_STATUSES.includes(p.status) && str(p.fileName, 200) && str(p.location, 400) && count(p.bytes) && count(p.attempts)
 }
 
 export function validState(raw: unknown): raw is AgentixState {
@@ -62,6 +74,7 @@ export function validState(raw: unknown): raw is AgentixState {
 	if (!s.decisions.every(d => record(d) && Object.hasOwn(s.engagements, d.engagementId) && ["open", "resolved", "withdrawn"].includes(d.status))) return false
 	if (!s.messages.every(m => record(m) && Object.hasOwn(s.engagements, m.engagementId) && ["owner", "agent"].includes(m.role) && str(m.text) && record(m.scope))) return false
 	if (!s.events.every(e => record(e) && str(e.text) && Number.isFinite(e.at))) return false
+	if (s.publications !== undefined && (!Array.isArray(s.publications) || s.publications.length > LIMITS.publications || !s.publications.every(p => validPublication(s, p)))) return false
 	if (!Object.values(s.drafts).every(value => str(value, 2000))) return false
 	return true
 }
@@ -74,7 +87,7 @@ function tidy(state: AgentixState): AgentixState {
 	if (nav.resultId && !state.artifacts.some(item => item.id === nav.resultId) && !state.work.some(item => item.id === nav.resultId)) nav.resultId = undefined
 	if (!["floor", "work", "results", "activity"].includes(nav.view)) nav.view = "floor"
 	const gated = Array.isArray(state.demo.gated) ? state.demo.gated.filter(id => typeof id === "string" && id.length <= 40) : undefined
-	return { ...state, nav, demo: { ackLoss: !!state.demo.ackLoss, scenario: WORKFLOW_IDS.includes(state.demo.scenario as WorkflowId) ? state.demo.scenario : "", ...state.demo.quiet ? { quiet: true } : {}, ...gated?.length ? { gated } : {} } }
+	return { ...state, nav, demo: { ackLoss: !!state.demo.ackLoss, scenario: WORKFLOW_IDS.includes(state.demo.scenario as WorkflowId) ? state.demo.scenario : "", ...state.demo.quiet ? { quiet: true } : {}, ...gated?.length ? { gated } : {}, ...state.demo.writeLoss ? { writeLoss: true } : {}, ...state.demo.readBackMiss ? { readBackMiss: true } : {}, ...state.demo.saveFailure === "refused" || state.demo.saveFailure === "timeout" ? { saveFailure: state.demo.saveFailure } : {} } }
 }
 
 /* ---- Version 3, read-only ------------------------------------------------- */

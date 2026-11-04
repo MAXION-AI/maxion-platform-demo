@@ -5,7 +5,6 @@ export type MaxionModuleId =
 	| "plan"
 	| "execute"
 	| "agentix"
-	| "consult"
 	| "settings"
 	| "integrations"
 	| "knowledge"
@@ -22,6 +21,9 @@ export type PortalProject = {
 	updated: string
 	plan?: string
 	discovery?: string
+	// The Agentix engagements that belong to this project, by name and by workflow.
+	agentix?: string
+	agentixWorkflows?: readonly string[]
 	members: Array<{ initials: string; name: string }>
 }
 
@@ -42,6 +44,8 @@ export const INITIAL_PROJECTS: PortalProject[] = [
 		updated: "12 minutes ago",
 		plan: "ERP modernization delivery plan",
 		discovery: "Third-party onboarding control redesign",
+		agentix: "S/4HANA conversion",
+		agentixWorkflows: ["conversion", "orders"],
 		members: [
 			{ initials: "RA", name: "Root Admin" },
 			{ initials: "AR", name: "Andre Reyes" },
@@ -57,6 +61,8 @@ export const INITIAL_PROJECTS: PortalProject[] = [
 		updated: "Yesterday",
 		plan: "NorthBridge 100-day plan",
 		discovery: "NorthBridge acquisition diligence",
+		agentix: "AP invoice exceptions",
+		agentixWorkflows: ["payables"],
 		members: [
 			{ initials: "EP", name: "Elena Park" },
 			{ initials: "MR", name: "Marcus Reed" },
@@ -70,6 +76,8 @@ export const INITIAL_PROJECTS: PortalProject[] = [
 		role: "Viewer",
 		updated: "4 days ago",
 		plan: "Customer data foundation",
+		agentix: "Revenue reconciliation",
+		agentixWorkflows: ["invoice"],
 		members: [
 			{ initials: "JT", name: "Jordan Taylor" },
 			{ initials: "KM", name: "Kai Morgan" },

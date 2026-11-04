@@ -16,6 +16,13 @@ Values live in code in `src/design/tokens.css`; the primitive layer in
 
 ## Type
 
+**Replaced on 2026-10-30 by the owner's choice.** The demo no longer follows the ElevenLabs
+type below. It matches a screenshot of Claude's own message text, which pixel comparison
+identified as Apple's San Francisco: 15/21 body, 14/20 metadata, 13/18 chips, 14 buttons, 17/24
+section headings, medium lead-ins, no added tracking and `#191919` ink. `src/design/tokens.css` holds the
+values. San Francisco can't be bundled, so Macs get it from the system and other computers
+get the self-hosted Inter. The table is kept as the record of what was measured.
+
 | Role | Size / line | Weight | Tracking | Color |
 | --- | --- | --- | --- | --- |
 | Page title | 22 / 28 | 600 | -0.025em | ink |

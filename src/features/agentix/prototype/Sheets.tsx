@@ -3,9 +3,9 @@ import { ClockCountdown, Flask, Info, Lightning, PlugsConnected, Scroll, ShieldC
 import { Button as DsButton, Mark, SegmentedTabs, TextButton } from "@/design/primitives"
 import { useState, type ReactNode } from "react"
 import type { WorkflowId } from "./initiatives"
-import { releaseWindowFor } from "./engine/engine"
+import { budgetExhausted, pendingRequest, releaseWindowFor, sandboxCase, spendOf } from "./engine/engine"
 import { SCENARIOS, packageFor, scheduleLabel } from "./engine/scenarios"
-import { boundaryRules, describeClock, policyNote, shortTime, teamOf, teamPresence } from "./engine/selectors"
+import { boundaryRules, describeClock, policyNote, shortTime, teamOf, teamPresence, units } from "./engine/selectors"
 import type { AgentixState } from "./engine/types"
 import { Status } from "./OperationsViews"
 
@@ -115,7 +115,7 @@ export function DetailsSheet({ state, engagementId, section, titleId, onSection,
 								)
 							})}
 						</ul>
-						<p className="aop-sheet-note">Demo connections. Credentials never reach the agents; changes go through qualified operations and the release adapter.</p>
+						<p className="aop-sheet-note">Demo connections. Credentials never reach the agents; changes go through qualified operations and the release adapter. Generated dashboards and apps publish only as versioned files.</p>
 					</section>
 				) : null}
 				{section === "rules" ? (
@@ -143,9 +143,11 @@ export function DetailsSheet({ state, engagementId, section, titleId, onSection,
  * The presenter's controls, kept apart from the product and labelled as such.
  * Nothing here is a customer action.
  */
-export function DemoControls({ state, titleId, focusId, onClose, onTick, onSkip, onWindow, onSchedule, onIncoming, onExpire, onLosePermission, onAckLoss, onReset, onRestartCustomerDemo, demoName }: {
+export function DemoControls({ state, titleId, focusId, onClose, onTick, onSkip, onWindow, onSchedule, onIncoming, onExpire, onLosePermission, onAckLoss, onChangeRequest, onWriteLoss, onReadBackMiss, onSandboxLoss, onExhaust, onSaveFailure, onReset, onRestartCustomerDemo, demoName }: {
 	state: AgentixState; titleId: string; focusId?: string; onClose: () => void; onTick: () => void; onSkip: () => void; onWindow: () => void
-	onSchedule: (id: string) => void; onIncoming: (id: string) => void; onExpire: (id: string) => void; onLosePermission: (id: string) => void; onAckLoss: () => void; onReset: () => void
+	onSchedule: (id: string) => void; onIncoming: (id: string) => void; onExpire: (id: string) => void; onLosePermission: (id: string) => void; onAckLoss: () => void
+	onChangeRequest: (id: string) => void; onWriteLoss: () => void; onReadBackMiss: () => void; onSandboxLoss: (id: string) => void; onExhaust: (id: string) => void; onSaveFailure: (failure: "refused" | "timeout") => void
+	onReset: () => void
 	/* In the customer demo a reset restarts the whole story, Discovery included, instead of Agentix alone. */
 	onRestartCustomerDemo?: (start: "discovery" | "package") => void
 	/* The running demo's own name: three demos share this sheet, so it must never name another one. */
@@ -159,6 +161,9 @@ export function DemoControls({ state, titleId, focusId, onClose, onTick, onSkip,
 	const setTarget = setChosen
 	const engagement = state.engagements[target] as (typeof state.engagements)[string] | undefined
 	const held = state.releases.some(release => release.status === "held" && release.holdUntil && release.holdUntil > state.clock)
+	const pending = engagement ? pendingRequest(state, engagement.id) : undefined
+	const sandbox = engagement ? sandboxCase(state, engagement.id) : undefined
+	const writes = !!engagement && Object.values(SCENARIOS[engagement.workflowId].templates).some(template => template.steps.some(step => step.kind === "write"))
 	const row = (icon: ReactNode, title: string, detail: string, action: ReactNode) => <li className="aop-list-row">{icon}<span className="aop-list-text"><strong>{title}</strong><small>{detail}</small></span>{action}</li>
 	return (
 		<>
@@ -187,6 +192,18 @@ export function DemoControls({ state, titleId, focusId, onClose, onTick, onSkip,
 						{row(<PlugsConnected size={16} />, "Expire the notification connection", "Notifications wait; record changes already made are kept.", <DsButton size="sm" disabled={engagement?.connection === "expired"} onClick={() => onExpire(target)}>Expire</DsButton>)}
 						{engagement && SCENARIOS[engagement.workflowId].delivery ? row(<ShieldCheck size={16} />, "Remove release permission", "The release adapter loses write access; releases block before applying.", <DsButton size="sm" disabled={engagement?.permission === "lost"} onClick={() => onLosePermission(target)}>Remove</DsButton>) : null}
 						{row(<Scroll size={16} />, "Lose the next release acknowledgement", state.demo.ackLoss ? "Armed: the next release's outcome will be unknown." : "The next release applies but its acknowledgement is lost.", <DsButton size="sm" disabled={state.demo.ackLoss} onClick={onAckLoss}>{state.demo.ackLoss ? "Armed" : "Arm"}</DsButton>)}
+					</ul>
+				</section>
+				<section className="aop-sheet-section" aria-label="What can go wrong">
+					<div className="aop-subhead"><h3>What can go wrong</h3></div>
+					<ul className="aop-list aop-demo-list">
+						{row(<Scroll size={16} />, "Change a pending request", pending ? `Changes ${pending.binding} while it waits. An approval of it stops applying.` : "Nothing in this engagement is waiting on a decision.", <DsButton size="sm" disabled={!pending} onClick={() => onChangeRequest(target)}>Change</DsButton>)}
+						{writes ? row(<Scroll size={16} />, "Lose the next record write's acknowledgement", state.demo.writeLoss ? "Armed: the next record write's outcome will be unknown." : "The next record write goes out but its acknowledgement is lost.", <DsButton size="sm" disabled={state.demo.writeLoss} onClick={onWriteLoss}>{state.demo.writeLoss ? "Armed" : "Arm"}</DsButton>) : null}
+						{row(<Scroll size={16} />, "Make the next read-back find nothing", state.demo.readBackMiss ? "Armed: the next read-back confirms nothing applied." : "The next read-back confirms the write did not apply.", <DsButton size="sm" disabled={state.demo.readBackMiss} onClick={onReadBackMiss}>{state.demo.readBackMiss ? "Armed" : "Arm"}</DsButton>)}
+						{row(<Flask size={16} />, "Lose the sandbox", sandbox ? `${sandbox.reference} loses its sandbox and resumes from its last checkpoint in a new session.` : "No work in this engagement is using a sandbox right now.", <DsButton size="sm" disabled={!sandbox} onClick={() => onSandboxLoss(target)}>Lose</DsButton>)}
+						{row(<ClockCountdown size={16} />, "Use up the allowance", engagement && budgetExhausted(state, engagement.id) ? "The allowance is used up. Paid work has stopped." : `No more paid work after the ${engagement ? units(spendOf(state, engagement.id)) : "units"} used so far. Reads and existing outputs stay available.`, <DsButton size="sm" disabled={!engagement || budgetExhausted(state, engagement.id)} onClick={() => onExhaust(target)}>Use up</DsButton>)}
+						{row(<Scroll size={16} />, "Refuse the next file save", state.demo.saveFailure === "refused" ? "Armed: the next save writes nothing, so it can be tried again." : "The destination refuses the next save before any bytes are written.", <DsButton size="sm" disabled={state.demo.saveFailure === "refused"} onClick={() => onSaveFailure("refused")}>{state.demo.saveFailure === "refused" ? "Armed" : "Arm"}</DsButton>)}
+						{row(<Scroll size={16} />, "Time out the next file save", state.demo.saveFailure === "timeout" ? "Armed: the next save's outcome will be unknown." : "The next save times out mid-transfer, so retrying isn't safe until the destination is checked.", <DsButton size="sm" disabled={state.demo.saveFailure === "timeout"} onClick={() => onSaveFailure("timeout")}>{state.demo.saveFailure === "timeout" ? "Armed" : "Arm"}</DsButton>)}
 					</ul>
 				</section>
 				<section className="aop-sheet-section" aria-label="Scenarios">

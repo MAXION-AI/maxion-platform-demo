@@ -229,10 +229,10 @@ test("lands resumed needs-input discoveries on the waiting decision", async ({ p
 		.toBe(true)
 })
 
-test("keeps manifest edits on the record and clears the handoff blocker in place", async ({ page }) => {
+test("a manifest edit makes a new package version, and the charter blocker clears in place", async ({ page }) => {
 	await page.goto("/discovery-prototype")
 	await expect(page.getByRole("heading", { name: "Continue where MAX left off." })).toBeVisible()
-	// A finished run whose charter still waits for the owner.
+	// A finished, approved run whose charter still waits for the owner.
 	await page.evaluate(() => {
 		const key = "maxion.prototype.discovery-records.v1"
 		const records = JSON.parse(localStorage.getItem(key) ?? "[]")
@@ -243,40 +243,45 @@ test("keeps manifest edits on the record and clears the handoff blocker in place
 	await page.getByRole("button", { name: /Resume Charter gate run/ }).click()
 	await page.getByRole("button", { name: "Package", exact: true }).click()
 	const list = page.getByRole("navigation", { name: "Deliverable list" })
-	await expect(list.getByRole("button")).toHaveCount(9)
+	await expect(list.getByRole("button")).toHaveCount(11)
 
 	// Switching outputs off changes the record, and a required one says what it costs.
 	await page.getByRole("button", { name: "Manage package" }).click()
 	const sheet = page.getByRole("dialog", { name: "Deliverable manifest" })
+	await sheet.getByRole("switch", { name: /Implementation roadmap/ }).click()
 	await sheet.getByRole("switch", { name: /Technical assessment/ }).click()
-	await sheet.getByRole("switch", { name: /Executive decision brief/ }).click()
-	await expect(sheet.getByText("Executive decision brief is a required output")).toBeVisible()
-	await expect(sheet.getByText("Adjusted by you · 7 of 9 included")).toBeVisible()
+	await expect(sheet.getByText("Technical assessment is a required output")).toBeVisible()
+	await expect(sheet.getByText("Adjusted by you · 9 of 11 included")).toBeVisible()
 	await sheet.getByRole("button", { name: "Done" }).click()
 	await expect(sheet).toBeHidden()
-	await expect(list.getByRole("button")).toHaveCount(7)
+	await expect(list.getByRole("button")).toHaveCount(9)
 	await page.getByRole("button", { name: "Manage package" }).click()
-	await expect(sheet.getByText("Adjusted by you · 7 of 9 included")).toBeVisible()
+	await expect(sheet.getByText("Adjusted by you · 9 of 11 included")).toBeVisible()
 	await expect(sheet.getByRole("switch", { name: /Technical assessment/ })).not.toBeChecked()
 	await page.keyboard.press("Escape")
 	await expect(sheet).toBeHidden()
 
-	// While the charter waits, the header's handoff is not the page's filled action.
+	// The change made a new version, so the earlier approval no longer opens the handoff.
 	const headerContinue = page.locator(".workspace-header").getByRole("button", { name: "Continue to Agentix" })
-	await expect(headerContinue).not.toHaveClass(/ds-button--primary/)
-	await headerContinue.click()
-	const handoff = page.getByRole("dialog", { name: "Continue to Agentix" })
-	await expect(handoff.locator(".handoff-row.is-list li")).toHaveCount(7)
-	await expect(handoff.getByText(/Executive decision brief removed by you/)).toBeVisible()
-	await expect(handoff.getByRole("button", { name: "Continue to Agentix" })).toBeDisabled()
+	await expect(headerContinue).toBeDisabled()
+	await page.locator(".package-actions").getByRole("button", { name: "Approve package v2" }).click()
+	const approval = page.getByRole("dialog", { name: "Approve package v2" })
+	await expect(approval.locator(".handoff-row.is-list li")).toHaveCount(9)
+	await expect(approval.getByRole("button", { name: "Approve package v2" })).toBeDisabled()
 
-	// The blocker carries its own fix, and approving returns to the handoff.
-	await handoff.getByRole("button", { name: "Approve charter" }).click()
+	// The blocker carries its own fix, and approving returns to the review.
+	await approval.getByRole("button", { name: "Approve charter" }).click()
 	const charter = page.getByRole("dialog", { name: "Approve the project charter" })
 	await charter.getByRole("textbox", { name: "Approval reason" }).fill("Scope and owners match the committee decision.")
 	await charter.getByRole("button", { name: "Approve charter" }).click()
 	await expect(charter).toBeHidden()
+	await approval.getByRole("button", { name: "Approve package v2" }).click()
+	await expect(approval).toBeHidden()
+	await expect(headerContinue).toHaveClass(/ds-button--primary/)
+	await headerContinue.click()
+	const handoff = page.getByRole("dialog", { name: "Continue to Agentix" })
+	await expect(handoff.locator(".handoff-row.is-list li")).toHaveCount(9)
+	await expect(handoff.getByText(/Technical assessment removed by you/)).toBeVisible()
 	await expect(handoff.getByRole("button", { name: "Continue to Agentix" })).toBeEnabled()
 	await expect(page.getByRole("textbox", { name: "Handoff note (optional)" })).toBeFocused()
-	await expect(headerContinue).toHaveClass(/ds-button--primary/)
 })

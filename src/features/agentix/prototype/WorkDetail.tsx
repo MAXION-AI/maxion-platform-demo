@@ -3,9 +3,10 @@ import { Bell, BellSlash, ChatCircleText, CheckCircle, Circle, FlagBanner, Minus
 import { Button as DsButton, Mark } from "@/design/primitives"
 import { ShimmerText } from "@/components/motion/MotionKit"
 import { useEffect, useRef, type ReactNode } from "react"
-import { artifactBy, artifactSpec, isTerminal, itemBy, latest, releaseBy, releaseWindowFor, scenarioOf, templateOf, type ReleaseAction, type WorkAction } from "./engine/engine"
-import { boundaryRules, itemSentence, memberName, releaseSentence, releaseStatusLabel, shortTime, statusOf } from "./engine/selectors"
+import { artifactBy, artifactSpec, decisionBy, isTerminal, itemBy, latest, publishesFiles, releaseBy, releaseWindowFor, scenarioOf, templateOf, type ReleaseAction, type WorkAction } from "./engine/engine"
+import { boundaryRules, changedRequests, custodyOf, itemSentence, memberName, releaseSentence, releaseView, shortTime, statusOf } from "./engine/selectors"
 import type { AgentixState, Artifact, Tone, WorkItem } from "./engine/types"
+import { BudgetBlock, ChangedRequest, EffectBlock, SavedFiles, SavingState, spendLabel } from "./CaseStates"
 import { DecisionCard, FailedStep, HumanFulfillment, ReleaseCard } from "./Decisions"
 import { Status, WorkStatus } from "./OperationsViews"
 import { MappingPreview } from "./ResultPreviews"
@@ -24,6 +25,11 @@ export type DetailCallbacks = {
 	onOpenResult: (artifactId: string) => void
 	onOpenWork: (id: string) => void
 	onMessage: () => void
+	/* A changed request: the owner moves on to its current version. */
+	onReviewChange: (decisionId: string) => void
+	/* Reads the target back for an unknown outcome. It never resends. */
+	onInvestigate: (effectId: string) => void
+	onBudget: (action: "request-budget" | "grant-budget") => void
 }
 
 /*
@@ -41,8 +47,14 @@ export function WorkDetail({ state, workId, callbacks }: { state: AgentixState; 
 	const engagement = state.engagements[item.engagementId]
 	const status = statusOf(state, item)
 	const live = item.status === "working" || item.status === "verifying"
-	const decision = item.wait?.kind === "decision" ? item.wait.decisionId : state.decisions.find(entry => entry.workItemId === item.id && entry.status === "open")?.id
+	// Only a decision still open can be answered; one that changed under you has its own card below.
+	const waitingOn = item.wait?.kind === "decision" ? decisionBy(state, item.wait.decisionId) : undefined
+	const decision = waitingOn?.status === "open" ? waitingOn.id : state.decisions.find(entry => entry.workItemId === item.id && entry.status === "open")?.id
+	const changes = isTerminal(item) ? [] : changedRequests(state, item.id)
 	const release = item.releaseIds.map(id => releaseBy(state, id)).filter(entry => entry && entry.status !== "superseded").at(-1)
+	// What's in doubt, or read back as not applied and not yet sent again. A later attempt has its own record.
+	const uncertain = isTerminal(item) ? [] : item.effects.filter(effect => effect.status === "unknown" || (effect.status === "not_applied" && !effect.id.includes(":attempt-") && state.releases.find(entry => entry.effectId === effect.id)?.status !== "superseded"))
+	const settled = item.effects.filter(effect => effect.readBack?.finding === "applied")
 	const produced = item.artifactIds.map(id => artifactBy(state, id)).filter((entry): entry is NonNullable<typeof entry> => !!entry)
 	const dependencies = item.dependsOn.map(dependency => ({ dependency, other: itemBy(state, dependency.id) })).filter(entry => entry.other)
 	const lead = template.steps.find(step => step.owner !== "owner")?.owner ?? "coordinator"
@@ -63,6 +75,7 @@ export function WorkDetail({ state, workId, callbacks }: { state: AgentixState; 
 					{item.priority === "High" && !isTerminal(item) ? <li className="aop-pill is-strong">High priority</li> : null}
 					{item.held && !isTerminal(item) ? <li><Status label="Notification held" tone="attention" icon={<BellSlash size={12} weight="bold" />} /></li> : null}
 					<li className="aop-pill">Deployment v{engagement.version}</li>
+					<li className="aop-pill">{spendLabel(item)}</li>
 				</ul>
 			</header>
 
@@ -73,6 +86,9 @@ export function WorkDetail({ state, workId, callbacks }: { state: AgentixState; 
 				</p>
 			) : null}
 
+			{changes.map(entry => <ChangedRequest key={entry.id} state={state} decisionId={entry.id} onDecide={option => callbacks.onDecide(entry.id, option)} onReview={() => callbacks.onReviewChange(entry.id)} />)}
+			{uncertain.map(effect => <EffectBlock key={effect.id} state={state} item={item} effect={effect} onInvestigate={() => callbacks.onInvestigate(effect.id)} onRequestRelease={() => callbacks.onWork("request-release")} onResend={() => callbacks.onWork("resend-write")} />)}
+			{item.wait?.kind === "budget" ? <BudgetBlock state={state} engagementId={item.engagementId} onRequest={() => callbacks.onBudget("request-budget")} onGrant={() => callbacks.onBudget("grant-budget")} /> : null}
 			{decision && release?.decisionId !== decision ? <DecisionCard state={state} decisionId={decision} onDecide={option => callbacks.onDecide(decision, option)} context={mapping ? <div className="aop-decision-context"><MappingPreview state={state} artifact={mapping} version={latest(mapping)} compact /></div> : undefined} /> : null}
 			{item.status === "waiting" && item.wait?.kind === "human" ? <HumanFulfillment reference={item.reference} onAttach={callbacks.onFulfill} /> : null}
 			{item.status === "failed" ? <FailedStep state={state} workId={item.id} onRetry={() => callbacks.onWork("retry")} onMessage={callbacks.onMessage} /> : null}
@@ -88,11 +104,16 @@ export function WorkDetail({ state, workId, callbacks }: { state: AgentixState; 
 						{produced.map(artifact => {
 							const version = latest(artifact)
 							const passed = version.checks.filter(check => check.status === "passed").length
-							return <li key={artifact.id}><button type="button" onClick={() => callbacks.onOpenResult(artifact.id)}><span className="aop-list-text"><strong>{artifact.title} v{version.version}</strong><small>{version.summary}{version.checks.length ? ` · ${passed}/${version.checks.length} checks` : ""}</small></span><Status label={artifact.productionVersion === version.version ? "Live" : version.status === "tested" ? "Tested" : version.status === "failed" ? "Failed checks" : version.status === "testing" ? "Testing" : "Draft"} tone={artifact.productionVersion === version.version || version.status === "tested" ? "positive" : version.status === "failed" ? "danger" : version.status === "testing" ? "live" : "neutral"} /></button></li>
+							const custody = custodyOf(state, artifact, version)
+							const current = publishesFiles(state, artifact) ? "Published" : artifactSpec(state, artifact)?.release ? "Live" : "Current"
+							return <li key={artifact.id}><button type="button" onClick={() => callbacks.onOpenResult(artifact.id)}><span className="aop-list-text"><strong>{artifact.title} v{version.version}</strong><small>{version.summary}{version.checks.length ? ` · ${passed}/${version.checks.length} checks` : ""}{custody.state === "unsaved" ? "" : ` · ${custody.label}`}</small></span><Status label={artifact.productionVersion === version.version ? current : version.status === "tested" ? "Tested" : version.status === "failed" ? "Failed checks" : version.status === "testing" ? "Testing" : "Draft"} tone={artifact.productionVersion === version.version || version.status === "tested" ? "positive" : version.status === "failed" ? "danger" : version.status === "testing" ? "live" : "neutral"} /></button></li>
 						})}
 					</ul>
 				</section>
 			) : null}
+
+			<SavingState state={state} item={item} />
+			<SavedFiles state={state} item={item} />
 
 			<section className="aop-case-section" aria-label="Steps">
 				<div className="aop-subhead"><h3>Steps</h3><span>{item.steps.filter(step => step.status === "done").length} of {item.steps.filter(step => step.status !== "skipped").length} done</span></div>
@@ -110,7 +131,7 @@ export function WorkDetail({ state, workId, callbacks }: { state: AgentixState; 
 						// A current release step reads from its release; any other current step that waits reads from the item's wait.
 						const stepRelease = spec.kind === "release" && current && release?.artifactId === artifact?.id ? release : undefined
 						const waitingHere = current && !stepRelease && (step.status === "waiting" || ((item.status === "waiting" || item.status === "partial") && item.wait?.kind !== "dependency"))
-						const view: { label: string; tone: Tone } | undefined = stepRelease ? releaseStatusLabel[stepRelease.status] : waitingHere ? { label: status.label, tone: status.tone } : undefined
+						const view: { label: string; tone: Tone } | undefined = stepRelease ? releaseView(state, stepRelease) : waitingHere ? { label: status.label, tone: status.tone } : undefined
 						const tone = view?.tone ?? (step.status === "done" ? "positive" : step.status === "failed" ? "danger" : current ? "live" : "neutral")
 						const mark: ReactNode = step.status === "done" ? <CheckCircle size={16} weight="fill" /> : step.status === "failed" ? <XCircle size={16} weight="fill" /> : view && view.tone !== "live" ? <WarningCircle size={16} weight="fill" /> : current ? <span className="aop-live-dot" /> : isTerminal(item) ? <MinusCircle size={16} /> : <Circle size={16} />
 						const text = step.status === "done" ? spec.done : stepRelease ? releaseSentence(state, stepRelease) : waitingHere ? itemSentence(state, item) : current ? spec.doing : spec.owner === "owner" ? "Needs a person when reached" : spec.doing
@@ -133,7 +154,7 @@ export function WorkDetail({ state, workId, callbacks }: { state: AgentixState; 
 											{/* The milestone's lead is named in the header; a step names its owner only when it is someone else. */}
 											{spec.owner !== lead ? <span className="aop-chip is-outline">{spec.owner === "owner" ? <FlagBanner size={12} /> : <Mark seed={`${engagement.workflowId}:${spec.owner}`} size="xs" />}{memberName(state, item.engagementId, spec.owner)}</span> : null}
 											{spec.kind === "test" && artifact ? <span className="aop-chip is-outline">{artifact.title} v{latest(artifact).version}{repairs ? ` · repaired ${repairs}×` : ""}</span> : null}
-											{effect ? <span className="aop-chip is-outline"><Receipt size={12} />{effect.status === "unknown" ? "Outcome unknown · reconciling" : `${effect.sends} dispatch${effect.sends === 1 ? "" : "es"}${effect.reference ? ` · ${effect.reference}` : ""}${item.flags.reconciled ? " · reconciled, no duplicate" : ""}`}</span> : null}
+											{effect ? <span className="aop-chip is-outline"><Receipt size={12} />{effect.status === "unknown" ? (effect.investigating ? "Outcome unknown · reading back" : "Outcome unknown · needs a read-back") : effect.status === "not_applied" ? "Confirmed not applied" : `${effect.sends} dispatch${effect.sends === 1 ? "" : "es"}${effect.reference ? ` · ${effect.reference}` : ""}${item.flags.reconciled ? " · reconciled, no duplicate" : ""}`}</span> : null}
 											{spec.system ? <span className="aop-chip is-outline">{spec.system}</span> : null}
 										</p>
 									</div>
@@ -153,6 +174,7 @@ export function WorkDetail({ state, workId, callbacks }: { state: AgentixState; 
 						return <li key={obligation.id}><span className="aop-check-text"><span>{spec?.label ?? obligation.id}</span><small>{obligation.status === "met" ? obligation.evidence ?? spec?.evidence : `Evidence: ${spec?.evidence ?? "read-back"}`}</small></span><Status label={view.label} tone={view.tone} /></li>
 					})}
 				</ul>
+				{settled.map(effect => <p key={effect.id} className="aop-case-note"><CheckCircle size={14} weight="fill" />{effect.readBack!.detail} Applied once; no retry was sent.</p>)}
 				{item.status === "verified" ? <p className="aop-case-note"><CheckCircle size={14} weight="fill" />Verified for {item.reference} only. {scenarioOf(state, item.engagementId).team.find(member => member.accountable)?.name ?? "The agent"} stays deployed for the next piece of work.</p> : null}
 			</section>
 
@@ -173,10 +195,10 @@ export function WorkDetail({ state, workId, callbacks }: { state: AgentixState; 
 				<summary><span>Authority for this work</span><CaretRight size={14} /></summary>
 				<dl className="aop-rows is-stacked">
 					{boundaryRules(scenarioOf(state, item.engagementId).boundary).map(rule => <div key={rule.kind} className={`aop-boundary-row is-${rule.kind}`}><dt>{rule.label}</dt><dd>{rule.text}</dd></div>)}
-					{produced.map(artifact => { const spec = artifactSpec(state, artifact); return spec?.release ? <div key={artifact.id}><dt>{artifact.title} releases</dt><dd>{spec.release.policy ?? (engagement.answers.release === "window" ? `In the ${releaseWindowFor(engagement.workflowId).label} window under your policy.` : "Only after your approval, with target, checks and recovery limits.")}</dd></div> : null })}
+					{produced.map(artifact => { const spec = artifactSpec(state, artifact); return spec?.release ? <div key={artifact.id}><dt>{artifact.title} {publishesFiles(state, artifact) ? "publishing" : "releases"}</dt><dd>{spec.release.policy ?? (engagement.answers.release === "window" ? `In the ${releaseWindowFor(engagement.workflowId).label} window under your policy.` : "Only after your approval, with target, checks and recovery limits.")}</dd></div> : null })}
 					{item.notes.length ? <div><dt>Record</dt><dd>{item.notes.join(" ")}</dd></div> : null}
 				</dl>
-				<small className="aop-footnote">A passed isolated test is not a production result, and a provider's acceptance isn't delivery.</small>
+				<small className="aop-footnote">A passed isolated test is not a production result, a provider's acceptance isn't delivery, and a build isn't a deployment: generated dashboards and apps publish only as versioned files.</small>
 			</details>
 
 			<div className="aop-actions aop-case-actions">

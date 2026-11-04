@@ -2,10 +2,12 @@ import { ArrowLeft, CaretRight, MagnifyingGlass, PencilSimple } from "@phosphor-
 import { ArrowsLeftRight, ChartBar, CheckCircle, FileText, Receipt, TreeStructure } from "./glyphs"
 import { Button as DsButton, Mark } from "@/design/primitives"
 import { useEffect, useLayoutEffect, useRef, useState } from "react"
-import { artifactBy, itemBy, latest } from "./engine/engine"
-import { memberName, shortTime, statusOf } from "./engine/selectors"
+import { artifactBy, artifactSpec, itemBy, latest, publishesFiles } from "./engine/engine"
+import { custodyOf, memberName, shortTime, statusOf } from "./engine/selectors"
 import type { AgentixState, Artifact, ArtifactKind } from "./engine/types"
+import { SavedFiles } from "./CaseStates"
 import { Status } from "./OperationsViews"
+import { PublishFiles } from "./PublishFiles"
 import { DashboardPreview, DataLabel, MappingPreview, PipelinePreview, ReconciliationPreview, RunbookPreview, VersionHistory } from "./ResultPreviews"
 
 const ORDER: ArtifactKind[] = ["dashboard", "reconciliation", "pipeline", "mapping", "runbook"]
@@ -13,7 +15,7 @@ const ICON: Record<ArtifactKind, typeof ChartBar> = { dashboard: ChartBar, recon
 
 /* `auto` marks a choice made for the person (the first result opened beside the list): it is navigation, but
  * it never takes focus. `focusRequest` holds the result the person opened themselves until its heading takes focus. */
-export type ResultCallbacks = { onSelect: (id: string | undefined, options?: { auto?: boolean }) => void; onRequestChange: (artifactId: string) => void; onOpenWork: (id: string) => void; focusRequest: { current: string | null } }
+export type ResultCallbacks = { onSelect: (id: string | undefined, options?: { auto?: boolean }) => void; onRequestChange: (artifactId: string) => void; onOpenWork: (id: string) => void; focusRequest: { current: string | null }; update: (recipe: (state: AgentixState) => AgentixState) => void }
 
 /*
  * Results: what the engagement produced and what it verified. The list is the
@@ -59,11 +61,16 @@ export function ResultsView({ state, engagementId, resultId, callbacks }: { stat
 								const version = latest(artifact)
 								const Icon = ICON[artifact.kind]
 								const live = artifact.productionVersion
+								const files = publishesFiles(state, artifact)
+								// A generated dashboard ends as a published file, a release as a production change, and a document as the current one.
+								const place = files ? "published file" : artifactSpec(state, artifact)?.release ? "in production" : "current"
+								const custody = custodyOf(state, artifact, version)
+								const saving = custody.state === "preparing" || custody.state === "transferring" ? " · saving" : ""
 								return (
 									<li key={artifact.id}>
 										<button type="button" aria-current={selected === artifact.id ? "true" : undefined} onClick={() => callbacks.onSelect(artifact.id)}>
 											<span className="aop-result-icon" aria-hidden="true"><Icon size={18} /></span>
-											<span className="aop-list-text"><strong>{artifact.title}</strong><small>v{version.version}{live ? ` · live v${live}` : ""} · {version.status === "failed" ? "failed checks" : version.status === "testing" ? "testing" : version.status === "tested" ? "tested" : live === version.version ? "in production" : version.status}</small></span>
+											<span className="aop-list-text"><strong>{artifact.title}</strong><small>v{version.version}{live && live !== version.version ? ` · ${files ? "published" : "live"} v${live}` : ""} · {version.status === "failed" ? "failed checks" : version.status === "testing" ? "testing" : version.status === "tested" ? "tested" : live === version.version ? place : version.status}{saving}</small></span>
 										</button>
 									</li>
 								)
@@ -105,7 +112,7 @@ function useFocusOnOpen(id: string, request: { current: string | null }) {
 
 function ArtifactResult({ state, artifact, callbacks }: { state: AgentixState; artifact: Artifact; callbacks: ResultCallbacks }) {
 	const current = latest(artifact)
-	// Until you pick a version, the preview follows what's in production (or the latest while nothing is live).
+	// Until you pick a version, the preview follows what's released or published (or the latest while nothing is).
 	const [picked, setPicked] = useState<number | null>(null)
 	const shown = picked !== null && artifact.versions.some(entry => entry.version === picked) ? picked : artifact.productionVersion ?? current.version
 	const [compare, setCompare] = useState<number | null>(null)
@@ -123,7 +130,7 @@ function ArtifactResult({ state, artifact, callbacks }: { state: AgentixState; a
 				<div>
 					<p className="aop-case-kicker">{memberName(state, artifact.engagementId, current.author)} · {owner ? <span className="aop-mono">{owner.reference}</span> : null}</p>
 					<h2 id="aop-result-title" ref={heading} tabIndex={-1}>{artifact.title} <span className="aop-subtle">v{version.version}</span></h2>
-					<p className="aop-result-meta"><DataLabel state={state} artifact={artifact} version={version} />{artifact.productionVersion && artifact.productionVersion !== version.version ? <span>Production is on v{artifact.productionVersion}</span> : null}{current.version !== version.version ? <span>Latest is v{current.version}</span> : null}</p>
+					<p className="aop-result-meta"><DataLabel state={state} artifact={artifact} version={version} />{artifact.productionVersion && artifact.productionVersion !== version.version ? <span>{publishesFiles(state, artifact) ? `The published file is v${artifact.productionVersion}` : `Production is on v${artifact.productionVersion}`}</span> : null}{current.version !== version.version ? <span>Latest is v{current.version}</span> : null}</p>
 				</div>
 				<div className="aop-actions">
 					{changeable ? <DsButton onClick={() => callbacks.onRequestChange(artifact.id)}><PencilSimple size={14} />Request a change</DsButton> : null}
@@ -143,7 +150,8 @@ function ArtifactResult({ state, artifact, callbacks }: { state: AgentixState; a
 			<div className="aop-result-body">
 				{(() => { const Preview = PREVIEWS[artifact.kind]; return <Preview state={state} artifact={artifact} version={version} /> })()}
 			</div>
-			<VersionHistory state={state} artifact={artifact} selected={version.version} onSelect={value => { setPicked(value); setCompare(null) }} compareWith={compare} onCompare={setCompare} />
+			<PublishFiles state={state} artifact={artifact} version={version} update={callbacks.update} />
+<VersionHistory state={state} artifact={artifact} selected={version.version} onSelect={value => { setPicked(value); setCompare(null) }} compareWith={compare} onCompare={setCompare} />
 		</article>
 	)
 }
@@ -169,6 +177,7 @@ function OutcomeResult({ state, workId, callbacks }: { state: AgentixState; work
 			</ul>
 			{item.effects.length ? <p className="aop-receipts"><Receipt size={14} />{item.effects.map(effect => `${effect.system}: ${effect.sends} dispatch${effect.sends === 1 ? "" : "es"}${effect.reference ? ` (${effect.reference})` : ""}`).join(" · ")}{item.flags.reconciled ? " · uncertain outcome reconciled, no duplicate" : ""}</p> : null}
 			{item.humanReference ? <p className="aop-receipts"><Mark seed="owner" size="xs" />Owner confirmation {item.humanReference}</p> : null}
+			<SavedFiles state={state} item={item} />
 		</article>
 	)
 }

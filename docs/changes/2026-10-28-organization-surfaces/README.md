@@ -47,7 +47,7 @@ Staff identity and environment, tenants with lifecycle and seats, and per-tenant
 ## Deliberately not built
 
 - Staff customer-content access, impersonation, a generic settings editor, a SQL console, a deploy button and secret values (excluded by doc 21).
-- A Support-role view and a staff-access page in the admin panel; tenant bootstrap.
+- A Support-role view and a staff-access page in the admin panel; tenant bootstrap. (All three were added on 2026-10-30; see `docs/changes/2026-10-30-plan-gaps`.)
 - Guest accounts, directory sync, custom roles and bulk invitations (IAM-3 exclusions).
 - Context graphs (deferred by D-036).
 - Persistence: the organization state lives for the tab, like each customer demo; a reload starts from the seed.
