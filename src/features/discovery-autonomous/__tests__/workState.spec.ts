@@ -172,7 +172,10 @@ describe("web research follows the organization's setting, for every scenario", 
 		}
 		expect(gatherResearch(key, { mode: "off", domains: [] }, AT).sources).toEqual([])
 		expect(gatherResearch(key, { mode: "allowlist", domains: ["nothing-listed.invalid"] }, AT).sources).toEqual([])
-		expect(gatherResearch(key, { mode: "allowlist", domains: ["example.com"] }, AT).sources.every(source => new URL(source.url).hostname.endsWith("example.com"))).toBe(true)
+		const listed = (host: string) => host === "example.com" || host.endsWith(".example.com")
+		expect(gatherResearch(key, { mode: "allowlist", domains: ["example.com"] }, AT).sources.every(source => listed(new URL(source.url).hostname))).toBe(true)
+		// A lookalike that only ends in the listed name is not that domain.
+		expect(gatherResearch(key, { mode: "allowlist", domains: ["ample.com"] }, AT).sources).toEqual([])
 	})
 })
 

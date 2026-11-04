@@ -83,6 +83,15 @@
 	.adm-viewas > span { display: none; }
 	.adm-viewas > .org-select { max-width: 11rem; }
 }
+/* On phones a receipt's status sits beside its change, where an action would, and the
+ * operator, reason, ticket and revision wrap below it: five details don't fit one line. */
+@media (max-width: 700px) {
+	.ds-scope .adm-receipts .ds-table-row { display: flex; flex-wrap: wrap; align-items: center; }
+	.ds-scope .adm-receipts .ds-table-row > .ds-cell-primary { flex: 1 1 0; order: 0; }
+	.ds-scope .adm-receipts .ds-table-row > .ds-cell:last-child:not(.ds-cell-primary) { order: 1; min-width: max-content; overflow: visible; }
+	.ds-scope .adm-receipts .ds-table-row::after { content: ""; flex-basis: 100%; order: 1; }
+	.ds-scope .adm-receipts .ds-table-row > .ds-cell:not(.ds-cell-primary, :last-child) { order: 2; }
+}
 @media (max-width: 640px) {
 	.adm-commit-fields { grid-template-columns: minmax(0, 1fr); }
 	.adm-effective { max-width: none; text-align: left; }

@@ -43,7 +43,8 @@ for (const width of [375, 1440]) {
 			expect(bounds!.x).toBeGreaterThanOrEqual(0)
 			expect(bounds!.x + bounds!.width).toBeLessThanOrEqual(width)
 			expect(await card.evaluate(element => element.scrollWidth <= element.clientWidth + 1)).toBe(true)
-			if (width === 1440) expect(bounds!.height).toBeLessThan(180)
+			// The card's own content is 183px at the 15/21 type scale; one more wrapped line passes 200.
+			if (width === 1440) expect(bounds!.height).toBeLessThan(195)
 		}
 		await cards.filter({ hasText: "Revenue reconciliation" }).click()
 		await expect(page.getByRole("textbox", { name: /^Message Revenue coordinator/ })).toBeInViewport()

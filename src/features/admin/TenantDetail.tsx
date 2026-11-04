@@ -127,7 +127,7 @@ export function ReceiptLine({ receiptId }: { receiptId: string | null }) {
 
 export function ReceiptTable({ receipts, label }: { receipts: Receipt[]; label: string }) {
 	return (
-		<Table aria-label={label} columns={["Change", "Operator", "Reason", "Ticket", "Revision", "Status"]} template="minmax(0, 2.4fr) minmax(0, 1fr) minmax(0, 1.2fr) minmax(0, .9fr) minmax(0, .7fr) minmax(0, 1fr)">
+		<Table aria-label={label} className="adm-receipts" columns={["Change", "Operator", "Reason", "Ticket", "Revision", "Status"]} template="minmax(0, 2.4fr) minmax(0, 1fr) minmax(0, 1.2fr) minmax(0, .9fr) minmax(0, .7fr) minmax(0, 1fr)">
 			{receipts.length ? receipts.map((receipt) => (
 				<article key={receipt.id} className="ds-table-row adm-static-row" aria-label={`${receipt.control} · ${RECEIPT_LABEL[receipt.status]}`}>
 					<PrimaryCell title={receipt.control} meta={`${receipt.change} · ${receipt.at}`} />
