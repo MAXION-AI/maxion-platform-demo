@@ -36,7 +36,8 @@ import { useEffect, useMemo, useRef, useState, type CSSProperties, type FormEven
 import { useRiseIn } from "@/components/motion/MotionKit"
 import { Button, EmptyState, Mark, PageHeader, SearchInput } from "@/design/primitives"
 import type { AgentixAttention, AgentixIntent, AgentixPendingCase } from "@/features/agentix/prototype/AgentixInitiativesPage"
-import { listDiscoveryJumpRecords, type DiscoveryJump, type DiscoveryJumpRecord, type HandoffPacket } from "@/features/discovery-autonomous/DiscoveryAutonomousPrototypePage"
+import { useOrganization } from "@/features/organization/store"
+import { listDiscoveryJumpRecords, type DiscoveryApprovalItem, type DiscoveryJump, type DiscoveryJumpRecord, type HandoffPacket } from "@/features/discovery-autonomous/DiscoveryAutonomousPrototypePage"
 import { DELIVERABLES } from "@/features/discovery-autonomous/deliverables"
 
 import { ActionArt, ActivityAvatar, ProjectArt, type ActionArtKind, type ActivityTone } from "./HomeArt"
@@ -115,7 +116,7 @@ function useDialogFocus(panelRef: RefObject<HTMLElement | null>, open: boolean) 
 
 /* The live ElevenLabs app gives every page a 48px top bar with where you are and the global actions; the account
  * pages have the same one as Dashboard and Projects, and it carries their place ("Account › Settings"). */
-function PortalTopbar({ section, title, onCommand }: { section: string; title: string; onCommand?: () => void }) {
+export function PortalTopbar({ section, title, onCommand }: { section: string; title: string; onCommand?: () => void }) {
 	return (
 		<div className="ds-scope mxp-portal-top">
 			<header className="ds-topbar">
@@ -194,6 +195,7 @@ export function DashboardModule({
 	onCreateProject?: () => void
 }) {
 	const [historyOpen, setHistoryOpen] = useState(false)
+	const organizationName = useOrganization().name
 	const activeProjects = projects.filter((project) => project.status === "active")
 	const dateLabel = new Intl.DateTimeFormat("en-US", {
 		weekday: "long",
@@ -259,7 +261,7 @@ export function DashboardModule({
 	// Older entries stay folded away until asked for, so "View all" moves something real.
 	const history: DashboardActivity[] = [
 		{ module: "integrations" as const, glyph: "integrations", title: "SAP S/4HANA connection flagged for review", detail: "Existing access remains active · tenant admin notified", time: "3h", tone: "attention" },
-		{ module: "projects" as const, glyph: "projects", title: "Pricing transformation delivered and closed", detail: "Plan completed · evidence retained", time: "Yesterday", tone: "info" },
+		{ module: "projects" as const, glyph: "projects", title: "Pricing transformation delivered and closed", detail: "Agentix outcomes verified · evidence retained", time: "Yesterday", tone: "info" },
 		{ module: "integrations" as const, glyph: "integrations", title: "QuickBooks scope updated", detail: "Tenant admin · Company 934771", time: "Yesterday", tone: "info" },
 	]
 	const visibleActivities = historyOpen ? [...activities, ...history] : activities
@@ -268,7 +270,6 @@ export function DashboardModule({
 		{ label: "New project", art: "project", run: () => onCreateProject ? onCreateProject() : onNavigate("projects") },
 		{ label: "Start Discovery", art: "discovery", run: onStartDiscovery },
 		{ label: "Agentix", art: "agentix", run: () => onOpenAgentix({ type: "create" }) },
-		{ label: "Ask MAX", art: "consult", run: () => onNavigate("consult") },
 	]
 	const attentionCount = activities.filter((item) => item.tone === "attention").length
 
@@ -294,7 +295,7 @@ export function DashboardModule({
 					</button>
 
 					<section className="wh-hello">
-						<p className="wh-kicker">Enterprise workspace · {dateLabel}</p>
+						<p className="wh-kicker">{organizationName} · {dateLabel}</p>
 						<h1>Good afternoon, Root Admin</h1>
 					</section>
 
@@ -378,6 +379,7 @@ export function ProjectsModule({
 	onOpenDiscoveryRecord,
 	onCommand,
 	createSignal = 0,
+	restriction,
 }: {
 	projects: PortalProject[]
 	onProjectsChange: (projects: PortalProject[]) => void
@@ -387,6 +389,8 @@ export function ProjectsModule({
 	onCommand?: () => void
 	// Bumped by the Dashboard's "New project" action: open the create dialog on arrival.
 	createSignal?: number
+	// Why this person can't create or archive projects here. Controls stay visible and say so.
+	restriction?: string
 }) {
 	const [query, setQuery] = useState("")
 	const [sort, setSort] = useState<"updated" | "name">("updated")
@@ -511,7 +515,7 @@ export function ProjectsModule({
 							<p className="ds-page-desc">{`${activeCount} active projects · ${archivedCount} archived`}</p>
 						</div>
 						<div className="ds-page-actions">
-							<Button variant="primary" onClick={() => openCreate()}><Plus aria-hidden="true" />Create Project</Button>
+							<Button variant="primary" disabled={Boolean(restriction)} title={restriction} onClick={() => openCreate()}><Plus aria-hidden="true" />Create Project</Button>
 						</div>
 					</header>
 
@@ -519,7 +523,7 @@ export function ProjectsModule({
 						<h2 id="pj-start-title" className="pj-section-title">Start from a template</h2>
 						<div className="pj-templates">
 							{PROJECT_TEMPLATES.map((template) => (
-								<button type="button" key={template.name} className="pj-template" onClick={() => openCreate(template)}>
+								<button type="button" key={template.name} className="pj-template" disabled={Boolean(restriction)} title={restriction} onClick={() => openCreate(template)}>
 									<span className="pj-template-art"><ProjectArt seed={template.name} /></span>
 									<span className="pj-template-text"><strong>{template.name}</strong><small>{template.detail}</small></span>
 								</button>
@@ -564,12 +568,12 @@ export function ProjectsModule({
 												<small className="pj-desc">{project.description}</small>
 											</span>
 											<span className="pj-links">
-												<span className={`pj-link${project.plan ? " is-on" : ""}`}><NavGlyph name="plan" />{project.plan ? "Plan" : "No plan"}</span>
 												<span className={`pj-link${project.discovery ? " is-on" : ""}`}><NavGlyph name="discovery" />{project.discovery ? "Discovery" : "No discovery"}</span>
+												<span className={`pj-link${project.agentix ? " is-on" : ""}`}><NavGlyph name="agentix" />{project.agentix ? "Agentix" : "No Agentix"}</span>
 											</span>
 											<span className="pj-team wh-avatars">{project.members.slice(0, 3).map((member) => <i key={member.name} title={member.name}>{member.initials}</i>)}</span>
 											<span className="pj-updated">{project.role} · {project.updated}</span>
-											<Button variant="ghost" size="sm" className="pj-archive" aria-label={`${project.status === "active" ? "Archive" : "Restore"} ${project.name}`} onClick={() => toggleArchive(project)}><Archive aria-hidden="true" /><span>{project.status === "active" ? "Archive" : "Restore"}</span></Button>
+											<Button variant="ghost" size="sm" className="pj-archive" aria-label={`${project.status === "active" ? "Archive" : "Restore"} ${project.name}`} disabled={Boolean(restriction)} title={restriction} onClick={() => toggleArchive(project)}><Archive aria-hidden="true" /><span>{project.status === "active" ? "Archive" : "Restore"}</span></Button>
 										</motion.article>
 									))}
 								</AnimatePresence>
@@ -594,7 +598,7 @@ export function ProjectsModule({
 							<span className="pj-dialog-icon" aria-hidden="true"><NavGlyph name="projects" /></span>
 							<div>
 								<h2 id="create-project-title">Create new project</h2>
-								<p id="create-project-desc">One workspace for its Discovery, Plan and delivery.</p>
+								<p id="create-project-desc">One initiative, with its own Discovery and Agentix workspaces.</p>
 							</div>
 							<button type="button" className="pj-dialog-close" aria-label="Close create project dialog" onClick={() => setCreateOpen(false)}><X aria-hidden="true" /></button>
 						</header>
@@ -646,17 +650,17 @@ export function ProjectsModule({
 										<dl className="pj-rows">
 											<div><dt>Status</dt><dd>{selected.status}</dd></div>
 											<div><dt>Your role</dt><dd>{selected.role}</dd></div>
-											<div><dt>Plan</dt><dd>{selected.plan || "Not created"}</dd></div>
 											<div><dt>Discovery</dt><dd>{selected.discovery || "Not started"}</dd></div>
+											<div><dt>Agentix</dt><dd>{selected.agentix || "Not started"}</dd></div>
 										</dl>
 										<div className="pj-next">
 											<button type="button" className="pj-next-card" aria-label={hasLinkedDiscovery ? "Open Discovery" : "Start Discovery"} aria-describedby="pj-next-discovery" onClick={openProjectDiscovery}>
 												<ActivityAvatar glyph="discovery" tone={hasLinkedDiscovery ? "success" : "info"} />
 												<span><strong>{hasLinkedDiscovery ? "Open Discovery" : "Start Discovery"}</strong><small id="pj-next-discovery">{hasLinkedDiscovery ? selected.discovery : "Let MAX research and interview owners"}</small></span>
 											</button>
-											<button type="button" className="pj-next-card" aria-label={selected.plan ? "Open Plan" : "Create Plan"} aria-describedby="pj-next-plan" onClick={() => onNavigate("plan")}>
-												<ActivityAvatar glyph="plan" tone={selected.plan ? "success" : "info"} />
-												<span><strong>{selected.plan ? "Open Plan" : "Create Plan"}</strong><small id="pj-next-plan">{selected.plan || "Turn the Discovery package into delivery"}</small></span>
+											<button type="button" className="pj-next-card" aria-label={selected.agentix ? "Open Agentix" : "Start in Agentix"} aria-describedby="pj-next-agentix" onClick={() => onNavigate("agentix")}>
+												<ActivityAvatar glyph="agentix" tone={selected.agentix ? "success" : "info"} />
+												<span><strong>{selected.agentix ? "Open Agentix" : "Start in Agentix"}</strong><small id="pj-next-agentix">{selected.agentix || "Turn an approved package into governed agents"}</small></span>
 											</button>
 										</div>
 									</>
@@ -681,14 +685,14 @@ export function ProjectsModule({
 									</div>
 								) : detailsTab === "activity" ? (
 									<ol className="pj-timeline">
-										<li><ActivityAvatar glyph="plan" tone="success" /><span><strong>Plan evidence snapshot updated</strong><small>12 minutes ago</small></span></li>
+										<li><ActivityAvatar glyph="agentix" tone="success" /><span><strong>Agentix case verified</strong><small>12 minutes ago</small></span></li>
 										<li><ActivityAvatar glyph="discovery" tone="success" /><span><strong>Discovery interview completed</strong><small>Yesterday</small></span></li>
 										<li><ActivityAvatar glyph="projects" tone="info" /><span><strong>Sarah Liu joined the project</strong><small>4 days ago</small></span></li>
 									</ol>
 								) : (
 									<div className="pj-settings">
 										<label className="pj-field">Project name<input className="ds-input" value={selected.name} readOnly /></label>
-										<Button onClick={() => toggleArchive(selected)}><Archive aria-hidden="true" />{selected.status === "active" ? "Archive project" : "Restore project"}</Button>
+										<Button disabled={Boolean(restriction)} title={restriction} onClick={() => toggleArchive(selected)}><Archive aria-hidden="true" />{selected.status === "active" ? "Archive project" : "Restore project"}</Button>
 									</div>
 								)}
 							</div>
@@ -1008,17 +1012,27 @@ export function ExecuteHubModule({
 	)
 }
 
-// One row per Agentix case waiting on an approval, named for its engagement and case. Inspect
-// opens the engagement that owns the case; Review decision opens the case itself.
-function ApprovalInbox({ approvals, onOpenAgentix }: { approvals: AgentixPendingCase[]; onOpenAgentix: (intent: AgentixIntent) => void }) {
+// One inbox across both modules (D-091). Each row names the exact target and version the decision
+// binds, and opens that module's own decision: the module checks the version again when it's made,
+// so a row that has gone stale can't approve anything.
+function ApprovalInbox({ approvals, discoveryApprovals, onOpenAgentix, onOpenDiscoveryRecord }: { approvals: AgentixPendingCase[]; discoveryApprovals: DiscoveryApprovalItem[]; onOpenAgentix: (intent: AgentixIntent) => void; onOpenDiscoveryRecord?: OpenDiscoveryRecord }) {
 	return (
 		<section className="mxp-approvals" aria-label="Pending approvals">
-			{approvals.length ? (
+			{approvals.length || discoveryApprovals.length ? (
 				<div className="acc-list">
+					{discoveryApprovals.map((item) => (
+						<article key={item.id} className="acc-row mxp-approval-row" aria-label={`${item.title} · ${item.version}`}>
+							<Mark seed={item.recordId} size="xs" />
+							<span className="acc-row-main"><strong>{item.title}</strong><small>Discovery · {item.target} · {item.version}</small></span>
+							<span className="acc-row-actions">
+								<Button variant="primary" size="sm" aria-label={`Review · ${item.title}`} onClick={() => onOpenDiscoveryRecord?.(item.recordId, item.jump)}>Review<ArrowRight aria-hidden="true" /></Button>
+							</span>
+						</article>
+					))}
 					{approvals.map((item) => (
 						<article key={item.id} className="acc-row mxp-approval-row" aria-label={`${item.title} · ${item.reference}`}>
 							<Mark seed={item.agentId} size="xs" />
-							<span className="acc-row-main"><strong>{item.title}</strong><small>{item.engagement} · {item.reference}</small></span>
+							<span className="acc-row-main"><strong>{item.title}</strong><small>Agentix · {item.engagement} · {item.reference}{item.target ? ` · ${item.target}` : ""}{item.version ? ` · ${item.version}` : ""}</small></span>
 							<span className="acc-row-actions">
 								<Button variant="ghost" size="sm" aria-label={`Inspect ${item.engagement}`} onClick={() => onOpenAgentix({ type: "engagement", id: item.agentId })}>Inspect</Button>
 								<Button variant="primary" size="sm" aria-label={`${agentixCaseAction(item)} · ${item.reference}`} onClick={() => onOpenAgentix(agentixCaseIntent(item))}>{agentixCaseAction(item)}<ArrowRight aria-hidden="true" /></Button>
@@ -1048,7 +1062,9 @@ export function AccountUtilityModule({
 	module,
 	onNavigate,
 	approvals = [],
+	discoveryApprovals = [],
 	onOpenAgentix,
+	onOpenDiscoveryRecord,
 	onCommand,
 }: {
 	module: "approvals" | "usage" | "help"
@@ -1056,14 +1072,16 @@ export function AccountUtilityModule({
 	// The Agentix cases waiting on an approval, as Agentix reports them. This surface lists
 	// and routes to them; it never keeps a second copy that can disagree with the agent.
 	approvals?: AgentixPendingCase[]
+	discoveryApprovals?: DiscoveryApprovalItem[]
 	onOpenAgentix?: (intent: AgentixIntent) => void
+	onOpenDiscoveryRecord?: OpenDiscoveryRecord
 	onCommand?: () => void
 }) {
 	const [helpQuery, setHelpQuery] = useState("")
 	const [openTopic, setOpenTopic] = useState<string | null>(null)
 	const helpMatches = HELP_TOPICS.filter((topic) => `${topic.title} ${topic.answer}`.toLowerCase().includes(helpQuery.trim().toLowerCase()))
 	const config = module === "approvals"
-			? { title: "My approvals", description: "Decisions Agentix stopped for. Each opens with its exact change and evidence." }
+			? { title: "My approvals", description: "Decisions waiting on you in Discovery and Agentix. Each opens with its exact target and version." }
 			: module === "usage"
 				? { title: "Usage", description: `Workspace units this billing cycle, which resets ${WORKSPACE_CYCLE_RESET}.` }
 				: { title: "Help", description: "Guidance for MAXION workflows and administration." }
@@ -1073,7 +1091,7 @@ export function AccountUtilityModule({
 			<div className="acc-page">
 				<PageHeader title={config.title} description={config.description} />
 				{module === "approvals" ? (
-					<ApprovalInbox approvals={approvals} onOpenAgentix={(intent) => onOpenAgentix ? onOpenAgentix(intent) : onNavigate("agentix")} />
+					<ApprovalInbox approvals={approvals} discoveryApprovals={discoveryApprovals} onOpenAgentix={(intent) => onOpenAgentix ? onOpenAgentix(intent) : onNavigate("agentix")} onOpenDiscoveryRecord={onOpenDiscoveryRecord} />
 				) : module === "usage" ? (
 					<section className="acc-usage" aria-label="Current cycle">
 						<p className="acc-usage-figure"><strong>{WORKSPACE_UNITS_PERCENT}%</strong><span>{workspaceUnitsLabel(WORKSPACE_UNITS_USED)} of {workspaceUnitsLabel(WORKSPACE_UNIT_CAP)} units used</span></p>
@@ -1104,7 +1122,7 @@ export function AccountUtilityModule({
 								))}
 							</div>
 						) : (
-							<EmptyState title={`No help topic matches “${helpQuery.trim()}”`} action={<Button onClick={() => onNavigate("consult")}>Ask Consult MAX</Button>}><p>Consult MAX answers from the live workspace.</p></EmptyState>
+							<EmptyState title={`No help topic matches “${helpQuery.trim()}”`} action={<Button onClick={() => setHelpQuery("")}>Show all topics</Button>}><p>Try a shorter search.</p></EmptyState>
 						)}
 					</section>
 				)}

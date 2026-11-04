@@ -2,6 +2,8 @@ import AxeBuilder from "@axe-core/playwright"
 import { expect, test } from "@playwright/test"
 
 test("runs an autonomous Discovery from brief to verified package", async ({ page }) => {
+	// The whole run plays out on real timers, now with its brief and package gates.
+	test.setTimeout(180_000)
 	const runtimeErrors: string[] = []
 	page.on("console", (message) => {
 		if (message.type() === "error") runtimeErrors.push(message.text())
@@ -72,6 +74,11 @@ test("runs an autonomous Discovery from brief to verified package", async ({ pag
 	await expect(page.getByText(/I’ll only come back to you if something needs your call\. You can follow all of it in Autonomy\./)).toBeVisible()
 	await expect(page.getByRole("region", { name: "Autonomous work summary" })).toBeVisible()
 	await expect(page.getByRole("button", { name: "Open autonomy" })).toBeVisible()
+	// Interviews wait for their briefs, including the one for the stakeholder just added.
+	const briefNotice = page.locator('[data-notice="briefs"]')
+	await expect(briefNotice).toContainText("5 interview briefs need your review")
+	await briefNotice.getByRole("button", { name: "Approve all" }).click()
+	await expect(briefNotice).toHaveCount(0)
 
 	await expect(page.getByRole("heading", { name: SCENARIO_EXCEPTION_TITLE })).toBeVisible({ timeout: 15_000 })
 	await expect(page.getByText("Discovery is internal by default")).toBeVisible()
@@ -84,8 +91,10 @@ test("runs an autonomous Discovery from brief to verified package", async ({ pag
 	await expect(page.getByRole("button", { name: "Thread" })).toHaveClass(/active/)
 	await page.getByRole("button", { name: /Review deliverables/ }).first().click()
 	await expect(page.getByRole("heading", { name: "Final plan and recommendations" })).toBeVisible({ timeout: 12_000 })
-	await expect(page.getByText("Start with the decision brief, then inspect the supporting documents.")).toBeVisible()
-	await expect(page.getByRole("button", { name: /Executive decision brief Current/ })).toBeVisible()
+	// A new mission holds what was selected at review: the first release's five, not the whole catalog.
+	await expect(page.getByText("Read each document, then approve the package as one version.")).toBeVisible()
+	await expect(page.getByRole("navigation", { name: "Deliverable list" }).getByRole("button")).toHaveCount(5)
+	await expect(page.getByRole("button", { name: /Project plan and WBS Current/ })).toBeVisible()
 
 	await page.getByRole("button", { name: "Autonomy" }).click()
 	// The run is finished by this point, and the hero says so. The running
@@ -96,7 +105,7 @@ test("runs an autonomous Discovery from brief to verified package", async ({ pag
 	await expect(page.getByRole("heading", { name: "What MAX is handling for you" })).toBeVisible()
 	await expect(page.getByRole("heading", { name: "Conversations MAX is managing" })).toBeVisible()
 	await expect(page.getByRole("heading", { name: "What MAX did and why" })).toBeVisible()
-	await expect(page.getByText("Approvals and handoff routed")).toBeVisible()
+	await expect(page.getByText("Package waiting for approval")).toBeVisible()
 	await page.getByRole("button", { name: "Package", exact: true }).click()
 
 	await page.getByRole("button", { name: "Manage package" }).click()
@@ -104,9 +113,9 @@ test("runs an autonomous Discovery from brief to verified package", async ({ pag
 	await page.getByTitle("Close panel").click()
 	await page.getByRole("button", { name: "All discoveries", exact: true }).click()
 	// The saved name is a short noun phrase drafted from the brief, not the whole brief.
-	await expect(page.getByRole("button", { name: "Resume Redesign third-party onboarding controls, Completed", exact: true })).toBeVisible()
+	await expect(page.getByRole("button", { name: "Resume Redesign third-party onboarding controls, Needs your input", exact: true })).toBeVisible()
 	await page.reload()
-	await expect(page.getByRole("button", { name: "Resume Redesign third-party onboarding controls, Completed", exact: true })).toBeVisible()
+	await expect(page.getByRole("button", { name: "Resume Redesign third-party onboarding controls, Needs your input", exact: true })).toBeVisible()
 
 	const terminalAccessibility = await new AxeBuilder({ page }).analyze()
 	expect(terminalAccessibility.violations.filter((violation) => violation.impact === "critical" || violation.impact === "serious")).toEqual([])

@@ -8,7 +8,7 @@ import { DEMO_KEYS, demoKey } from "./session"
  * Discovery record and its Agentix state. The in-app dock and the second-screen guide both
  * read it this way, so they never disagree, and neither needs the page's React state.
  *
- * Every demo tells the same twelve-beat story against the same engine, so this reader is one
+ * Every demo tells the same fourteen-beat story against the same engine, so this reader is one
  * implementation: the script says which Discovery, which package, which engagement and which
  * decision variant to look for.
  */
@@ -26,6 +26,9 @@ export type DemoDiscovery = {
 	interviewClosed: boolean
 	clarificationPending: boolean
 	charterApproval?: unknown
+	excludedOutputs?: string[]
+	// The gates this reader follows; records from before them simply have none waiting.
+	work?: { package?: { status?: string; version?: number }; briefs?: Array<{ status?: string }> }
 	handoff?: { id: string; createdAt: string; note: string; target?: string; packageId?: string; recordId?: string; title?: string } | null
 	// Only who spoke last is read: an owner's answer MAX hasn't replied to yet.
 	messages?: Array<{ actor?: unknown }>
@@ -57,7 +60,7 @@ export type DemoAction =
 	| { kind: "discover" }
 	| { kind: "fill"; text: string }
 	| { kind: "call"; recordId: string }
-	| { kind: "discovery"; recordId: string; jump: "resume" | "decision" | "package" | "autonomy" }
+	| { kind: "discovery"; recordId: string; jump: "resume" | "decision" | "package" | "autonomy" | "briefs" | "package-approval" }
 	| { kind: "review" }
 	| { kind: "engagement" }
 
@@ -89,7 +92,7 @@ export function nextAnswer(script: DemoScript, discovery: DemoDiscovery | null) 
 }
 
 /*
- * What Agentix has actually done, in the terms the twelve beats need. Every demo's engagement is
+ * What Agentix has actually done, in the terms the fourteen beats need. Every demo's engagement is
  * built from the same three artifacts and three milestones, so only the names come from the script.
  */
 function agentixFacts(script: DemoScript, state: AgentixState | null) {
@@ -110,11 +113,15 @@ function agentixFacts(script: DemoScript, state: AgentixState | null) {
 		checked: !!engagement?.checked,
 		released: pipeline?.productionVersion !== undefined,
 		published: dashboard?.productionVersion !== undefined && milestone("MS-3")?.status === "verified",
+		uncertain: !!state?.releases.some(release => release.engagementId === engagementId && release.status === "unknown"),
 		cycleStarted: cycles.length > 0,
 		cycled: cycles.some(item => item.status === "verified"),
 		cycleRunning: cycles.some(item => item.status !== "verified" && item.status !== "scheduled"),
 	}
 }
+
+const CHARTER_NAME = "Project charter and governance"
+const briefsWaiting = (discovery: DemoDiscovery | null) => discovery?.work?.briefs?.filter(brief => brief.status === "draft").length ?? 0
 
 /* Every step with its status; exactly one is current until the story is told. */
 export function demoSteps(script: DemoScript, snapshot: DemoSnapshot): { steps: DemoStep[]; current: number } {
@@ -124,9 +131,13 @@ export function demoSteps(script: DemoScript, snapshot: DemoSnapshot): { steps: 
 	const done: Record<DemoStepId, boolean> = {
 		start: !!discovery || handedOff,
 		interview: !!discovery?.interviewClosed || handedOff,
+		// The briefs are done once none waits; interviews can't open before that.
+		briefs: (!!discovery?.interviewClosed && !briefsWaiting(discovery)) || handedOff,
 		decision: (!!discovery && discovery.decision !== "pending") || handedOff,
-		// Reading the package ends when the presenter moves on to the handoff.
-		package: ((discovery?.phase ?? 0) >= FINAL_PHASE && !!discovery?.charterApproval) || handedOff,
+		// Reading the package ends when the charter is approved, or was never selected.
+		package: ((discovery?.phase ?? 0) >= FINAL_PHASE && (!!discovery?.charterApproval || !!discovery?.excludedOutputs?.includes(CHARTER_NAME))) || handedOff,
+		// Only the record saying "approved" ends this step: nothing here assumes it.
+		approve: discovery?.work?.package?.status === "approved" || handedOff,
 		handoff: handedOff,
 		proposal: facts.activated,
 		mapping: facts.ruleDecided,
@@ -162,12 +173,21 @@ function live(script: DemoScript, id: DemoStepId, discovery: DemoDiscovery | nul
 				secondary: record && !discovery?.interviewClosed ? { label: "Start the call", run: { kind: "call", recordId: record } } : undefined,
 			}
 		}
+		case "briefs": {
+			const waiting = briefsWaiting(discovery)
+			return record ? { detail: waiting ? `${waiting} interview brief${waiting === 1 ? "" : "s"} waiting for you.` : "MAX is drafting the interview briefs.", action: { label: "Open the briefs", run: { kind: "discovery", recordId: record, jump: "briefs" } } } : {}
+		}
 		case "decision": {
 			const waiting = (discovery?.phase ?? 0) >= 4
 			return record ? { detail: waiting ? "The decision is waiting for you." : "MAX is investigating; the decision arrives in a few seconds.", action: waiting ? { label: "Open the decision", run: { kind: "discovery", recordId: record, jump: "decision" } } : { label: "Open Autonomy", run: { kind: "discovery", recordId: record, jump: "autonomy" } } } : {}
 		}
-		case "package": return record ? { detail: (discovery?.phase ?? 0) >= FINAL_PHASE ? "The nine documents are ready." : "MAX is writing the nine documents.", action: { label: "Open Package", run: { kind: "discovery", recordId: record, jump: "package" } } } : {}
-		case "handoff": return record ? { detail: "Charter approved.", action: { label: "Open Package", run: { kind: "discovery", recordId: record, jump: "package" } } } : {}
+		case "package": return record ? { detail: (discovery?.phase ?? 0) >= FINAL_PHASE ? "The selected documents are ready." : "MAX is writing the selected documents.", action: { label: "Open Package", run: { kind: "discovery", recordId: record, jump: "package" } } } : {}
+		case "approve": {
+			const review = discovery?.work?.package
+			const version = review?.version ?? 1
+			return record ? { detail: review?.status === "returned" ? `Package v${version} is back with MAX; a new version is coming.` : review?.status === "withdrawn" ? `The approval of package v${version} was withdrawn.` : `Package v${version} is waiting for your approval.`, action: { label: "Open the approval", run: { kind: "discovery", recordId: record, jump: "package-approval" } } } : {}
+		}
+		case "handoff": return record ? { detail: `Package v${discovery?.work?.package?.version ?? 1} approved.`, action: { label: "Open Package", run: { kind: "discovery", recordId: record, jump: "package" } } } : {}
 		case "proposal": {
 			// What still stands between the proposal and activation, in the order the page asks for it.
 			const open = 2 - facts.answered
@@ -175,8 +195,8 @@ function live(script: DemoScript, id: DemoStepId, discovery: DemoDiscovery | nul
 			return { detail, action: { label: "Open the proposal", run: { kind: "review" } } }
 		}
 		case "mapping":
-		case "pipeline":
-		case "release": return { action: { label: "Open the engagement", run: { kind: "engagement" } } }
+		case "pipeline": return { action: { label: "Open the engagement", run: { kind: "engagement" } } }
+		case "release": return { detail: facts.uncertain ? "Outcome unknown. Open MS-2 and choose Investigate." : undefined, action: { label: "Open the engagement", run: { kind: "engagement" } } }
 		case "dashboard": return { detail: facts.published ? `Published under ${script.publishPolicy}.` : "MS-3 is building and testing the dashboard.", action: { label: "Open the engagement", run: { kind: "engagement" } } }
 		case "cycle": return { detail: facts.cycleRunning ? "The cycle is running" : undefined, action: { label: "Open the engagement", run: { kind: "engagement" } } }
 		default: return { action: { label: "Open the engagement", run: { kind: "engagement" } } }

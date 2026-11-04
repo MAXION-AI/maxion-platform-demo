@@ -39,16 +39,17 @@ describe("seating", () => {
 		const state = activated()
 		const reach = reachOf(state, REV)
 		for (const link of systemsOf(state.engagements[REV])) expect(reach.some(entry => entry.system === link.id)).toBe(true)
-		const production = reach.filter(entry => entry.capability === "production")
-		// The dashboard specialist publishes only through the coordinator's release.
+		const production = reach.filter(entry => entry.capability === "production" || entry.capability === "files")
+		// The dashboard specialist publishes only through the coordinator.
 		expect(production.every(entry => entry.agent === "coordinator")).toBe(true)
+		expect(production.some(entry => entry.capability === "files")).toBe(true)
 		expect(reach.some(entry => entry.agent === "data" && entry.capability === "read")).toBe(true)
 	})
 
 	it("names the systems a step's text refers to, including a pair joined by +", () => {
 		const links = SCENARIOS.invoice.systems
 		expect(systemsForStep("SQL Server + AWS PostgreSQL", links).map(link => link.id).sort()).toEqual(["ledger", "schema"])
-		expect(systemsForStep("Dashboards", links).map(link => link.id)).toEqual(["dash"])
+		expect(systemsForStep("Versioned files", links).map(link => link.id)).toEqual(["dash"])
 		expect(systemsForStep(undefined, links)).toEqual([])
 	})
 

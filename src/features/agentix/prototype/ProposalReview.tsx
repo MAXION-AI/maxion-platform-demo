@@ -11,7 +11,7 @@ import { ConnectionPicker } from "@/features/organization/ConnectionPicker"
 import { demoSession } from "@/features/demo/session"
 import { ReadinessRows, Status } from "./OperationsViews"
 
-const CAPABILITY = { read: "Read", build: "Build & test", production: "Production change", update: "Record update", notify: "Notify" } as const
+const CAPABILITY = { read: "Read", build: "Build & test", production: "Production change", update: "Record update", notify: "Notify", files: "Publish as files" } as const
 
 /*
  * Preparation, review and activation: the same page whether the work came from

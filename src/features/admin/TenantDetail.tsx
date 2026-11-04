@@ -1,11 +1,24 @@
 import { CheckCircle, CircleNotch, WarningCircle } from "@phosphor-icons/react"
-import { useState, type KeyboardEvent, type ReactNode } from "react"
+import { useEffect, useState, type KeyboardEvent, type ReactNode } from "react"
 
 import { Badge, Banner, Button, PageHeader, PrimaryCell, Table } from "@/design/primitives"
 import { CONNECTORS, type ConnectorKey } from "@/features/organization/model"
-import { AdjustmentChange, ConnectorChange, LiftStopChange, ModelsChange, ModuleChange, NetworkChange, ResearchChange, SeatsChange, StopChange, ToolsChange } from "./Changes"
+import { AdjustmentChange, ConnectorChange, InvitationChange, LiftStopChange, ModelsChange, ModuleChange, NetworkChange, ResearchChange, SeatsChange, SessionsChange, StopChange, ToolsChange } from "./Changes"
 import {
+	can,
+	clockLabel,
+	COST_EVIDENCE_LABEL,
+	costSummary,
+	deniedReason,
+	INVITATION_STATUS_LABEL,
 	LIFECYCLE_LABEL,
+	maskEmail,
+	missingModelTasks,
+	moduleList,
+	ownerBindingExpired,
+	resendBlocked,
+	setupGaps,
+	usdLabel,
 	MODULE_DETAIL,
 	MODULE_LABEL,
 	modelEffective,
@@ -26,10 +39,12 @@ import {
 	type PlatformState,
 	type Receipt,
 	type ReceiptStatus,
+	type StaffAction,
 	type StopMode,
 	type TenantState,
 } from "./model"
-import { useAdmin } from "./store"
+import { useActor, useAdmin } from "./store"
+import { ReplaceOwnerChange } from "./TenantCreate"
 
 export const TENANT_TABS = ["access", "models", "modules", "usage", "operations", "history"] as const
 export type TenantTab = (typeof TENANT_TABS)[number]
@@ -46,6 +61,15 @@ type Pending =
 	| { kind: "adjust" }
 	| { kind: "stop"; preset?: StopMode }
 	| { kind: "lift" }
+	| { kind: "invitation"; id: string; mode: "resend" | "revoke" }
+	| { kind: "sessions" }
+	| { kind: "owner" }
+
+/* A control this role can't use says what it needs, in its place. No disabled pretend editor (ADM-2), and nothing vanishes silently (D-059). */
+export function Allowed({ action, children }: { action: StaffAction; children: ReactNode }) {
+	const actor = useActor()
+	return can(actor, action) ? <>{children}</> : <small className="adm-denied">{deniedReason(action)}</small>
+}
 
 /* Tabs follow the ARIA pattern: one tab stop, arrows and Home/End move between them and select. */
 export function onTabKeys<T extends string>(event: KeyboardEvent<HTMLElement>, tabs: readonly T[], current: T, select: (tab: T) => void) {
@@ -103,7 +127,7 @@ export function ReceiptLine({ receiptId }: { receiptId: string | null }) {
 
 export function ReceiptTable({ receipts, label }: { receipts: Receipt[]; label: string }) {
 	return (
-		<Table aria-label={label} columns={["Change", "Operator", "Reason", "Ticket", "Revision", "Status"]} template="minmax(0, 2.4fr) minmax(0, 1fr) minmax(0, 1.2fr) minmax(0, .9fr) minmax(0, .7fr) minmax(0, 1fr)">
+		<Table aria-label={label} className="adm-receipts" columns={["Change", "Operator", "Reason", "Ticket", "Revision", "Status"]} template="minmax(0, 2.4fr) minmax(0, 1fr) minmax(0, 1.2fr) minmax(0, .9fr) minmax(0, .7fr) minmax(0, 1fr)">
 			{receipts.length ? receipts.map((receipt) => (
 				<article key={receipt.id} className="ds-table-row adm-static-row" aria-label={`${receipt.control} · ${RECEIPT_LABEL[receipt.status]}`}>
 					<PrimaryCell title={receipt.control} meta={`${receipt.change} · ${receipt.at}`} />
@@ -118,23 +142,65 @@ export function ReceiptTable({ receipts, label }: { receipts: Receipt[]; label: 
 	)
 }
 
-function AccessTab({ tenant, platform, open }: { tenant: TenantState; platform: PlatformState; open: (pending: Pending) => void }) {
+/* What a tenant created here still needs, each with its reason and its one action. */
+function SetupSection({ tenant, open, onTab }: { tenant: TenantState; open: (pending: Pending) => void; onTab: (tab: TenantTab) => void }) {
+	const setup = tenant.setup!
+	const [now, setNow] = useState(() => Date.now())
+	useEffect(() => {
+		const timer = window.setInterval(() => setNow(Date.now()), 30_000)
+		return () => window.clearInterval(timer)
+	}, [])
+	const expired = ownerBindingExpired(setup, now)
+	const missing = missingModelTasks(tenant)
+	const granted = (key: ModuleKey) => tenant.modules[key].override ?? tenant.modules[key].package
+	return (
+		<Section title="Setup" description={`Onboarding reference ${setup.onboardingReference}. The tenant stays Pending setup until its first Owner activates from their own session.`}>
+			<ControlRow title="First Owner" attention={expired ? <Badge tone="warning">Expired</Badge> : null} detail="Share only the organization's activation page. It grants nothing by itself."
+				layers={`Global user ${setup.firstOwner.globalUser} · binding ${setup.bindingRevision}`} value={expired ? "Binding expired" : "Waiting to activate"} reason={expired ? "Needs a new setup code" : `Binding expires ${clockLabel(setup.bindingExpiresAt)}`}
+				action={<Allowed action="tenant.bootstrap"><Button size="sm" aria-label="Replace the first Owner binding" onClick={() => open({ kind: "owner" })}>Replace</Button></Allowed>} />
+			<ControlRow title="Agreement" detail={`${tenant.packageName}, ${seatCap(tenant)} seats, ${moduleList({ discovery: granted("discovery"), agentix: granted("agentix"), voice: granted("voice") })}, ${unitsLabel(tenant.usage.allowance)} units, until ${setup.agreementEnd}.`}
+				value={`Draft, version ${setup.agreementVersion}`} reason="No charging mode selected; it's chosen before activation" />
+			<ControlRow title="Model routes" attention={missing.length ? <Badge tone="warning">{missing.length} missing</Badge> : null} detail={missing.length ? `Nothing is implied by the catalog. Publish routes for ${missing.map((task) => `${task.module} ${task.task.toLowerCase()}`).join(", ")}.` : "Routes are published for every granted module."}
+				value={missing.length ? "Not published" : "Published"} reason={missing.length ? "New work can't start without them" : ""} action={missing.length ? <Button size="sm" onClick={() => onTab("models")}>Open Models</Button> : undefined} />
+		</Section>
+	)
+}
+
+function AccessTab({ tenant, platform, open, onTab }: { tenant: TenantState; platform: PlatformState; open: (pending: Pending) => void; onTab: (tab: TenantTab) => void }) {
 	const cap = seatCap(tenant)
+	const openInvitations = tenant.invitations.filter((invitation) => invitation.status === "pending" || invitation.status === "expired")
 	return (
 		<>
+			{tenant.setup ? <SetupSection tenant={tenant} open={open} onTab={onTab} /> : null}
 			<Section title="Modules" description="What the agreement grants, amended for this tenant. The customer may restrict a module further; staff use a stop, not a grant, to halt work.">
 				{(["discovery", "agentix", "voice"] as ModuleKey[]).map((key) => {
 					const entry = tenant.modules[key]
 					const effective = moduleEffective(tenant, key, platform)
 					const tenantLayer = entry.override === null ? "no override" : `${entry.override ? "granted" : "revoked"}${entry.expires ? ` until ${entry.expires}` : ""}`
 					const customer = key === "voice" ? "no setting" : tenant.customerModes[key] === "read_only" ? "read-only" : "normal"
-					return <ControlRow key={key} title={MODULE_LABEL[key]} detail={MODULE_DETAIL[key]} layers={`Package: ${entry.package ? "granted" : "not included"} (revision ${tenant.packageRevision}) · Tenant: ${tenantLayer} · Customer: ${customer}`} value={effective.value} reason={effective.reason} action={<Button size="sm" aria-label={`Change ${MODULE_LABEL[key]}`} onClick={() => open({ kind: "module", key })}>Change</Button>} />
+					return <ControlRow key={key} title={MODULE_LABEL[key]} detail={MODULE_DETAIL[key]} layers={`Package: ${entry.package ? "granted" : "not included"} (revision ${tenant.packageRevision}) · Tenant: ${tenantLayer} · Customer: ${customer}`} value={effective.value} reason={effective.reason} action={<Allowed action="tenant.change"><Button size="sm" aria-label={`Change ${MODULE_LABEL[key]}`} onClick={() => open({ kind: "module", key })}>Change</Button></Allowed>} />
 				})}
 			</Section>
 			<Section title="Agreement" description="Seats come from the commercial agreement; pending invitations take no seat. Suspension rejects ordinary access across both modules and revokes sessions in the same step.">
-				<ControlRow title="Seats" attention={overCap(tenant) ? <Badge tone="warning">Over cap</Badge> : null} detail={`Package ${tenant.seats.package}${tenant.seats.amendment ? `, amended ${tenant.seats.amendment > 0 ? "+" : ""}${tenant.seats.amendment} until ${tenant.seats.until}` : ", no amendment"}.`} layers={`Agreement revision ${tenant.packageRevision} · as of 09:40`} value={`${tenant.seats.used} of ${cap} used`} reason={overCap(tenant) ? "New joins are blocked; nobody was removed" : `${cap - tenant.seats.used} free`} action={<Button size="sm" aria-label="Change seats" onClick={() => open({ kind: "seats" })}>Change</Button>} />
-				<ControlRow title="Lifecycle" detail={tenant.setupGap ?? (tenant.stop ? `${STOP_LABEL[tenant.stop.mode]} since ${tenant.stop.at} · ${REASON_LABEL[tenant.stop.reason]}` : "Created by an authorized bootstrap; setup published and verified.")} value={<Badge tone={lifecycleTone(tenant.lifecycle)}>{LIFECYCLE_LABEL[tenant.lifecycle]}</Badge>} reason={tenant.lifecycle === "cleanup_pending" ? "Offboarding reports its stages; nothing is deleted at once" : tenant.lifecycle === "pending" ? "Setup incomplete" : ""}
-					action={tenant.lifecycle === "suspended" ? <Button size="sm" onClick={() => open({ kind: "lift" })}>Lift suspension</Button> : tenant.lifecycle === "active" ? <Button size="sm" className="adm-danger" onClick={() => open({ kind: "stop", preset: "suspend_tenant" })}>Suspend tenant</Button> : undefined} />
+				<ControlRow title="Seats" attention={overCap(tenant) ? <Badge tone="warning">Over cap</Badge> : null} detail={`Package ${tenant.seats.package}${tenant.seats.amendment ? `, amended ${tenant.seats.amendment > 0 ? "+" : ""}${tenant.seats.amendment} until ${tenant.seats.until}` : ", no amendment"}.`} layers={`Agreement revision ${tenant.packageRevision} · as of 09:40`} value={`${tenant.seats.used} of ${cap} used`} reason={overCap(tenant) ? "New joins are blocked; nobody was removed" : `${cap - tenant.seats.used} free`} action={<Allowed action="tenant.change"><Button size="sm" aria-label="Change seats" onClick={() => open({ kind: "seats" })}>Change</Button></Allowed>} />
+				<ControlRow title="Lifecycle" detail={tenant.setup ? "Created by an authorized bootstrap. Setup is still open." : tenant.setupGap ?? (tenant.stop ? `${STOP_LABEL[tenant.stop.mode]} since ${tenant.stop.at} · ${REASON_LABEL[tenant.stop.reason]}` : "Created by an authorized bootstrap; setup published and verified.")} value={<Badge tone={lifecycleTone(tenant.lifecycle)}>{LIFECYCLE_LABEL[tenant.lifecycle]}</Badge>} reason={tenant.lifecycle === "cleanup_pending" ? "Offboarding reports its stages; nothing is deleted at once" : tenant.lifecycle === "pending" ? "Setup incomplete" : ""}
+					action={tenant.lifecycle === "suspended" ? <Allowed action="tenant.stop"><Button size="sm" onClick={() => open({ kind: "lift" })}>Lift suspension</Button></Allowed> : tenant.lifecycle === "active" ? <Allowed action="tenant.stop"><Button size="sm" className="adm-danger" onClick={() => open({ kind: "stop", preset: "suspend_tenant" })}>Suspend tenant</Button></Allowed> : undefined} />
+			</Section>
+			<Section title="Invitations and sessions" description="Support and Platform Owners resend or revoke invitations. Staff see a masked address, never a message, and pending invitations take no seat.">
+				{openInvitations.length ? openInvitations.map((invitation) => {
+					const target = maskEmail(invitation.email)
+					const blocked = resendBlocked(tenant, invitation)
+					return (
+						<ControlRow key={invitation.id} title={`${invitation.role} invitation`} detail={target} layers={`Invited by ${invitation.invitedBy} · link generation ${invitation.generation}`}
+							value={INVITATION_STATUS_LABEL[invitation.status]} reason={invitation.status === "pending" ? `Expires in ${invitation.expiresInDays} day${invitation.expiresInDays === 1 ? "" : "s"}` : "The link no longer works"}
+							action={<Allowed action="invitation.manage">
+								{blocked ? <small className="adm-denied">{blocked}</small> : <Button size="sm" aria-label={`Resend the invitation to ${target}`} onClick={() => open({ kind: "invitation", id: invitation.id, mode: "resend" })}>Resend</Button>}
+								{invitation.status === "pending" ? <Button size="sm" aria-label={`Revoke the invitation to ${target}`} onClick={() => open({ kind: "invitation", id: invitation.id, mode: "revoke" })}>Revoke</Button> : null}
+							</Allowed>} />
+					)
+				}) : <p className="adm-empty-line">No open invitations.</p>}
+				<ControlRow title="Customer sessions" detail="Revoking signs everyone in this organization out. It needs a reason and changes nothing else." value={`${tenant.sessions} active`} reason={tenant.sessions ? `As of ${tenant.work.asOf}` : "Nothing to revoke"}
+					action={tenant.sessions ? <Allowed action="tenant.sessions"><Button size="sm" onClick={() => open({ kind: "sessions" })}>Revoke sessions</Button></Allowed> : undefined} />
 			</Section>
 		</>
 	)
@@ -149,7 +215,7 @@ function ModelsTab({ tenant, platform, open }: { tenant: TenantState; platform: 
 				return (
 					<ControlRow key={task.id} title={`${task.module} · ${task.task}`} attention={effective.preferred ? null : <Badge tone="warning">No eligible model</Badge>}
 						layers={`Granted: ${task.granted.join(", ") || "none"} (platform revision ${platform.revision}) · Default ${task.defaultRoute}${task.fallback ? `, fallback ${task.fallback}` : ""} · Customer: ${customer}`}
-						value={effective.preferred ?? "None"} reason={effective.reason} action={<Button size="sm" aria-label={`Change ${task.module} ${task.task} models`} onClick={() => open({ kind: "models", taskId: task.id })}>Change</Button>} />
+						value={effective.preferred ?? "None"} reason={effective.reason} action={<Allowed action="tenant.change"><Button size="sm" aria-label={`Change ${task.module} ${task.task} models`} onClick={() => open({ kind: "models", taskId: task.id })}>Change</Button></Allowed>} />
 				)
 			})}
 		</Section>
@@ -163,9 +229,9 @@ function ModulesTab({ tenant, platform, open }: { tenant: TenantState; platform:
 	return (
 		<>
 			<Section title="Module controls" description="Typed controls the modules enforce at admission and dispatch.">
-				<ControlRow title="Discovery web research" layers={`Platform: on, ${platform.blockedDomains} blocked domains · Tenant: ${tenant.research.tenant} · Customer: ${tenant.research.customer === "allowlist" ? `${tenant.research.domains} listed domains` : tenant.research.customer}`} value={research.value} reason={research.reason} action={<Button size="sm" aria-label="Change Discovery web research" onClick={() => open({ kind: "research" })}>Change</Button>} />
-				<ControlRow title="Agentix sandbox network" layers={`Platform: ${NETWORK_LABEL[platform.network]} · Tenant: ${NETWORK_LABEL[tenant.network.tenant]} · Customer: ${tenant.network.customer ? NETWORK_LABEL[tenant.network.customer] : "no limit"}`} value={network.value} reason={network.reason} action={<Button size="sm" aria-label="Change Agentix sandbox network" onClick={() => open({ kind: "network" })}>Change</Button>} />
-				<ControlRow title="Agentix tool classes" layers={`Platform: ${platform.tools.length} · Tenant: ${tenant.tools.tenant.length} · Customer: ${tenant.tools.customer ? tenant.tools.customer.length : "no restriction"}`} value={`${tools.classes.length} of ${platform.tools.length} classes`} reason={tools.reason} action={<Button size="sm" aria-label="Change Agentix tool classes" onClick={() => open({ kind: "tools" })}>Change</Button>} />
+				<ControlRow title="Discovery web research" layers={`Platform: on, ${platform.blockedDomains} blocked domains · Tenant: ${tenant.research.tenant} · Customer: ${tenant.research.customer === "allowlist" ? `${tenant.research.domains} listed domains` : tenant.research.customer}`} value={research.value} reason={research.reason} action={<Allowed action="tenant.change"><Button size="sm" aria-label="Change Discovery web research" onClick={() => open({ kind: "research" })}>Change</Button></Allowed>} />
+				<ControlRow title="Agentix sandbox network" layers={`Platform: ${NETWORK_LABEL[platform.network]} · Tenant: ${NETWORK_LABEL[tenant.network.tenant]} · Customer: ${tenant.network.customer ? NETWORK_LABEL[tenant.network.customer] : "no limit"}`} value={network.value} reason={network.reason} action={<Allowed action="tenant.change"><Button size="sm" aria-label="Change Agentix sandbox network" onClick={() => open({ kind: "network" })}>Change</Button></Allowed>} />
+				<ControlRow title="Agentix tool classes" layers={`Platform: ${platform.tools.length} · Tenant: ${tenant.tools.tenant.length} · Customer: ${tenant.tools.customer ? tenant.tools.customer.length : "no restriction"}`} value={`${tools.classes.length} of ${platform.tools.length} classes`} reason={tools.reason} action={<Allowed action="tenant.change"><Button size="sm" aria-label="Change Agentix tool classes" onClick={() => open({ kind: "tools" })}>Change</Button></Allowed>} />
 				<ControlRow title="Customer module modes" detail="The customer may set a module read-only. Staff halt work with a stop, so there is no staff control here." value={`Discovery ${tenant.customerModes.discovery === "read_only" ? "read-only" : "normal"} · Agentix ${tenant.customerModes.agentix === "read_only" ? "read-only" : "normal"}`} reason="Set by the customer" />
 			</Section>
 			<Section title="Connectors" description="Qualified connectors MAXION makes available to this tenant. Customers still connect their own accounts and grant projects; enabling never expands an existing agent design.">
@@ -176,11 +242,47 @@ function ModulesTab({ tenant, platform, open }: { tenant: TenantState; platform:
 					return (
 						<ControlRow key={connector.key} title={connector.name} layers={`${connector.route === "merge" ? "Through Merge" : "MAXION native adapter"} · ${connector.category} · ${ops} of ${connector.operations.length} operations qualified`}
 							value={qualified ? (enabled ? "Enabled" : "Not enabled") : "Not qualified"} reason={qualified ? (enabled ? "Customers may connect it" : "Not offered to this tenant") : "Can't be enabled until it's qualified"}
-							action={qualified ? <Button size="sm" aria-label={`${enabled ? "Disable" : "Enable"} ${connector.name}`} onClick={() => open({ kind: "connector", key: connector.key })}>{enabled ? "Disable" : "Enable"}</Button> : undefined} />
+							action={qualified ? <Allowed action="tenant.change"><Button size="sm" aria-label={`${enabled ? "Disable" : "Enable"} ${connector.name}`} onClick={() => open({ kind: "connector", key: connector.key })}>{enabled ? "Disable" : "Enable"}</Button></Allowed> : undefined} />
 					)
 				})}
 			</Section>
 		</>
+	)
+}
+
+/*
+ * Internal provider cost against customer usage. Simulated figures. Support's projection stops at
+ * units (COM-1), so its view says so instead of showing nothing. No price is invented: rates stay
+ * open and the charging mode is set on the agreement (D-129).
+ */
+function CostsSection({ tenant }: { tenant: TenantState }) {
+	const actor = useActor()
+	const { costs } = tenant
+	const summary = costSummary(tenant)
+	if (!can(actor, "cost.read")) {
+		return <Section title="Costs"><ControlRow title="Provider cost" detail="Internal cost isn't part of the Support view. Units and reconciliation above are." value="Not shown" reason={deniedReason("cost.read")} /></Section>
+	}
+	const notes = [summary.estimateCents ? `Includes ${usdLabel(summary.estimateCents)} estimated` : "", summary.unknown ? `${summary.unknown} item${summary.unknown === 1 ? "" : "s"} unknown, so this isn't final` : ""].filter(Boolean).join("; ")
+	return (
+		<Section title="Costs" description="Simulated figures. Provider cost is MAXION's internal cost, kept apart from what a customer is charged. Unknown cost stays unknown, never zero, and a held reservation isn't spend.">
+			<ControlRow title="Provider cost this cycle" attention={summary.unknown ? <Badge tone="warning">{summary.unknown} unknown</Badge> : null} detail={`Against ${unitsLabel(tenant.usage.used)} settled units. Source as of ${costs.asOf}.`}
+				value={costs.lines.length ? `${usdLabel(summary.knownCents)} known` : "None recorded"} reason={costs.lines.length ? notes || "Every item is provider reported" : "No usage yet"} />
+			{summary.perUnit !== null ? <ControlRow title="Cost per settled unit" value={`$${summary.perUnit.toFixed(3)}`} reason="Known cost over settled units; not a price" /> : null}
+			<ControlRow title="Customer charge" detail="Rates aren't part of this view." value="Not calculated here" reason={tenant.setup ? "Charging mode not selected on the draft agreement" : "Charging mode is set on the agreement"} />
+			<ControlRow title="Shared platform costs" detail="Azure, Temporal and other shared services." value="Not allocated" reason="Held at platform level; no tenant share is invented" />
+			{costs.lines.length ? (
+				<Table className="adm-cost-table" aria-label="Cost by source" columns={["Source", "Units", "Provider cost", "Evidence"]} template="minmax(0, 2.4fr) minmax(0, .9fr) minmax(0, .9fr) minmax(0, 1.2fr)">
+					{costs.lines.map((line) => (
+						<article key={line.id} className="ds-table-row adm-static-row" aria-label={line.source}>
+							<PrimaryCell title={line.source} meta={line.meta} />
+							<span className="ds-cell ds-cell-num">{line.held ? `${unitsLabel(line.held)} held` : line.evidence === "customer_key" ? "Not drawn down" : unitsLabel(line.units)}</span>
+							<span className="ds-cell ds-cell-num">{line.cents !== null ? usdLabel(line.cents) : line.evidence === "customer_key" ? "Paid by customer" : "Unknown"}</span>
+							<span className="ds-cell">{line.evidence === "unknown" ? <Badge tone="warning">{COST_EVIDENCE_LABEL[line.evidence]}</Badge> : COST_EVIDENCE_LABEL[line.evidence]}</span>
+						</article>
+					))}
+				</Table>
+			) : null}
+		</Section>
 	)
 }
 
@@ -197,7 +299,8 @@ function UsageTab({ tenant, open }: { tenant: TenantState; open: (pending: Pendi
 				<ControlRow title="Open reservations" detail="Held while a job runs; settled or released when it finishes." value={`${unitsLabel(usage.reservations)} units`} reason={`${usage.reservationJobs} job${usage.reservationJobs === 1 ? "" : "s"}`} />
 				<ControlRow title="Reconciliation" attention={usage.reconciliation.length ? <Badge tone="warning">{usage.reconciliation.length} unresolved</Badge> : null} detail={usage.reconciliation[0] ?? "Every settled job matches its provider usage."} value={usage.reconciliation.length ? "Cost unknown" : "Reconciled"} reason={usage.reconciliation.length ? "Shown as unknown, never as zero" : "As of 09:41"} />
 			</Section>
-			<Section title="Adjustments" description="Credits and debits are new entries with a reason and a ticket." actions={<Button size="sm" onClick={() => open({ kind: "adjust" })}>Add compensating adjustment</Button>}>
+			<CostsSection tenant={tenant} />
+			<Section title="Adjustments" description="Credits and debits are new entries with a reason and a ticket." actions={<Allowed action="tenant.change"><Button size="sm" onClick={() => open({ kind: "adjust" })}>Add compensating adjustment</Button></Allowed>}>
 				{usage.adjustments.length ? usage.adjustments.map((adjustment) => <ControlRow key={adjustment.id} title={`${adjustment.units > 0 ? "+" : ""}${unitsLabel(adjustment.units)} units`} detail={adjustment.reason} value={adjustment.ticket || "—"} reason={adjustment.at} />) : <p className="adm-empty-line">No adjustments this cycle.</p>}
 			</Section>
 		</>
@@ -231,30 +334,31 @@ function OperationsTab({ tenant, platform, open }: { tenant: TenantState; platfo
 			</Section>
 			<Section title="Stops" description="One short command: a reason, a confirmation and a current MFA. Deployment and rollback never reset a stop.">
 				{tenant.stop ? (
-					<ControlRow title={`${STOP_LABEL[tenant.stop.mode]} · ${tenant.stop.scope}`} attention={<Badge tone="danger">In effect</Badge>} detail={`Since ${tenant.stop.at} · ${REASON_LABEL[tenant.stop.reason]}`} value="Stopped" reason="New protected work is refused" action={<Button size="sm" onClick={() => open({ kind: "lift" })}>Lift stop</Button>} />
+					<ControlRow title={`${STOP_LABEL[tenant.stop.mode]} · ${tenant.stop.scope}`} attention={<Badge tone="danger">In effect</Badge>} detail={`Since ${tenant.stop.at} · ${REASON_LABEL[tenant.stop.reason]}`} value="Stopped" reason="New protected work is refused" action={<Allowed action="tenant.stop"><Button size="sm" onClick={() => open({ kind: "lift" })}>Lift stop</Button></Allowed>} />
 				) : (
-					<ControlRow title="No stop in effect" detail="Pause new work, make it read-only, block it, or suspend the tenant." value="Running" reason="Every other check still applies" action={<Button size="sm" className="adm-danger" onClick={() => open({ kind: "stop" })}>Emergency stop</Button>} />
+					<ControlRow title="No stop in effect" detail="Pause new work, make it read-only, block it, or suspend the tenant." value="Running" reason="Every other check still applies" action={<Allowed action="tenant.stop"><Button size="sm" className="adm-danger" onClick={() => open({ kind: "stop" })}>Emergency stop</Button></Allowed>} />
 				)}
 			</Section>
 		</>
 	)
 }
 
-export function TenantDetail({ tenant, platform, receipts, tab, onTab }: { tenant: TenantState; platform: PlatformState; receipts: Receipt[]; tab: TenantTab; onTab: (tab: TenantTab) => void }) {
+export function TenantDetail({ tenant, platform, receipts, tab, onTab, initialReceiptId = null }: { tenant: TenantState; platform: PlatformState; receipts: Receipt[]; tab: TenantTab; onTab: (tab: TenantTab) => void; initialReceiptId?: string | null }) {
 	const [pending, setPending] = useState<Pending | null>(null)
-	const [receiptId, setReceiptId] = useState<string | null>(null)
+	const [receiptId, setReceiptId] = useState<string | null>(initialReceiptId)
+	const gaps = setupGaps(tenant)
 	const close = () => setPending(null)
 	const props = { tenant, platform, onClose: close, onPublished: (receipt: Receipt) => setReceiptId(receipt.id) }
 	return (
 		<>
 			<PageHeader title={tenant.name} description={`${tenant.packageName} · ${tenant.region} · tenant revision ${tenant.revision}`} actions={<Badge tone={lifecycleTone(tenant.lifecycle)}>{LIFECYCLE_LABEL[tenant.lifecycle]}</Badge>} />
-			{tenant.setupGap ? <Banner tone="warning" icon={<WarningCircle aria-hidden="true" />}>{tenant.setupGap}</Banner> : null}
+			{gaps.length ? <Banner tone="warning" icon={<WarningCircle aria-hidden="true" />}>{tenant.setup ? `Setup is incomplete: ${gaps.join(" ")}` : gaps[0]}</Banner> : null}
 			<ReceiptLine receiptId={receiptId} />
 			<div className="ds-tabstrip org-tabs" role="tablist" aria-label={`${tenant.name} controls`} onKeyDown={(event) => onTabKeys(event, TENANT_TABS, tab, onTab)}>
 				{TENANT_TABS.map((item) => <button key={item} type="button" role="tab" id={`tenant-tab-${item}`} aria-selected={tab === item} aria-controls="tenant-panel" tabIndex={tab === item ? 0 : -1} onClick={() => onTab(item)}>{TAB_LABEL[item]}</button>)}
 			</div>
 			<div id="tenant-panel" role="tabpanel" aria-labelledby={`tenant-tab-${tab}`}>
-				{tab === "access" ? <AccessTab tenant={tenant} platform={platform} open={setPending} />
+				{tab === "access" ? <AccessTab tenant={tenant} platform={platform} open={setPending} onTab={onTab} />
 					: tab === "models" ? <ModelsTab tenant={tenant} platform={platform} open={setPending} />
 					: tab === "modules" ? <ModulesTab tenant={tenant} platform={platform} open={setPending} />
 					: tab === "usage" ? <UsageTab tenant={tenant} open={setPending} />
@@ -271,6 +375,9 @@ export function TenantDetail({ tenant, platform, receipts, tab, onTab }: { tenan
 			{pending?.kind === "adjust" ? <AdjustmentChange {...props} /> : null}
 			{pending?.kind === "stop" ? <StopChange {...props} preset={pending.preset} /> : null}
 			{pending?.kind === "lift" && tenant.stop ? <LiftStopChange {...props} /> : null}
+			{pending?.kind === "invitation" ? <InvitationChange {...props} invitationId={pending.id} mode={pending.mode} /> : null}
+			{pending?.kind === "sessions" ? <SessionsChange {...props} /> : null}
+			{pending?.kind === "owner" && tenant.setup ? <ReplaceOwnerChange tenant={tenant} onClose={close} onPublished={props.onPublished} /> : null}
 		</>
 	)
 }

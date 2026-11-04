@@ -87,6 +87,10 @@ export function useOrganization(): OrganizationState {
 	return useSyncExternalStore(subscribe, () => state, () => state)
 }
 export const readOrganization = () => state
+// Decisions made in the modules reach the same audit log as the organization's own changes.
+export function recordAudit(category: AuditCategory, action: string, target: string) {
+	update({ audit: withAudit(audit(category, action, target)) })
+}
 
 /** Tests start every case from the seed. */
 export function resetOrganizationStore() { state = initialState(); sequence = 0; emit() }

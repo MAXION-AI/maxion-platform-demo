@@ -8,6 +8,7 @@ import { awaitingCreation, isTerminal } from "./engine/engine"
 import { SCENARIOS } from "./engine/scenarios"
 import { accountable, achievements, health, needsYou, presenceLine, statusOf, teamOf, type ReadinessRow } from "./engine/selectors"
 import type { AgentixState, Tone, WorkItem } from "./engine/types"
+import { engagementInProject, selectProject, useScope } from "@/features/platform-prototype/scope"
 
 /*
  * Status pills are the ElevenLabs batch-call pills (mobbin 567dc229): a tinted
@@ -50,13 +51,25 @@ const BADGE_TONE = { positive: "positive", attention: "warning", danger: "danger
 /* `listed` holds the engagements whose waiting items the Needs you list above already shows (unfolded). */
 export function Fleet({ state, query, filter, onOpen, onReset, listed }: { state: AgentixState; query: string; filter: string; onOpen: (id: string) => void; onReset: () => void; listed?: ReadonlySet<string> }) {
 	const term = query.trim().toLowerCase()
+	const scope = useScope()
 	const engagements = Object.values(state.engagements).filter(engagement => {
 		// The customer demo's revenue engagement appears once its Discovery creates it.
 		if (awaitingCreation(engagement)) return false
+		// The customer demo runs in one fixed scope, so this only narrows the ordinary shell.
+		if (!engagementInProject(scope, engagement)) return false
 		const scenario = SCENARIOS[engagement.workflowId]
 		const text = `${engagement.name} ${engagement.owner} ${scenario.category} ${scenario.systems.map(system => system.name).join(" ")}`.toLowerCase()
 		return text.includes(term) && (filter !== "attention" || needsYou(state, engagement.id).length > 0 || health(state, engagement).tone === "danger")
 	})
+	if (!engagements.length && scope.projectId && !term) {
+		return (
+			<TileGrid className="aop-fleet" aria-label="Engagements">
+				<EmptyState role="status" icon={<CheckCircle />} title="No engagements in this project yet." action={<DsButton onClick={() => selectProject(null)}>Show all projects</DsButton>}>
+					<p>New work you start while this project is selected stays with it.</p>
+				</EmptyState>
+			</TileGrid>
+		)
+	}
 	if (!engagements.length) {
 		return (
 			<TileGrid className="aop-fleet" aria-label="Engagements">

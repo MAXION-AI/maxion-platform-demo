@@ -5,14 +5,15 @@ import { Banner, Button as DsButton, Count, Mark, PageHeader, SearchInput, Segme
 import { useRiseIn } from "@/components/motion/MotionKit"
 import { Component, useCallback, useEffect, useId, useRef, useState, type KeyboardEvent, type MouseEvent, type ReactNode } from "react"
 import type { AgentixAttention, AgentixIntentSignal, AgentixOrigin, AgentixPendingCase } from "./AgentixInitiativesPage"
+import { engagementInProject, linkEngagementToProject, readScope, useScope } from "@/features/platform-prototype/scope"
 import type { WorkflowId } from "./initiatives"
-import { activate, actOnEngagement, addIncoming, advanceSchedule, advanceToWindow, answerQuestion, armFailure, artifactBy, assignWork, awaitingCreation, createEngagement, editEngagement, itemBy, receivePackage, syncClock, tick, TICK_MS, visiblePackage, withdrawProposal, type BriefRoute } from "./engine/engine"
+import { activate, actOnEngagement, addIncoming, advanceSchedule, advanceToWindow, answerQuestion, armFailure, armSaveFailure, artifactBy, assignWork, awaitingCreation, changePendingRequest, createEngagement, editEngagement, itemBy, loseSandbox, receivePackage, syncClock, tick, TICK_MS, visiblePackage, withdrawProposal, type BriefRoute } from "./engine/engine"
 import { packageScenario, SCENARIOS } from "./engine/scenarios"
 import { demoInitialState, initialState } from "./engine/seed"
 import { demoScript } from "@/features/demo/scripts"
 import { DEMO_AGENTIX_RESET_EVENT, DEMO_OWNER_EVENT, DEMO_SAVE_EVENT, demoActive, demoSession, notifyDemoChange, restartDemo } from "@/features/demo/session"
 import { useDemoOwnership } from "@/features/demo/useDemoOwnership"
-import { needsYou, teamOf, type NeedsYouItem } from "./engine/selectors"
+import { needsYou, pendingBinding, teamOf, type NeedsYouItem } from "./engine/selectors"
 import { readState, writeState } from "./engine/storage"
 import type { AgentixState, DiscoveryLink, Nav } from "./engine/types"
 import { EngagementStart } from "./EngagementStart"
@@ -25,7 +26,7 @@ import "./engagement.css"
 
 type Sheet = { kind: "details"; section: DetailSection } | { kind: "demo" } | null
 const INBOX_LIMIT = 4
-const KIND_ACTION: Record<NeedsYouItem["kind"], string> = { decision: "Review decision", question: "Answer", release: "Review release", human: "Provide confirmation", failed: "Choose next step", partial: "Resolve notification", permission: "Restore permission", proposal: "Review proposal", setup: "Finish setup" }
+const KIND_ACTION: Record<NeedsYouItem["kind"], string> = { decision: "Review decision", question: "Answer", release: "Review release", human: "Provide confirmation", failed: "Choose next step", partial: "Resolve notification", permission: "Restore permission", proposal: "Review proposal", setup: "Finish setup", changed: "Review the change", effect: "Investigate", budget: "See the limit" }
 
 /*
  * A view that fails to render shows a way back instead of blanking the MAXION
@@ -142,7 +143,7 @@ export function DeployedAgentsPage({ intentSignal, onAttentionChange, onOpenDisc
 			const item = itemBy(state, entry.workId)
 			const owner = state.engagements[entry.engagementId]
 			if (!item || !owner) continue
-			byWork.set(entry.workId, { id: item.id, agentId: owner.id, workflowId: owner.workflowId, engagement: owner.name, reference: item.reference, title: item.title, phase: entry.kind === "human" ? "human" : entry.kind === "partial" ? "partial" : "approval", label: entry.kind === "release" ? `Review ${entry.title.replace(/\?$/, "").replace(/^Release /, "").toLowerCase()} release` : entry.kind === "question" ? `Answer: ${entry.title}` : undefined })
+			byWork.set(entry.workId, { id: item.id, agentId: owner.id, workflowId: owner.workflowId, engagement: owner.name, reference: item.reference, title: item.title, phase: entry.kind === "human" ? "human" : entry.kind === "partial" ? "partial" : "approval", label: entry.kind === "release" ? `Review ${entry.title.replace(/\?$/, "").replace(/^Release /, "").toLowerCase()} release` : entry.kind === "question" ? `Answer: ${entry.title}` : entry.kind === "changed" || entry.kind === "effect" || entry.kind === "budget" ? entry.title : undefined, ...pendingBinding(state, entry) })
 		}
 		const pending = [...byWork.values()]
 		const setup = items.filter(entry => entry.kind === "proposal" || entry.kind === "setup").length
@@ -257,6 +258,9 @@ export function DeployedAgentsPage({ intentSignal, onAttentionChange, onOpenDisc
 		const id = `eng-${crypto.randomUUID()}`
 		const brief = state.drafts.new ?? ""
 		update(current => { const value = createEngagement(current, id, workflowId, brief); return value === current ? current : { ...value, drafts: { ...value.drafts, new: "" } } })
+		// New work started inside a project stays with that project.
+		const { projectId } = readScope()
+		if (projectId) linkEngagementToProject(id, projectId)
 		openReview(id)
 	}
 	const activateReview = (id: string) => {
@@ -267,7 +271,9 @@ export function DeployedAgentsPage({ intentSignal, onAttentionChange, onOpenDisc
 		openEngagement(id)
 	}
 
-	const inbox = needsYou(state)
+	// The project picked in the shell narrows what this page lists.
+	const scope = useScope()
+	const inbox = needsYou(state).filter(item => { const owner = state.engagements[item.engagementId]; return !owner || engagementInProject(scope, owner) })
 	// What the Needs you list shows before it folds; those engagements need no second signal on their cards.
 	const listed = new Set((inbox.length > INBOX_LIMIT ? inbox.slice(0, INBOX_LIMIT - 1) : inbox).map(item => item.engagementId))
 	const attentionCount = Object.values(state.engagements).filter(entry => inbox.some(item => item.engagementId === entry.id)).length
@@ -329,6 +335,8 @@ export function DeployedAgentsPage({ intentSignal, onAttentionChange, onOpenDisc
 					onTick={() => update(tick)} onSkip={() => update(current => { let value = current; for (let i = 0; i < 5; i++) value = tick(value); return value })}
 					onWindow={() => update(advanceToWindow)} onSchedule={id => update(current => advanceSchedule(current, id))} onIncoming={id => update(current => addIncoming(current, id))}
 					onExpire={id => update(current => actOnEngagement(current, id, "expire"))} onLosePermission={id => update(current => actOnEngagement(current, id, "lose-permission"))} onAckLoss={() => update(current => armFailure(current, "ackLoss"))}
+					onChangeRequest={id => update(current => changePendingRequest(current, id))} onWriteLoss={() => update(current => armFailure(current, "writeLoss"))} onReadBackMiss={() => update(current => armFailure(current, "readBackMiss"))}
+					onSandboxLoss={id => update(current => loseSandbox(current, id, nav.workId))} onExhaust={id => update(current => actOnEngagement(current, id, "exhaust-budget"))} onSaveFailure={failure => update(current => armSaveFailure(current, failure))}
 					onReset={() => { setState(initialState()); setSheet(null); setToast("The Agentix demo was reset. Discovery work and earlier demo versions are untouched.") }}
 					onRestartCustomerDemo={demoActive() ? start => restartDemo(start) : undefined} demoName={demoSession() ? demoScript(demoSession()!.id).name.toLowerCase() : undefined} /> : null}
 				</ViewBoundary>

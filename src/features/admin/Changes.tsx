@@ -4,8 +4,10 @@ import { Select } from "@/features/organization/shared"
 import { connectorFor, type ConnectorKey } from "@/features/organization/model"
 import { CommitDialog, type Fact } from "./CommitDialog"
 import {
+	INVITATION_STATUS_LABEL,
 	MODULE_LABEL,
 	LIFECYCLE_LABEL,
+	maskEmail,
 	modelEffective,
 	moduleEffective,
 	NETWORK_LABEL,
@@ -40,8 +42,8 @@ const workFact = (tenant: TenantState, note: string): Fact => ({
 const revisionFact = (tenant: TenantState): Fact => ({ label: "Revision", value: `${tenant.revision} → ${tenant.revision + 1}, checked against the ${RELEASE} release manifest` })
 
 /* Publishing closes the dialog and hands the receipt back so the page can follow its status. */
-const commit = (props: ChangeProps, publication: Omit<Publication, "reason" | "ticket" | "scope" | "tenantId">) => (reason: Publication["reason"], ticket: string) => {
-	const receipt = publish({ ...publication, reason, ticket, scope: props.tenant.name, tenantId: props.tenant.id })
+const commit = (props: ChangeProps, publication: Omit<Publication, "reason" | "ticket" | "scope" | "tenantId" | "action"> & { action?: Publication["action"] }) => (reason: Publication["reason"], ticket: string) => {
+	const receipt = publish({ action: "tenant.change", ...publication, reason, ticket, scope: props.tenant.name, tenantId: props.tenant.id })
 	props.onPublished(receipt)
 	props.onClose()
 }
@@ -252,7 +254,7 @@ export function AdjustmentChange(props: ChangeProps) {
 			summary={[{ label: "Adjustment", after: valid ? `${value > 0 ? "+" : ""}${unitsLabel(value)} units` : "—" }, { label: "Remaining this cycle", before: `${unitsLabel(remaining)} units`, after: `${unitsLabel(valid ? remaining + value : remaining)} units` }]}
 			facts={[{ label: "Settled usage", value: `${unitsLabel(tenant.usage.used)} units, unchanged` }, { label: "Open reservations", value: `${unitsLabel(tenant.usage.reservations)} units, unchanged` }, revisionFact(tenant)]}
 			onPublish={(reason, ticket) => {
-				const receipt = publish({ scope: tenant.name, tenantId: tenant.id, control: "Usage adjustment", change: `${value > 0 ? "+" : ""}${unitsLabel(value)} units · ${note.trim()}`, reason, ticket, applyTenant: () => ({ ...draft, usage: { ...draft.usage, adjustments: draft.usage.adjustments.map((item, index) => index === 0 ? { ...item, ticket: ticket.trim() } : item) } }) })
+				const receipt = publish({ action: "tenant.change", scope: tenant.name, tenantId: tenant.id, control: "Usage adjustment", change: `${value > 0 ? "+" : ""}${unitsLabel(value)} units · ${note.trim()}`, reason, ticket, applyTenant: () => ({ ...draft, usage: { ...draft.usage, adjustments: draft.usage.adjustments.map((item, index) => index === 0 ? { ...item, ticket: ticket.trim() } : item) } }) })
 				props.onPublished(receipt)
 				props.onClose()
 			}}
@@ -285,7 +287,7 @@ export function StopChange(props: ChangeProps & { preset?: StopMode }) {
 			summary={[{ label: "Stop", before: tenant.stop ? STOP_LABEL[tenant.stop.mode] : "None", after: `${STOP_LABEL[mode]} · ${effectiveScope}` }, { label: "Lifecycle", before: LIFECYCLE_LABEL[tenant.lifecycle], after: mode === "suspend_tenant" ? LIFECYCLE_LABEL.suspended : LIFECYCLE_LABEL[tenant.lifecycle] }]}
 			warning={mode === "suspend_tenant" ? "Suspension rejects ordinary access and new protected work across both modules and revokes sessions in the same step." : undefined}
 			facts={[{ label: "What happens", value: STOP_DETAIL[mode] }, workFact(tenant, "Each is paused or cancelled where supported; receipts and recovery stay available."), revisionFact(tenant)]}
-			onPublish={(reason, ticket) => commit(props, { control: "Emergency stop", change: `${STOP_LABEL[mode]} · ${effectiveScope}`, applyTenant: (current) => ({ ...current, stop: { mode, scope: effectiveScope, reason, at: "Just now" }, lifecycle: mode === "suspend_tenant" ? "suspended" : current.lifecycle }) })(reason, ticket)}
+			onPublish={(reason, ticket) => commit(props, { action: "tenant.stop", control: "Emergency stop", change: `${STOP_LABEL[mode]} · ${effectiveScope}`, applyTenant: (current) => ({ ...current, stop: { mode, scope: effectiveScope, reason, at: "Just now" }, lifecycle: mode === "suspend_tenant" ? "suspended" : current.lifecycle, sessions: mode === "suspend_tenant" ? 0 : current.sessions }) })(reason, ticket)}
 			onClose={props.onClose}>
 			<fieldset className="org-choices adm-editor">
 				<legend className="ds-label">Mode</legend>
@@ -311,7 +313,34 @@ export function LiftStopChange(props: ChangeProps) {
 			summary={[{ label: "Stop", before: `${STOP_LABEL[stop.mode]} · ${stop.scope}`, after: "None" }, { label: "Lifecycle", before: LIFECYCLE_LABEL[tenant.lifecycle], after: tenant.lifecycle === "suspended" ? LIFECYCLE_LABEL.active : LIFECYCLE_LABEL[tenant.lifecycle] }]}
 			warning={tenant.lifecycle === "cleanup_pending" ? "Offboarding continues. Lifting the stop doesn't reopen the tenant or restore anything already cleaned up." : undefined}
 			facts={[{ label: "In effect since", value: stop.at }, workFact(tenant, "Paused work stays paused until its owner resumes it."), revisionFact(tenant)]}
-			onPublish={commit(props, { control: "Stop lifted", change: `${STOP_LABEL[stop.mode]} → None`, applyTenant: (current) => ({ ...current, stop: null, lifecycle: current.lifecycle === "suspended" ? "active" : current.lifecycle }) })}
+			onPublish={commit(props, { action: "tenant.stop", control: "Stop lifted", change: `${STOP_LABEL[stop.mode]} → None`, applyTenant: (current) => ({ ...current, stop: null, lifecycle: current.lifecycle === "suspended" ? "active" : current.lifecycle }) })}
+			onClose={props.onClose} />
+	)
+}
+
+/* Support's commands (IAM-3): resend issues a new link and ends the old one; revoke is a reduction. Neither shows the address or any message. */
+export function InvitationChange(props: ChangeProps & { invitationId: string; mode: "resend" | "revoke" }) {
+	const { tenant, invitationId, mode } = props
+	const invitation = tenant.invitations.find((item) => item.id === invitationId)!
+	const resend = mode === "resend"
+	const target = `${invitation.role} invitation to ${maskEmail(invitation.email)}`
+	const applyTenant = (current: TenantState): TenantState => ({ ...current, invitations: current.invitations.map((item) => item.id === invitationId ? (resend ? { ...item, status: "pending", expiresInDays: 7, generation: item.generation + 1 } : { ...item, status: "revoked" }) : item) })
+	return (
+		<CommitDialog title={`${resend ? "Resend" : "Revoke"} an invitation for ${tenant.name}`} description={resend ? "Issues a new link. The old link stops working, and the seven days start again." : "The link stops working. The person can be invited again by the customer."} ready
+			summary={[{ label: "Status", before: INVITATION_STATUS_LABEL[invitation.status], after: resend ? "Pending" : "Revoked" }, ...(resend ? [{ label: "Link generation", before: String(invitation.generation), after: String(invitation.generation + 1) }] : [])]}
+			facts={[{ label: "Target", value: target }, { label: "Seats", value: "Pending invitations take no seat" }, { label: "Customer content", value: "None. Staff see no message or membership content." }, revisionFact(tenant)]}
+			onPublish={commit(props, { action: "invitation.manage", control: resend ? "Invitation resent" : "Invitation revoked", change: `${invitation.role} invitation · ${INVITATION_STATUS_LABEL[invitation.status]} → ${resend ? `Pending, link generation ${invitation.generation + 1}` : "Revoked"}`, applyTenant })}
+			onClose={props.onClose} />
+	)
+}
+
+export function SessionsChange(props: ChangeProps) {
+	const { tenant } = props
+	return (
+		<CommitDialog title={`Revoke sessions for ${tenant.name}`} description="Everyone in this organization signs in again. Nothing else changes, and no staff member gains access to anything." ready
+			summary={[{ label: "Active sessions", before: String(tenant.sessions), after: "0" }]}
+			facts={[workFact(tenant, "Running work is unaffected; each next request needs a new sign-in."), revisionFact(tenant)]}
+			onPublish={commit(props, { action: "tenant.sessions", control: "Sessions revoked", change: `${tenant.sessions} → 0 active sessions`, applyTenant: (current) => ({ ...current, sessions: 0 }) })}
 			onClose={props.onClose} />
 	)
 }
@@ -335,7 +364,7 @@ export function PlatformStopChange({ platform, target, onClose, onPublished }: {
 		<CommitDialog emergency={!resuming} title={`${resuming ? "Resume" : "Stop"} ${label} for every tenant`} description={resuming ? "New work is admitted again where every other check passes. Nothing paused is replayed." : target.kind === "model" ? "Tenants that rely on this route get no substitute: their new work pauses with a reason until a route is granted." : "One short command for every tenant. It never recalls an action already sent."} ready publishLabel={resuming ? "Publish" : "Stop now"}
 			summary={[{ label, before, after }]}
 			facts={[{ label: "Scope", value: "Every tenant, at its next enforceable boundary" }, { label: "Current", value: current ? `${STOP_LABEL[current.mode]} since ${current.at} · ${REASON_LABEL[current.reason]}` : "No stop in effect" }, { label: "Revision", value: `Platform ${platform.revision} → ${platform.revision + 1}` }]}
-			onPublish={(reason, ticket) => { onPublished(publish({ scope: "Platform", control: target.kind === "model" ? `Model route · ${label}` : `Platform stop · ${label}`, change: `${before} → ${after}`, reason, ticket, applyPlatform: apply(reason) })); onClose() }}
+			onPublish={(reason, ticket) => { onPublished(publish({ action: "platform.control", scope: "Platform", control: target.kind === "model" ? `Model route · ${label}` : `Platform stop · ${label}`, change: `${before} → ${after}`, reason, ticket, applyPlatform: apply(reason) })); onClose() }}
 			onClose={onClose}>
 			{target.kind === "capability" && !resuming ? (
 				<fieldset className="org-choices adm-editor">

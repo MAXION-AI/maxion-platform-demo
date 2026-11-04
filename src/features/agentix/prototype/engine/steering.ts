@@ -1,4 +1,4 @@
-import { actOnEngagement, actOnRelease, actOnWork, artifactBy, artifactSpec, decisionBy, isTerminal, itemBy, latest, post, produce, releaseWindowOf, scenarioOf, templateOf } from "./engine"
+import { actOnEngagement, actOnRelease, actOnWork, artifactBy, artifactSpec, decisionBy, isTerminal, itemBy, latest, post, produce, publishesFiles, releaseWindowOf, scenarioOf, templateOf } from "./engine"
 import { SCENARIOS } from "./scenarios"
 import { accountable, decisionTitle, itemSentence, needsYou, presenceLine, releaseSentence, statusOf, teamOf, teamPresence } from "./selectors"
 import { scopeKey, type AgentixState, type InstructionIntent, type InstructionStatus, type ObjectRef, type PendingChange, type Release, type ScopeRef, type WorkItem } from "./types"
@@ -73,7 +73,8 @@ function artifactStatus(state: AgentixState, artifactId: string) {
 	const artifact = artifactBy(state, artifactId)!
 	const version = latest(artifact)
 	const passed = version.checks.filter(check => check.status === "passed").length
-	const production = artifact.productionVersion ? `Production is on v${artifact.productionVersion}.` : "Nothing is in production yet."
+	const files = publishesFiles(state, artifact)
+	const production = files ? (artifact.productionVersion ? `The published file version is v${artifact.productionVersion}.` : "No file version is published yet.") : artifact.productionVersion ? `Production is on v${artifact.productionVersion}.` : "Nothing is in production yet."
 	return `${artifact.title} v${version.version}: ${version.summary.toLowerCase()}. ${version.checks.length ? `${passed} of ${version.checks.length} checks passed${version.status === "testing" ? " so far" : ""}. ` : ""}${production}`
 }
 
@@ -149,7 +150,7 @@ function question(state: AgentixState, engagementId: string, scope: ScopeRef, te
 	const offer = scope.kind !== "work" ? amendmentFor(state, engagementId, scope, text) : null
 	if (offer) {
 		const artifact = artifactBy(state, offer.artifactId)!
-		return { state, intent: "clarify", status: "answered", reply: `I can: ${offer.label.toLowerCase()} on the ${artifact.title.toLowerCase()} would make v${artifact.versions.length + 1}, retested before any release. Production stays as it is. Should I make that change?`, links: [{ kind: "artifact", id: artifact.id }], offer: { kind: "amend", artifactId: offer.artifactId, change: offer.id } }
+		return { state, intent: "clarify", status: "answered", reply: `I can: ${offer.label.toLowerCase()} on the ${artifact.title.toLowerCase()} would make v${artifact.versions.length + 1}, retested before any release. ${publishesFiles(state, artifact) ? "The published file stays as it is." : "Production stays as it is."} Should I make that change?`, links: [{ kind: "artifact", id: artifact.id }], offer: { kind: "amend", artifactId: offer.artifactId, change: offer.id } }
 	}
 	const assignment = assignmentFor(state, engagementId, text, original)
 	if (assignment) return { state, intent: "clarify", status: "answered", reply: `I can take that on as new work for the ${assignment.owner.toLowerCase()}: “${assignment.title}”. It would be its own work item in this engagement. Should I assign it?`, links: [], offer: { kind: "assign", template: assignment.template, title: assignment.title } }
@@ -241,7 +242,7 @@ function interpret(state: AgentixState, engagementId: string, scope: ScopeRef, i
 		const next = actOnWork(state, scoped.id, pause ? "pause" : "resume")
 		const decisionWait = scoped.status === "waiting" && scoped.wait?.kind === "decision"
 		const reason = isTerminal(scoped) ? `${scoped.reference} is ${statusOf(state, scoped).label.toLowerCase()}, so there's nothing to ${pause ? "pause" : "resume"}.` : pause ? `${scoped.reference} is already paused.` : `${scoped.reference} isn't paused. ${itemSentence(state, scoped)}.${decisionWait ? " Chat can't approve it; decide in its card." : ""}`
-		return applied(next, next === state ? `${reason} Nothing changed.` : pause ? `Paused ${scoped.reference} before its next action. Its progress is kept and other work continues. Pausing doesn't recall anything already done.` : `Resumed ${scoped.reference} from its checkpoint.`, [{ kind: "work", id: scoped.id }])
+		return applied(next, next === state ? `${reason} Nothing changed.` : pause ? `Paused ${scoped.reference} before its next action. Its progress is kept and other work continues. Pausing doesn't recall anything already done.` : `Resumed ${scoped.reference}.${scoped.checkpoints?.length ? ` Its last confirmed checkpoint is ${scoped.checkpoints.at(-1)!.id}.` : ""}`, [{ kind: "work", id: scoped.id }])
 	}
 	if (PRIORITY.test(text)) {
 		if (!scoped) return declined("Priority applies to one work item at a time. Open it, or name it (for example “prioritize INV-20843”). Nothing changed.", [], "steer")
@@ -267,7 +268,7 @@ function interpret(state: AgentixState, engagementId: string, scope: ScopeRef, i
 	const amendment = amendmentFor(state, engagementId, scope, text)
 	if (amendment) {
 		const artifact = artifactBy(state, amendment.artifactId)!
-		return { state, intent: "amend", status: "queued", pending: { kind: "amend", artifactId: artifact.id, change: amendment.id }, reply: `Queued: ${amendment.label.toLowerCase()} on the ${artifact.title.toLowerCase()}. It becomes v${artifact.versions.length + 1} on the next demo minute and is retested before any release.${artifact.productionVersion ? ` Production stays on v${artifact.productionVersion}.` : ""}`, links: [{ kind: "artifact", id: artifact.id }] }
+		return { state, intent: "amend", status: "queued", pending: { kind: "amend", artifactId: artifact.id, change: amendment.id }, reply: `Queued: ${amendment.label.toLowerCase()} on the ${artifact.title.toLowerCase()}. It becomes v${artifact.versions.length + 1} on the next demo minute and is retested before any release.${artifact.productionVersion ? (publishesFiles(state, artifact) ? ` The published file stays at v${artifact.productionVersion}.` : ` Production stays on v${artifact.productionVersion}.`) : ""}`, links: [{ kind: "artifact", id: artifact.id }] }
 	}
 	if (CHANGE_WORDS.test(text)) {
 		const target = scope.kind === "artifact" ? artifactBy(state, scope.id) : state.artifacts.find(artifact => artifact.engagementId === engagementId && text.includes(artifact.key))

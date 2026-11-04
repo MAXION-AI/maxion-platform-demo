@@ -1,9 +1,9 @@
 import { CaretDown, CaretRight, Check, Minus } from "@phosphor-icons/react"
 import { Database, Warning } from "./glyphs"
 import { useState } from "react"
-import { artifactSpec, isTerminal, latest, releaseWindowFor, scenarioOf } from "./engine/engine"
+import { artifactSpec, isTerminal, latest, publishesFiles, releaseWindowFor, scenarioOf } from "./engine/engine"
 import type { MappingRow, PreviewSpec } from "./engine/scenarios"
-import { dayLabel, memberName, releaseStatusLabel, shortTime } from "./engine/selectors"
+import { dayLabel, memberName, releaseView, shortTime } from "./engine/selectors"
 import type { AgentixState, Artifact, ArtifactVersion, CheckState } from "./engine/types"
 import { Status } from "./OperationsViews"
 
@@ -21,7 +21,8 @@ export function DataLabel({ state, artifact, version }: { state: AgentixState; a
 	const testData = previewOf(state, artifact.engagementId)?.testDataLabel ?? "Test data · synthetic sample"
 	const production = artifact.productionVersion === version.version
 	const wasLive = !production && state.releases.some(release => release.artifactId === artifact.id && release.version === version.version && (release.status === "applied" || release.status === "verified"))
-	return <span className={`aop-data-label${production ? " is-production" : ""}`}><Database size={12} aria-hidden="true" />{production ? "Production" : wasLive ? "Previously in production" : testData}</span>
+	const files = publishesFiles(state, artifact)
+	return <span className={`aop-data-label${production ? " is-production" : ""}`}><Database size={12} aria-hidden="true" />{production ? (files ? "Published file" : "Production") : wasLive ? (files ? "Published earlier" : "Previously in production") : testData}</span>
 }
 
 /* ---- Mapping ---------------------------------------------------------------- */
@@ -239,22 +240,25 @@ export function RunbookPreview({ state, artifact, version }: { state: AgentixSta
 
 /* ---- Versions, compare and releases ---------------------------------------- */
 const SOURCE_LABEL: Record<ArtifactVersion["source"], string> = { build: "Built", repair: "Repaired automatically", amendment: "Changed on request", decision: "Your decision applied" }
-const versionStatus = (artifact: Artifact, version: ArtifactVersion) => artifact.productionVersion === version.version ? { label: "Live", tone: "positive" as const }
+const versionStatus = (artifact: Artifact, version: ArtifactVersion, files: boolean, governed: boolean) => artifact.productionVersion === version.version ? { label: files ? "Published" : governed ? "Live" : "Current", tone: "positive" as const }
 	: version.status === "tested" ? { label: "Tested", tone: "positive" as const }
 	: version.status === "failed" ? { label: "Failed checks", tone: "danger" as const }
 	: version.status === "testing" ? { label: "Testing", tone: "live" as const }
 	: version.status === "superseded" ? { label: "Superseded", tone: "neutral" as const }
-	: version.status === "released" ? { label: "Released earlier", tone: "neutral" as const }
+	: version.status === "released" ? { label: files ? "Published earlier" : "Released earlier", tone: "neutral" as const }
 	: { label: "Draft", tone: "neutral" as const }
 
 export function VersionHistory({ state, artifact, selected, onSelect, compareWith, onCompare }: { state: AgentixState; artifact: Artifact; selected: number; onSelect: (version: number) => void; compareWith: number | null; onCompare: (version: number | null) => void }) {
 	const releases = state.releases.filter(release => release.artifactId === artifact.id)
+	const files = publishesFiles(state, artifact)
+	const governed = !!artifactSpec(state, artifact)?.release
+	const place = files ? `published ${artifact.productionVersion ? `v${artifact.productionVersion}` : "not yet"}` : `production ${artifact.productionVersion ? `v${artifact.productionVersion}` : "not released"}`
 	return (
 		<section className="aop-versions" aria-label="Version and release history">
-			<div className="aop-subhead"><h3>Versions</h3><span>{artifact.versions.length} · production {artifact.productionVersion ? `v${artifact.productionVersion}` : "not released"}</span></div>
+			<div className="aop-subhead"><h3>Versions</h3><span>{artifact.versions.length} · {governed ? place : artifact.productionVersion ? `current v${artifact.productionVersion}` : "none current yet"}</span></div>
 			<ol className="aop-version-list">
 				{[...artifact.versions].reverse().map(version => {
-					const status = versionStatus(artifact, version)
+					const status = versionStatus(artifact, version, files, governed)
 					const passed = version.checks.filter(check => check.status === "passed").length
 					return (
 						<li key={version.version} className={version.version === selected ? "is-selected" : undefined}>
@@ -283,9 +287,9 @@ export function VersionHistory({ state, artifact, selected, onSelect, compareWit
 			{compareWith ? <VersionCompare state={state} artifact={artifact} left={compareWith} right={selected} /> : null}
 			{releases.length ? (
 				<>
-					<div className="aop-subhead aop-release-history-head"><h3>Releases</h3><span>{releases.length}</span></div>
+					<div className="aop-subhead aop-release-history-head"><h3>{files ? "Published versions" : "Releases"}</h3><span>{releases.length}</span></div>
 					<ul className="aop-criteria">
-						{[...releases].reverse().map(release => { const status = releaseStatusLabel[release.status]; return <li key={release.id}><span><span className="aop-mono">{release.reference}</span> · v{release.version} → {release.target.split(" (")[0]}{release.appliedAt ? ` · ${shortTime(release.appliedAt)}` : ""}</span><Status label={status.label} tone={status.tone} /></li> })}
+						{[...releases].reverse().map(release => { const status = releaseView(state, release); return <li key={release.id}><span><span className="aop-mono">{release.reference}</span> · v{release.version} → {release.target.split(" (")[0]}{release.appliedAt ? ` · ${shortTime(release.appliedAt)}` : ""}</span><Status label={status.label} tone={status.tone} /></li> })}
 					</ul>
 				</>
 			) : null}

@@ -1,6 +1,7 @@
 import type { WorkflowId } from "../initiatives"
 import { packageFor, packageScenario, SCENARIOS, type ArtifactSpec, type ReleaseWindow, type Scenario, type StepTemplate, type WorkTemplate } from "./scenarios"
-import type { ActivityEvent, AgentixState, Artifact, ArtifactVersion, Decision, DiscoveryLink, Engagement, ObjectRef, Release, ScopeRef, WaitReason, WorkItem } from "./types"
+import { fileFor, fingerprint, publishBlock } from "./files"
+import type { ActivityEvent, AgentixState, Artifact, ArtifactVersion, Decision, DiscoveryLink, Engagement, FilePublication, FileTarget, ObjectRef, Release, ScopeRef, WaitReason, WorkItem } from "./types"
 
 /*
  * The one transition authority. Every change to Agentix state, whether it
@@ -13,7 +14,7 @@ export const MINUTE = 60_000
 export const DAY = 24 * 60 * MINUTE
 export const TICK_MS = 4000
 export const EPOCH = Date.parse("2026-09-11T09:00:00Z")
-export const LIMITS = { work: 240, events: 600, messages: 400, notes: 40, engagements: 50 }
+export const LIMITS = { work: 240, events: 600, messages: 400, notes: 40, engagements: 50, publications: 120, checkpoints: 12 }
 /* Cases and cycles an engagement runs at once. Milestones have their own capacity. */
 export const SLOTS = 3
 
@@ -26,6 +27,18 @@ export const itemBy = (state: AgentixState, id: string) => state.work.find(item 
 export const releaseBy = (state: AgentixState, id: string) => state.releases.find(item => item.id === id)
 export const artifactBy = (state: AgentixState, id: string) => state.artifacts.find(item => item.id === id)
 export const decisionBy = (state: AgentixState, id: string) => state.decisions.find(item => item.id === id)
+/* A generated dashboard or app publishes as files. Everything else with a release changes a customer system. */
+export const publishesFiles = (state: AgentixState, artifact: Artifact) => !!artifactSpec(state, artifact)?.release?.files
+
+/* Paid work runs in a provider sandbox only where a step builds or tests something. */
+export const usesSandbox = (template: WorkTemplate) => template.steps.some(step => step.kind === "build" || step.kind === "test")
+
+/* ---- The scoped allowance, in usage units ---------------------------------- */
+export const STANDARD_ALLOWANCE = 20_000
+export const BUDGET_TOP_UP = 500
+export const spendOf = (state: AgentixState, engagementId: string) => state.work.reduce((sum, item) => item.engagementId === engagementId ? sum + item.costCents : sum, 0)
+export const allowanceOf = (engagement: Engagement) => engagement.budget?.allowance ?? STANDARD_ALLOWANCE
+export const budgetExhausted = (state: AgentixState, engagementId: string) => { const engagement = state.engagements[engagementId]; return !!engagement && spendOf(state, engagementId) >= allowanceOf(engagement) }
 
 /* A deep copy to change; the original stays as it was, so a rejected command can return it untouched. */
 export function produce(state: AgentixState, recipe: (draft: AgentixState) => void): AgentixState {
@@ -200,7 +213,106 @@ function complete(draft: AgentixState, item: WorkItem, template: StepTemplate, i
 	item.costCents += 3
 	if (template.obligation && template.kind !== "notify") meet(item, template.obligation, template.evidence?.[0] ?? `${template.system ?? "Agentix"} · ${item.reference}`)
 	log(draft, { engagementId: item.engagementId, workItemId: item.id, actor: template.owner, kind: "step", stepId: template.id, text: `${item.reference}: ${text}.`, tone: "positive", operations: template.tools })
+	if ((template.kind === "build" || template.kind === "test") && template.artifact) startSave(draft, item, template.artifact, index)
 	handoff(draft, item, template, index)
+}
+
+/* ---- Confirmed saving ------------------------------------------------------- */
+/*
+ * Output counts as saved only after it has been prepared, transferred and committed. A useful
+ * milestone starts that, the work carries on in the sandbox beside it, and only the commit makes a
+ * checkpoint a lost sandbox can resume from. Until then the output reads as being saved, never saved.
+ */
+function startSave(draft: AgentixState, item: WorkItem, key: string, stepIndex: number) {
+	const artifact = artifactBy(draft, `${item.engagementId}:${key}`)
+	if (!artifact) return
+	const version = latest(artifact)
+	const id = `${item.id}:${key}:v${version.version}:${stepIndex}`
+	item.saves ??= []
+	if (item.saves.some(save => save.id === id)) return
+	item.saves.push({ id, artifactId: artifact.id, version: version.version, stepIndex, phase: "preparing", startedAt: draft.clock })
+}
+
+function advanceSaves(draft: AgentixState) {
+	for (const item of draft.work) {
+		if (!item.saves?.length) continue
+		const template = templateOf(draft, item)
+		const remaining = []
+		for (const save of item.saves) {
+			if (save.phase === "preparing") { save.phase = "transferring"; remaining.push(save); continue }
+			const artifact = artifactBy(draft, save.artifactId)
+			const version = artifact?.versions.find(entry => entry.version === save.version)
+			if (!artifact || !version) continue
+			version.hash = fingerprint(artifact, version)
+			version.savedAt = draft.clock
+			item.checkpoints ??= []
+			const last = item.checkpoints.at(-1)
+			const number = last ? Number(last.id.slice(3)) + 1 : 1
+			item.checkpoints.push({ id: `CP-${number}`, at: draft.clock, stepIndex: save.stepIndex, stepTitle: template?.steps[save.stepIndex]?.title ?? "Saved output", artifactId: artifact.id, version: save.version, hash: version.hash, session: item.session ?? 1 })
+			if (item.checkpoints.length > LIMITS.checkpoints) item.checkpoints.splice(0, item.checkpoints.length - LIMITS.checkpoints)
+			log(draft, { engagementId: item.engagementId, workItemId: item.id, artifactId: artifact.id, actor: "agentix", kind: "version", text: `${item.reference}: checkpoint CP-${number} confirmed. ${artifact.title} v${save.version} is saved; its bytes, length and hash were verified.`, tone: "neutral" })
+		}
+		item.saves = remaining
+	}
+}
+
+/* The case a lost sandbox would affect: open, past its first sandbox step, and not already stopped. */
+export function sandboxCase(state: AgentixState, engagementId: string, workId?: string): WorkItem | undefined {
+	const eligible = (item: WorkItem) => {
+		const template = templateOf(state, item)
+		if (!template || !usesSandbox(template) || isTerminal(item) || item.engagementId !== engagementId) return false
+		if (!["working", "verifying", "waiting"].includes(item.status) || item.recovery?.status === "resuming") return false
+		return item.steps.some((step, index) => (template.steps[index].kind === "build" || template.steps[index].kind === "test") && step.status !== "pending" && step.status !== "skipped")
+	}
+	const chosen = workId ? itemBy(state, workId) : undefined
+	if (chosen && eligible(chosen)) return chosen
+	const open = state.work.filter(eligible)
+	return open.find(item => item.status === "working") ?? open[0]
+}
+
+/*
+ * The provider lost the sandbox. Committed decisions, effects and checkpoints stay. What was only in
+ * the sandbox (a build not yet committed, a test run, a transfer in flight) is named and redone, in a
+ * new session, from the last confirmed checkpoint. The case keeps its identity, and no effect repeats.
+ */
+export function loseSandbox(state: AgentixState, engagementId: string, workId?: string): AgentixState {
+	const found = sandboxCase(state, engagementId, workId)
+	if (!found) return state
+	return produce(state, draft => {
+		const item = itemBy(draft, found.id)!
+		const template = templateOf(draft, item)!
+		const last = item.checkpoints?.at(-1)
+		const lastArtifact = last ? artifactBy(draft, last.artifactId) : undefined
+		const inFlight = (item.saves ?? []).map(save => { const artifact = artifactBy(draft, save.artifactId); return `${artifact?.title ?? "Output"} v${save.version}` })
+		item.saves = []
+		const redo: string[] = []
+		template.steps.forEach((spec, index) => {
+			if (spec.kind !== "build" && spec.kind !== "test") return
+			const step = item.steps[index]
+			if (step.status === "pending" || step.status === "skipped" || (step.status === "done" && last && index <= last.stepIndex)) return
+			const artifact = spec.artifact ? artifactBy(draft, `${item.engagementId}:${spec.artifact}`) : undefined
+			// A version a release has already taken is on record elsewhere; it isn't sandbox scratch.
+			if (artifact && draft.releases.some(release => release.artifactId === artifact.id && release.workItemId === item.id && release.status !== "superseded" && release.version === latest(artifact).version)) return
+			item.steps[index] = { id: step.id, status: "pending", ticks: 0 }
+			redo.push(spec.title)
+			if (spec.obligation) { const obligation = item.obligations.find(entry => entry.id === spec.obligation); if (obligation?.status === "met") { obligation.status = "pending"; obligation.evidence = undefined } }
+			if (spec.kind === "test" && artifact) {
+				const version = latest(artifact)
+				if (version.status !== "released" && version.version !== artifact.productionVersion) {
+					version.status = "draft"
+					version.checks = version.checks.map(check => ({ id: check.id, status: "pending" }))
+				}
+			}
+		})
+		if (item.stage === "repairing") item.stage = undefined
+		const fromSession = item.session ?? 1
+		const toSession = fromSession + 1
+		item.session = toSession
+		const lastConfirmed = last && lastArtifact ? `${lastArtifact.title} v${last.version}` : undefined
+		item.recovery = { at: draft.clock, lastConfirmed, checkpoint: last?.id, inFlight, redo, fromSession, toSession, status: "resuming" }
+		if (item.status === "working" || item.status === "verifying") { item.status = "working"; item.wait = undefined }
+		log(draft, { engagementId: item.engagementId, workItemId: item.id, artifactId: lastArtifact?.id, actor: "agentix", kind: "notice", text: `${item.reference}: the sandbox for session ${fromSession} was lost. ${last ? `Last confirmed: ${lastConfirmed}, checkpoint ${last.id}.` : "No checkpoint was confirmed yet, so the sandbox work starts again."}${inFlight.length ? ` Not saved: ${inFlight.join(", ")}.` : ""} ${redo.length ? `To redo: ${redo.join(", ")}.` : "Nothing needs redoing."} Decisions and effects already recorded are kept; nothing is sent again.`, tone: "attention", material: true })
+	})
 }
 
 /*
@@ -323,17 +435,21 @@ function releaseAfter(draft: AgentixState, item: WorkItem, template: StepTemplat
 	if (!after) return undefined
 	// Once this item's own release has been dispatched it can't be un-sent, so it never waits again.
 	const own = item.releaseIds.map(id => releaseBy(draft, id)).filter(entry => entry && entry.status !== "superseded").at(-1)
-	if (own && (own.status === "releasing" || own.status === "unknown" || own.status === "applied" || own.status === "verified")) return undefined
+	if (own && (own.status === "releasing" || own.status === "unknown" || own.status === "not_applied" || own.status === "applied" || own.status === "verified")) return undefined
 	const others = draft.work.filter(entry => entry.engagementId === item.engagementId && entry.template === after.template)
 	if (others.some(entry => entry.steps.find(step => step.id === after.step)?.status === "done")) return undefined
 	// What this release really needs is a live version of the other artifact; a newer version still in test doesn't block it.
 	if (others.some(entry => entry.artifactIds.some(id => artifactBy(draft, id)?.productionVersion !== undefined))) return undefined
 	// Name what is actually pending: a release still in progress, or the other item's step. Stopped or kept-in-test releases aren't pending.
-	const pending = others.flatMap(entry => entry.releaseIds).map(id => releaseBy(draft, id)).filter(entry => entry && !["superseded", "applied", "verified", "stopped", "declined"].includes(entry.status)).at(-1)
+	const pending = others.flatMap(entry => entry.releaseIds).map(id => releaseBy(draft, id)).filter(entry => entry && !["superseded", "applied", "verified", "stopped", "declined", "not_applied"].includes(entry.status)).at(-1)
 	if (pending) return { kind: "release", releaseId: pending.id }
 	const other = others.at(-1)
 	return other ? { kind: "dependency", on: other.id, step: after.step } : { kind: "release", releaseId: "" }
 }
+
+/* How long a read-back takes once someone asks for it. */
+const READ_BACK_TICKS = 2
+const takeReadBackMiss = (draft: AgentixState) => { const missed = !!draft.demo.readBackMiss; draft.demo.readBackMiss = false; return missed }
 
 function runRelease(draft: AgentixState, item: WorkItem, template: StepTemplate, index: number): StepResult {
 	const step = item.steps[index]
@@ -352,9 +468,12 @@ function runRelease(draft: AgentixState, item: WorkItem, template: StepTemplate,
 	let release = draft.releases.find(entry => entry.workItemId === item.id && entry.artifactId === artifact.id && entry.version === version.version && entry.status !== "superseded")
 	if (!release) release = createRelease(draft, engagement, item, artifact, version)
 	const refs = { engagementId: item.engagementId, workItemId: item.id, artifactId: artifact.id, releaseId: release.id }
+	// Publishing a file version writes to no customer system, so the release adapter's access doesn't reach it.
+	const files = publishesFiles(draft, artifact)
+	const adapterLost = !files && engagement.permission === "lost"
 	switch (release.status) {
 		case "preparing": {
-			if (engagement.permission === "lost") {
+			if (adapterLost) {
 				release.status = "blocked"
 				log(draft, { ...refs, actor: "coordinator", kind: "release", text: `${release.reference} is blocked: the release adapter's role lost write access to the target. Nothing was released; the tested version is kept.`, tone: "danger", material: true })
 				return { kind: "wait", reason: { kind: "permission", system: release.target } }
@@ -375,7 +494,7 @@ function runRelease(draft: AgentixState, item: WorkItem, template: StepTemplate,
 			return { kind: "working" }
 		}
 		case "blocked":
-			if (engagement.permission === "lost") return { kind: "wait", reason: { kind: "permission", system: release.target } }
+			if (adapterLost) return { kind: "wait", reason: { kind: "permission", system: release.target } }
 			release.status = "preparing"
 			log(draft, { ...refs, actor: "coordinator", kind: "release", text: `${release.reference}: release permission is back. Continuing under the same policy.`, tone: "live" })
 			return { kind: "working" }
@@ -394,41 +513,54 @@ function runRelease(draft: AgentixState, item: WorkItem, template: StepTemplate,
 		case "declined":
 			return { kind: "wait", reason: { kind: "hold" } }
 		case "releasing": {
-			if (engagement.permission === "lost") {
+			if (adapterLost) {
 				release.status = "blocked"
 				log(draft, { ...refs, actor: "coordinator", kind: "release", text: `${release.reference} stopped before applying: the release adapter's role lost write access. Nothing was released.`, tone: "danger", material: true })
 				return { kind: "wait", reason: { kind: "permission", system: release.target } }
 			}
 			release.attempts++
-			item.effects.push({ id: release.effectId, system: release.target, operation: `Apply ${artifact.title.toLowerCase()} v${version.version}`, sends: 1, status: "unknown" })
-			const scripted = artifact.key === "pipeline" && !draft.releases.some(entry => entry.artifactId === artifact.id && entry.id !== release!.id && ["applied", "verified"].includes(entry.status))
-			if (draft.demo.ackLoss || scripted) {
+			item.effects.push({ id: release.effectId, system: release.target, operation: files ? `Publish ${artifact.title.toLowerCase()} v${version.version} as a file version` : `Apply ${artifact.title.toLowerCase()} v${version.version}`, sends: 1, status: "unknown" })
+			const scripted = artifact.key === "pipeline" && !draft.releases.some(entry => entry.artifactId === artifact.id && entry.id !== release!.id && entry.attempts > 0)
+			if (!files && (draft.demo.ackLoss || scripted)) {
 				draft.demo.ackLoss = false
-				release.status = "unknown"; item.stage = "reconciling"; step.ticks = 0
-				log(draft, { ...refs, actor: "coordinator", kind: "release", text: `${release.reference} outcome unknown: the release adapter timed out after dispatch. It may have applied, so nothing is resent; reconciling first.`, tone: "attention", material: true, operations: ["Release adapter · apply (1 dispatch) · no acknowledgement"] })
-				return { kind: "working" }
+				release.status = "unknown"; item.stage = undefined; step.ticks = 0
+				log(draft, { ...refs, actor: "coordinator", kind: "release", text: `${release.reference} outcome unknown: the release adapter timed out after dispatch. It may have applied, so nothing is resent. It needs a person to read the target back.`, tone: "attention", material: true, operations: ["Release adapter · apply (1 dispatch) · no acknowledgement"] })
+				return { kind: "wait", reason: { kind: "effect", effectId: release.effectId } }
 			}
 			applyRelease(draft, release, artifact)
 			const effect = item.effects.find(entry => entry.id === release!.effectId)!
 			effect.status = "applied"
-			complete(draft, item, template, index, `released ${artifact.title.toLowerCase()} v${version.version}; applied once`)
-			log(draft, { ...refs, actor: "coordinator", kind: "release", text: `${release.reference} applied: ${artifact.title.toLowerCase()} v${version.version} is live in ${release.target.split(" (")[0]}. Verification follows.`, tone: "positive", material: true })
+			complete(draft, item, template, index, files ? `published ${artifact.title.toLowerCase()} v${version.version} as a file version` : `released ${artifact.title.toLowerCase()} v${version.version}; applied once`)
+			log(draft, { ...refs, actor: "coordinator", kind: "release", text: files ? `${release.reference} published: ${artifact.title.toLowerCase()} v${version.version} is now the published file version. Download it or save it from Results. Verification follows.` : `${release.reference} applied: ${artifact.title.toLowerCase()} v${version.version} is live in ${release.target.split(" (")[0]}. Verification follows.`, tone: "positive", material: true })
 			return { kind: "done" }
 		}
 		case "unknown": {
-			// Reconciliation reads the target back before anything else happens; it never resends.
-			step.ticks++
-			if (step.ticks < 3) return { kind: "working" }
-			applyRelease(draft, release, artifact)
+			// Only a person's read-back settles an unknown outcome. It reads the target and never resends.
 			const effect = item.effects.find(entry => entry.id === release!.effectId)
+			if (!effect?.investigating) { item.stage = undefined; return { kind: "wait", reason: { kind: "effect", effectId: release.effectId } } }
+			step.ticks++
+			if (step.ticks < READ_BACK_TICKS) return { kind: "working" }
+			effect.investigating = false
+			item.stage = undefined
+			if (takeReadBackMiss(draft)) {
+				const detail = `The target holds no ${artifact.title.toLowerCase()} v${version.version}. The one dispatch did not apply.`
+				effect.status = "not_applied"; effect.readBack = { at: draft.clock, finding: "not_applied", detail }
+				release.status = "not_applied"
+				log(draft, { ...refs, actor: "coordinator", kind: "release", text: `${release.reference} not applied: ${detail} Nothing was resent. Releasing it again is your call and follows your release policy.`, tone: "attention", material: true, operations: ["Read back target version", "Dispatches: 1 · applied: 0"] })
+				return { kind: "wait", reason: { kind: "effect", effectId: release.effectId } }
+			}
+			applyRelease(draft, release, artifact)
 			// What the read-back found is this engagement's own release target, never another demo's.
 			const readBack = SCENARIOS[draft.engagements[item.engagementId].workflowId].delivery?.releaseReadBack
-			if (effect) { effect.status = "applied"; effect.reference = artifact.key === "pipeline" && readBack ? readBack.reference : `v${version.version}` }
-			item.stage = undefined
+			const found = artifact.key === "pipeline" && readBack ? readBack.found : `v${version.version} in place`
+			effect.status = "applied"; effect.reference = artifact.key === "pipeline" && readBack ? readBack.reference : `v${version.version}`
+			effect.readBack = { at: draft.clock, finding: "applied", detail: `Read-back found ${found}.` }
 			complete(draft, item, template, index, `reconciled ${release.reference}; applied once, no retry`)
-			log(draft, { ...refs, actor: "coordinator", kind: "release", text: `${release.reference} reconciled: read-back found ${artifact.key === "pipeline" && readBack ? readBack.found : `v${version.version} published`}. Applied once; no retry was sent.`, tone: "positive", material: true, operations: ["Read back target version", "Dispatches: 1 · duplicates: 0"] })
+			log(draft, { ...refs, actor: "coordinator", kind: "release", text: `${release.reference} reconciled: read-back found ${found}. Applied once; no retry was sent.`, tone: "positive", material: true, operations: ["Read back target version", "Dispatches: 1 · duplicates: 0"] })
 			return { kind: "done" }
 		}
+		case "not_applied":
+			return { kind: "wait", reason: { kind: "effect", effectId: release.effectId } }
 		default:
 			if (step.status !== "done") complete(draft, item, template, index)
 			return { kind: "done" }
@@ -478,23 +610,39 @@ function runStep(draft: AgentixState, item: WorkItem, template: StepTemplate, in
 			let effect = item.effects.find(entry => entry.id === id)
 			if (step.status === "pending") { step.status = "working"; step.startedAt = draft.clock }
 			if (!effect) {
-				effect = { id, system: template.system ?? "System", operation: template.title, sends: 1, status: item.flags.writeTimeout && !item.flags.reconciled ? "unknown" : "applied" }
+				const lost = (item.flags.writeTimeout && !item.flags.reconciled) || !!draft.demo.writeLoss
+				draft.demo.writeLoss = false
+				effect = { id, system: template.system ?? "System", operation: template.title, sends: 1, status: lost ? "unknown" : "applied" }
 				item.effects.push(effect)
 				item.costCents += 4
 				if (effect.status === "unknown") {
-					item.stage = "reconciling"
-					log(draft, { engagementId: item.engagementId, workItemId: item.id, actor: template.owner, kind: "effect", text: `${item.reference}: ${template.system} didn't confirm the ${template.kind === "write" ? "update" : "request"}. It may have succeeded, so nothing is resent; reconciling the original request.`, tone: "attention", operations: [`${template.system} · 1 dispatch · no acknowledgement`] })
-					return { kind: "working" }
+					step.ticks = 0
+					log(draft, { engagementId: item.engagementId, workItemId: item.id, actor: template.owner, kind: "effect", text: `${item.reference}: ${template.system} didn't confirm the update. It may have succeeded, so nothing is resent. It needs a person to read the target back.`, tone: "attention", material: true, operations: [`${template.system} · 1 dispatch · no acknowledgement`] })
+					return { kind: "wait", reason: { kind: "effect", effectId: id } }
 				}
 				complete(draft, item, template, index)
 				return { kind: "done" }
 			}
 			if (effect.status === "unknown") {
+				// Only a person's read-back settles this. It looks for the original request and never resends.
+				if (!effect.investigating) { item.stage = undefined; return { kind: "wait", reason: { kind: "effect", effectId: id } } }
+				step.ticks++
+				if (step.ticks < READ_BACK_TICKS) return { kind: "working" }
+				effect.investigating = false
+				item.stage = undefined
+				item.flags.reconciled = true
+				if (takeReadBackMiss(draft)) {
+					const detail = `${effect.system} holds no record of this request. The one dispatch did not apply.`
+					effect.status = "not_applied"; effect.readBack = { at: draft.clock, finding: "not_applied", detail }
+					log(draft, { engagementId: item.engagementId, workItemId: item.id, actor: template.owner, kind: "effect", text: `${item.reference}: not applied. ${detail} Nothing was resent. Sending it again is your call.`, tone: "attention", material: true, operations: [`Read back ${effect.system}`, "Dispatches: 1 · applied: 0"] })
+					return { kind: "wait", reason: { kind: "effect", effectId: id } }
+				}
 				effect.status = "applied"; effect.reference = engagement.workflowId === "inventory" ? "REQ-72018" : `EXC-${item.reference.replace(/^\D+-/, "")}`
-				item.flags.reconciled = true; item.stage = undefined
+				effect.readBack = { at: draft.clock, finding: "applied", detail: `Read-back found the original request (${effect.reference}).` }
 				complete(draft, item, template, index, `original request found (${effect.reference}); one ${engagement.workflowId === "inventory" ? "create" : "write"}, no duplicate`)
 				return { kind: "done" }
 			}
+			if (effect.status === "not_applied") return { kind: "wait", reason: { kind: "effect", effectId: id } }
 			if (step.status !== "done") complete(draft, item, template, index)
 			return { kind: "done" }
 		}
@@ -574,6 +722,25 @@ function advanceItem(draft: AgentixState, item: WorkItem, busy: Record<string, n
 	const engagement = draft.engagements[item.engagementId]
 	const template = engagement ? SCENARIOS[engagement.workflowId].templates[item.template] : undefined
 	if (!engagement || !template || engagement.status === "draft" || isTerminal(item) || item.status === "paused" || item.status === "scheduled" || item.status === "failed") return
+	// Reconstructing a session from its checkpoint takes the minute; the work carries on from the next.
+	if (item.recovery?.status === "resuming") {
+		item.recovery.status = "resumed"
+		const { checkpoint, toSession, redo } = item.recovery
+		log(draft, { engagementId: item.engagementId, workItemId: item.id, actor: "agentix", kind: "notice", text: `${item.reference} resumed in session ${toSession} ${checkpoint ? `from checkpoint ${checkpoint}` : "from the start of its sandbox work"}, after a check of current permissions and sources.${redo.length ? ` Redoing: ${redo.join(", ")}.` : ""}`, tone: "live", material: true })
+		return
+	}
+	// Paid work stops at the allowance. A read-back only reads, and what's already saved stays available.
+	if (item.wait?.kind === "budget") {
+		if (budgetExhausted(draft, engagement.id)) return
+		item.status = item.steps.every(step => step.status === "pending") ? "queued" : "working"; item.wait = undefined
+		log(draft, { engagementId: item.engagementId, workItemId: item.id, actor: "coordinator", kind: "notice", text: `${item.reference} continues: the allowance has room again.`, tone: "live" })
+		return
+	}
+	if (["queued", "working", "verifying"].includes(item.status) && !item.effects.some(effect => effect.investigating) && budgetExhausted(draft, engagement.id)) {
+		item.status = "waiting"; item.wait = { kind: "budget" }
+		log(draft, { engagementId: item.engagementId, workItemId: item.id, actor: "coordinator", kind: "notice", text: `${item.reference} stopped before its next paid step: the allowance is used up. Its progress and saved output are kept.`, tone: "attention" })
+		return
+	}
 	const counts = item.kind !== "milestone"
 	if (item.status === "queued") {
 		if (counts && engagement.status === "paused") { item.wait = { kind: "intake" }; return }
@@ -666,6 +833,8 @@ export function tick(state: AgentixState): AgentixState {
 			log(draft, { engagementId: engagement.id, actor: "coordinator", kind: "notice", text: engagement.checked ? "Read-only recheck passed. Scope, mapping and verification path are current." : "Recheck finished; something still needs attention.", tone: engagement.checked ? "positive" : "attention", material: engagement.status !== "draft" })
 		}
 		applyPending(draft)
+		advanceSaves(draft)
+		advancePublications(draft)
 		admitScheduled(draft)
 		const busy: Record<string, number> = {}
 		for (const item of draft.work) if (occupying(item)) busy[item.engagementId] = (busy[item.engagementId] ?? 0) + 1
@@ -714,7 +883,9 @@ const ownerName = (draft: AgentixState, item: WorkItem) => {
 }
 
 /* ---- Owner actions ------------------------------------------------------ */
-export type WorkAction = "pause" | "resume" | "prioritize" | "hold" | "release-hold" | "request-release" | "retry"
+/* A record write's effect, as distinct from a release's: its id is the work item's and the step's. */
+const isWriteEffect = (item: WorkItem, effectId: string) => effectId.startsWith(`${item.id}:`) && !effectId.includes(":attempt-")
+export type WorkAction = "pause" | "resume" | "prioritize" | "hold" | "release-hold" | "request-release" | "resend-write" | "retry"
 export function actOnWork(state: AgentixState, id: string, action: WorkAction): AgentixState {
 	const item = itemBy(state, id)
 	if (!item) return state
@@ -723,23 +894,36 @@ export function actOnWork(state: AgentixState, id: string, action: WorkAction): 
 		: action === "prioritize" ? !isTerminal(item) && item.priority !== "High"
 		: action === "hold" ? !isTerminal(item) && !item.held
 		: action === "release-hold" ? item.held
-		: action === "request-release" ? state.releases.some(release => release.workItemId === id && (release.status === "declined" || release.status === "stopped"))
+		: action === "request-release" ? state.releases.some(release => release.workItemId === id && (release.status === "declined" || release.status === "stopped" || release.status === "not_applied"))
+		: action === "resend-write" ? item.effects.some(effect => effect.status === "not_applied" && isWriteEffect(item, effect.id))
 		: item.status === "failed"
 	if (!allowed) return state
 	return produce(state, draft => {
 		const target = itemBy(draft, id)!
 		const refs = { engagementId: target.engagementId, workItemId: target.id, actor: "owner" }
 		if (action === "pause") { target.pausedFrom = target.status; target.status = "paused"; log(draft, { ...refs, kind: "instruction", text: `You paused ${target.reference} before its next action. Its progress is kept; other work continues.`, tone: "neutral" }) }
-		if (action === "resume") { target.status = target.pausedFrom === "partial" ? "partial" : "queued"; target.pausedFrom = undefined; log(draft, { ...refs, kind: "instruction", text: `You resumed ${target.reference}. It continues from its checkpoint.`, tone: "live" }) }
+		if (action === "resume") {
+			target.status = target.pausedFrom === "partial" ? "partial" : "queued"; target.pausedFrom = undefined
+			const checkpoint = target.checkpoints?.at(-1)
+			log(draft, { ...refs, kind: "instruction", text: `You resumed ${target.reference}. ${checkpoint ? `Its last confirmed checkpoint is ${checkpoint.id}, and nothing done since is repeated.` : "It continues where it stopped."}`, tone: "live" })
+		}
 		if (action === "prioritize") { target.priority = "High"; log(draft, { ...refs, kind: "instruction", text: `You prioritized ${target.reference}. Priority affects its place in the queue, not its authority.`, tone: "neutral" }) }
 		if (action === "hold") { target.held = true; log(draft, { ...refs, kind: "instruction", text: `You held ${target.reference}'s notification. It stays incomplete until you release it; completed sends can't be recalled.`, tone: "neutral" }) }
 		if (action === "release-hold") { target.held = false; log(draft, { ...refs, kind: "instruction", text: `You released ${target.reference}'s notification hold.`, tone: "live" }) }
 		if (action === "request-release") {
-			for (const release of draft.releases) if (release.workItemId === id && (release.status === "declined" || release.status === "stopped")) release.status = "superseded"
+			for (const release of draft.releases) if (release.workItemId === id && (release.status === "declined" || release.status === "stopped" || release.status === "not_applied")) release.status = "superseded"
 			const step = templateOf(draft, target)!.steps.findIndex(entry => entry.kind === "release")
 			if (step >= 0) target.steps[step] = { id: target.steps[step].id, status: "pending", ticks: 0 }
 			target.status = "working"; target.wait = undefined
 			log(draft, { ...refs, kind: "release", text: `You asked for ${target.reference}'s release again. It follows your release policy.`, tone: "live" })
+		}
+		if (action === "resend-write") {
+			// A new attempt under a new identity, because the read-back proved the first one never applied. The old record stays.
+			const effect = target.effects.find(entry => entry.status === "not_applied" && isWriteEffect(target, entry.id))!
+			const earlier = target.effects.filter(entry => entry.id.startsWith(`${effect.id}:attempt-`)).length
+			effect.id = `${effect.id}:attempt-${earlier + 1}`
+			target.status = "working"; target.wait = undefined
+			log(draft, { ...refs, kind: "effect", text: `You asked ${target.reference} to send ${effect.operation.toLowerCase()} again, after a read-back confirmed the first attempt did not apply. It goes out as a new attempt with its own record.`, tone: "live" })
 		}
 		if (action === "retry") {
 			const step = target.steps.findIndex(entry => entry.status === "failed")
@@ -791,7 +975,7 @@ export function actOnRelease(state: AgentixState, id: string, action: ReleaseAct
 	})
 }
 
-export type EngagementAction = "pause-intake" | "resume-intake" | "hold-notifications" | "release-notifications" | "expire" | "reconnect" | "lose-permission" | "restore-permission" | "recheck" | "use-human-payroll" | "request-payroll" | "support"
+export type EngagementAction = "pause-intake" | "resume-intake" | "hold-notifications" | "release-notifications" | "expire" | "reconnect" | "lose-permission" | "restore-permission" | "recheck" | "use-human-payroll" | "request-payroll" | "support" | "exhaust-budget" | "request-budget" | "grant-budget"
 export function actOnEngagement(state: AgentixState, id: string, action: EngagementAction): AgentixState {
 	const engagement = state.engagements[id]
 	if (!engagement) return state
@@ -805,6 +989,9 @@ export function actOnEngagement(state: AgentixState, id: string, action: Engagem
 		: action === "restore-permission" ? engagement.permission === "lost"
 		: action === "recheck" ? !engagement.checking && engagement.connection === "ready" && !engagement.automaticPayroll && (engagement.workflowId !== "onboarding" || !!engagement.mapping)
 		: action === "use-human-payroll" || action === "request-payroll" ? engagement.status === "draft"
+		: action === "exhaust-budget" ? engagement.status !== "draft" && !budgetExhausted(state, id)
+		: action === "request-budget" ? budgetExhausted(state, id) && !engagement.budget?.requestedAt
+		: action === "grant-budget" ? budgetExhausted(state, id)
 		: !engagement.supportRequested
 	if (!allowed) return state
 	return produce(state, draft => {
@@ -822,14 +1009,46 @@ export function actOnEngagement(state: AgentixState, id: string, action: Engagem
 		if (action === "use-human-payroll") { target.automaticPayroll = false; target.checked = false; note("You kept payroll with its owner; automatic payroll provisioning is excluded, not silently dropped.") }
 		if (action === "request-payroll") { target.automaticPayroll = true; target.checked = false }
 		if (action === "support") { target.supportRequested = true; note("Demonstration support request AGX-104 recorded. The capability is still unsupported.") }
+		if (action === "exhaust-budget") {
+			const used = spendOf(draft, id)
+			target.budget = { allowance: used }
+			log(draft, { engagementId: id, actor: "demo", kind: "notice", text: `${target.name} has used its allowance of ${used.toLocaleString("en-US")} units. No new paid work starts; reads, decisions and saved output stay available.`, tone: "danger", material: true })
+		}
+		if (action === "request-budget") { target.budget = { ...target.budget!, requestedAt: draft.clock }; note(`You asked the organization Owner for more units for ${target.name}. Paid work stays stopped until the allowance changes.`, "neutral", true) }
+		if (action === "grant-budget") {
+			const allowance = spendOf(draft, id) + BUDGET_TOP_UP
+			target.budget = { allowance }
+			log(draft, { engagementId: id, actor: "demo", kind: "notice", text: `The organization Owner added ${BUDGET_TOP_UP.toLocaleString("en-US")} units to ${target.name}. Stopped work continues from where it was.`, tone: "live", material: true })
+		}
 	})
 }
 
-export function decide(state: AgentixState, decisionId: string, optionId: string): AgentixState {
+/*
+ * A decision binds an exact version. An answer to one that was withdrawn, or to a version that isn't
+ * the one on the table any more, is refused on the record rather than quietly dropped.
+ */
+function refuseDecision(state: AgentixState, decisionId: string, optionId: string, seen?: string): AgentixState {
+	return produce(state, draft => {
+		const target = decisionBy(draft, decisionId)!
+		const what = seen ?? target.changed?.from ?? target.binding
+		if (target.changed) target.changed.refused = { at: draft.clock, option: optionId }
+		log(draft, { engagementId: target.engagementId, workItemId: target.workItemId, decisionId: target.id, actor: "owner", kind: "decision", text: target.changed ? `Approval refused. ${what} is no longer the request; it changed to ${currentVersion(draft, target)}. Nothing was approved.` : `Not recorded. ${what} is no longer waiting for a decision, so nothing was approved.`, tone: "attention", material: true })
+	})
+}
+
+/* What a changed request is now: the latest version of its artifact, or the revision it became. */
+export function currentVersion(state: AgentixState, decision: Decision) {
+	const artifact = decision.changed?.artifactId ? artifactBy(state, decision.changed.artifactId) : undefined
+	return artifact ? `${artifact.title} v${latest(artifact).version}` : decision.changed?.to ?? decision.binding
+}
+
+export function decide(state: AgentixState, decisionId: string, optionId: string, seen?: string): AgentixState {
 	const decision = decisionBy(state, decisionId)
 	const spec = decision ? scenarioOf(state, decision.engagementId).decisions[decision.template] : undefined
 	const option = spec?.options.find(entry => entry.id === optionId)
-	if (!decision || decision.status !== "open" || !option) return state
+	if (!decision || !option) return state
+	if (decision.status === "withdrawn" || (decision.status === "open" && seen !== undefined && seen !== decision.binding)) return refuseDecision(state, decisionId, option.id, seen)
+	if (decision.status !== "open") return state
 	return produce(state, draft => {
 		const target = decisionBy(draft, decisionId)!
 		const item = itemBy(draft, target.workItemId)!
@@ -923,17 +1142,30 @@ function amendInDraft(draft: AgentixState, artifactId: string, amendmentId: stri
 		links.push({ kind: "artifact", id: dependent.id, version: rebuilt.version })
 	}
 	links.push(...invalidated.map(id => ({ kind: "work" as const, id })))
-	log(draft, { engagementId: artifact.engagementId, artifactId: artifact.id, workItemId: artifact.workItemId, actor: spec.owner, kind: "version", text: `${artifact.title} v${version.version}: ${amendment.summary.toLowerCase()}.${dependents.length ? ` ${dependents.map(entry => entry.title.toLowerCase()).join(" and ")} must be retested.` : ""}${production ? ` Production stays on v${production} until v${version.version} passes its checks and is released.` : ""}`, tone: "live", material: true })
-	return { ok: true, text: `Applied: ${artifact.title} v${version.version} ${amendment.summary.toLowerCase()}. Its checks${dependents.length ? " and the dependent " + dependents.map(entry => entry.title.toLowerCase()).join(" and ") + " checks" : ""} run again before any release.${production ? ` Production is still on v${production}.` : ""}`, links }
+	log(draft, { engagementId: artifact.engagementId, artifactId: artifact.id, workItemId: artifact.workItemId, actor: spec.owner, kind: "version", text: `${artifact.title} v${version.version}: ${amendment.summary.toLowerCase()}.${dependents.length ? ` ${dependents.map(entry => entry.title.toLowerCase()).join(" and ")} must be retested.` : ""}${production ? (spec.release?.files ? ` The published file stays at v${production} until v${version.version} passes its checks and is published.` : ` Production stays on v${production} until v${version.version} passes its checks and is released.`) : ""}`, tone: "live", material: true })
+	return { ok: true, text: `Applied: ${artifact.title} v${version.version} ${amendment.summary.toLowerCase()}. Its checks${dependents.length ? " and the dependent " + dependents.map(entry => entry.title.toLowerCase()).join(" and ") + " checks" : ""} run again before any release.${production ? (spec.release?.files ? ` The published file is still v${production}.` : ` Production is still on v${production}.`) : ""}`, links }
+}
+
+/* The exact content changed under an open decision: it no longer stands, and it says what it became. */
+function markChanged(draft: AgentixState, decision: Decision, to: string, reason: string, artifactId?: string) {
+	const from = decision.binding
+	decision.status = "withdrawn"
+	decision.changed = { from, to, at: draft.clock, reason, ...artifactId ? { artifactId } : {} }
+	log(draft, { engagementId: decision.engagementId, workItemId: decision.workItemId, artifactId, decisionId: decision.id, actor: "coordinator", kind: "decision", text: `This request changed: ${from} is now ${to}. An approval of ${from} no longer applies.`, tone: "attention", material: true })
 }
 
 /* The work that must retest an artifact after it changes: its open item, or a follow-up change when that item is finished. */
 function reopenFor(draft: AgentixState, artifact: Artifact, reason: string): string[] {
 	for (const release of draft.releases) {
-		if (release.artifactId !== artifact.id || !["preparing", "awaiting_approval", "held", "blocked", "stopped", "declined"].includes(release.status)) continue
+		if (release.artifactId !== artifact.id || !["preparing", "awaiting_approval", "held", "blocked", "stopped", "declined", "not_applied"].includes(release.status)) continue
 		release.status = "superseded"
 		const decision = release.decisionId ? decisionBy(draft, release.decisionId) : undefined
-		if (decision?.status === "open") decision.status = "withdrawn"
+		if (decision?.status === "open") markChanged(draft, decision, `${artifact.title} v${latest(artifact).version}`, reason, artifact.id)
+	}
+	// A question about this artifact is bound to the version it asked about. The next minute asks again about the new one.
+	const decisions = scenarioOf(draft, artifact.engagementId).decisions
+	for (const decision of draft.decisions) {
+		if (decision.status === "open" && decision.engagementId === artifact.engagementId && decisions[decision.template]?.artifact === artifact.key) markChanged(draft, decision, `${artifact.title} v${latest(artifact).version}`, reason, artifact.id)
 	}
 	const owner = itemBy(draft, artifact.workItemId)
 	const template = owner ? templateOf(draft, owner) : undefined
@@ -1167,8 +1399,179 @@ export function addIncoming(state: AgentixState, engagementId: string): AgentixS
 	return produce(state, draft => admitIncoming(draft, engagementId))
 }
 
-export function armFailure(state: AgentixState, failure: "ackLoss"): AgentixState {
+export function armFailure(state: AgentixState, failure: "ackLoss" | "writeLoss" | "readBackMiss"): AgentixState {
 	return state.demo[failure] ? state : produce(state, draft => { draft.demo[failure] = true })
+}
+export function armSaveFailure(state: AgentixState, failure: "refused" | "timeout"): AgentixState {
+	return state.demo.saveFailure === failure ? state : produce(state, draft => { draft.demo.saveFailure = failure })
+}
+
+/* The request a presenter's "change it" applies to: a release approval first, then anything else waiting. */
+export function pendingRequest(state: AgentixState, engagementId: string) {
+	const open = state.decisions.filter(decision => decision.status === "open" && decision.engagementId === engagementId && !!itemBy(state, decision.workItemId) && !isTerminal(itemBy(state, decision.workItemId)!))
+	return open.find(decision => decision.kind === "release") ?? open[0]
+}
+
+/*
+ * Something changes the exact content of a pending request while it waits. A request about an artifact
+ * gets a new version, which is tested and asks again. One with no artifact becomes a revision at once.
+ */
+export function changePendingRequest(state: AgentixState, engagementId: string, decisionId?: string): AgentixState {
+	const chosen = decisionId ? decisionBy(state, decisionId) : pendingRequest(state, engagementId)
+	if (!chosen || chosen.status !== "open") return state
+	return produce(state, draft => {
+		const decision = decisionBy(draft, chosen.id)!
+		const item = itemBy(draft, decision.workItemId)!
+		const scenario = scenarioOf(draft, decision.engagementId)
+		const release = draft.releases.find(entry => entry.decisionId === decision.id)
+		const artifact = release ? artifactBy(draft, release.artifactId) : scenario.decisions[decision.template]?.artifact ? artifactBy(draft, `${decision.engagementId}:${scenario.decisions[decision.template].artifact}`) : undefined
+		if (artifact) {
+			const spec = artifactSpec(draft, artifact)!
+			const current = latest(artifact)
+			const reason = "The source it was built from changed while the request waited"
+			for (const check of current.checks) if (check.status !== "pending") check.status = "invalidated"
+			addVersion(draft, artifact, { author: spec.owner, summary: "Rebuilt after its source changed", changes: [reason], variant: [...current.variant], source: "amendment" })
+			reopenFor(draft, artifact, reason)
+			return
+		}
+		const number = (decision.revision?.number ?? 1) + 1
+		const reason = "The record it asks about was resubmitted while the request waited"
+		const to = `${decision.binding.replace(/ · revision \d+$/, "")} · revision ${number}`
+		markChanged(draft, decision, to, reason)
+		const successor = openDecision(draft, item, decision.template, to)
+		successor.revision = { number, reason }
+		if (item.status !== "paused") { item.status = "waiting"; item.wait = { kind: "decision", decisionId: successor.id } }
+		log(draft, { engagementId: decision.engagementId, workItemId: item.id, decisionId: successor.id, actor: "coordinator", kind: "decision", text: `Decision needed on ${item.reference}: ${scenario.decisions[decision.template]?.title ?? "the revised request"} This is revision ${number}.`, tone: "attention", material: true })
+	})
+}
+
+/* The owner has seen that a request changed and gone on to the current version. */
+export function acknowledgeChange(state: AgentixState, decisionId: string): AgentixState {
+	const decision = decisionBy(state, decisionId)
+	if (!decision?.changed || decision.changed.reviewedAt !== undefined) return state
+	return produce(state, draft => { decisionBy(draft, decisionId)!.changed!.reviewedAt = draft.clock })
+}
+
+/* ---- Uncertain writes -------------------------------------------------------- */
+/* A person asks for the target to be read back. It reads and never resends, and it is the only way an unknown outcome settles. */
+export function investigateEffect(state: AgentixState, workId: string, effectId: string): AgentixState {
+	const item = itemBy(state, workId)
+	const effect = item?.effects.find(entry => entry.id === effectId)
+	if (!item || !effect || effect.status !== "unknown" || effect.investigating || item.status === "paused") return state
+	return produce(state, draft => {
+		const target = itemBy(draft, workId)!
+		target.effects.find(entry => entry.id === effectId)!.investigating = true
+		target.stage = "reconciling"; target.status = "working"; target.wait = undefined
+		log(draft, { engagementId: target.engagementId, workItemId: workId, actor: "owner", kind: "effect", text: `You asked for a read-back of ${effect.system.split(" · ")[0]} on ${target.reference}. It only reads; nothing is resent.`, tone: "live" })
+	})
+}
+
+/* ---- Publishing a version as files -------------------------------------------- */
+/*
+ * A generated dashboard or app is published only as versioned files (D-095). The screen establishes
+ * that the connection may write and says who is asking; this holds the file's own record. A file
+ * reads as saved only when its destination has confirmed it, and a request never makes a second copy.
+ */
+export type FileDestination = { target: Exclude<FileTarget, "download">; connectionId: string; location: string }
+const publicationId = (artifactId: string, version: number, target: FileTarget, connectionId?: string) => `${artifactId}:v${version}:${connectionId ?? target}`
+
+function publicationEvent(draft: AgentixState, publication: FilePublication, text: string, tone: ActivityEvent["tone"], material = false, operations?: string[]) {
+	const artifact = artifactBy(draft, publication.artifactId)
+	log(draft, { engagementId: publication.engagementId, workItemId: artifact?.workItemId, artifactId: publication.artifactId, actor: "coordinator", kind: "effect", text, tone, material, operations })
+}
+
+const FILE_PLACE: Record<FileTarget, string> = { download: "this browser", onedrive: "OneDrive", sharepoint: "SharePoint" }
+
+/* Takes the published file in the browser. The browser saves it; Agentix records that it was handed over. */
+export function recordDownload(state: AgentixState, artifactId: string, version: number): AgentixState {
+	const artifact = artifactBy(state, artifactId)
+	const entry = artifact?.versions.find(value => value.version === version)
+	if (!artifact || !entry || publishBlock(state, artifact, entry)) return state
+	const file = fileFor(state, artifact, entry)
+	return produce(state, draft => {
+		draft.publications ??= []
+		const id = publicationId(artifactId, version, "download")
+		let publication = draft.publications.find(value => value.id === id)
+		if (publication) publication.downloads = (publication.downloads ?? 1) + 1
+		else {
+			publication = { id, engagementId: artifact.engagementId, artifactId, version, target: "download", fileName: file.name, bytes: file.bytes, hash: file.hash, location: "Your browser's downloads", status: "saved", attempts: 1, requestedAt: draft.clock, savedAt: draft.clock, downloads: 1 }
+			draft.publications.push(publication)
+			if (draft.publications.length > LIMITS.publications) draft.publications.splice(0, draft.publications.length - LIMITS.publications)
+		}
+		publicationEvent(draft, publication, `${file.name} downloaded from ${artifact.title} v${version}.`, "positive", false, [`${file.bytes.toLocaleString("en-US")} bytes · checksum ${file.hash}`])
+	})
+}
+
+/* Asks to save one tested version to one connected place. Asking twice lands on the same record. */
+export function requestFileSave(state: AgentixState, artifactId: string, version: number, destination: FileDestination): AgentixState {
+	const artifact = artifactBy(state, artifactId)
+	const entry = artifact?.versions.find(value => value.version === version)
+	if (!artifact || !entry || publishBlock(state, artifact, entry)) return state
+	const id = publicationId(artifactId, version, destination.target, destination.connectionId)
+	if (state.publications?.some(value => value.id === id)) return state
+	const file = fileFor(state, artifact, entry)
+	return produce(state, draft => {
+		draft.publications ??= []
+		const publication: FilePublication = { id, engagementId: artifact.engagementId, artifactId, version, target: destination.target, connectionId: destination.connectionId, fileName: file.name, bytes: file.bytes, hash: file.hash, location: `${destination.location}/${file.name}`, status: "preparing", attempts: 1, requestedAt: draft.clock }
+		draft.publications.push(publication)
+		if (draft.publications.length > LIMITS.publications) draft.publications.splice(0, draft.publications.length - LIMITS.publications)
+		publicationEvent(draft, publication, `Saving ${file.name} to ${FILE_PLACE[destination.target]}. It isn't saved until the destination confirms it.`, "live")
+	})
+}
+
+/* Retrying is offered only where nothing can have been written. */
+export function retryFileSave(state: AgentixState, id: string): AgentixState {
+	const publication = state.publications?.find(value => value.id === id)
+	if (!publication || publication.status !== "failed" || !publication.retrySafe) return state
+	return produce(state, draft => {
+		const target = draft.publications!.find(value => value.id === id)!
+		target.status = "preparing"; target.attempts++; target.failure = undefined; target.retrySafe = undefined
+		publicationEvent(draft, target, `Trying ${target.fileName} again. The earlier attempt wrote nothing, so this can't make a second copy.`, "live")
+	})
+}
+
+/* A save that timed out mid-transfer may have landed. Reading the destination back is the only way on. */
+export function checkFileSave(state: AgentixState, id: string): AgentixState {
+	const publication = state.publications?.find(value => value.id === id)
+	if (!publication || publication.status !== "uncertain") return state
+	return produce(state, draft => {
+		const target = draft.publications!.find(value => value.id === id)!
+		target.status = "checking"
+		publicationEvent(draft, target, `Checking ${FILE_PLACE[target.target]} for ${target.fileName}. It only reads.`, "live")
+	})
+}
+
+function advancePublications(draft: AgentixState) {
+	for (const publication of draft.publications ?? []) {
+		if (publication.status === "preparing") { publication.status = "saving"; continue }
+		const place = FILE_PLACE[publication.target]
+		if (publication.status === "saving") {
+			const failure = draft.demo.saveFailure
+			draft.demo.saveFailure = undefined
+			if (failure === "refused") {
+				publication.status = "failed"; publication.retrySafe = true
+				publication.failure = `${place} refused the transfer before any bytes were written, so nothing landed.`
+				publicationEvent(draft, publication, `${publication.fileName} wasn't saved. ${publication.failure}`, "attention", true)
+			} else if (failure === "timeout") {
+				publication.status = "uncertain"; publication.retrySafe = false
+				publication.failure = `The transfer to ${place} timed out, so the file may or may not be there. Retrying could leave a second copy.`
+				publicationEvent(draft, publication, `${publication.fileName}: outcome unknown. ${publication.failure}`, "attention", true)
+			} else settleSaved(draft, publication, [`${publication.bytes.toLocaleString("en-US")} bytes · checksum ${publication.hash} verified`])
+			continue
+		}
+		if (publication.status === "checking") {
+			if (takeReadBackMiss(draft)) {
+				publication.status = "failed"; publication.retrySafe = true
+				publication.failure = `${place} holds no copy of this file, so the timed-out transfer wrote nothing.`
+				publicationEvent(draft, publication, `${publication.fileName} wasn't saved. ${publication.failure}`, "attention", true)
+			} else settleSaved(draft, publication, [`Read back ${place}`, `${publication.bytes.toLocaleString("en-US")} bytes · checksum ${publication.hash} verified`])
+		}
+	}
+}
+
+function settleSaved(draft: AgentixState, publication: FilePublication, operations: string[]) {
+	publication.status = "saved"; publication.savedAt = draft.clock; publication.failure = undefined; publication.retrySafe = undefined
+	publicationEvent(draft, publication, `${publication.fileName} saved to ${publication.location}. ${FILE_PLACE[publication.target]} confirmed it.`, "positive", true, operations)
 }
 
 /* ---- Direct entry ---------------------------------------------------------- */

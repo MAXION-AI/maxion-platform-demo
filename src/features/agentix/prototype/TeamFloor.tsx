@@ -1,7 +1,7 @@
 import { useEffect, useId, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type KeyboardEvent } from "react"
 import { useReducedMotion } from "motion/react"
 import { Play } from "@phosphor-icons/react"
-import { ArrowsClockwise, Bell, Database, Hammer, Lock, PencilSimpleLine, Rocket, SpeakerHigh, UserCircle, Waveform } from "./glyphs"
+import { ArrowsClockwise, Bell, Database, FileArrowDown, Hammer, Lock, PencilSimpleLine, Rocket, SpeakerHigh, UserCircle, Waveform } from "./glyphs"
 
 import { Button as DsButton, Mark } from "@/design/primitives"
 import { MINUTE } from "./engine/engine"
@@ -40,6 +40,7 @@ const CAPABILITY: Record<Capability, { label: string; icon: JSX.Element; chip: J
 	production: { label: "Production", icon: <Rocket size={14} />, chip: <Rocket size={12} /> },
 	update: { label: "Record update", icon: <PencilSimpleLine size={14} />, chip: <PencilSimpleLine size={12} /> },
 	notify: { label: "Notify", icon: <Bell size={14} />, chip: <Bell size={12} /> },
+	files: { label: "Versioned files", icon: <FileArrowDown size={14} />, chip: <FileArrowDown size={12} /> },
 }
 
 export function TeamFloor({ state, engagementId, update, onDecide, onOpenWork, onOpenResult, onToast }: {
@@ -140,7 +141,7 @@ export function TeamFloor({ state, engagementId, update, onDecide, onOpenWork, o
 		if (!context) return undefined
 		return (text, kind) => {
 			const family = canvasRef.current ? getComputedStyle(canvasRef.current).fontFamily : "Inter, sans-serif"
-			context.font = kind === "agent" ? `400 14px ${family}` : `500 12px ${family}`
+			context.font = kind === "agent" ? `400 15px ${family}` : `500 13px ${family}`
 			return context.measureText(text).width
 		}
 		// eslint-disable-next-line react-hooks/exhaustive-deps

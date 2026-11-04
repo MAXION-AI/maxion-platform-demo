@@ -24,6 +24,16 @@ async function demoControls(page: Page, button: string, times = 1) {
 	await page.getByRole("button", { name: "Close controls" }).click()
 }
 
+/* The first pipeline release loses its acknowledgement on purpose: it stays unknown until a person reads the target back from MS-2. */
+async function investigate(page: Page) {
+	await demoControls(page, "Skip")
+	await page.getByRole("tab", { name: /^Work/ }).click()
+	await page.locator('[data-work="MS-2"]').first().click()
+	await expect(page.getByRole("region", { name: /^Outcome unknown:/ })).toBeVisible()
+	await page.getByRole("button", { name: "Investigate", exact: true }).click()
+	await page.getByRole("button", { name: "Work", exact: true }).click()
+}
+
 const replaceNote = (page: Page) => page.getByRole("note").filter({ hasText: "Customer demo:" })
 
 async function startOrderSyncDiscovery(page: Page, beforeCreate?: () => Promise<void>) {
@@ -45,20 +55,24 @@ async function finishDiscovery(page: Page) {
 		await expect(composer(page)).toBeFocused()
 		await composer(page).press("Enter")
 	}
+	await page.locator('[data-notice="briefs"]').getByRole("button", { name: "Approve all" }).click()
 	await expect(page.getByRole("heading", { name: "Salesforce and SAP disagree about who the customer is" })).toBeVisible({ timeout: 25_000 })
 	await page.getByRole("button", { name: "Make the SAP business partner authoritative" }).first().click()
 	await expect(page.getByRole("heading", { name: "Final plan and recommendations" })).toBeVisible({ timeout: 30_000 })
 }
 
-/* The charter approval, then the packet to Agentix. */
+/* The charter and package approvals, then the packet to Agentix. */
 async function handOff(page: Page) {
-	await page.locator(".workspace-header").getByRole("button", { name: "Continue to Agentix" }).click()
-	const handoff = page.getByRole("dialog", { name: "Continue to Agentix" })
-	await handoff.getByRole("button", { name: "Approve charter" }).click()
+	await page.getByRole("button", { name: "Package", exact: true }).click()
+	await page.locator(".package-actions").getByRole("button", { name: /^Approve package v/ }).click()
+	const approval = page.getByRole("dialog", { name: /^Approve package v/ })
+	await approval.getByRole("button", { name: "Approve charter" }).click()
 	const charter = page.getByRole("dialog", { name: "Approve the project charter" })
 	await charter.getByRole("textbox", { name: "Approval reason" }).fill("Scope, owners and the five exclusions match what revenue operations and internal controls agreed.")
 	await charter.getByRole("button", { name: "Approve charter" }).click()
-	await handoff.getByRole("button", { name: "Continue to Agentix" }).click()
+	await approval.getByRole("button", { name: /^Approve package v/ }).click()
+	await page.locator(".workspace-header").getByRole("button", { name: "Continue to Agentix" }).click()
+	await page.getByRole("dialog", { name: "Continue to Agentix" }).getByRole("button", { name: "Continue to Agentix" }).click()
 }
 
 const savedDemo = (page: Page) => page.evaluate(() => ({
@@ -70,7 +84,7 @@ const savedDemo = (page: Page) => page.evaluate(() => ({
 async function createEngagement(page: Page) {
 	await expect(page.getByRole("heading", { name: "Review Salesforce–SAP order sync" })).toBeVisible({ timeout: 10_000 })
 	await expect(page.getByText(/From Discovery · Salesforce–SAP order sync: customer master and posting integrity · packet HP-/)).toBeVisible()
-	await expect(dockRow(page)).toContainText("6/12")
+	await expect(dockRow(page)).toContainText("8/14")
 	const questions = page.locator(".aop-questions")
 	await questions.getByText("Ask me before each pipeline release").click()
 	await questions.getByText("The synthetic 30-day order sample").click()
@@ -98,7 +112,7 @@ test("the order sync demo runs from a new Discovery to a verified morning in Age
 
 	await page.goto(DEMO)
 	await expect(page.getByRole("heading", { name: "Continue where MAX left off." })).toBeVisible()
-	await expect(dockRow(page)).toContainText("1/12")
+	await expect(dockRow(page)).toContainText("1/14")
 	// Agentix starts from zero: no design, this demo's or another's, is queued to send.
 	await expect(page.getByText(/ready to send/)).toHaveCount(0)
 	// The first AP exceptions Discovery replaces nothing, so the setup doesn't say it will.
@@ -122,29 +136,48 @@ test("the order sync demo runs from a new Discovery to a verified morning in Age
 	}
 	await expect(page.getByText(/enough owner context for this pass/i)).toBeVisible()
 
+	// Interviews wait until a person has approved each interviewer's brief; the demo's own step says so.
+	await expect(dockRow(page)).toContainText("3/14")
+	await expect(page.locator('[data-notice="briefs"]')).toContainText("4 interview briefs need your review")
+	await page.locator('[data-notice="briefs"]').getByRole("button", { name: "Review briefs" }).click()
+	const briefs = page.getByRole("dialog", { name: "Interview briefs" })
+	await expect(briefs).toContainText("Everything the interviewer holds counts as shown to the participant.")
+	await briefs.getByRole("button", { name: "Approve all" }).click()
+	await briefs.getByRole("button", { name: "Done" }).click()
+
 	// One decision reaches the owner: two tolerance rules, each applied consistently.
 	await expect(page.getByRole("heading", { name: "Salesforce and SAP disagree about who the customer is" })).toBeVisible({ timeout: 25_000 })
-	await expect(dockRow(page)).toContainText("3/12")
+	await expect(dockRow(page)).toContainText("4/14")
 	await page.getByRole("button", { name: "Make the SAP business partner authoritative" }).first().click()
 
 	await expect(page.getByRole("heading", { name: "Final plan and recommendations" })).toBeVisible({ timeout: 30_000 })
 	await page.getByRole("button", { name: "Package", exact: true }).click()
 	await expect(page.getByText(/Orders fail on the way into SAP because two systems each believe they own the customer/)).toBeVisible()
-	// The package stays the step while it is read; the charter approval moves on to the handoff.
-	await expect(dockRow(page)).toContainText("4/12")
+	// The package stays the step while it is read; the charter approval moves on to the package approval.
+	await expect(dockRow(page)).toContainText("5/14")
 
-	// The charter is the one blocker; the packet goes to Agentix.
-	await page.locator(".workspace-header").getByRole("button", { name: "Continue to Agentix" }).click()
+	// Continue stays closed until one exact version is approved; a run that completes waits for a person.
+	const headerContinue = page.locator(".workspace-header").getByRole("button", { name: "Continue to Agentix" })
+	await expect(headerContinue).toBeDisabled()
+	await page.locator(".package-actions").getByRole("button", { name: "Approve package v1" }).click()
+	const approval = page.getByRole("dialog", { name: "Approve package v1" })
+	await expect(approval.getByTestId("package-bound")).toContainText("Manifest")
+	await expect(approval.getByRole("button", { name: "Approve package v1" })).toBeDisabled()
+	// The charter is the one blocker on approving, and its fix sits in that row.
+	await approval.getByRole("button", { name: "Approve charter" }).click()
+	const charter = page.getByRole("dialog", { name: "Approve the project charter" })
+	await charter.getByRole("textbox", { name: "Approval reason" }).fill("Scope, owners and the five exclusions match what revenue operations and internal controls agreed.")
+	await charter.getByRole("button", { name: "Approve charter" }).click()
+	await expect(dockRow(page)).toContainText("6/14")
+	await approval.getByRole("button", { name: "Approve package v1" }).click()
+	await expect(approval).toBeHidden()
+	await expect(dockRow(page)).toContainText("7/14")
+	await headerContinue.click()
 	const handoff = page.getByRole("dialog", { name: "Continue to Agentix" })
 	await expect(handoff).toContainText("Opens in Agentix")
 	// The design this packet opens is a new engagement, never an expansion of one already running.
 	await expect(handoff).toContainText("A new Agentix engagement created from this package")
-	await expect(handoff.getByRole("button", { name: "Continue to Agentix" })).toBeDisabled()
-	await handoff.getByRole("button", { name: "Approve charter" }).click()
-	const charter = page.getByRole("dialog", { name: "Approve the project charter" })
-	await charter.getByRole("textbox", { name: "Approval reason" }).fill("Scope, owners and the five exclusions match what revenue operations and internal controls agreed.")
-	await charter.getByRole("button", { name: "Approve charter" }).click()
-	await expect(dockRow(page)).toContainText("5/12")
+	await expect(handoff.getByRole("button", { name: "Continue to Agentix" })).toBeEnabled()
 	await page.getByRole("textbox", { name: "Handoff note (optional)" }).fill("Start with the mapping; the unmapped-SKU rule is product operations’ to decide.")
 	await handoff.getByRole("button", { name: "Continue to Agentix" }).click()
 
@@ -152,7 +185,7 @@ test("the order sync demo runs from a new Discovery to a verified morning in Age
 	await createEngagement(page)
 
 	// The unmapped-SKU rule, the repaired pipeline and the release the owner approves.
-	await expect(dockRow(page)).toContainText("7/12")
+	await expect(dockRow(page)).toContainText("9/14")
 
 	// The dock's own action must open THIS demo's engagement. Beats 7-12 all emit it, and it
 	// used to fall through to the revenue engagement in every demo.
@@ -162,18 +195,19 @@ test("the order sync demo runs from a new Discovery to a verified morning in Age
 	await expect(page.getByRole("heading", { name: "Revenue reconciliation", exact: true })).toHaveCount(0)
 	await demoControls(page, "Skip")
 	await page.getByRole("button", { name: "Block the order and raise it to product ops" }).click()
-	await expect(dockRow(page)).toContainText("8/12")
+	await expect(dockRow(page)).toContainText("10/14")
 	for (let i = 0; i < 6 && !(await page.getByRole("heading", { name: /Release order sync pipeline v2 to production\?/ }).count()); i++) await demoControls(page, "Skip")
 	await expect(page.getByRole("heading", { name: /Release order sync pipeline v2 to production\?/ })).toBeVisible()
-	await expect(dockRow(page)).toContainText("9/12")
+	await expect(dockRow(page)).toContainText("11/14")
 	await page.getByRole("button", { name: "Approve release" }).first().click()
+	await investigate(page)
 	// The dock opens the engagement on its team floor; the milestones are on Work.
 	await page.getByRole("tab", { name: /^Work/ }).click()
 
 	// The dashboard publishes under policy and stays the step while it is shown; running the next cycle moves on.
 	for (let i = 0; i < 8 && !(await page.getByText("3 of 3 milestones verified").count()); i++) await demoControls(page, "Skip")
 	await expect(page.getByText("3 of 3 milestones verified")).toBeVisible()
-	await expect(dockRow(page)).toContainText("10/12")
+	await expect(dockRow(page)).toContainText("12/14")
 	await openDock(page)
 	await expect(page.locator(".mxd-panel")).toContainText("Published under ITGC-SOX-4.")
 	await page.keyboard.press("Escape")
@@ -192,9 +226,9 @@ test("the order sync demo runs from a new Discovery to a verified morning in Age
 		await page.getByRole("tab", { name: /^Work/ }).click()
 	}
 	await demoControls(page, "Run")
-	await expect(dockRow(page)).toContainText("11/12")
-	for (let i = 0; i < 4 && !(await dockRow(page).textContent())?.includes("12/12"); i++) await demoControls(page, "Skip")
-	await expect(dockRow(page)).toContainText("12/12")
+	await expect(dockRow(page)).toContainText("13/14")
+	for (let i = 0; i < 4 && !(await dockRow(page).textContent())?.includes("14/14"); i++) await demoControls(page, "Skip")
+	await expect(dockRow(page)).toContainText("14/14")
 	await openDock(page)
 	await expect(page.locator(".mxd-panel")).toContainText("Close the story")
 
@@ -242,7 +276,7 @@ test("every new order sync Discovery starts Agentix again from zero", async ({ p
 		// The note describes the button that does it.
 		expect(await page.getByRole("button", { name: "Create Discovery" }).getAttribute("aria-describedby")).toBe(await replaceNote(page).getAttribute("id"))
 	})
-	await expect(dockRow(page)).toContainText("2/12")
+	await expect(dockRow(page)).toContainText("2/14")
 
 	const saved = await savedDemo(page)
 	const records = saved.discovery.filter(record => record.scenarioKey === "ordersync")

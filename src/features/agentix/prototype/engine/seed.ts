@@ -122,7 +122,7 @@ export function initialState(base = EPOCH): AgentixState {
 	log(draft, { engagementId: "invoice", workItemId: northwind.id, decisionId: decision.id, actor: "analyst", kind: "decision", text: "Decision needed on INV-20841: Approve the $240 price variance?", tone: "attention" })
 	draft.clock = base
 	seed(draft, "invoice", "exception", { reference: "INV-20842", title: "Contoso · receiving reconciliation", started: at(5) }, 1, item => { item.status = "working"; item.steps[1] = { id: item.steps[1].id, status: "working", ticks: 1, startedAt: at(2) } })
-	seed(draft, "invoice", "exception", { reference: "INV-20843", title: "Fabrikam · duplicate receipt check", started: at(1), flags: { writeTimeout: true } }, 0, item => { item.status = "working" })
+	seed(draft, "invoice", "exception", { reference: "INV-20843", title: "Fabrikam · duplicate receipt check", started: at(1) }, 0, item => { item.status = "working" })
 	seed(draft, "invoice", "exception", { reference: "INV-20844", title: "Alpine · source-system read-back", started: at(12) }, 4, item => { item.status = "verifying"; item.steps[4] = { id: item.steps[4].id, status: "working", ticks: 1, startedAt: at(1) } })
 	seed(draft, "invoice", "exception", { reference: "INV-20845", title: "Wingtip · new exception", started: base }, 0)
 
@@ -133,11 +133,14 @@ export function initialState(base = EPOCH): AgentixState {
 	seed(draft, "onboarding", "joiner", { reference: "JOIN-307", title: "Leeds support analyst · day-one readiness", started: at(3) }, 1, item => { item.status = "working"; item.steps[1] = { id: "hr", status: "working", ticks: 1 }; item.steps[2] = { id: "it", status: "working", ticks: 1 } })
 
 	seed(draft, "inventory", "cycle", { reference: "STOCK-902", title: "London warehouse · morning review", trigger: "Schedule", occurrence: iso(review(0)), started: at(22), flags: { writeTimeout: true } }, 3, item => {
+		// Its outcome was unknown, and someone has already asked for the read-back that settles it.
 		item.status = "working"; item.stage = "reconciling"
 		item.steps[3] = { id: "requisition", status: "working", ticks: 0, startedAt: at(4) }
-		item.effects.push({ id: `${item.id}:requisition`, system: "ERP", operation: "Create one requisition", sends: 1, status: "unknown" })
+		item.effects.push({ id: `${item.id}:requisition`, system: "ERP", operation: "Create one requisition", sends: 1, status: "unknown", investigating: true })
 		draft.clock = at(3)
-		log(draft, { engagementId: "inventory", workItemId: item.id, actor: "coordinator", kind: "effect", text: "STOCK-902: ERP didn't confirm the request. It may have succeeded, so nothing is resent; reconciling the original request.", tone: "attention", operations: ["ERP · 1 dispatch · no acknowledgement"] })
+		log(draft, { engagementId: "inventory", workItemId: item.id, actor: "coordinator", kind: "effect", text: "STOCK-902: ERP didn't confirm the request. It may have succeeded, so nothing is resent. It needs a person to read the target back.", tone: "attention", operations: ["ERP · 1 dispatch · no acknowledgement"] })
+		draft.clock = at(1)
+		log(draft, { engagementId: "inventory", workItemId: item.id, actor: "owner", kind: "effect", text: "You asked for a read-back of ERP on STOCK-902. It only reads; nothing is resent.", tone: "live" })
 		draft.clock = base
 	})
 	draft.events.sort((a, b) => a.at - b.at)

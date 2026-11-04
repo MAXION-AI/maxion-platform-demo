@@ -29,7 +29,7 @@ export const S4HANA_SCRIPT: DemoScript = {
 		"Anything with no execution behind it they would retire without asking. Anything where SAP standard does the job differently always needs a decision. Check the custom code inventory; I suspect most of the estate is dead.",
 		"Finance decides. If standard calculates something differently from the way we do it today, that is a business change, not a technical one, and it is not the developers’ call.",
 		"If it has not run in a year, archive it. Under twenty executions in twelve months I would rather archive it and keep a way to bring it back than argue about it object by object.",
-		"Nobody owns production S/4HANA transports today, so treat that as open. Dashboard publishing to the programme board is already covered by policy ITGC-SAP-3.",
+		"Nobody owns production S/4HANA transports today, so treat that as open. Publishing the dashboard as files is already covered by policy ITGC-SAP-3.",
 		"Every transport is clean before it reaches the queue, nothing above the threshold is archived without me, and the board opens one dashboard at 07:00 instead of asking three people.",
 	],
 	replies: [
@@ -68,6 +68,11 @@ export const S4HANA_SCRIPT: DemoScript = {
 			does: "Answer MAX’s six questions. Fill answer puts the scripted reply in the composer; press Enter to send it.",
 			says: "MAX only asks for judgement the records can’t supply. On the second answer it doesn’t ask me to guess how much code is live; it goes and reads twelve months of usage statistics.",
 		},
+		briefs: {
+			title: "Approve the interview briefs",
+			does: "Choose Review briefs to show one brief exactly as the interviewer will receive it, then Approve all. Interviews stay closed until you do.",
+			says: "Before MAX talks to anyone, I see what the interviewer will hold: what it wants to learn, its questions, the contradictions to probe, the time budget and the evidence this person’s grant allows. Everything it holds counts as shown to that person, so a person approves it.",
+		},
 		decision: {
 			title: "Let MAX investigate, then decide",
 			does: "Open Autonomy while MAX reads the four sources and interviews the four owners. When the decision arrives, choose Adopt SAP standard and change the process.",
@@ -75,8 +80,13 @@ export const S4HANA_SCRIPT: DemoScript = {
 		},
 		package: {
 			title: "Read the package and approve the charter",
-			does: "Open Package when the nine documents land. Show the executive brief, then the business case. Then choose Continue to Agentix and approve the project charter with a reason.",
-			says: "Nine documents a senior consultant would sign, all tied to one set of numbers: 11,842 objects, 3,610 of them executed in a year, and 4,660 person-days that come out of the estimate on evidence rather than on optimism. The charter is the one thing that blocks the handoff.",
+			does: "Open Package when the eight selected documents land. Show the executive brief, then the business case. Then choose Approve package and, from its blocker row, approve the project charter with a reason.",
+			says: "Eight documents a senior consultant would sign, chosen for this mission, all tied to one set of numbers: 11,842 objects, 3,610 of them executed in a year, and 4,660 person-days that come out of the estimate on evidence rather than on optimism. The charter is the one thing that blocks approving the package.",
+		},
+		approve: {
+			title: "Approve the package version",
+			does: "Choose Approve package. The dialog names the exact version, the manifest and each document’s hash; confirm it. Return to MAX and Withdraw approval sit beside it.",
+			says: "Approval binds one exact version. If anyone edits a document after this, the version moves and this approval no longer holds. Approving doesn’t start anything in Agentix: that’s a separate step, and a separate decision.",
 		},
 		handoff: {
 			title: "Hand the package to Agentix",
@@ -100,12 +110,12 @@ export const S4HANA_SCRIPT: DemoScript = {
 		},
 		release: {
 			title: "Approve the production release",
-			does: "Review the release: its target, checks and recovery limits. Choose Approve release. The adapter times out after the transport on purpose; watch the coordinator read the transport back instead of releasing it again.",
-			says: "Nothing reaches production S/4HANA without the policy the owner chose. When the adapter goes quiet after a release, the agent doesn’t send the transport twice; it reads back what actually landed.",
+			does: "Review the release: its target, checks and recovery limits. Choose Approve release. The adapter times out after the transport on purpose, so the release stops at Outcome unknown. Choose Investigate, and the coordinator reads the transport back instead of releasing it again.",
+			says: "Nothing reaches production S/4HANA without the policy the owner chose. When the adapter goes quiet after a release, the agent doesn’t send the transport twice; a person asks it to read back what actually landed, and that only reads.",
 		},
 		dashboard: {
 			title: "Open the verified dashboard",
-			does: "MS-3 publishes under policy ITGC-SAP-3. Open Results, then the conversion readiness dashboard. When you are ready for the nightly operation, open Controls and choose Run the next scheduled cycle now.",
+			does: "MS-3 publishes a file version under policy ITGC-SAP-3. Open Results, then the conversion readiness dashboard: show Download and Save to SharePoint. When you are ready for the nightly operation, open Controls and choose Run the next scheduled cycle now.",
 			says: "The programme board gets what is dispositioned, what drifted and on whom, and what remains before cutover, with the time of the last sweep on the dashboard.",
 		},
 		cycle: {

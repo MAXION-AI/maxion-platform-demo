@@ -1,7 +1,7 @@
 /*
  * Design tokens. This is the only file that may contain raw colors and sizes.
- * Values are measured from the ElevenLabs web app (see docs/visual-spec.md);
- * anything marked "derived" is a Maxion decision made to fit that system.
+ * Values are measured from the ElevenLabs web app (see docs/visual-spec.md), except type, which the owner
+ * replaced on 2026-10-30; anything marked "derived" is a Maxion decision made to fit that system.
  */
 @font-face {
   font-family: "Inter";
@@ -12,48 +12,42 @@
 }
 
 :root {
-  /* Type */
-  --ds-font: "Inter", system-ui, -apple-system, "Segoe UI", sans-serif;
+  /* Type. Owner's choice 2026-10-30: the demo reads like their reference screenshot of Claude's own message text.
+     Rendered and pixel-matched against that screenshot, it is Apple's San Francisco at 15/21 with medium lead-ins and
+     #191919 ink (0.93 correlation; Inter 0.82, Anthropic Sans 0.64). San Francisco can't be shipped, so Macs use it
+     from the system and everything else gets the bundled Inter, the closest font that can be. */
+  --ds-font: -apple-system, BlinkMacSystemFont, "Inter", "Segoe UI", sans-serif;
   --ds-font-mono: ui-monospace, SFMono-Regular, Menlo, monospace;
   --ds-text-2xs: 10px; /* derived: the collapsed rail's count bubble */
-  /* The live ElevenLabs app (measured 2026-10-19) reads at 14/20, with 13/18 for compact metadata; chips keep
-     12/16 (--ds-text-chip) and buttons 13 (--ds-text-button). */
-  --ds-text-xs: 13px; --ds-lh-xs: 18px;
-  --ds-text-sm: 14px; --ds-lh-sm: 20px;
-  --ds-text-md: 14px; --ds-lh-md: 20px;
-  /* Measured on the Test AI agent composer (8dbb547d): 15px with Inter's open text spacing. */
-  --ds-text-lg: 15px; --ds-lh-lg: 22px;
-  /* Measured: create-flow subtitle and Studio document paragraphs. */
-  --ds-text-subtitle: 16px; --ds-lh-subtitle: 24px;
-  /* Measured: conversation, Metadata panel, sheet and dialog titles (cap height 12.45px). */
-  --ds-text-title: 16px; --ds-lh-title: 24px; /* live app: section headings 16/24 medium */
-  --ds-text-xl: 24px; --ds-lh-xl: 30px; --ds-track-xl: -0.15px; /* live app: page titles 24/30 regular */
-  --ds-track-caption: -0.01em; /* derived: live captions at the title size, set a touch looser than a heading */
-  /* Derived (owner's choice 2026-10-12, "Inter, refined"): reading text in conversations sits on a 24px line,
-     timelines on 22px; names and titles take Inter's display cut set a touch tighter; reading text a hair tighter. */
-  --ds-lh-read: 24px;
-  --ds-lh-relaxed: 22px;
-  --ds-track-name: -0.006em;
-  --ds-opsz-display: "opsz" 28; /* derived: Inter's display cut for names and titles, set at body sizes */
-  --ds-track-read: -0.006em;
-  /* Measured in the live ElevenLabs app (elevenlabs.io/app, 2026-10-19): reading and row text 14/20; compact
-     metadata 13/18; chips, badges and small buttons 12/16 medium with +0.03px; buttons 13; page titles 24/30
-     at regular weight; section headings 16/24 medium. */
+  --ds-text-xs: 14px; --ds-lh-xs: 20px;
+  --ds-text-sm: 15px; --ds-lh-sm: 21px;
+  --ds-text-md: 15px; --ds-lh-md: 21px;
+  --ds-text-lg: 15px; --ds-lh-lg: 21px;
+  --ds-text-subtitle: 17px; --ds-lh-subtitle: 24px;
+  --ds-text-title: 17px; --ds-lh-title: 24px;
+  --ds-text-xl: 24px; --ds-lh-xl: 30px; --ds-track-xl: 0;
+  --ds-track-caption: 0;
+  /* Conversations and timelines read on the same line as everything else; San Francisco sets its own tracking and
+     optical size, so names and titles need neither. */
+  --ds-lh-read: 21px;
+  --ds-lh-relaxed: 21px;
+  --ds-track-name: 0;
+  --ds-opsz-display: normal;
+  --ds-track-read: 0;
   --ds-text-body: var(--ds-text-sm); --ds-lh-body: var(--ds-lh-sm);
   --ds-text-meta: var(--ds-text-xs); --ds-lh-meta: var(--ds-lh-xs);
-  --ds-text-chip: 12px; --ds-lh-chip: 16px; --ds-track-chip: 0.03px;
-  --ds-text-button: 13px;
+  --ds-text-chip: 13px; --ds-lh-chip: 18px; --ds-track-chip: 0;
+  --ds-text-button: 14px;
   --ds-text-page: var(--ds-text-xl); --ds-lh-page: var(--ds-lh-xl); --ds-track-page: var(--ds-track-xl);
   --ds-text-section: var(--ds-text-title); --ds-lh-section: var(--ds-lh-title);
-  --ds-text-greeting: 28px; --ds-lh-greeting: 36px; --ds-track-greeting: -0.7px; /* live app: the Architect home greeting, 28/36 regular */
-  /* Measured: "Your Professional Voice Clone is being prepared" (560e2903). */
-  --ds-text-display: 34px; --ds-lh-display: 40px; --ds-track-display: -0.03em;
+  --ds-text-greeting: 28px; --ds-lh-greeting: 36px; --ds-track-greeting: 0;
+  --ds-text-display: 34px; --ds-lh-display: 40px; --ds-track-display: 0;
   --ds-weight-regular: 400;
   --ds-weight-medium: 500;
-  --ds-weight-semibold: 600;
+  --ds-weight-semibold: 500; /* the reference's heaviest weight: its lead-ins read as medium, not semibold */
 
   /* Ink */
-  --ds-fg: #0f0f10;
+  --ds-fg: #191919;
   --ds-fg-subtle: #696969;
   --ds-fg-nav: #3f3f46;
   --ds-fg-placeholder: #8f8f8f;

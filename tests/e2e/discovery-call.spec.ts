@@ -69,6 +69,8 @@ test("the owner interview runs as a call, and what MAX heard fills as the owner 
 	// Watch MAX work opens Autonomy on the stakeholder calls; the disagreement there becomes the decision.
 	await call(page).getByRole("button", { name: "Watch MAX work" }).click()
 	await expect(call(page)).toBeHidden()
+	// The stakeholder calls wait for their briefs.
+	await page.locator('[data-notice="briefs"]').getByRole("button", { name: "Approve all" }).click()
 	await expect(page.getByRole("region", { name: /stakeholders/ })).toBeVisible({ timeout: 10_000 })
 	await expect(page.getByRole("heading", { name: "What the stakeholders told MAX" })).toBeVisible({ timeout: 25_000 })
 	await expect(page.getByText(/Grace and Tom disagree\./)).toBeVisible()
@@ -144,7 +146,7 @@ test("a voice-channel stakeholder can take the interview by voice and still type
 	await voice.click()
 	const region = page.getByRole("region", { name: "Voice interview" })
 	await expect(region).toBeVisible()
-	await expect(region.getByText(/I am MAX, running the Discovery on Revenue reconciliation/)).toBeVisible()
+	await expect(region.getByText(/I am MAX, an AI interviewer running the Discovery on Revenue reconciliation/)).toBeVisible()
 	await region.getByRole("button", { name: "Suggest an answer" }).click()
 	await expect(page.getByText("1 of 3 topics", { exact: false })).toBeVisible({ timeout: 10_000 })
 	// Typing keeps every answer.

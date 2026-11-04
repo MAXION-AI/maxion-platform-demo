@@ -11,7 +11,11 @@ import { DeployedAgentsPage } from "./DeployedAgentsPage"
 import "./handoff.css"
 
 /* One work item that is waiting on its owner, as reported to the shell. `label` names a decision that isn't a variance. */
-export type AgentixPendingCase = { id: string; agentId: string; workflowId: WorkflowId; engagement: string; reference: string; title: string; phase: "approval" | "human" | "partial"; label?: string }
+export type AgentixPendingCase = {
+	id: string; agentId: string; workflowId: WorkflowId; engagement: string; reference: string; title: string; phase: "approval" | "human" | "partial"; label?: string
+	/* The exact target system or object the answer applies to, and the exact content version it binds. */
+	target?: string; version?: string
+}
 /* One engagement, as reported to the shell for search and routing. */
 export type AgentixEngagementSummary = { id: string; name: string; workflowId: WorkflowId; status: "draft" | "active" | "paused"; duties: number; category: string }
 export type AgentixAttention = {

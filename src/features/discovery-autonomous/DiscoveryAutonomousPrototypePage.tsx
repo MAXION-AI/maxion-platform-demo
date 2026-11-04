@@ -55,6 +55,7 @@ import { DEMO_SCRIPTS, demoScript, scriptForScenario, type DemoScript } from "@/
 import { CyclingPlaceholder, GeneratedWords, MovingBorder, Orb, ShimmerText, StepLoader, riseIn, useRiseIn, useSheetMotion, useWordStream } from "@/components/motion/MotionKit"
 import {
 	Badge as DsBadge,
+	Banner as DsBanner,
 	Button as DsButton,
 	Dialog,
 	EmptyState as DsEmptyState,
@@ -65,9 +66,66 @@ import {
 	TableRow as DsTableRow,
 } from "@/design/primitives"
 
-import { DeliverableExhibit } from "./deliverables"
+import { DeliverableExhibit, hasStructuredView, structuredTables } from "./deliverables"
+import {
+	BriefSheet,
+	DocumentEditDialog,
+	DocumentHistoryDialog,
+	DocumentRegenerateDialog,
+	EvidenceFileRow,
+	EvidenceUpload,
+	OutputPicker,
+	PackageApproveDialog,
+	PackageRecordDialog,
+	PackageReturnDialog,
+	PackageWithdrawDialog,
+	PublicWebRow,
+	StructuredView,
+	WorkspaceNotices,
+	useUploads,
+	type WorkspaceNotice,
+} from "./DiscoveryGates"
+import {
+	DEFAULT_OUTPUTS,
+	DEMO_OUTPUTS,
+	SIGNED_IN_USER,
+	addRevision,
+	adjustBrief,
+	approveAllBriefs,
+	approveBrief,
+	approvePackage,
+	bodyAtRevision,
+	budgetFault,
+	connectionFault,
+	contentHash,
+	currentRevision,
+	draftBriefs,
+	excludedFrom,
+	gatherResearch,
+	isDiscoveryWork,
+	newPackageReview,
+	newWork,
+	nextPackageVersion,
+	packageApproved,
+	packageStatusLabel,
+	pendingBriefs,
+	raisedBudget,
+	regeneratedParagraphs,
+	researchActivity,
+	researchSummary,
+	returnPackage,
+	seededWork,
+	settleInterrupted,
+	withdrawPackage,
+	type BoundDocument,
+	type DiscoveryWork,
+	type DocumentRevision,
+	type EvidenceFile,
+	type RevisionResult,
+} from "./workState"
 import { ConnectionPicker, defaultPicked, pickedNames } from "@/features/organization/ConnectionPicker"
-import { useOrganization } from "@/features/organization/store"
+import { readOrganization, recordAudit, requestSection, useOrganization } from "@/features/organization/store"
+import { discoveryInProject, linkDiscoveryToProject, readScope, useScope } from "@/features/platform-prototype/scope"
 import {
 	DELIVERABLES,
 	OPERATIONS,
@@ -107,7 +165,7 @@ import "./deliverable-reader.css"
 import "./cockpit.css"
 
 type View = "thread" | "autonomy" | "workshop" | "package"
-type Drawer = "setup" | "people" | "sources" | "package" | null
+type Drawer = "setup" | "people" | "sources" | "package" | "briefs" | null
 type DecisionState = "pending" | "approved" | "modified"
 type DiscoveryStatus = "needs-input" | "active" | "completed" | "handed-off"
 
@@ -142,6 +200,8 @@ type DiscoveryRecord = {
 	deadline?: string
 	// What MAX heard in the owner interview; records saved before the call lack it.
 	facts?: OwnerFact[]
+	// The package under review, document revisions, briefs, uploads, web sources and what holds the run.
+	work?: DiscoveryWork
 	createdAt: string
 	updatedAt: string
 }
@@ -158,7 +218,7 @@ type ToastNote = { id: number; text: string }
  * prebuilt operating design when the scenario has one; without it the brief opens engagement
  * creation in Agentix instead, so every Discovery reaches the same place.
  */
-export type HandoffPacket = { id: string; createdAt: string; note: string; target: "agentix"; packageId?: string; recordId?: string; title?: string; brief?: string }
+export type HandoffPacket = { id: string; createdAt: string; note: string; target: "agentix"; packageId?: string; recordId?: string; title?: string; brief?: string; packageVersion?: number }
 
 const DISCOVERY_STORAGE_KEY = "maxion.prototype.discovery-records.v1"
 /* Stakeholder interviews finished by a run phase: half while the inquiry runs, all once conflicts are being resolved. */
@@ -169,10 +229,33 @@ const STAKEHOLDER_STAGE_MS = 7_500
 const SEED_CHARTER_APPROVAL: CharterApproval = { reason: "Charter scope and owners confirmed in the committee pre-read.", approvedAt: "2026-09-14T16:20:00.000Z" }
 const MAX_SAVED_DISCOVERIES = 50
 
+/* The exact versions a package would bind right now: the documents selected, at their current revisions. */
+function boundDocuments(scenarioKey: ScenarioKey, decision: DecisionState, excluded: readonly string[], revisions: DiscoveryWork["revisions"]): BoundDocument[] {
+	const bodies = deliverableBodies(scenarioKey, decision)
+	return includedOutputs(excluded).map((position) => {
+		const name = DELIVERABLES[position].name
+		return { name, revision: currentRevision(revisions, name), hash: contentHash(scenarioKey, decision, name, bodyAtRevision(bodies[position], revisions[name])) }
+	})
+}
+
+// A record saved before these gates existed, and each seed, reads as the work it already is.
+const SEEDED_WORK = new WeakMap<DiscoveryRecord, DiscoveryWork>()
+function recordWork(record: DiscoveryRecord): DiscoveryWork {
+	if (record.work) return record.work
+	const known = SEEDED_WORK.get(record)
+	if (known) return known
+	const work = seededWork(record, () => boundDocuments(record.scenarioKey, record.decision, record.excludedOutputs ?? [], {}), readOrganization().policy.research)
+	SEEDED_WORK.set(record, work)
+	return work
+}
+
 function discoveryStatus(record: DiscoveryRecord): DiscoveryStatus {
 	if (record.handoff) return "handed-off"
-	if (record.phase >= OPERATIONS.length - 1) return "completed"
+	const work = recordWork(record)
+	if (work.fault) return "needs-input"
+	if (record.phase >= OPERATIONS.length - 1) return packageApproved(work.package) ? "completed" : "needs-input"
 	if (!record.interviewClosed || record.phase === 4 && record.decision === "pending") return "needs-input"
+	if (record.phase === 2 && pendingBriefs(work.briefs).length) return "needs-input"
 	return "active"
 }
 
@@ -307,7 +390,7 @@ function createFinishedDemoRecord(script: DemoScript): DiscoveryRecord {
 		...interview,
 		{ id: `demo-${id}-closed`, actor: "max", text: closingText(scenario, scenario.people, script.replies.at(-1)), trace: ["Saved the owner interview as a versioned context snapshot", "Replanned the inquiry map from the captured answers", "Started the autonomous work graph"] },
 		{ id: `demo-${id}-decision`, actor: "max", text: scenario.exception.approvedConfirmation, trace: ["Recorded the exact bounded authority", "Opened only the approved action", "Verified the action and resumed the affected branch"] },
-		{ id: `demo-${id}-complete`, actor: "max", text: `The Discovery is complete. I verified the evidence set, recorded the decisions, generated all ${DELIVERABLES.length} deliverables, and prepared the operating package for Agentix.`, trace: ["Froze readiness snapshot v7", "Generated manifest v4", "Verified package routing"] },
+		{ id: `demo-${id}-complete`, actor: "max", text: `The Discovery is complete. I verified the evidence set, recorded the decisions and generated the ${DEMO_OUTPUTS.length} selected deliverables. Package v1 is waiting for your approval before it can go to Agentix.`, trace: ["Froze readiness snapshot v7", "Generated manifest v4", "Routed package v1 for approval"] },
 	]
 	return {
 		id: demoRecordId(script),
@@ -329,7 +412,9 @@ function createFinishedDemoRecord(script: DemoScript): DiscoveryRecord {
 		charterApproval: null,
 		handoff: null,
 		workshopFinalized: true,
-		excludedOutputs: [],
+		excludedOutputs: excludedFrom(DEMO_OUTPUTS),
+		// The run is finished but nobody has approved it: that's the step this demo starts on.
+		work: { ...newWork(), briefs: approveAllBriefs(draftBriefs(scenario, scenario.people, [], script.conflict), minutesAgo(40)), research: gatherResearch(key, readOrganization().policy.research, minutesAgo(45)) },
 		missionDecision: scenario.objective,
 		deadline: scenario.deadline,
 		// The finished run heard what the long demo would have, and its checks are verified.
@@ -386,6 +471,8 @@ function readDiscoveryRecords(): DiscoveryRecord[] {
 			view: (record.view as string) === "overview" ? "autonomy" as View : record.view,
 			// A fact that doesn't read is dropped, never the record it belongs to.
 			facts: Array.isArray(record.facts) ? record.facts.filter(isOwnerFact) : undefined,
+			// Work that doesn't read falls back to what the record's own state implies.
+			work: isDiscoveryWork(record.work) ? { ...record.work, files: record.work.files.map(settleInterrupted) } : undefined,
 		}))
 		return migrated.length ? migrated.slice(0, MAX_SAVED_DISCOVERIES) : seedRecords()
 	} catch {
@@ -651,7 +738,7 @@ export function hasWorkshopSession(phase: number) {
 	return phase >= 3
 }
 
-const COUNT_WORDS = ["no", "one", "two", "three", "four", "five", "six", "seven", "eight", "nine"]
+const COUNT_WORDS = ["no", "one", "two", "three", "four", "five", "six", "seven", "eight", "nine", "ten", "eleven"]
 function countWord(count: number) {
 	return COUNT_WORDS[count] ?? String(count)
 }
@@ -695,8 +782,13 @@ function discoveryFilterGroup(status: DiscoveryStatus): Exclude<DiscoveryStatus,
 // Cross-module jump registry (shell ⌘K): saved discoveries live in localStorage, so the
 // shell reads them on demand rather than mirroring record state into a prop.
 export type DiscoveryJumpRecord = { id: string; title: string; status: DiscoveryStatus; statusLabel: string; keywords: string; updatedAt: string; handoffId?: string; handoff?: HandoffPacket }
-export type DiscoveryJump = "resume" | "decision" | "package" | "autonomy"
+// A versioned package jump opens that exact approval; a stale one says so and leads to the current version.
+export type DiscoveryJump = "resume" | "decision" | "package" | "autonomy" | "briefs" | "package-approval" | `package-approval:${number}` | `brief:${string}`
 export type DiscoveryOpenSignal = { tick: number; recordId: string; jump: DiscoveryJump }
+/* One decision waiting on the signed-in user, for My approvals (D-091). */
+export type DiscoveryApprovalItem = { id: string; recordId: string; kind: "package" | "brief" | "decision"; title: string; detail: string; target: string; version: string; jump: DiscoveryJump }
+/* Fired whenever saved Discovery records change, so a consumer can read the list again. */
+export const DISCOVERY_RECORDS_EVENT = "maxion-discovery-records"
 
 // A handed-off record still has a package to open, so the registry files it with the
 // completed ones; its label and handoffId say where the packet went.
@@ -704,6 +796,31 @@ export function listDiscoveryJumpRecords(): DiscoveryJumpRecord[] {
 	return readDiscoveryRecords().map((record) => {
 		const status = discoveryStatus(record)
 		return { id: record.id, title: record.title, status: discoveryFilterGroup(status), statusLabel: statusLabelOf(record), keywords: `${record.brief} ${SCENARIOS[record.scenarioKey].kicker}`, updatedAt: record.updatedAt, ...(record.handoff ? { handoffId: record.handoff.id, handoff: record.handoff } : {}) }
+	})
+}
+
+/*
+ * Everything in saved records waiting on the signed-in user right now. A handed-off Discovery is
+ * frozen, and a returned package is with MAX, so neither waits on anyone here.
+ */
+export function listDiscoveryApprovals(): DiscoveryApprovalItem[] {
+	return readDiscoveryRecords().flatMap((record) => {
+		if (record.handoff) return []
+		const work = recordWork(record)
+		const items: DiscoveryApprovalItem[] = []
+		const review = work.package
+		if (record.phase >= OPERATIONS.length - 1 && (review.status === "pending" || review.status === "withdrawn")) {
+			const documents = includedOutputs(record.excludedOutputs ?? []).length
+			items.push({ id: `package:${record.id}:v${review.version}`, recordId: record.id, kind: "package", title: `Approve package v${review.version}`, detail: `${documents} document${documents === 1 ? "" : "s"} at manifest v${review.manifestVersion}`, target: record.title, version: `Package v${review.version}`, jump: `package-approval:${review.version}` })
+		}
+		if (record.interviewClosed) {
+			for (const brief of pendingBriefs(work.briefs)) items.push({ id: `brief:${record.id}:${brief.personId}:v${brief.version}`, recordId: record.id, kind: "brief", title: `Approve the interview brief for ${brief.personName}`, detail: `${brief.role} · ${brief.minutes} minutes · ${brief.evidence.length} evidence source${brief.evidence.length === 1 ? "" : "s"}`, target: record.title, version: `Brief v${brief.version}`, jump: `brief:${brief.personId}` })
+		}
+		if (record.interviewClosed && record.phase === 4 && record.decision === "pending") {
+			const exception = SCENARIOS[record.scenarioKey].exception
+			items.push({ id: `decision:${record.id}`, recordId: record.id, kind: "decision", title: exception.title, detail: exception.trigger, target: record.title, version: "Open decision", jump: "decision" })
+		}
+		return items
 	})
 }
 
@@ -715,7 +832,17 @@ type DiscoveryPaletteAction =
 	| { type: "pause" }
 	| { type: "decision" }
 	| { type: "plan" }
+	| { type: "approve-package" }
+	| { type: "simulate"; event: SimulatedEvent }
 	| { type: "drawer"; drawer: Exclude<Drawer, null> }
+
+/* What a presenter can make happen, the way Agentix's Controls do. */
+type SimulatedEvent = "budget" | "connection" | "colleague"
+const SIMULATED_EVENTS: Array<{ event: SimulatedEvent; label: string; hint: string; keywords: string }> = [
+	{ event: "budget", label: "Simulate: budget exhausted", hint: "The run pauses at its limit; reads and drafts stay", keywords: "simulate budget limit exhausted spend demo controls" },
+	{ event: "connection", label: "Simulate: connection revoked", hint: "One source loses its connection and reads pause", keywords: "simulate revoke revoked connection reconnect expired demo controls" },
+	{ event: "colleague", label: "Simulate: a colleague edits", hint: "A document changes during your next review or edit", keywords: "simulate colleague edit conflict stale version demo controls" },
+]
 
 type DiscoveryPaletteItem = { id: string; group: string; label: string; hint: string; keywords: string; action: DiscoveryPaletteAction }
 
@@ -729,6 +856,9 @@ function buildDiscoveryPaletteItems({
 	activeRecordId,
 	canOpenHandoff,
 	destination = "Agentix",
+	briefsWaiting = 0,
+	packageWaiting = null,
+	canSimulate = false,
 }: {
 	records: DiscoveryRecord[]
 	screen: Screen
@@ -739,23 +869,29 @@ function buildDiscoveryPaletteItems({
 	activeRecordId: string | null
 	canOpenHandoff: boolean
 	destination?: HandoffDestination
+	briefsWaiting?: number
+	packageWaiting?: number | null
+	canSimulate?: boolean
 }): DiscoveryPaletteItem[] {
 	const items: DiscoveryPaletteItem[] = []
 	const inWorkspace = screen === "workspace"
 	if (inWorkspace && needsDecision) items.push({ id: "jump-decision", group: "Decisions", label: "Jump to decision", hint: "One bounded decision is waiting for you", keywords: "decision approve authority exception boundary review", action: { type: "decision" } })
+	if (inWorkspace && briefsWaiting) items.push({ id: "open-briefs", group: "Decisions", label: "Review interview briefs", hint: `${briefsWaiting} waiting for your approval`, keywords: "brief briefs interview approve review", action: { type: "drawer", drawer: "briefs" } })
+	if (inWorkspace && packageWaiting !== null) items.push({ id: "approve-package", group: "Decisions", label: `Approve package v${packageWaiting}`, hint: "Review exactly what the approval binds", keywords: "approve approval package version review return", action: { type: "approve-package" } })
 	// Each group appears once: views, then sheets, then actions, then saved discoveries.
 	if (inWorkspace) {
 		items.push({ id: "view-thread", group: "Go to", label: "Thread", hint: "Owner conversation with MAX", keywords: "chat conversation messages owner interview thread", action: { type: "view", view: "thread" } })
 		items.push({ id: "view-autonomy", group: "Go to", label: "Autonomy", hint: "Live autonomous work, ledger, and coordination", keywords: "autonomy overview workstreams ledger progress supervision", action: { type: "view", view: "autonomy" } })
 		items.push({ id: "view-package", group: "Go to", label: "Deliverables", hint: phase >= 6 ? "Review documents and routing" : "Preview the planned deliverables", keywords: "package deliverables outputs decision reader", action: { type: "view", view: "package" } })
 		items.push({ id: "open-people", group: "Open", label: "People", hint: "Stakeholder program drawer", keywords: "people stakeholders roster interviews program", action: { type: "drawer", drawer: "people" } })
-		items.push({ id: "open-sources", group: "Open", label: "Sources", hint: "Connected evidence drawer", keywords: "sources evidence systems connected scopes", action: { type: "drawer", drawer: "sources" } })
+		items.push({ id: "open-sources", group: "Open", label: "Sources", hint: "Connected evidence drawer", keywords: "sources evidence systems connected scopes upload documents files public web research", action: { type: "drawer", drawer: "sources" } })
 		items.push({ id: "open-manifest", group: "Open", label: "Package manifest", hint: "Deliverable manifest drawer", keywords: "manifest deliverables manage package outputs", action: { type: "drawer", drawer: "package" } })
 		if (canOpenHandoff) items.push({ id: "open-plan", group: "Actions", label: `Open in ${destination}`, hint: `${destination} holds this Discovery’s handoff packet`, keywords: `${destination.toLowerCase()} handoff packet continue next module`, action: { type: "plan" } })
 		if (!complete) items.push({ id: "toggle-pause", group: "Actions", label: paused ? "Resume the run" : "Pause the run", hint: paused ? "Continue from the last verified checkpoint" : "Stop new autonomous work at a safe checkpoint", keywords: "pause resume checkpoint stop continue run", action: { type: "pause" } })
 	}
 	items.push({ id: "new-discovery", group: "Actions", label: "New discovery", hint: "Describe a new outcome for MAX", keywords: "new create start discovery brief mission", action: { type: "new" } })
 	if (!inWorkspace) items.push({ id: "browse-templates", group: "Actions", label: "Browse templates", hint: "Start from a prepared mission", keywords: "templates browse examples starter gallery", action: { type: "templates" } })
+	if (inWorkspace && canSimulate) for (const item of SIMULATED_EVENTS) items.push({ id: `simulate-${item.event}`, group: "Simulate", label: item.label, hint: item.hint, keywords: item.keywords, action: { type: "simulate", event: item.event } })
 	// Only the workspace has a discovery open; the hub and Create list every record by its status.
 	for (const record of records) items.push({ id: `record-${record.id}`, group: "Discoveries", label: record.title, hint: inWorkspace && record.id === activeRecordId ? "Currently open" : statusLabelOf(record), keywords: `resume open ${record.brief} ${SCENARIOS[record.scenarioKey].kicker}`, action: { type: "record", recordId: record.id } })
 	return items
@@ -775,6 +911,9 @@ function DiscoveryCommandPalette({
 	activeRecordId,
 	canOpenHandoff,
 	destination,
+	briefsWaiting,
+	packageWaiting,
+	canSimulate,
 	onRun,
 	onDismiss,
 }: {
@@ -787,6 +926,9 @@ function DiscoveryCommandPalette({
 	activeRecordId: string | null
 	canOpenHandoff: boolean
 	destination: HandoffDestination
+	briefsWaiting: number
+	packageWaiting: number | null
+	canSimulate: boolean
 	onRun: (action: DiscoveryPaletteAction) => void
 	onDismiss: () => void
 }) {
@@ -797,7 +939,7 @@ function DiscoveryCommandPalette({
 	const listRef = useRef<HTMLDivElement>(null)
 	const idPrefix = useId()
 	const listId = `${idPrefix}-list`
-	const items = buildDiscoveryPaletteItems({ records, screen, phase, paused, needsDecision, complete, activeRecordId, canOpenHandoff, destination })
+	const items = buildDiscoveryPaletteItems({ records, screen, phase, paused, needsDecision, complete, activeRecordId, canOpenHandoff, destination, briefsWaiting, packageWaiting, canSimulate })
 	const q = query.trim().toLowerCase()
 	const filtered = q ? items.filter((item) => `${item.label} ${item.hint} ${item.keywords}`.toLowerCase().includes(q)).slice(0, 9) : items.slice(0, 9)
 	const activeIndex = Math.min(active, Math.max(0, filtered.length - 1))
@@ -810,7 +952,7 @@ function DiscoveryCommandPalette({
 		else result.push({ name: item.group, rows: [{ item, index }] })
 		return result
 	}, [])
-	const iconFor = (action: DiscoveryPaletteAction) => action.type === "record" ? <Mark seed={action.recordId} size="xs" /> : action.type === "new" ? <Plus size={16} /> : action.type === "templates" ? <SquaresFour size={16} /> : action.type === "view" ? <Rows size={16} /> : action.type === "pause" ? <Pause size={16} /> : action.type === "decision" ? <ShieldCheck size={16} /> : action.type === "plan" ? <ArrowUpRight size={16} /> : <GearSix size={16} />
+	const iconFor = (action: DiscoveryPaletteAction) => action.type === "record" ? <Mark seed={action.recordId} size="xs" /> : action.type === "new" ? <Plus size={16} /> : action.type === "templates" ? <SquaresFour size={16} /> : action.type === "view" ? <Rows size={16} /> : action.type === "pause" ? <Pause size={16} /> : action.type === "decision" ? <ShieldCheck size={16} /> : action.type === "plan" ? <ArrowUpRight size={16} /> : action.type === "approve-package" ? <SealCheck size={16} /> : action.type === "simulate" ? <Warning size={16} /> : <GearSix size={16} />
 	// The highlighted row stays in view as the arrows move past the list's edge.
 	useEffect(() => {
 		const list = listRef.current
@@ -953,10 +1095,26 @@ export function DiscoveryAutonomousPrototypePage({ embedded = false, active = tr
 	const [charterDialogOpen, setCharterDialogOpen] = useState(false)
 	// The handoff dialog's inline "Approve charter" comes back to the handoff once the charter dialog closes.
 	const charterFromHandoffRef = useRef(false)
+	const charterToApprovalRef = useRef(false)
 	const [excludedOutputs, setExcludedOutputs] = useState<string[]>([])
 	// How far synthesis has written the package. It lives here, not in the Package view, so
 	// leaving the tab never restarts it, and it only advances while the run is live.
 	const [generationStep, setGenerationStep] = useState(0)
+	// The package under review, revisions, briefs, uploads, web sources and what holds the run.
+	const [work, setWorkState] = useState<DiscoveryWork>(newWork)
+	const workRef = useRef(work)
+	workRef.current = work
+	const updateWork = useCallback((change: (current: DiscoveryWork) => DiscoveryWork) => {
+		const next = change(workRef.current)
+		workRef.current = next
+		setWorkState(next)
+	}, [])
+	const [briefFocus, setBriefFocus] = useState<string | null>(null)
+	// The approval a person opened: its exact version and what it binds, fixed when it opened.
+	const [approval, setApproval] = useState<{ version: number; manifestVersion: number; documents: BoundDocument[]; refusal: { message: string; current: number } | null } | null>(null)
+	const [returning, setReturning] = useState<number | null>(null)
+	const [withdrawing, setWithdrawing] = useState(false)
+	const [recordOpen, setRecordOpen] = useState(false)
 	const [workshopFinalized, setWorkshopFinalized] = useState(false)
 	const [missionDecision, setMissionDecision] = useState(SCENARIOS.tprm.objective)
 	const [missionDeadline, setMissionDeadline] = useState(SCENARIOS.tprm.deadline)
@@ -984,6 +1142,7 @@ export function DiscoveryAutonomousPrototypePage({ embedded = false, active = tr
 			const storage = moduleStorage()
 			if (!storage) return
 			storage.setItem(storageKey(DISCOVERY_STORAGE_KEY), JSON.stringify(recordsRef.current))
+			window.dispatchEvent(new Event(DISCOVERY_RECORDS_EVENT))
 			notifyDemoChange()
 		} catch {
 			// The work remains available for this session when browser storage is unavailable.
@@ -1001,6 +1160,7 @@ export function DiscoveryAutonomousPrototypePage({ embedded = false, active = tr
 		if (!activeRecordId || screen !== "workspace") return
 		setRecords((current) => current.map((record) => record.id === activeRecordId ? {
 			...record,
+			work,
 			title: currentMissionTitle,
 			brief: missionBrief,
 			scenarioKey,
@@ -1025,7 +1185,7 @@ export function DiscoveryAutonomousPrototypePage({ embedded = false, active = tr
 			facts,
 			updatedAt: new Date().toISOString(),
 		} : record))
-	}, [activeRecordId, charterApproval, clarificationPending, currentMissionTitle, decision, excludedOutputs, facts, handoff, interviewClosed, interviewIndex, invitedIds, invitesSent, messages, missionBrief, missionDeadline, missionDecision, packageSelection, paused, people, phase, scenarioKey, screen, view, workshopFinalized])
+	}, [activeRecordId, charterApproval, clarificationPending, currentMissionTitle, decision, excludedOutputs, facts, handoff, interviewClosed, interviewIndex, invitedIds, invitesSent, messages, missionBrief, missionDeadline, missionDecision, packageSelection, paused, people, phase, scenarioKey, screen, view, work, workshopFinalized])
 
 	// A scripted source check returns an early signal during the call; others wait for the evidence stage.
 	const earlyChecks = useRef(new Set<string>())
@@ -1055,8 +1215,12 @@ export function DiscoveryAutonomousPrototypePage({ embedded = false, active = tr
 	// MAX's stakeholder calls start when the owner's call ends, and in a customer demo the interview
 	// stage runs long enough to watch them (StakeholderCalls); under reduced motion nothing waits.
 	const watchCalls = !reducedMotion && !!scriptForScenario(scenarioKey, demoSession()?.id)
+	const briefsWaiting = pendingBriefs(work.briefs).length
+	// Interviews wait for their briefs (D-114), and a budget stop or a revoked connection holds the run.
+	const heldByBriefs = interviewClosed && phase === 2 && briefsWaiting > 0
+	const runHeld = Boolean(work.fault)
 	useEffect(() => {
-		if (screen !== "workspace" || !interviewClosed || paused || needsDecision || complete) return
+		if (screen !== "workspace" || !interviewClosed || paused || needsDecision || complete || heldByBriefs || runHeld) return
 		if (callOpen && phase === 2) return
 		const timer = window.setTimeout(() => setPhase((current) => {
 			const next = Math.min(current + 1, OPERATIONS.length - 1)
@@ -1064,15 +1228,15 @@ export function DiscoveryAutonomousPrototypePage({ embedded = false, active = tr
 			return next
 		}), watchCalls && phase === 3 ? STAKEHOLDER_STAGE_MS : 1650)
 		return () => window.clearTimeout(timer)
-	}, [callOpen, complete, interviewClosed, needsDecision, paused, phase, screen, watchCalls])
+	}, [callOpen, complete, heldByBriefs, interviewClosed, needsDecision, paused, phase, runHeld, screen, watchCalls])
 
 	// Synthesis writes one document per step in list order, and holds while the run is paused.
 	// Under reduced motion the whole set lands at once and nothing waits on this timer.
 	useEffect(() => {
-		if (screen !== "workspace" || phase !== GENERATION_PHASE || paused || reducedMotion || generationStep >= DELIVERABLES.length - 1) return
+		if (screen !== "workspace" || phase !== GENERATION_PHASE || paused || runHeld || reducedMotion || generationStep >= DELIVERABLES.length - 1) return
 		const timer = window.setTimeout(() => setGenerationStep((step) => step + 1), MATERIALIZE_STEP_MS)
 		return () => window.clearTimeout(timer)
-	}, [generationStep, paused, phase, reducedMotion, screen])
+	}, [generationStep, paused, phase, reducedMotion, runHeld, screen])
 	const writtenOutputs = phase < GENERATION_PHASE ? 0 : reducedMotion || phase > GENERATION_PHASE ? DELIVERABLES.length : generationStep + 1
 
 	// A manifest edit is one change, however many switches it took: when the sheet closes,
@@ -1080,6 +1244,8 @@ export function DiscoveryAutonomousPrototypePage({ embedded = false, active = tr
 	const manifestBeforeRef = useRef<string[] | null>(null)
 	const excludedRef = useRef(excludedOutputs)
 	excludedRef.current = excludedOutputs
+	const phaseRef = useRef(phase)
+	phaseRef.current = phase
 	useEffect(() => {
 		if (drawer === "package") {
 			manifestBeforeRef.current ??= excludedRef.current
@@ -1094,6 +1260,10 @@ export function DiscoveryAutonomousPrototypePage({ embedded = false, active = tr
 		if (!removed.length && !restored.length) return
 		const exceptions = removed.filter((name) => REQUIRED_OUTPUTS.has(DELIVERABLES.findIndex((item) => item.name === name)))
 		const included = DELIVERABLES.length - after.length
+		// Changing what the package contains after it's built makes a new version to review.
+		if (workRef.current.package.version && phaseRef.current >= OPERATIONS.length - 1) {
+			updateWork((current) => ({ ...current, package: nextPackageVersion(current.package, `Selected outputs changed: ${included} of ${DELIVERABLES.length} documents`, new Date().toISOString(), SIGNED_IN_USER, true) }))
+		}
 		const changes = [
 			removed.length ? `removed ${joinPhrases(removed)}` : "",
 			restored.length ? `restored ${joinPhrases(restored)}` : "",
@@ -1102,7 +1272,7 @@ export function DiscoveryAutonomousPrototypePage({ embedded = false, active = tr
 			id: `manifest-${Date.now()}`,
 			actor: "max",
 			text: `You ${changes}. The package now holds ${included} of ${DELIVERABLES.length} documents.${exceptions.length ? ` ${exceptions.length === 1 ? `${exceptions[0]} is a required output, so I recorded an exception` : `${joinPhrases(exceptions)} are required outputs, so I recorded an exception for each`}; the handoff packet lists ${exceptions.length === 1 ? "it" : "them"} for ${destination}.` : ""}`,
-			trace: ["Updated manifest v4", exceptions.length ? `Recorded ${exceptions.length} owner exception${exceptions.length === 1 ? "" : "s"}` : "Checked the change against the package policy", "Refreshed the handoff preview"],
+			trace: [`Updated manifest v${workRef.current.package.manifestVersion}`, exceptions.length ? `Recorded ${exceptions.length} owner exception${exceptions.length === 1 ? "" : "s"}` : "Checked the change against the package policy", "Refreshed the handoff preview"],
 		})
 		setToast(exceptions.length ? `Manifest updated · ${exceptions.length} exception${exceptions.length === 1 ? "" : "s"} recorded` : `Manifest updated · ${included} of ${DELIVERABLES.length} included`)
 		// Only the drawer's open state decides when an edit is complete; the rest is read through refs.
@@ -1113,7 +1283,7 @@ export function DiscoveryAutonomousPrototypePage({ embedded = false, active = tr
 		onPackageReady?.()
 		if (!finishedLiveRef.current) return
 		finishedLiveRef.current = false
-		setToast("Decision package ready and routed for approval")
+		setToast("Decision package ready · waiting for your approval")
 	}, [complete, onPackageReady, setToast])
 
 	useEffect(() => {
@@ -1126,6 +1296,9 @@ export function DiscoveryAutonomousPrototypePage({ embedded = false, active = tr
 		if (!missionBrief.trim()) return
 		newBriefDraft.current = ""
 		const recordId = createRecordId()
+		// New work started inside a project stays with that project.
+		const { projectId } = readScope()
+		if (projectId) linkDiscoveryToProject(recordId, projectId)
 		const startedAt = new Date().toISOString()
 		// The brief decides the investigation, so resolve it before anything is
 		// seeded from a scenario the person did not describe.
@@ -1152,6 +1325,8 @@ export function DiscoveryAutonomousPrototypePage({ embedded = false, active = tr
 			clarificationPending: false,
 			packageSelection: 0,
 			invitesSent: false,
+			excludedOutputs: draft?.excluded ?? excludedFrom(DEFAULT_OUTPUTS),
+			work: { ...newWork(), files: draft?.files ?? [] },
 			createdAt: startedAt,
 			updatedAt: startedAt,
 		}
@@ -1182,7 +1357,9 @@ export function DiscoveryAutonomousPrototypePage({ embedded = false, active = tr
 		setPendingPerson(null)
 		setCharterApproval(null)
 		setHandoff(null)
-		setExcludedOutputs([])
+		setExcludedOutputs(newRecord.excludedOutputs ?? [])
+		updateWork(() => newRecord.work ?? newWork())
+		setPackageSelection(0)
 		setGenerationStep(0)
 		setWorkshopFinalized(false)
 		registerStreamableMessages(startingMessages)
@@ -1216,6 +1393,7 @@ export function DiscoveryAutonomousPrototypePage({ embedded = false, active = tr
 		setCharterApproval(null)
 		setHandoff(null)
 		setExcludedOutputs([])
+		updateWork(() => newWork())
 		setGenerationStep(0)
 		setWorkshopFinalized(false)
 		setMissionDecision(SCENARIOS.tprm.objective)
@@ -1256,6 +1434,11 @@ export function DiscoveryAutonomousPrototypePage({ embedded = false, active = tr
 		setCharterApproval(record.charterApproval ?? (record.phase >= OPERATIONS.length - 1 && record.id.startsWith("seed-") ? SEED_CHARTER_APPROVAL : null))
 		setHandoff(record.handoff ?? null)
 		setExcludedOutputs(record.excludedOutputs ?? [])
+		updateWork(() => recordWork(record))
+		setApproval(null)
+		setReturning(null)
+		setWithdrawing(false)
+		setRecordOpen(false)
 		setGenerationStep(0)
 		setCharterDialogOpen(false)
 		setWorkshopFinalized(record.workshopFinalized ?? false)
@@ -1357,6 +1540,8 @@ export function DiscoveryAutonomousPrototypePage({ embedded = false, active = tr
 		if (action.type === "pause") { setPaused((current) => !current); return }
 		if (action.type === "decision") { jumpToDecision(); return }
 		if (action.type === "plan") { openPlan?.(); return }
+		if (action.type === "approve-package") { setView("package"); openApproval(); return }
+		if (action.type === "simulate") { simulate(action.event); return }
 		openDrawer(action.drawer, paletteTriggerRef.current)
 	}
 
@@ -1375,6 +1560,24 @@ export function DiscoveryAutonomousPrototypePage({ embedded = false, active = tr
 	openJumpRef.current = (signal) => {
 		const record = records.find((item) => item.id === signal.recordId)
 		if (!record) return
+		const jump: string = signal.jump
+		if (jump === "briefs" || jump.startsWith("brief:")) {
+			resumeDiscovery(record)
+			setBriefFocus(jump.startsWith("brief:") ? jump.slice("brief:".length) : null)
+			openDrawer("briefs", null)
+			return
+		}
+		if (jump.startsWith("package-approval")) {
+			resumeDiscovery({ ...record, view: "package" })
+			const work = recordWork(record)
+			const asked = Number(jump.split(":")[1])
+			if (packageApproved(work.package)) { setToast(`Package v${work.package.version} is already approved`); return }
+			if (work.package.status === "returned") { setToast(`Package v${work.package.version} is back with MAX`); return }
+			// A link to an older version never approves it: it says so and opens the version that stands now.
+			if (asked && asked !== work.package.version) setToast(`Package v${asked} was replaced. Review v${work.package.version}.`)
+			if (record.phase >= OPERATIONS.length - 1) openApproval(work, record)
+			return
+		}
 		resumeDiscovery(signal.jump === "package" && record.phase >= 6 ? { ...record, view: "package" } : signal.jump === "autonomy" ? { ...record, view: "autonomy" } : signal.jump === "decision" ? { ...record, view: "thread" } : record)
 		if (signal.jump === "decision") jumpToDecision("thread", true)
 	}
@@ -1452,7 +1655,7 @@ export function DiscoveryAutonomousPrototypePage({ embedded = false, active = tr
 			}
 			// A sheet, dialog or the menu owns the keyboard while it is open: the view behind
 			// it never changes and focus never leaves it. The menu is not opened over another modal.
-			const modal = paletteOpen || Boolean(drawer) || handoffOpen || charterDialogOpen || Boolean(target?.closest("[role=dialog], [aria-modal=true]")) || visibleModalOpen()
+			const modal = paletteOpen || Boolean(drawer) || handoffOpen || charterDialogOpen || Boolean(approval) || returning !== null || withdrawing || recordOpen || Boolean(target?.closest("[role=dialog], [aria-modal=true]")) || visibleModalOpen()
 			if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "k") {
 				event.preventDefault()
 				event.stopPropagation()
@@ -1478,7 +1681,7 @@ export function DiscoveryAutonomousPrototypePage({ embedded = false, active = tr
 		}
 		window.addEventListener("keydown", onKeyDown, { capture: true })
 		return () => window.removeEventListener("keydown", onKeyDown, { capture: true })
-	}, [charterDialogOpen, drawer, handoffOpen, paletteOpen, phase, reducedMotion, screen])
+	}, [approval, charterDialogOpen, drawer, handoffOpen, paletteOpen, phase, recordOpen, reducedMotion, returning, screen, withdrawing])
 
 	const resolveDecision = (next: Exclude<DecisionState, "pending">) => {
 		const exception = scenario.exception
@@ -1583,6 +1786,14 @@ export function DiscoveryAutonomousPrototypePage({ embedded = false, active = tr
 		setInterviewClosed(true)
 		setClarificationPending(false)
 		setPhase((current) => Math.max(current, 2))
+		// MAX drafts each interviewer's brief now; nobody is interviewed until a person approves it (D-114).
+		const gaps = facts.filter((fact) => fact.status === "gap").map((fact) => ({ topic: fact.topic, value: fact.value }))
+		const conflict = scriptForScenario(scenarioKey, demoSession()?.id)?.conflict
+		updateWork((current) => ({
+			...current,
+			briefs: current.briefs.length ? current.briefs : draftBriefs(scenario, people, gaps, conflict),
+			research: gatherResearch(scenarioKey, readOrganization().policy.research, new Date().toISOString()),
+		}))
 		addMessage({
 			id: `interview-complete-${Date.now()}`,
 			actor: "max",
@@ -1705,8 +1916,8 @@ export function DiscoveryAutonomousPrototypePage({ embedded = false, active = tr
 			const state = handoff
 				? `Packet ${handoff.id} went to ${destination} (${formatPacketTime(handoff.createdAt)}) with ${whole ? `all ${kept}` : `${kept} of ${DELIVERABLES.length}`} documents from readiness snapshot v7${decision === "modified" ? " and one recorded limitation" : ""}.`
 				: complete
-					? `${whole ? `All ${kept}` : `The ${kept} included`} deliverables are verified; start with the executive decision brief.${charterApproval ? "" : " The project charter still needs your approval before the handoff."}`
-					: `The package isn’t built yet. ${DELIVERABLES.length} deliverables are planned and generate once readiness freezes.`
+					? `${whole ? `All ${kept}` : `The ${kept} included`} deliverables are verified; start with the ${DELIVERABLES[includedOutputs(excludedOutputs)[0] ?? 0].name.toLowerCase()}. ${packageApproved(work.package) ? `Package v${work.package.version} is approved by ${work.package.approvedBy}.` : `Package v${work.package.version} is waiting for your approval.`}`
+					: `The package isn’t built yet. ${kept} deliverables are planned and generate once readiness freezes.`
 			reply(state, ["Read the package manifest", "Checked handoff state"])
 			return
 		}
@@ -1758,12 +1969,13 @@ export function DiscoveryAutonomousPrototypePage({ embedded = false, active = tr
 				return
 			}
 			const recipients = invitesSent ? uninvitedPeople : people
+			const briefsOpen = pendingBriefs(work.briefs).length
 			setInvitesSent(true)
 			setInvitedIds((current) => [...new Set([...current, ...recipients.map((person) => person.id)])])
 			reply(
 				invitesSent
 					? `${people.length - recipients.length} stakeholders already had their invitations. I sent ${recipients.length === 1 ? "one" : recipients.length} to ${joinNames(recipients)} on ${recipients.length === 1 ? "their" : "each"} assigned channel and verified delivery.`
-					: `I sent ${people.length} invitations using each stakeholder's assigned channel. Delivery was verified and the chase cadence is now active.`,
+					: `I sent ${people.length} invitations using each stakeholder's assigned channel. Delivery was verified and the chase cadence is now active.${briefsOpen ? " Each interview opens once you approve its brief." : ""}`,
 				["Validated recipient policy and consent copy", `Queued ${recipients.length} idempotent invitation${recipients.length === 1 ? "" : "s"}`, "Verified delivery receipts and scheduled follow-ups"],
 			)
 			setToast(`${recipients.length} invitation${recipients.length === 1 ? "" : "s"} delivered`)
@@ -1824,7 +2036,7 @@ export function DiscoveryAutonomousPrototypePage({ embedded = false, active = tr
 		const source = scenario.sources.find((candidate) => lower.includes(candidate.system.toLowerCase()) || lower.includes(candidate.name.toLowerCase()))
 		const person = people.find((candidate) => lower.includes(candidate.name.toLowerCase()))
 		const action = complete
-			? "The package is already verified, so I’ve logged it as a revision note for the next version instead of changing the documents."
+			? "The package is already verified, so I’ve logged it as a revision note. To change a document, edit or regenerate it in Package, or return the package to me."
 			: source ? `I’ll check it against ${source.name} in ${source.system}${paused ? " once you resume" : ""}.`
 			: person ? `I’ll raise it with ${person.name} in their next follow-up${paused ? " once you resume" : ""}.`
 			: `I’m applying it to ${OPERATIONS[phase].label.toLowerCase()}${paused ? " once you resume" : ""}.`
@@ -1908,14 +2120,252 @@ export function DiscoveryAutonomousPrototypePage({ embedded = false, active = tr
 
 	const closeCharterDialog = () => {
 		setCharterDialogOpen(false)
+		if (charterToApprovalRef.current) { charterToApprovalRef.current = false; openApproval(); return }
 		if (!charterFromHandoffRef.current) return
 		charterFromHandoffRef.current = false
 		setHandoffOpen(true)
 	}
 
+	// ── Package approval (D-122). Nothing here claims approval before the record says so. ──
+
+	const documentsNow = (current: DiscoveryWork = workRef.current, record?: Pick<DiscoveryRecord, "scenarioKey" | "decision" | "excludedOutputs">) =>
+		boundDocuments(record?.scenarioKey ?? scenarioKey, record?.decision ?? decision, record?.excludedOutputs ?? excludedOutputs, current.revisions)
+
+	// A presenter's "colleague edits" lands just after a review or edit opens, so the version really moves under it.
+	const colleaguePendingRef = useRef(false)
+	const colleagueEdit = (name: string) => {
+		if (!colleaguePendingRef.current) return
+		colleaguePendingRef.current = false
+		const recordId = activeRecordId
+		const land = () => {
+			if (activeRecordRef.current !== recordId) return
+			const position = DELIVERABLES.findIndex((item) => item.name === name)
+			const body = bodyAtRevision(deliverableBodies(scenarioKey, decision)[position], workRef.current.revisions[name])
+			const section = body.sections[1] ?? body.sections[0]
+			const colleague = people.at(-1)?.name ?? "A colleague"
+			reviseDocument(name, currentRevision(workRef.current.revisions, name), { kind: "colleague", by: colleague, at: new Date().toISOString(), note: "Added a note for the owner to confirm", section: section.heading, paragraphs: [...section.paragraphs, `${colleague} asks the owner to confirm this section before it goes further.`] })
+		}
+		if (reducedMotion) land(); else window.setTimeout(land, 900)
+	}
+
+	const openApproval = (current: DiscoveryWork = workRef.current, record?: Pick<DiscoveryRecord, "scenarioKey" | "decision" | "excludedOutputs">) => {
+		const documents = documentsNow(current, record)
+		setApproval({ version: current.package.version, manifestVersion: current.package.manifestVersion, documents, refusal: null })
+		const first = includedOutputs(record?.excludedOutputs ?? excludedOutputs)[0]
+		if (first !== undefined) colleagueEdit(DELIVERABLES[first].name)
+	}
+
+	const confirmApproval = () => {
+		if (!approval) return
+		const result = approvePackage(workRef.current.package, approval.version, approval.documents, new Date().toISOString())
+		updateWork((current) => ({ ...current, package: result.review }))
+		if (!result.ok) { setApproval({ ...approval, refusal: { message: result.message, current: result.currentVersion } }); return }
+		setApproval(null)
+		recordAudit("approvals", `Package v${approval.version} approved`, currentMissionTitle)
+		addMessage({
+			id: `package-approved-${Date.now()}`,
+			actor: "max",
+			text: `You approved package v${approval.version}: ${approval.documents.length} document${approval.documents.length === 1 ? "" : "s"} at manifest v${approval.manifestVersion}, with their hashes on the record. Nothing has gone to ${destination} yet; continuing is your next step.`,
+			trace: [`Bound package v${approval.version} to its ${approval.documents.length} document hashes`, `Recorded ${SIGNED_IN_USER} as the approver`, "Opened the handoff for this version only"],
+		})
+		setToast(`Package v${approval.version} approved`)
+	}
+
+	const reviewCurrentPackage = () => {
+		const current = workRef.current
+		setApproval({ version: current.package.version, manifestVersion: current.package.manifestVersion, documents: documentsNow(current), refusal: null })
+	}
+
+	const confirmReturn = (reason: string) => {
+		if (returning === null) return
+		const at = new Date().toISOString()
+		const result = returnPackage(workRef.current.package, returning, reason, at)
+		setReturning(null)
+		if (!result.ok) { setToast(result.message); return }
+		updateWork((current) => ({ ...current, package: result.review }))
+		recordAudit("approvals", `Package v${result.review.version} returned`, currentMissionTitle)
+		addMessage({ id: `package-returned-${Date.now()}`, actor: "max", text: `You returned package v${result.review.version} with this reason: “${reason}”. I’m preparing a new version; v${result.review.version} stays in the history.`, trace: ["Recorded the return and its reason", "Started a scoped revision"] })
+		setToast(`Package v${result.review.version} returned to MAX`)
+		if (reducedMotion) finishReturn()
+	}
+
+	// MAX answers a return with a new version: the reason, worked into the first document it reaches.
+	const finishReturn = () => {
+		const current = workRef.current
+		if (current.package.status !== "returned") return
+		const reason = current.package.returnReason ?? ""
+		const first = includedOutputs(excludedOutputs)[0] ?? 0
+		const name = DELIVERABLES[first].name
+		const body = bodyAtRevision(deliverableBodies(scenarioKey, decision)[first], current.revisions[name])
+		const section = body.sections[0]
+		const at = new Date().toISOString()
+		const revised = addRevision(current.revisions, name, currentRevision(current.revisions, name), { kind: "return", by: "MAX", at, note: `After your return: ${reason}`, section: section.heading, paragraphs: [...section.paragraphs, `Revised after the owner’s return: ${reason.replace(/[.\s]+$/, "")}.`] })
+		if (!revised.ok) return
+		const next = nextPackageVersion(current.package, `MAX revised ${name} after the return`, at, "MAX")
+		updateWork(() => ({ ...current, revisions: revised.log, package: next }))
+		addMessage({ id: `package-revised-${Date.now()}`, actor: "max", text: `Package v${next.version} is ready for your review. I changed ${name} (now v${revised.revision}) to answer your return.`, trace: [`Wrote ${name} v${revised.revision}`, `Made package v${next.version}`, "Waiting for your approval"] })
+		setToast(`Package v${next.version} is ready for review`)
+	}
+	const finishReturnRef = useRef(finishReturn)
+	finishReturnRef.current = finishReturn
+	const packageReturned = work.package.status === "returned"
+	useEffect(() => {
+		if (!packageReturned || screen !== "workspace" || reducedMotion) return
+		const timer = window.setTimeout(() => finishReturnRef.current(), 1800)
+		return () => window.clearTimeout(timer)
+	}, [packageReturned, reducedMotion, screen])
+
+	const confirmWithdraw = (reason: string) => {
+		const version = workRef.current.package.version
+		updateWork((current) => ({ ...current, package: withdrawPackage(current.package, reason, new Date().toISOString()) }))
+		setWithdrawing(false)
+		recordAudit("approvals", `Approval of package v${version} withdrawn`, currentMissionTitle)
+		addMessage({ id: `package-withdrawn-${Date.now()}`, actor: "max", text: `You withdrew the approval of package v${version}${reason ? `: “${reason}”` : ""}. ${destination} can’t receive this version until someone approves it again.`, trace: ["Recorded the withdrawal", "Kept what the approval bound in the history", "Closed the handoff for this version"] })
+		setToast(`Approval of package v${version} withdrawn`)
+	}
+
+	// ── Document revisions. Each one is a new version to review, and invalidates any approval. ──
+
+	const reviseDocument = (name: string, base: number, entry: Omit<DocumentRevision, "revision">): RevisionResult => {
+		const result = addRevision(workRef.current.revisions, name, base, entry)
+		if (!result.ok) return result
+		updateWork((current) => ({ ...current, revisions: result.log, package: nextPackageVersion(current.package, `${name} v${result.revision}: ${entry.note || "changed"}`, entry.at, entry.by) }))
+		return result
+	}
+
+	const saveDocumentEdit = (name: string, base: number, section: string, paragraphs: string[], note: string) => {
+		const result = reviseDocument(name, base, { kind: "edit", by: SIGNED_IN_USER, at: new Date().toISOString(), note: note || "Edited by hand", section, paragraphs })
+		if (result.ok) setToast(`${name} v${result.revision} is ready for review`)
+		return result
+	}
+
+	const regenerateRefusal = work.fault?.kind === "budget" ? `This Discovery has used its ${work.fault.limit} ${work.fault.unit}, so MAX can’t regenerate until the limit is raised. You can still edit by hand.` : null
+	const regenerateDocument = (name: string, section: string, instruction: string) => {
+		const position = DELIVERABLES.findIndex((item) => item.name === name)
+		const recordId = activeRecordId
+		const base = currentRevision(workRef.current.revisions, name)
+		const finish = () => {
+			if (activeRecordRef.current !== recordId) return
+			const body = bodyAtRevision(deliverableBodies(scenarioKey, decision)[position], workRef.current.revisions[name])
+			const current = body.sections.find((item) => item.heading === section)?.paragraphs ?? []
+			const evidence = [...scenario.sources.slice(0, 2).map((source) => source.name), ...workRef.current.files.filter((file) => file.state === "ready").map((file) => `${file.name} v${file.version}`)]
+			const result = reviseDocument(name, base, { kind: "regenerate", by: "MAX", at: new Date().toISOString(), note: instruction || "Regenerated from the current evidence", section, paragraphs: regeneratedParagraphs(current, instruction, evidence) })
+			if (!result.ok) { setToast(`${name} moved to v${result.current} while MAX was writing, so nothing changed. Try again from v${result.current}.`); return }
+			setToast(`${name} v${result.revision} is ready for review`)
+		}
+		if (reducedMotion) { finish(); return }
+		setToast(`MAX is regenerating ${section}`)
+		window.setTimeout(finish, 1200)
+	}
+
+	// ── Interview briefs (D-114). ──
+
+	const approveOneBrief = (personId: string) => {
+		const name = workRef.current.briefs.find((brief) => brief.personId === personId)?.personName
+		updateWork((current) => ({ ...current, briefs: approveBrief(current.briefs, personId, new Date().toISOString()) }))
+		setToast(`${name ?? "Brief"} approved`)
+	}
+	const approveEveryBrief = () => {
+		const count = pendingBriefs(workRef.current.briefs).length
+		updateWork((current) => ({ ...current, briefs: approveAllBriefs(current.briefs, new Date().toISOString()) }))
+		addMessage({ id: `briefs-approved-${Date.now()}`, actor: "max", text: `You approved ${count} interview brief${count === 1 ? "" : "s"} as the interviewer will receive ${count === 1 ? "it" : "them"}. Interviews can open now.`, trace: ["Recorded each brief version and its approver", "Opened the interview program"] })
+		setToast(`${count} brief${count === 1 ? "" : "s"} approved · interviews can open`)
+	}
+	// A stakeholder added after the briefs were drafted gets a draft of their own.
+	useEffect(() => {
+		if (!interviewClosed || !workRef.current.briefs.length) return
+		const missing = people.filter((person) => !workRef.current.briefs.some((brief) => brief.personId === person.id))
+		if (!missing.length) return
+		updateWork((current) => ({ ...current, briefs: [...current.briefs, ...draftBriefs(scenario, missing)] }))
+	}, [interviewClosed, people, scenario, updateWork])
+
+	// ── Uploaded evidence. Only each file's name and size are read. ──
+
+	const addWorkspaceFiles = useUploads(
+		(change) => updateWork((current) => ({ ...current, files: change(current.files) })),
+		reducedMotion,
+		(name) => setToast(`${name} added to the evidence`),
+	)
+
+	// ── What can hold the run, and what a presenter can make happen. ──
+
+	const simulate = (event: SimulatedEvent) => {
+		if (event === "colleague") {
+			colleaguePendingRef.current = true
+			setToast("A colleague will edit during your next review or edit")
+			return
+		}
+		const fault = event === "budget" ? budgetFault(scenario) : connectionFault(scenario, includedOutputs(excludedOutputs).map((position) => DELIVERABLES[position].name))
+		updateWork((current) => ({ ...current, fault }))
+		addMessage(fault.kind === "budget"
+			? { id: `fault-budget-${Date.now()}`, actor: "max", text: `I reached the ${fault.limit} ${fault.unit} set for ${fault.scope}, so I paused new paid work. Nothing already finished is affected, and you can still read the evidence and edit drafts.`, trace: ["Stopped at the limit", "Kept the session’s results", "Waiting for the next admission"] }
+			: { id: `fault-connection-${Date.now()}`, actor: "max", text: `The connection behind ${fault.source} (${fault.system}) was revoked, so I paused every read from it. What I already read stays. I won’t use another connection instead.`, trace: [`Paused reads from ${fault.system}`, "Kept completed evidence", "Waiting for a reconnect"] })
+		setToast(fault.kind === "budget" ? "Run paused at its budget" : `${fault.source} needs reconnecting`)
+	}
+
+	const raiseBudgetLimit = () => {
+		const fault = workRef.current.fault
+		if (fault?.kind !== "budget") return
+		const raised = raisedBudget(fault)
+		updateWork((current) => ({ ...current, fault: null, budgetLimit: raised }))
+		addMessage({ id: `fault-cleared-${Date.now()}`, actor: "max", text: `You raised the limit for ${fault.scope} to ${raised} ${fault.unit}. I resumed from the last verified checkpoint.`, trace: ["Admitted the next unit", "Raised the session budget", "Resumed in place"] })
+		setToast(`Limit raised to ${raised} ${fault.unit} · resumed`)
+	}
+
+	const reconnectSource = () => {
+		const fault = workRef.current.fault
+		if (fault?.kind !== "connection") return
+		const recordId = activeRecordId
+		const finish = () => {
+			if (activeRecordRef.current !== recordId) return
+			updateWork((current) => ({ ...current, fault: null }))
+			addMessage({ id: `fault-cleared-${Date.now()}`, actor: "max", text: `${fault.system} is reconnected with the same account, so I resumed reading ${fault.source}.`, trace: ["Verified the same account", `Resumed reads from ${fault.system}`] })
+			setToast(`${fault.source} reconnected · resumed`)
+		}
+		if (reducedMotion) { finish(); return }
+		updateWork((current) => current.fault?.kind === "connection" ? { ...current, fault: { ...current.fault, reconnecting: true } } : current)
+		window.setTimeout(finish, 1100)
+	}
+
+	const openHandoffOrApproval = () => { if (packageApproved(workRef.current.package)) setHandoffOpen(true); else openApproval() }
+	const canSimulate = screen === "workspace" && !handoff
+	const packageWaiting = complete && !handoff && (work.package.status === "pending" || work.package.status === "withdrawn") ? work.package.version : null
+
+	const notices: WorkspaceNotice[] = []
+	if (screen === "workspace") {
+		const fault = work.fault
+		if (fault?.kind === "budget") notices.push({
+			id: "budget",
+			tone: "warning",
+			title: `Budget reached: ${fault.used} of ${fault.limit} ${fault.unit} for ${fault.scope}.`,
+			detail: "MAX paused new paid work. Evidence, drafts and the package stay readable, and you can still edit by hand.",
+			actions: [{ label: `Raise the limit to ${raisedBudget(fault)} and resume`, primary: true, onClick: raiseBudgetLimit }, { label: "Open Settings", onClick: () => requestSection({ section: "settings", tab: "policy" }) }],
+		})
+		if (fault?.kind === "connection") notices.push({
+			id: "connection",
+			tone: "warning",
+			title: `${fault.source} lost its connection.`,
+			detail: `${fault.system} · ${fault.scope}. New reads from it are paused and MAX won’t use another connection. What it already read stays. Affected: ${joinPhrases(fault.affected)}.`,
+			actions: [{ label: fault.reconnecting ? "Reconnecting…" : `Reconnect ${fault.system}`, primary: true, disabled: fault.reconnecting, onClick: reconnectSource }, { label: "Open Integrations", onClick: () => requestSection({ section: "integrations" }) }],
+		})
+		if (interviewClosed && briefsWaiting && !handoff) notices.push({
+			id: "briefs",
+			tone: "neutral",
+			title: `${briefsWaiting} interview brief${briefsWaiting === 1 ? " needs" : "s need"} your review.`,
+			detail: "An interview opens only once its brief is approved, and everything the interviewer holds counts as shown to the participant.",
+			actions: [{ label: "Review briefs", primary: true, onClick: () => { setBriefFocus(null); openDrawer("briefs") } }, { label: "Approve all", onClick: approveEveryBrief }],
+		})
+		if (complete && !handoff && view !== "package") {
+			if (packageReturned) notices.push({ id: "package", tone: "neutral", title: `Package v${work.package.version} is back with MAX.`, detail: "A new version comes back here for your review.", actions: [] })
+			else if (!packageApproved(work.package)) notices.push({ id: "package", tone: "neutral", title: `Package v${work.package.version} is waiting for your approval.`, detail: `${destination} can receive only an approved version.`, actions: [{ label: "Review package", primary: true, onClick: () => setView("package") }] })
+		}
+	}
+
 	const confirmHandoff = (note: string) => {
+		// Only an approved version can leave; the page's own buttons say so, and this is the rule.
+		if (!packageApproved(workRef.current.package)) { setHandoffOpen(false); setToast("Approve the package before it can go to Agentix"); return }
 		const target = scenario.handoff
-		const packet: HandoffPacket = { id: `HP-${Date.now().toString(36).toUpperCase().slice(-6)}`, createdAt: new Date().toISOString(), note, target: "agentix", recordId: activeRecordId ?? undefined, title: currentMissionTitle, brief: scenario.brief, ...target ? { packageId: target.packageId } : {} }
+		const packet: HandoffPacket = { packageVersion: workRef.current.package.version, id: `HP-${Date.now().toString(36).toUpperCase().slice(-6)}`, createdAt: new Date().toISOString(), note, target: "agentix", recordId: activeRecordId ?? undefined, title: currentMissionTitle, brief: scenario.brief, ...target ? { packageId: target.packageId } : {} }
 		const included = includedOutputs(excludedOutputs)
 		const exceptions = excludedOutputs.filter((name) => REQUIRED_OUTPUTS.has(DELIVERABLES.findIndex((item) => item.name === name))).length
 		const carried = [
@@ -1929,7 +2379,7 @@ export function DiscoveryAutonomousPrototypePage({ embedded = false, active = tr
 		addMessage({
 			id: `handoff-${Date.now()}`,
 			actor: "max",
-			text: `I created handoff packet ${packet.id} from readiness snapshot v7 and manifest v4. ${destination} now has ${joinPhrases(carried)}${note ? `, with your note: “${note}”` : ""}.${target ? " It opens there as a proposal, and nothing runs until you activate it." : ""}`,
+			text: `I created handoff packet ${packet.id} from readiness snapshot v7, manifest v${workRef.current.package.manifestVersion} and approved package v${workRef.current.package.version}. ${destination} now has ${joinPhrases(carried)}${note ? `, with your note: “${note}”` : ""}.${target ? " It opens there as a proposal, and nothing runs until you activate it." : ""}`,
 			trace: ["Froze the package into an immutable packet", "Verified every document hash against the manifest", onContinueToAgentix ? `Opened ${destination} from the packet` : `Queued the packet for ${destination}`],
 		})
 		if (!onContinueToAgentix) { setToast(`Sent to ${destination} as ${packet.id}`); return }
@@ -1944,6 +2394,7 @@ export function DiscoveryAutonomousPrototypePage({ embedded = false, active = tr
 	// An included charter without the owner's approval is the one thing that blocks the handoff.
 	const charterIncluded = !excludedOutputs.includes(DELIVERABLES[CHARTER_DELIVERABLE_INDEX].name)
 	const handoffBlocked = charterIncluded && !charterApproval
+	const handoffReady = complete && packageApproved(work.package)
 
 	const sendCommand = (event: FormEvent) => {
 		event.preventDefault()
@@ -1958,6 +2409,13 @@ export function DiscoveryAutonomousPrototypePage({ embedded = false, active = tr
 	const callCheck: CallCheck = latestFact && !interviewClosed && (latestFact.status === "checking" || latestFact.status === "early") && latestFact.source
 		? { source: latestFact.source, records: scenario.sources.find((source) => source.name === latestFact.source)?.records ?? "", status: latestFact.status, finding: latestFact.finding }
 		: null
+
+	// What the rails list beside the owner's interview, decision and charter.
+	const extraNeeds: NeedsYouItem[] = [
+		...(interviewClosed && briefsWaiting && !handoff ? [{ id: "briefs", kind: "Approval" as const, title: `Review ${briefsWaiting} interview brief${briefsWaiting === 1 ? "" : "s"}`, detail: "Interviews open once their brief is approved", onOpen: () => { setBriefFocus(null); openDrawer("briefs") } }] : []),
+		...(complete && !handoff && !packageApproved(work.package) && !packageReturned ? [{ id: "package", kind: "Approval" as const, title: `Approve package v${work.package.version}`, detail: "Agentix can receive only an approved version", onOpen: () => { setView("package"); openApproval() } }] : []),
+		...(work.fault ? [{ id: "fault", kind: "Recovery" as const, title: work.fault.kind === "budget" ? "Raise the budget to resume" : `Reconnect ${work.fault.system}`, detail: work.fault.kind === "budget" ? `${work.fault.used} of ${work.fault.limit} ${work.fault.unit} used` : work.fault.source, onOpen: work.fault.kind === "budget" ? raiseBudgetLimit : reconnectSource }] : []),
+	]
 
 	return (
 		<div ref={rootRef} className={`prototype ds-scope${embedded ? " embedded" : ""}`}>
@@ -1974,7 +2432,12 @@ export function DiscoveryAutonomousPrototypePage({ embedded = false, active = tr
 					onNew={openNewDiscovery}
 					onNewFromTemplate={startFromTemplate}
 					onResume={resumeDiscovery}
-					onReviewDecision={(record) => resumeDiscovery({ ...record, view: "thread" })}
+					onReviewDecision={(record) => {
+						const waiting = recordWork(record)
+						if (record.phase >= OPERATIONS.length - 1) { resumeDiscovery({ ...record, view: "package" }); return }
+						resumeDiscovery({ ...record, view: "thread" })
+						if (record.phase === 2 && pendingBriefs(waiting.briefs).length) { setBriefFocus(null); openDrawer("briefs", null) }
+					}}
 				/>
 			) : screen === "setup" ? (
 					<SetupScreen
@@ -1985,7 +2448,7 @@ export function DiscoveryAutonomousPrototypePage({ embedded = false, active = tr
 						savedScenarios={savedScenarios}
 					/>
 			) : screen === "preparing" ? (
-				<PreparingScreen scenarioKey={scenarioKey} missionTitle={currentMissionTitle} deadline={missionDeadline} onEnter={enterWorkspaceNow} onClose={openDiscoveryIndex} />
+				<PreparingScreen scenarioKey={scenarioKey} missionTitle={currentMissionTitle} deadline={missionDeadline} outputs={includedOutputs(excludedOutputs).length} onEnter={enterWorkspaceNow} onClose={openDiscoveryIndex} />
 			) : (
 					<WorkspaceShell
 					scenarioKey={scenarioKey}
@@ -2000,13 +2463,20 @@ export function DiscoveryAutonomousPrototypePage({ embedded = false, active = tr
 					decision={decision}
 					handoffId={handoff?.id ?? null}
 					handoffBlocked={handoffBlocked}
+					handoffReady={handoffReady}
+					packageLabel={packageStatusLabel(work.package)}
+					packageVersionWaiting={complete && !handoff && !packageApproved(work.package) ? work.package.version : null}
+					holdLabel={work.fault?.kind === "budget" ? "Budget reached" : work.fault?.kind === "connection" ? `Reconnect ${work.fault.system}` : heldByBriefs ? `${briefsWaiting} brief${briefsWaiting === 1 ? "" : "s"} to review` : null}
+					notices={<WorkspaceNotices notices={notices} />}
+					simulations={canSimulate ? SIMULATED_EVENTS.map((item) => ({ label: item.label, onSelect: () => simulate(item.event) })) : []}
+					needs={extraNeeds}
 					onTogglePause={() => setPaused((current) => !current)}
 					onOpenIndex={openDiscoveryIndex}
 					onNewDiscovery={openNewDiscovery}
 					onJumpToDecision={() => jumpToDecision()}
 					onSteer={steerMax}
 					onOpenSetup={() => openDrawer("setup")}
-					onContinueToAgentix={() => setHandoffOpen(true)}
+					onContinueToAgentix={openHandoffOrApproval}
 					onOpenPlan={openPlan}
 					onOpenSources={() => openDrawer("sources")}
 					overlay={view === "thread" ? null : <ToastRegion toast={pageToast} className="is-floating" />}>
@@ -2026,6 +2496,10 @@ export function DiscoveryAutonomousPrototypePage({ embedded = false, active = tr
 							interviewIndex={interviewIndex}
 							handoffId={handoff?.id ?? null}
 							invitesSent={invitesSent}
+							includedCount={includedOutputs(excludedOutputs).length}
+							research={work.research}
+							packageApproved={packageApproved(work.package)}
+							heldByBriefs={heldByBriefs}
 							traceOpen={traceOpen}
 							onToggleTrace={() => setTraceOpen((current) => !current)}
 							onResolveDecision={resolveDecision}
@@ -2058,10 +2532,13 @@ export function DiscoveryAutonomousPrototypePage({ embedded = false, active = tr
 							onOpenSources={() => openDrawer("sources")}
 							onOpenPackage={() => setView("package")}
 							onOpenAutonomy={() => setView("autonomy")}
-							onOpenHandoff={() => setHandoffOpen(true)}
+							onOpenHandoff={openHandoffOrApproval}
 							handoff={handoff}
-							charterApproved={!!charterApproval}
+							charterApproved={!!charterApproval || !charterIncluded}
 							includedCount={includedOutputs(excludedOutputs).length}
+							manifestVersion={work.package.manifestVersion}
+							packageStatus={packageApproved(work.package) ? `Package v${work.package.version} is approved.` : packageStatusLabel(work.package)}
+							needs={extraNeeds}
 							onOpenPlan={openPlan}
 							toast={pageToast}
 							active={active}
@@ -2089,6 +2566,15 @@ export function DiscoveryAutonomousPrototypePage({ embedded = false, active = tr
 							selected={packageSelection}
 							charterApproval={charterApproval}
 							handoff={handoff}
+							work={work}
+							regenerateRefusal={regenerateRefusal}
+							onApprove={() => openApproval()}
+							onReturn={() => setReturning(work.package.version)}
+							onWithdraw={() => setWithdrawing(true)}
+							onShowRecord={() => setRecordOpen(true)}
+							onOpenedEdit={colleagueEdit}
+							onSaveEdit={saveDocumentEdit}
+							onRegenerate={regenerateDocument}
 							onSelect={setPackageSelection}
 							onManage={() => openDrawer("package")}
 							onRequestCharterApproval={() => requestCharterApproval()}
@@ -2110,9 +2596,25 @@ export function DiscoveryAutonomousPrototypePage({ embedded = false, active = tr
 						decision={decision}
 						excluded={excludedOutputs}
 						charterApproval={charterApproval}
+						documents={documentsNow()}
+						review={work.package}
 						onClose={() => setHandoffOpen(false)}
 						onApproveCharter={() => requestCharterApproval(true)}
 						onConfirm={confirmHandoff} />
+					<PackageApproveDialog
+						open={!!approval}
+						version={approval?.version ?? work.package.version}
+						manifestVersion={approval?.manifestVersion ?? work.package.manifestVersion}
+						documents={approval?.documents ?? []}
+						charterBlocked={handoffBlocked}
+						refusal={approval?.refusal ?? null}
+						onApproveCharter={() => { charterToApprovalRef.current = true; setApproval(null); setCharterDialogOpen(true) }}
+						onClose={() => setApproval(null)}
+						onConfirm={confirmApproval}
+						onReviewCurrent={reviewCurrentPackage} />
+					<PackageReturnDialog open={returning !== null} version={returning ?? work.package.version} onClose={() => setReturning(null)} onConfirm={confirmReturn} />
+					<PackageWithdrawDialog open={withdrawing} review={work.package} onClose={() => setWithdrawing(false)} onConfirm={confirmWithdraw} />
+					<PackageRecordDialog open={recordOpen} review={work.package} documents={packageApproved(work.package) && work.package.bound ? work.package.bound : documentsNow()} onClose={() => setRecordOpen(false)} />
 					<CharterApprovalDialog
 						open={charterDialogOpen}
 						documentName={DELIVERABLES[CHARTER_DELIVERABLE_INDEX].name}
@@ -2152,6 +2654,9 @@ export function DiscoveryAutonomousPrototypePage({ embedded = false, active = tr
 					activeRecordId={activeRecordId}
 					canOpenHandoff={Boolean(openPlan)}
 					destination={destination}
+					briefsWaiting={interviewClosed ? briefsWaiting : 0}
+					packageWaiting={packageWaiting}
+					canSimulate={canSimulate}
 					onRun={runPaletteAction}
 					onDismiss={dismissPalette}
 				/>
@@ -2164,6 +2669,8 @@ export function DiscoveryAutonomousPrototypePage({ embedded = false, active = tr
 						people={people}
 						onPeopleChange={setPeople}
 						manifest={{ excluded: excludedOutputs, frozenIn: handoff?.id ?? null, destination, onChange: setExcludedOutputs }}
+						evidence={{ files: work.files, research: work.research, fault: work.fault, frozen: Boolean(handoff), onAdd: addWorkspaceFiles, onRemove: (id) => updateWork((current) => ({ ...current, files: current.files.filter((file) => file.id !== id) })) }}
+						briefs={{ items: work.briefs, focus: briefFocus, frozen: phase >= 3, onApprove: approveOneBrief, onApproveAll: approveEveryBrief, onAdjust: (personId, patch) => { updateWork((current) => ({ ...current, briefs: adjustBrief(current.briefs, personId, patch) })); setToast("Saved as a new brief version · needs approving") } }}
 						toast={toast}
 						onToast={setToast}
 						onFocusSection={openDrawer}
@@ -2218,12 +2725,20 @@ function ledgerMoment(startedAt: string, minutes: number) {
 function discoveryActivity(record: DiscoveryRecord) {
 	const scenario = SCENARIOS[record.scenarioKey]
 	if (record.handoff) return `Packet ${record.handoff.id} sent to ${packetDestination(record)} · ${formatPacketTime(record.handoff.createdAt)}`
-	if (record.phase >= OPERATIONS.length - 1) return `MAX verified ${DELIVERABLES.length} deliverables and routed the decision package.`
+	const work = recordWork(record)
+	if (work.fault) return work.fault.kind === "budget" ? `Paused at its budget · ${work.fault.used} of ${work.fault.limit} ${work.fault.unit}` : `Paused · ${work.fault.source} needs reconnecting`
+	if (record.phase >= OPERATIONS.length - 1) {
+		const documents = includedOutputs(record.excludedOutputs ?? []).length
+		return packageApproved(work.package)
+			? `Package v${work.package.version} approved by ${work.package.approvedBy}. ${documents} deliverables verified.`
+			: `Package v${work.package.version} is waiting for your approval · ${documents} deliverables verified`
+	}
 	if (!record.interviewClosed) {
 		const total = scenario.ownerInterview.length
 		return `MAX is interviewing you · question ${Math.min(record.interviewIndex + 1, total)} of ${total}`
 	}
 	if (record.phase === 4 && record.decision === "pending") return `Decision waiting · ${scenario.exception.title}`
+	if (record.phase === 2 && pendingBriefs(work.briefs).length) return `${pendingBriefs(work.briefs).length} interview briefs wait for your approval`
 	if (record.paused) return "MAX preserved the last verified checkpoint. Resume when you’re ready."
 	return `MAX is ${OPERATION_ACTIVITY[record.phase] ?? "working the mission"} · routine work is continuing autonomously.`
 }
@@ -2237,7 +2752,11 @@ const HUB_STATUS_TONE: Record<DiscoveryStatus, "warning" | "positive" | "neutral
 
 // The one action a waiting row offers beside Resume.
 function waitingAction(record: DiscoveryRecord) {
-	return record.interviewClosed ? "Review decision" : "Continue interview"
+	if (!record.interviewClosed) return "Continue interview"
+	const work = recordWork(record)
+	if (work.fault) return "Open Discovery"
+	if (record.phase >= OPERATIONS.length - 1) return "Review package"
+	return record.phase === 2 && pendingBriefs(work.briefs).length ? "Review briefs" : "Review decision"
 }
 
 /*
@@ -2249,7 +2768,7 @@ function waitingAction(record: DiscoveryRecord) {
  */
 function DiscoveryIndex({
 	operationalPackages,
-	records,
+	records: allRecords,
 	trayOpen,
 	browsing,
 	onTrayOpenChange,
@@ -2274,6 +2793,9 @@ function DiscoveryIndex({
 	onResume: (record: DiscoveryRecord) => void
 	onReviewDecision: (record: DiscoveryRecord) => void
 }) {
+	// The project picked in the shell narrows the hub; with none picked it shows everything.
+	const scope = useScope()
+	const records = allRecords.filter((record) => discoveryInProject(scope, record, undefined))
 	const reduced = Boolean(useReducedMotion())
 	const [filter, setFilter] = useState<"all" | Exclude<DiscoveryStatus, "handed-off">>("all")
 	const [query, setQuery] = useState("")
@@ -2421,7 +2943,7 @@ function DiscoveryIndex({
 														type="button"
 														className="discovery-record-review ds-text-button"
 														aria-label={`${action} · ${record.title}`}
-														title={record.interviewClosed ? SCENARIOS[record.scenarioKey].exception.title : "MAX is waiting on your next interview answer"}
+														title={!record.interviewClosed ? "MAX is waiting on your next interview answer" : action === "Review decision" ? SCENARIOS[record.scenarioKey].exception.title : discoveryActivity(record)}
 														onClick={() => onReviewDecision(record)}>
 														{action}<ArrowRight size={14} aria-hidden="true" />
 													</button>
@@ -2537,7 +3059,7 @@ function TemplateBrowser({ onBack, onUse }: { onBack: () => void; onUse: (brief:
 								<div><dt><Database size={16} />Sources</dt><dd>{scenario.sources.length} connected · {systems.join(", ")}</dd></div>
 								<div><dt><UsersThree size={16} />Stakeholders</dt><dd>{roles.slice(0, 3).join(", ")}{roles.length > 3 ? ` +${roles.length - 3}` : ""}</dd></div>
 								<div><dt><ChatsCircle size={16} />Owner interview</dt><dd>{scenario.ownerInterview.length} questions · text or voice</dd></div>
-								<div><dt><Package size={16} />Outputs</dt><dd>{DELIVERABLES.length} deliverables in one decision package</dd></div>
+								<div><dt><Package size={16} />Outputs</dt><dd>{DEFAULT_OUTPUTS.length} recommended, of {DELIVERABLES.length} you can choose at review</dd></div>
 							</dl>
 							<p className="tpl-preview-note">MAX drafts the mission from this template. You review it before anything runs.</p>
 							<DsButton variant="primary" className="tpl-use" onClick={() => onUse(current.brief)}>Use template<ArrowRight size={14} /></DsButton>
@@ -2561,7 +3083,7 @@ function TemplateBrowser({ onBack, onUse }: { onBack: () => void; onUse: (brief:
  * and the authority confirmation is the audiobook submission check (e0c00815).
  */
 type IntakeState = "idle" | "drafting" | "clarifying" | "reviewing" | "committing"
-type MissionDraft = { title: string; decision: string; deadline: string }
+type MissionDraft = { title: string; decision: string; deadline: string; excluded?: string[]; files?: EvidenceFile[] }
 
 const BRIEF_LIMIT = 600
 const BRIEF_EXAMPLES = [
@@ -2637,6 +3159,13 @@ function SetupScreen({
 	const [draft, setDraft] = useState<MissionDraft>({ title: "", decision: "", deadline: "" })
 	const organization = useOrganization()
 	const [pickedConnections, setPickedConnections] = useState<string[]>(defaultPicked)
+	const setupDemo = demoSession()
+	// 05:68: the output set is chosen per mission. A customer demo also tells its story from the brief, case and charter.
+	const [selectedOutputs, setSelectedOutputs] = useState<string[]>(() => [...(setupDemo ? DEMO_OUTPUTS : DEFAULT_OUTPUTS)])
+	const [files, setFiles] = useState<EvidenceFile[]>([])
+	const addFiles = useUploads(setFiles, Boolean(useReducedMotion()))
+	const uploading = files.some(file => file.state === "uploading" || file.state === "processing")
+	const readyFiles = files.filter(file => file.state === "ready")
 	const [briefFocusedByPointer, setBriefFocusedByPointer] = useState(false)
 	const briefRef = useRef<HTMLTextAreaElement | null>(null)
 	// A step the owner moved to takes focus when it mounts, so nobody is left on <body>.
@@ -2676,8 +3205,9 @@ function SetupScreen({
 	}, [answered, intake, missionBrief, outcomeBrief, route.score, scenario])
 	useEffect(() => {
 		if (intake !== "committing") return
-		const timer = window.setTimeout(() => onStart(draft), prefersInstantMotion() ? 0 : 520)
+		const timer = window.setTimeout(() => onStart({ ...draft, excluded: excludedFrom(selectedOutputs), files: readyFiles }), prefersInstantMotion() ? 0 : 520)
 		return () => window.clearTimeout(timer)
+		// eslint-disable-next-line react-hooks/exhaustive-deps
 	}, [intake, draft, onStart])
 
 	const moveTo = (next: IntakeState) => {
@@ -2725,7 +3255,9 @@ function SetupScreen({
 		{ icon: <ChatsCircle size={16} />, label: "Interview modalities", value: "Text · Voice · Workshop" },
 		{ icon: <ShieldCheck size={16} />, label: "Approvals", value: "You approve exceptions; routine work runs" },
 		// A customer demo tells another company's story, so it keeps its scripted sources rather than this workspace's connections.
-		{ icon: <Database size={16} />, label: "Evidence sources", value: demo ? `${scenario.sources.length} connected · ${scenario.sources.map(source => source.system).join(", ")}` : evidence.length ? `${evidence.length} picked · ${evidence.join(", ")}` : "Uploads and interviews only; no connections picked" },
+		{ icon: <Database size={16} />, label: "Evidence sources", value: `${demo ? `${scenario.sources.length} connected · ${scenario.sources.map(source => source.system).join(", ")}` : evidence.length ? `${evidence.length} picked · ${evidence.join(", ")}` : "Uploads and interviews only; no connections picked"}${readyFiles.length ? ` · ${readyFiles.length} uploaded` : ""}` },
+		// D-107: the organization's own setting, read here and again when the run gathers.
+		{ icon: <Globe size={16} />, label: "Web research", value: researchSummary(organization.policy.research) },
 		// The workspace MAX may contact is the one its stakeholders are in, not a fixed name.
 		{ icon: <Globe size={16} />, label: "Recipient domains", value: recipientDomains(scenario) },
 	]
@@ -2758,6 +3290,8 @@ function SetupScreen({
 									<span className="brief-count">{missionBrief.length}/{BRIEF_LIMIT}</span>
 								</div>
 							</div>
+
+							<EvidenceUpload files={files} onAdd={addFiles} onRemove={id => setFiles(current => current.filter(file => file.id !== id))} heading="Add documents (optional)" />
 
 							<section className="create-templates" aria-labelledby="template-heading">
 								<div className="create-templates-head">
@@ -2859,6 +3393,8 @@ function SetupScreen({
 							    customer demos tell other companies' stories, so this workspace's connections stay out of them. */}
 							{demo ? null : <ConnectionPicker work="Discovery" picked={pickedConnections} onPickedChange={setPickedConnections} />}
 
+							<OutputPicker selected={selectedOutputs} onChange={setSelectedOutputs} />
+
 							{/* The confirmation is one row, as the reference's "Chat only" row: the check and what it confirms. */}
 							<label className="create-confirm">
 								<input type="checkbox" checked={reviewed} onChange={event => setReviewed(event.target.checked)} aria-label="Mission authority reviewed" />
@@ -2870,8 +3406,8 @@ function SetupScreen({
 								{restartsAgentix && demo ? <p id={demoNoteId} className="create-demo-note" role="note">Customer demo: creating this replaces the earlier {demoScript(demo.id).replacesLabel} Discovery and starts Agentix again from zero.</p> : null}
 								{/* This row is pinned; in a short window the tick that unlocks Create scrolls out of sight, so
 								    the button has to say what it is waiting for rather than just sit there greyed out. */}
-								{!reviewed && draft.title.trim() && draft.decision.trim() ? <p className="create-blocker">Tick the authority review above</p> : null}
-								<DsButton variant="primary" aria-describedby={restartsAgentix ? demoNoteId : undefined} disabled={!reviewed || !draft.title.trim() || !draft.decision.trim() || intake === "committing"} onClick={() => setIntake("committing")}>
+								{!reviewed && draft.title.trim() && draft.decision.trim() ? <p className="create-blocker">Tick the authority review above</p> : uploading ? <p className="create-blocker">Documents are still processing</p> : null}
+								<DsButton variant="primary" aria-describedby={restartsAgentix ? demoNoteId : undefined} disabled={!reviewed || uploading || !draft.title.trim() || !draft.decision.trim() || intake === "committing"} onClick={() => setIntake("committing")}>
 									{intake === "committing" ? <><CircleNotch size={14} className="spin" />Creating</> : "Create Discovery"}
 								</DsButton>
 							</div>
@@ -2889,14 +3425,14 @@ function SetupScreen({
 // The real module runs a named preparation step machine and enters the workspace
 // once it reaches "ready". Each step holds for a different beat — real work does
 // not land on a metronome.
-function preparingSteps(scenarioKey: ScenarioKey, deadline: string) {
+function preparingSteps(scenarioKey: ScenarioKey, deadline: string, outputs: number) {
 	const scenario = SCENARIOS[scenarioKey]
 	const records = scenario.sources.reduce((total, source) => total + Number(source.records.replace(/[^0-9]/g, "")), 0)
 	const detail: Record<PreparationStepId, string> = {
 		establishing_mission: deadline ? `Objective, completion condition and decision horizon normalized · ${deadline}` : "Objective and completion condition normalized · no deadline set",
 		checking_authority: "Authority envelope, external-send ceiling and recipient domains confirmed",
 		binding_sources: `${scenario.sources.length} permitted scopes · ${records.toLocaleString()} records in scope`,
-		building_inquiry: `${scenario.inquiries.length} inquiries sequenced · ${DELIVERABLES.length} outputs planned`,
+		building_inquiry: `${scenario.inquiries.length} inquiries sequenced · ${outputs} outputs selected`,
 		starting_interview: "Owner thread opened with the first evidence-led question",
 		mapping_people: `${scenario.people.length} accountable owners matched to the open evidence gaps`,
 		ready: "Workspace ready",
@@ -2916,9 +3452,9 @@ function preparingSteps(scenarioKey: ScenarioKey, deadline: string) {
  * multi-step loader, and it decides when the workspace opens: once it has landed
  * on Ready and held it. "Enter Thread" skips ahead; closing leaves MAX working.
  */
-function PreparingScreen({ scenarioKey, missionTitle, deadline, onEnter, onClose }: { scenarioKey: ScenarioKey; missionTitle: string; deadline: string; onEnter: () => void; onClose: () => void }) {
+function PreparingScreen({ scenarioKey, missionTitle, deadline, outputs, onEnter, onClose }: { scenarioKey: ScenarioKey; missionTitle: string; deadline: string; outputs: number; onEnter: () => void; onClose: () => void }) {
 	const reducedMotion = Boolean(useReducedMotion())
-	const steps = useMemo(() => preparingSteps(scenarioKey, deadline), [scenarioKey, deadline])
+	const steps = useMemo(() => preparingSteps(scenarioKey, deadline, outputs), [scenarioKey, deadline, outputs])
 	const [landed, setLanded] = useState(reducedMotion ? steps.length : 1)
 	const done = landed >= steps.length
 	const onEnterRef = useRef(onEnter)
@@ -2976,6 +3512,13 @@ function WorkspaceShell({
 	decision,
 	handoffId,
 	handoffBlocked,
+	handoffReady,
+	packageLabel,
+	packageVersionWaiting,
+	holdLabel,
+	notices,
+	simulations,
+	needs,
 	onTogglePause,
 	onOpenIndex,
 	onNewDiscovery,
@@ -3001,6 +3544,15 @@ function WorkspaceShell({
 	handoffId: string | null
 	/* The charter still needs the owner: the handoff opens, but it is not the page's main action. */
 	handoffBlocked: boolean
+	/* Only an approved package version can continue. */
+	handoffReady: boolean
+	packageLabel: string
+	packageVersionWaiting: number | null
+	/* What is holding the run, when something is: it outranks "Running". */
+	holdLabel: string | null
+	notices: React.ReactNode
+	simulations: Array<{ label: string; onSelect: () => void }>
+	needs: NeedsYouItem[]
 	onTogglePause: () => void
 	onOpenIndex: () => void
 	onNewDiscovery: () => void
@@ -3023,9 +3575,10 @@ function WorkspaceShell({
 	// keeps the green the Package reader gives it.
 	const status = handedOff
 		? { label: `Handed to ${destination}`, tone: "positive" as const }
-		: complete ? { label: "Package ready", tone: "positive" as const }
+		: complete ? handoffReady ? { label: "Package approved", tone: "positive" as const } : { label: packageVersionWaiting ? `Package v${packageVersionWaiting} needs approval` : "Package ready", tone: "warning" as const }
 		: !interviewClosed ? { label: "Owner interview", tone: "warning" as const }
 		: decisionPending ? { label: "1 decision needs you", tone: "warning" as const }
+		: holdLabel ? { label: holdLabel, tone: "warning" as const }
 		: paused ? { label: "Paused", tone: "neutral" as const }
 		: { label: "Running", tone: "positive" as const }
 
@@ -3065,9 +3618,9 @@ function WorkspaceShell({
 							? onOpenPlan ? <DsButton size="sm" className="workspace-open-plan" onClick={onOpenPlan}><ArrowUpRight size={14} />Open in {destination}</DsButton> : null
 							: <DsButton
 								size="sm"
-								variant={complete && !handoffBlocked ? "primary" : "secondary"}
-								disabled={!complete}
-								title={!complete ? "Available once the package is verified" : handoffBlocked ? "The project charter needs your approval first" : undefined}
+								variant={handoffReady && !handoffBlocked ? "primary" : "secondary"}
+								disabled={!handoffReady}
+								title={!complete ? "Available once the package is verified" : !handoffReady ? `Available once a package version is approved. Now: ${packageLabel}` : handoffBlocked ? "The project charter needs your approval first" : undefined}
 								onClick={onContinueToAgentix}>
 								Continue to {destination}
 							</DsButton>}
@@ -3077,6 +3630,7 @@ function WorkspaceShell({
 							...(phoneActions && !complete ? [{ label: pauseLabel, onSelect: onTogglePause }] : []),
 							...(phoneActions ? [{ label: "Setup", onSelect: onOpenSetup }] : []),
 							{ label: "New Discovery", onSelect: onNewDiscovery },
+							...simulations,
 						]} />
 					</div>
 				</header>
@@ -3086,11 +3640,13 @@ function WorkspaceShell({
 						<button key={item.id} type="button" className={view === item.id ? "active" : ""} onClick={() => onViewChange(item.id)} aria-current={view === item.id ? "page" : undefined} aria-describedby={item.id === "package" && complete && !handedOff ? readyNoteId : undefined}>
 							{item.label}
 							{/* The dot is the tab's description, so the tab keeps its one-word name. */}
-							{item.id === "package" && complete && !handedOff ? <><span className="tab-dot" aria-hidden="true" /><span id={readyNoteId} hidden>Ready to hand off</span></> : null}
+							{item.id === "package" && complete && !handedOff ? <><span className="tab-dot" aria-hidden="true" /><span id={readyNoteId} hidden>{handoffReady ? "Ready to hand off" : "Waiting for your approval"}</span></> : null}
 							{view === item.id ? <motion.span layoutId="discovery-tab-underline" className="tab-underline" transition={{ type: "spring", stiffness: 520, damping: 40 }} /> : null}
 						</button>
 					))}
 				</nav>
+
+				{notices}
 
 				<div className={`workspace-panes${dockable && detailsOpen ? " has-dock" : ""}`}>
 					<main className="workspace-content">{children}</main>
@@ -3104,6 +3660,7 @@ function WorkspaceShell({
 							interviewIndex={interviewIndex}
 							handoffId={handoffId}
 							charterPending={complete && handoffBlocked && !handoffId}
+							needs={needs}
 							deadline={deadline}
 							showJourney={view !== "autonomy"}
 							showNeedsYou={view !== "autonomy"}
@@ -3324,6 +3881,10 @@ function Overview({
 	interviewIndex,
 	handoffId,
 	invitesSent,
+	includedCount,
+	research,
+	packageApproved: approved,
+	heldByBriefs,
 	traceOpen,
 	onToggleTrace,
 	onResolveDecision,
@@ -3344,6 +3905,10 @@ function Overview({
 	interviewIndex: number
 	handoffId: string | null
 	invitesSent: boolean
+	includedCount: number
+	research: DiscoveryWork["research"]
+	packageApproved: boolean
+	heldByBriefs: boolean
 	traceOpen: boolean
 	onToggleTrace: () => void
 	onResolveDecision: (decision: Exclude<DecisionState, "pending">) => void
@@ -3470,12 +4035,13 @@ function Overview({
 	const ledger = interviewClosed ? [
 		{ phase: 0, title: "Mission and authority established", detail: "Converted the brief into an objective, completion condition, source scope, and interruption boundary." },
 		{ phase: 1, title: "Source access verified", detail: `Bound ${scenario.sources.length} permitted systems and retained record-level provenance.` },
-		{ phase: 2, title: "Stakeholder program launched", detail: `Mapped ${people.length} accountable roles and tailored each interview to a different evidence gap.` },
+		{ phase: 1, title: "Public web research", detail: researchActivity(research) },
+		{ phase: 2, title: heldByBriefs ? "Interview briefs drafted" : "Stakeholder program launched", detail: heldByBriefs ? `Mapped ${people.length} accountable roles and drafted a brief for each. Interviews wait for your approval.` : `Mapped ${people.length} accountable roles and tailored each interview to a different evidence gap.` },
 		{ phase: 3, title: "Interviews adapted in flight", detail: "Skipped questions already answered by records and sent targeted follow-ups where positions diverged." },
 		{ phase: 4, title: "Conflict detected and contained", detail: "Reconciled the evidence, isolated the material exception, and kept unaffected work running." },
 		{ phase: 5, title: "Risk and readiness snapshot frozen", detail: "Bound claims, unresolved tensions, decisions, and accountable owners into one canonical snapshot." },
-		{ phase: 6, title: "Decision package generated", detail: `Built ${DELIVERABLES.length} linked deliverables from the verified manifest.` },
-		{ phase: 7, title: "Approvals and handoff routed", detail: "Sent the right artifact and decision scope to each approved recipient." },
+		{ phase: 6, title: "Decision package generated", detail: `Built ${includedCount} linked deliverables from the verified manifest.` },
+		{ phase: 7, title: approved ? "Package approved" : "Package waiting for approval", detail: approved ? "A person approved this exact version, and it can go on to the handoff." : "Nothing moves on until a person approves one exact version of the package." },
 	].filter((event) => event.phase <= phase).reverse() : []
 	// The trace lists every step the run has reached, so its count is the whole truth.
 	const traced = interviewClosed ? OPERATIONS.slice(0, phase + 1) : []
@@ -3675,6 +4241,13 @@ function Overview({
 													<motion.span className="metric-bar" initial={{ width: 0 }} animate={{ width: `${sourcesRead ? Math.max(8, (sourceSizes[index] / largestSource) * 100) : 4}%` }} transition={{ duration: 0.6, delay: index * 0.06, ease: REVEAL_EASE }} />
 													<span className="metric-bar-label"><Mark tone="neutral" seed={source.name} size="xs" />{source.name}<small>{source.system}</small></span>
 													<span className="metric-bar-value">{sourcesRead ? source.records : awaitingOwner ? "bound" : "reading"}</span>
+												</li>
+											))}
+											{research?.sources.map((source) => (
+												<li key={source.id} data-evidence="public-web">
+													<span className="metric-bar" style={{ width: "4%" }} />
+													<span className="metric-bar-label"><Globe size={14} aria-hidden="true" />{source.title}<small>Public web</small></span>
+													<span className="metric-bar-value">{hostLabel(source.url)}</span>
 												</li>
 											))}
 										</ul>
@@ -4025,6 +4598,9 @@ function Thread({
 	handoff,
 	charterApproved,
 	includedCount,
+	manifestVersion,
+	packageStatus,
+	needs,
 	toast,
 	onCommandTextChange,
 	onSend,
@@ -4059,6 +4635,9 @@ function Thread({
 	charterApproved: boolean
 	/* Outputs the package keeps after the owner's manifest edits. */
 	includedCount: number
+	manifestVersion: number
+	packageStatus: string
+	needs: NeedsYouItem[]
 	toast: ToastNote | null
 	onCommandTextChange: (value: string) => void
 	onSend: (event: FormEvent) => void
@@ -4252,7 +4831,7 @@ function Thread({
 	const subtitle = interviewing ? `Owner interview · question ${interviewIndex + 1} of ${scenario.ownerInterview.length}`
 		: decisionPending ? paused ? "You paused the run. The decision is still waiting for you." : "Only the affected branch is waiting for you."
 		: handoff ? `Packet ${handoff.id} · ${formatPacketTime(handoff.createdAt)}`
-		: packageReady ? `${DELIVERABLES.length} evidence-linked documents, with owners and next steps.`
+		: packageReady ? `${includedCount} evidence-linked documents, with owners and next steps. ${packageStatus}`
 		: paused ? "Nothing new starts until you resume."
 		: "Ask a question or steer the investigation. No decision is waiting."
 	// One filled action per state; a finished package reads as a place to go, not a task.
@@ -4264,7 +4843,7 @@ function Thread({
 	const remainingQuestions = Math.max(1, scenario.ownerInterview.length - interviewIndex)
 	const callout = interviewing ? <>MAX interviews you first, by voice or here in the thread. Each answer becomes the owner position; say “not sure” and MAX keeps it as an explicit gap instead of guessing.</>
 		: handoff ? <>This Discovery is with {destination}. The packet is frozen: MAX answers questions from it, and any change goes to {destination} as a new request.</>
-		: packageReady ? <>MAX finished inside the authority you approved. Ask about any finding before you hand the package to {destination}.</>
+		: packageReady ? <>MAX finished inside the authority you approved. Ask about any finding before you approve the package and hand it to {destination}.</>
 		: paused ? <>You paused the run. MAX holds the last verified checkpoint, and nothing new starts until you resume.</>
 		: <>MAX runs the Discovery inside the authority you approved. Only material exceptions stop the work, and they appear here.</>
 	const composer = interviewing ? { placeholder: "Answer MAX or add context…", scope: "Owner interview · approved scope only" }
@@ -4276,14 +4855,14 @@ function Thread({
 	const suggestions = interviewing ? [`Check ${scenario.sources[0].system} and verify this`, "Add a stakeholder", "End the owner interview"]
 		: handoff ? ["Summarise the decision package", "Who are the stakeholders?"]
 		: ["Add a stakeholder", "Send the sponsor a status update"]
-	const needsYou = needsYouItems({ scenarioKey, phase, decision, interviewClosed, interviewIndex, charterPending: packageReady && !charterApproved && !handoff, onJumpToDecision, onOpenThread: () => composerRef.current?.focus(), onOpenHandoff })
+	const needsYou = [...needsYouItems({ scenarioKey, phase, decision, interviewClosed, interviewIndex, charterPending: packageReady && !charterApproved && !handoff, onJumpToDecision, onOpenThread: () => composerRef.current?.focus(), onOpenHandoff }), ...needs]
 	const journey = runJourney({ scenarioKey, phase, paused, decision, interviewClosed, handoffId: handoff?.id ?? null })
-	const digest = packageReady ? { key: "done", icon: <CheckCircle size={13} weight="fill" className="band-check" />, text: <>Discovery completed and routed for approval</> }
+	const digest = packageReady ? { key: "done", icon: <CheckCircle size={13} weight="fill" className="band-check" />, text: <>Discovery completed · {packageStatus}</> }
 		: phase === 6 ? { key: "synthesis", icon: <CheckCircle size={13} weight="fill" className="band-check" />, text: <>Synthesis ready · building the package</> }
 		: paused ? { key: "paused", icon: <PauseCircle size={13} weight="fill" />, text: <>Paused at the last verified checkpoint</> }
 		: { key: `phase-${phase}`, icon: <ArrowsSplit size={13} />, text: <>MAX moved to <strong>{OPERATIONS[phase].label}</strong></> }
 	const digestDetail = decisionPending ? "One decision needs you. Unaffected branches continue."
-		: phase === 6 ? `Claims and interview evidence are reconciled. ${DELIVERABLES.length} deliverables are generating from readiness snapshot v7.`
+		: phase === 6 ? `Claims and interview evidence are reconciled. ${includedCount} deliverables are generating from readiness snapshot v7.`
 		: OPERATIONS[phase].detail
 	const showJumpChip = decisionPending && !decisionInView
 
@@ -4380,7 +4959,7 @@ function Thread({
 									<div className="callout-card">
 										<div>
 											<h2 id="thread-package-title">Final plan and recommendations</h2>
-											<p>{DELIVERABLES.length} deliverables were generated from the verified readiness snapshot and routed to the approved recipients.{limitation ? ` ${decisionCopy.limitation}` : ""}</p>
+											<p>{includedCount} deliverables were generated from the verified readiness snapshot. {packageStatus}{limitation ? ` ${decisionCopy.limitation}` : ""}</p>
 										</div>
 										<DsButton size="sm" onClick={onOpenPackage}>Open package</DsButton>
 									</div>
@@ -4391,7 +4970,7 @@ function Thread({
 								<motion.section key="handoff" {...eventMotion} className="thread-event thread-band handoff-event" aria-label={`Handoff to ${destination}`}>
 									<p className="band-kicker"><ArrowUpRight size={13} />Handoff <strong>{handoff.id}</strong></p>
 									<span className="band-time">{formatPacketTime(handoff.createdAt)}</span>
-									<p className="band-line"><CheckCircle size={13} weight="fill" className="band-check" />Packet sent to {destination} · {includedCount} documents · manifest v4{limitation ? <DsBadge tone="warning">1 limitation recorded</DsBadge> : null}</p>
+									<p className="band-line"><CheckCircle size={13} weight="fill" className="band-check" />Packet sent to {destination} · {includedCount} documents · manifest v{manifestVersion}{limitation ? <DsBadge tone="warning">1 limitation recorded</DsBadge> : null}</p>
 									{handoff.note ? <p className="band-note">Your note: “{handoff.note}”</p> : null}
 								</motion.section>
 							) : null}
@@ -4639,30 +5218,22 @@ function MessageTrace({ steps }: { steps: string[] }) {
  * page's "Expressive Mode" callout (9785c0b7) and the review dialog (ff16450b).
  */
 const CHARTER_REASON_MIN = 20
-// Outputs a handoff cannot quietly lose: the decision itself and the charter Plan starts
-// from. Switching one off is an owner exception that the packet carries to Plan.
-const REQUIRED_OUTPUTS: ReadonlySet<number> = new Set([0, 1, CHARTER_DELIVERABLE_INDEX])
+// Outputs a handoff cannot quietly lose: the three that carry the technical and process detail
+// Agentix needs (D-044). Switching one off is an owner exception that the packet carries to Agentix.
+const REQUIRED_OUTPUTS: ReadonlySet<number> = new Set(["Requirements specification", "Technical assessment", "Use case catalog"].map(name => DELIVERABLES.findIndex(item => item.name === name)))
 // Synthesis writes the documents in the order the package lists them, one step at a
 // time, and the last one lands inside the phase's window (1650ms).
 const GENERATION_PHASE = OPERATIONS.length - 2
-const MATERIALIZE_STEP_MS = 180
+const MATERIALIZE_STEP_MS = 140
 const DELIVERABLE_DISPLAY_ORDER = DELIVERABLE_CATEGORY_ORDER.flatMap(category => DELIVERABLES.flatMap((_, position) => DELIVERABLE_CATEGORY[position] === category ? [position] : []))
 
 function includedOutputs(excluded: readonly string[]) {
 	return DELIVERABLES.flatMap((item, position) => excluded.includes(item.name) ? [] : [position])
 }
 
-// The hash binds a document to the path the owner chose, so the approved and the
-// alternative decision never share a fingerprint.
-function deliverableHash(scenarioKey: ScenarioKey, index: number, decision: DecisionState) {
-	const body = deliverableBodies(scenarioKey, decision)[index]
-	const source = `${scenarioKey}:${decision}:${DELIVERABLES[index].name}:${body.heading}:${body.lede}`
-	let hash = 0x811c9dc5
-	for (let position = 0; position < source.length; position += 1) hash = Math.imul(hash ^ source.charCodeAt(position), 16777619) >>> 0
-	return hash.toString(16).padStart(8, "0")
-}
+const hostLabel = (url: string) => { try { return new URL(url).hostname.replace(/^www\./, "") } catch { return url } }
 
-function Deliverables({ scenarioKey, phase, paused, written, decision, interviewClosed, excluded, selected, charterApproval, handoff, onSelect, onManage, onRequestCharterApproval, onContinueToAgentix, onOpenPlan, onOpenThread, onToast }: {
+function Deliverables({ scenarioKey, phase, paused, written, decision, interviewClosed, excluded, selected, charterApproval, handoff, work, regenerateRefusal, onApprove, onReturn, onWithdraw, onShowRecord, onOpenedEdit, onSaveEdit, onRegenerate, onSelect, onManage, onRequestCharterApproval, onContinueToAgentix, onOpenPlan, onOpenThread, onToast }: {
 	scenarioKey: ScenarioKey
 	phase: number
 	paused: boolean
@@ -4675,6 +5246,15 @@ function Deliverables({ scenarioKey, phase, paused, written, decision, interview
 	selected: number
 	charterApproval: CharterApproval | null
 	handoff: HandoffPacket | null
+	work: DiscoveryWork
+	regenerateRefusal: string | null
+	onApprove: () => void
+	onReturn: () => void
+	onWithdraw: () => void
+	onShowRecord: () => void
+	onOpenedEdit: (name: string) => void
+	onSaveEdit: (name: string, base: number, section: string, paragraphs: string[], note: string) => RevisionResult
+	onRegenerate: (name: string, section: string, instruction: string) => void
 	onSelect: (index: number) => void
 	onManage: () => void
 	onRequestCharterApproval: () => void
@@ -4685,8 +5265,13 @@ function Deliverables({ scenarioKey, phase, paused, written, decision, interview
 }) {
 	const ready = phase > GENERATION_PHASE
 	const generating = phase === GENERATION_PHASE
-	// The documents say what happened at the exception, so they follow the owner's decision.
-	const bodies = deliverableBodies(scenarioKey, decision)
+	// The documents say what happened at the exception, so they follow the owner's decision,
+	// and each one reads at its current revision.
+	const generated = deliverableBodies(scenarioKey, decision)
+	const revisions = work.revisions
+	const bodies = useMemo(() => generated.map((item, position) => bodyAtRevision(item, revisions[DELIVERABLES[position].name])), [generated, revisions])
+	const review = work.package
+	const approved = packageApproved(review)
 	const included = includedOutputs(excluded)
 	const removedCount = DELIVERABLES.length - included.length
 	const exportAll = () => {
@@ -4701,8 +5286,23 @@ function Deliverables({ scenarioKey, phase, paused, written, decision, interview
 	}
 	// The reader never opens a document the manifest has switched off.
 	const index = included.includes(selected) ? selected : included[0] ?? 0
-	const body = bodies[index]
 	const deliverable = DELIVERABLES[index]
+	// One document at a time can be read at an earlier version; the view and the hash follow it.
+	const [reading, setReading] = useState<{ name: string; revision: number } | null>(null)
+	const latest = currentRevision(revisions, deliverable.name)
+	const shownRevision = reading?.name === deliverable.name ? Math.min(reading.revision, latest) : latest
+	const readingOld = shownRevision !== latest
+	const body = readingOld ? bodyAtRevision(generated[index], revisions[deliverable.name], shownRevision) : bodies[index]
+	const shownHash = contentHash(scenarioKey, decision, deliverable.name, body)
+	const structuredAvailable = hasStructuredView(deliverable.name)
+	const [readerMode, setReaderMode] = useState<"readable" | "structured">("readable")
+	const structured = structuredAvailable && readerMode === "structured"
+	const tables = useMemo(() => structuredAvailable ? structuredTables(body, deliverable.name) : [], [body, deliverable.name, structuredAvailable])
+	const [documentDialog, setDocumentDialog] = useState<"edit" | "regenerate" | "history" | null>(null)
+	const [editBase, setEditBase] = useState(latest)
+	const openEdit = () => { setEditBase(latest); setDocumentDialog("edit"); onOpenedEdit(deliverable.name) }
+	const readyFiles = work.files.filter(file => file.state === "ready")
+	const webSources = work.research?.sources ?? []
 	// Exhibits are numbered per document in reading order, the way a consulting
 	// pack numbers them, so a finding can be cited as "Exhibit 3" in review.
 	const exhibitNumbers = useMemo(() => {
@@ -4741,7 +5341,10 @@ function Deliverables({ scenarioKey, phase, paused, written, decision, interview
 	// the package is verified: nothing reads as finished before the reader can open it.
 	const stateOf = (position: number) => {
 		if (ready) {
-			if (position === CHARTER_DELIVERABLE_INDEX) return charterApproval ? { label: "Owner approved", tone: "approved" as const } : { label: "Owner approval", tone: "approval" as const }
+			if (position === CHARTER_DELIVERABLE_INDEX && !charterApproval) return { label: "Owner approval", tone: "approval" as const }
+			const revision = currentRevision(revisions, DELIVERABLES[position].name)
+			if (revision > 1 && !approved && !handoff) return { label: `v${revision} to review`, tone: "approval" as const }
+			if (position === CHARTER_DELIVERABLE_INDEX) return { label: "Owner approved", tone: "approved" as const }
 			return { label: "Current", tone: "current" as const }
 		}
 		if (!generating) return { label: "Planned", tone: "planned" as const }
@@ -4751,11 +5354,12 @@ function Deliverables({ scenarioKey, phase, paused, written, decision, interview
 	const readerState = ready ? "ready" : !generating ? "planned" : isWritten(index) ? "writing" : "queued"
 	const charterSelected = index === CHARTER_DELIVERABLE_INDEX
 	const title = ready ? "Final plan and recommendations" : generating ? "Generating deliverables" : "Planned deliverables"
-	const subtitle = ready ? "Start with the decision brief, then inspect the supporting documents."
+	const subtitle = ready ? included.includes(0) ? "Start with the decision brief, then inspect the supporting documents." : "Read each document, then approve the package as one version."
 		: generating ? paused ? `Paused with ${writtenCount} of ${included.length} documents under way. Resume the run to finish the package.` : `MAX is writing ${included.length} documents from the frozen readiness snapshot.`
 		: "The manifest refines as evidence lands. Nothing is generated until readiness freezes."
 	const destination = handoffDestination(scenarioKey)
-	const status = handoff ? `Handed to ${destination}` : ready ? "Verified" : generating ? paused ? "Paused" : "Generating" : "Planned"
+	const status = handoff ? `Handed to ${destination}` : ready ? approved ? `Approved v${review.version}` : review.status === "returned" ? "Back with MAX" : "Waiting for approval" : generating ? paused ? "Paused" : "Generating" : "Planned"
+	const returned = review.status === "returned"
 
 	return (
 		<div className="package-view" ref={viewRef}>
@@ -4765,8 +5369,8 @@ function Deliverables({ scenarioKey, phase, paused, written, decision, interview
 					<DsButton size="sm" icon aria-label="Manage package" title="Manage package" onClick={onManage}><SlidersHorizontal size={16} /></DsButton>
 				</div>
 				<p className="package-list-meta">{removedCount
-					? `${ready ? "Manifest v4" : generating ? paused ? "Paused" : "Generating" : "Manifest refining"} · ${removedCount} removed by you`
-					: ready ? "Readiness snapshot v7 · manifest v4" : generating ? paused ? "Paused mid-synthesis" : "Generating from the frozen snapshot" : "The manifest refines as evidence lands"}</p>
+					? `${ready ? `Manifest v${review.manifestVersion}` : generating ? paused ? "Paused" : "Generating" : "Manifest refining"} · ${removedCount} not selected`
+					: ready ? `Readiness snapshot v7 · manifest v${review.manifestVersion}` : generating ? paused ? "Paused mid-synthesis" : "Generating from the frozen snapshot" : "The manifest refines as evidence lands"}</p>
 				<nav className="deliverable-list" aria-label="Deliverable list">
 					{DELIVERABLE_CATEGORY_ORDER.map(category => {
 						const entries = DELIVERABLE_DISPLAY_ORDER.filter(position => DELIVERABLE_CATEGORY[position] === category && included.includes(position))
@@ -4812,11 +5416,19 @@ function Deliverables({ scenarioKey, phase, paused, written, decision, interview
 								{handoff.note ? <span className="package-packet-note">“{handoff.note}”</span> : null}
 							</p>
 						) : <p>{subtitle}</p>}
+						{ready ? (
+							<p className="package-review-line" data-testid="package-review-line">
+								<span>Package v{review.version} · manifest v{review.manifestVersion} · {included.length} document{included.length === 1 ? "" : "s"}{approved && review.approvedBy ? ` · approved by ${review.approvedBy}, ${formatPacketTime(review.approvedAt ?? "")}` : review.status === "withdrawn" ? " · approval withdrawn" : returned ? " · returned to MAX" : ""}</span>
+								<button type="button" className="ds-text-button" onClick={onShowRecord}>What this binds</button>
+							</p>
+						) : null}
 					</div>
 					<div className="package-actions">
-						{/* Verified is said once, by each document's "Evidence bound" mark and the bar's status; the badge is for every other state. */}
-						{ready && !handoff ? null : <DsBadge tone={ready ? "positive" : "neutral"} dot={!ready}>{ready ? <CheckCircle size={12} weight="bold" aria-hidden="true" /> : null}{status}</DsBadge>}
+						<DsBadge tone={ready && (approved || handoff) ? "positive" : ready ? "warning" : "neutral"} dot={!ready}>{ready && (approved || handoff) ? <CheckCircle size={12} weight="bold" aria-hidden="true" /> : null}{status}</DsBadge>
 						<DsButton size="sm" disabled={!ready} title={ready ? undefined : "Available once the package is verified"} onClick={exportAll}><DownloadSimple size={14} />Export all</DsButton>
+						{ready && !handoff && !approved && !returned ? <DsButton size="sm" onClick={onReturn}>Return to MAX</DsButton> : null}
+						{ready && !handoff && !approved && !returned ? <DsButton size="sm" variant="primary" onClick={onApprove}><SealCheck size={14} />Approve package v{review.version}</DsButton> : null}
+						{ready && !handoff && approved ? <DsButton size="sm" onClick={onWithdraw}>Withdraw approval</DsButton> : null}
 						{handoff && onOpenPlan ? <DsButton size="sm" variant="primary" onClick={onOpenPlan}><ArrowUpRight size={14} />Open in {destination}</DsButton> : null}
 					</div>
 				</header>
@@ -4825,7 +5437,7 @@ function Deliverables({ scenarioKey, phase, paused, written, decision, interview
 					{/* Each state of a document rises in, so the finished text arrives rather than
 					    swapping in place. Under reduced motion the swap is immediate and waits on no exit. */}
 					<SwapPresence instant={Boolean(reduced)}>
-						<motion.div key={`${index}:${readerState}`} className="reader-column" {...rise}>
+						<motion.div key={`${index}:${readerState}:${shownRevision}:${structured ? "rows" : "text"}`} className="reader-column" {...rise}>
 							{charterSelected && ready ? (
 								charterApproval ? (
 									<div className="reader-approval is-approved" role="status">
@@ -4850,9 +5462,25 @@ function Deliverables({ scenarioKey, phase, paused, written, decision, interview
 									<p className="reader-audience">{deliverable.audience}</p>
 									<h2>{deliverable.name}</h2>
 								</div>
-								{ready ? <span className="reader-verified-tag"><CheckCircle size={14} weight="fill" />Evidence bound<code>{deliverableHash(scenarioKey, index, decision)}</code></span> : null}
+								{ready ? <span className="reader-verified-tag"><CheckCircle size={14} weight="fill" />Evidence bound<code>{shownHash}</code></span> : null}
 							</div>
 							{ready ? (
+								<div className="reader-controls">
+									{structuredAvailable ? <DsSegmentedTabs label="Document view" value={readerMode} onChange={setReaderMode} options={[{ value: "readable", label: "Readable" }, { value: "structured", label: "Structured" }]} /> : null}
+									<span className="reader-version" data-testid="document-version">Version {shownRevision}{readingOld ? ` of ${latest}` : latest > 1 ? " · current" : ""}</span>
+									<span className="reader-controls-end">
+										<button type="button" className="ds-text-button" onClick={() => setDocumentDialog("history")}>History</button>
+										{handoff ? null : <DsButton size="sm" onClick={openEdit}>Edit</DsButton>}
+										{handoff ? null : <DsButton size="sm" onClick={() => setDocumentDialog("regenerate")}>Regenerate</DsButton>}
+									</span>
+								</div>
+							) : null}
+							{ready && readingOld ? (
+								<DsBanner className="reader-old-version" role="status" onDismiss={() => setReading(null)} dismissLabel={`Back to v${latest}`}>You’re reading v{shownRevision}. The current version is v{latest}.</DsBanner>
+							) : null}
+							{ready && structured ? (
+								<StructuredView tables={tables} name={deliverable.name} revision={shownRevision} hash={shownHash} />
+							) : ready ? (
 								<article className="reader-content">
 									<h3>{body.heading}</h3>
 									<p className="reader-lede">{body.lede}</p>
@@ -4898,7 +5526,12 @@ function Deliverables({ scenarioKey, phase, paused, written, decision, interview
 										</div>
 									</section>
 
-									<div className="citation-row"><span className="citation-label">Sources</span>{body.citations.map((citation) => <span key={citation}>{citation}</span>)}</div>
+									<div className="citation-row">
+										<span className="citation-label">Sources</span>
+										{body.citations.map((citation) => <span key={citation}>{citation}</span>)}
+										{readyFiles.map((file) => <span key={file.id}>Uploaded · {file.name} v{file.version}</span>)}
+										{webSources.map((source) => <span key={source.id} className="is-public-web" title={`${source.url} · retrieved ${formatPacketTime(source.retrievedAt)}`}><Globe size={12} aria-hidden="true" />Public web · {hostLabel(source.url)} · {formatPacketTime(source.retrievedAt)}</span>)}
+									</div>
 								</article>
 							) : readerState === "writing" ? (
 								<div className="reader-waiting">
@@ -4924,6 +5557,9 @@ function Deliverables({ scenarioKey, phase, paused, written, decision, interview
 					</SwapPresence>
 				</section>
 			</div>
+			<DocumentEditDialog open={documentDialog === "edit"} name={deliverable.name} body={bodies[index]} revision={latest} openedRevision={editBase} onClose={() => setDocumentDialog(null)} onSave={(base, section, paragraphs, note) => onSaveEdit(deliverable.name, base, section, paragraphs, note)} />
+			<DocumentRegenerateDialog open={documentDialog === "regenerate"} name={deliverable.name} body={bodies[index]} revision={latest} refusal={regenerateRefusal} onClose={() => setDocumentDialog(null)} onConfirm={(section, instruction) => { setDocumentDialog(null); onRegenerate(deliverable.name, section, instruction) }} />
+			<DocumentHistoryDialog open={documentDialog === "history"} name={deliverable.name} body={generated[index]} revisions={revisions[deliverable.name] ?? []} viewing={shownRevision} hashOf={(revision) => contentHash(scenarioKey, decision, deliverable.name, bodyAtRevision(generated[index], revisions[deliverable.name], revision))} onRead={(revision) => { setReading({ name: deliverable.name, revision }); setDocumentDialog(null) }} onClose={() => setDocumentDialog(null)} />
 		</div>
 	)
 }
@@ -4970,13 +5606,15 @@ function CharterApprovalDialog({ open, documentName, audience, destination, onCl
  * two columns, then an immutable packet that opens Plan. A blocker is a fix the
  * owner can make, so it is amber and carries that fix inline.
  */
-function HandoffDialog({ open, scenarioKey, missionDecision, decision, excluded, charterApproval, onClose, onApproveCharter, onConfirm }: {
+function HandoffDialog({ open, scenarioKey, missionDecision, excluded, charterApproval, documents, review, onClose, onApproveCharter, onConfirm }: {
 	open: boolean
 	scenarioKey: ScenarioKey
 	missionDecision: string
 	decision: DecisionState
 	excluded: string[]
 	charterApproval: CharterApproval | null
+	documents: BoundDocument[]
+	review: DiscoveryWork["package"]
 	onClose: () => void
 	onApproveCharter: () => void
 	onConfirm: (note: string) => void
@@ -4986,7 +5624,8 @@ function HandoffDialog({ open, scenarioKey, missionDecision, decision, excluded,
 	const [note, setNote] = useState("")
 	useEffect(() => { if (open) setNote("") }, [open])
 	const included = includedOutputs(excluded)
-	const blocked = included.includes(CHARTER_DELIVERABLE_INDEX) && !charterApproval
+	const blocked = (included.includes(CHARTER_DELIVERABLE_INDEX) && !charterApproval) || !packageApproved(review)
+	const charterWaiting = included.includes(CHARTER_DELIVERABLE_INDEX) && !charterApproval
 	const exceptions = DELIVERABLES.filter((item, position) => REQUIRED_OUTPUTS.has(position) && excluded.includes(item.name)).map((item) => item.name)
 	return (
 		<Dialog
@@ -5002,7 +5641,7 @@ function HandoffDialog({ open, scenarioKey, missionDecision, decision, excluded,
 			<div className="handoff-compare">
 				<div className="handoff-compare-head"><span>Discovery package <em>verified</em></span><span>{destination} receives <em>packet</em></span></div>
 				{/* What stops the handoff comes first, so it is read before the contents and never scrolled past. */}
-				{blocked ? (
+				{charterWaiting ? (
 					<div className="handoff-row is-blocked">
 						<span className="handoff-key">Blockers</span>
 						<span className="handoff-blocker">
@@ -5014,18 +5653,20 @@ function HandoffDialog({ open, scenarioKey, missionDecision, decision, excluded,
 				) : null}
 				<div className="handoff-row"><span className="handoff-key">Mission decision</span><span>{missionDecision}</span></div>
 				{scenario.handoff ? <div className="handoff-row"><span className="handoff-key">Opens in Agentix</span><span>{scenario.handoff.opensAs}</span></div> : null}
-				<div className="handoff-row"><span className="handoff-key">Readiness</span><span>Snapshot v7 · frozen · {scenario.sources.length} sources · manifest v4</span></div>
+				<div className="handoff-row"><span className="handoff-key">Readiness</span><span>Snapshot v7 · frozen · {scenario.sources.length} sources · manifest v{review.manifestVersion}</span></div>
+				<div className="handoff-row"><span className="handoff-key">Approval</span><span>{packageApproved(review) ? `Package v${review.version}, approved by ${review.approvedBy}, ${formatPacketTime(review.approvedAt ?? "")}` : `Package v${review.version} isn’t approved`}</span></div>
 				<div className="handoff-row is-list">
 					<span className="handoff-key">Selected outputs</span>
 					<ul>
 						{included.map((position) => {
 							const item = DELIVERABLES[position]
-							return <li key={item.name}><Mark tone="neutral" seed={item.name} size="xs" /><span className="handoff-name">{item.name}</span><span className="handoff-state">{position === CHARTER_DELIVERABLE_INDEX ? <DsBadge tone={charterApproval ? "positive" : "warning"}>{charterApproval ? "Approved" : "Needs approval"}</DsBadge> : null}</span><code>{deliverableHash(scenarioKey, position, decision)}</code></li>
+							const bound = documents.find((entry) => entry.name === item.name)
+							return <li key={item.name}><Mark tone="neutral" seed={item.name} size="xs" /><span className="handoff-name">{item.name}</span><span className="handoff-state">{position === CHARTER_DELIVERABLE_INDEX ? <DsBadge tone={charterApproval ? "positive" : "warning"}>{charterApproval ? "Approved" : "Needs approval"}</DsBadge> : null}</span><code>{bound?.hash}</code></li>
 						})}
 					</ul>
 				</div>
 				{exceptions.length ? <div className="handoff-row"><span className="handoff-key">Exceptions</span><span>{joinPhrases(exceptions)} removed by you · recorded in the packet</span></div> : null}
-				{blocked ? null : <div className="handoff-row"><span className="handoff-key">Blockers</span><span>None</span></div>}
+				{charterWaiting ? null : <div className="handoff-row"><span className="handoff-key">Blockers</span><span>{packageApproved(review) ? "None" : "The package needs your approval"}</span></div>}
 			</div>
 			<div className="ds-field">
 				<label htmlFor="handoff-note">Handoff note (optional)</label>
@@ -5095,7 +5736,7 @@ function ManifestSection({ manifest }: { manifest: ManifestControl }) {
 				{frozenIn ? (
 					<div className="sheet-card-text"><h3>Frozen with the handoff</h3><p>Packet {frozenIn} belongs to {destination} now. A change to its outputs goes there as a new request.</p></div>
 				) : (
-					<div className="sheet-card-text"><h3>Material changes interrupt</h3><p>Removing a required output, widening external distribution or replacing an approved artifact creates an exception for you. Routine refinements apply automatically.</p></div>
+					<div className="sheet-card-text"><h3>Material changes interrupt</h3><p>Removing a required output, widening external distribution or replacing an approved artifact creates an exception for you. A change to a finished package makes a new version, which needs approving again.</p></div>
 				)}
 			</section>
 		</div>
@@ -5179,7 +5820,10 @@ function PersonRow({ person, tint, onChange }: { person: Person; tint: number; o
 	)
 }
 
-function DrawerPanel({ type, scenarioKey, people, onPeopleChange, manifest, toast, onToast, onFocusSection, onClose }: { type: Exclude<Drawer, null>; scenarioKey: ScenarioKey; people: Person[]; onPeopleChange: (people: Person[]) => void; manifest: ManifestControl; toast: ToastNote | null; onToast: (text: string) => void; onFocusSection: (target: Exclude<Drawer, null>) => void; onClose: () => void }) {
+type EvidenceControl = { files: EvidenceFile[]; research: DiscoveryWork["research"]; fault: DiscoveryWork["fault"]; frozen: boolean; onAdd: (list: FileList | readonly File[]) => void; onRemove: (id: string) => void }
+type BriefControl = { items: DiscoveryWork["briefs"]; focus: string | null; frozen: boolean; onApprove: (personId: string) => void; onApproveAll: () => void; onAdjust: Parameters<typeof BriefSheet>[0]["onAdjust"] }
+
+function DrawerPanel({ type, scenarioKey, people, onPeopleChange, manifest, evidence, briefs, toast, onToast, onFocusSection, onClose }: { type: Exclude<Drawer, null>; scenarioKey: ScenarioKey; people: Person[]; onPeopleChange: (people: Person[]) => void; manifest: ManifestControl; evidence: EvidenceControl; briefs: BriefControl; toast: ToastNote | null; onToast: (text: string) => void; onFocusSection: (target: Exclude<Drawer, null>) => void; onClose: () => void }) {
 	const scenario = SCENARIOS[scenarioKey]
 	const [adding, setAdding] = useState(false)
 	const [form, setForm] = useState(EMPTY_PERSON_FORM)
@@ -5196,7 +5840,10 @@ function DrawerPanel({ type, scenarioKey, people, onPeopleChange, manifest, toas
 		people: { title: "Stakeholder program", icon: <UsersThree size={16} />, description: "MAX identified these roles from the mission and the source gaps. Interview focus and channel stay editable." },
 		sources: { title: "Connected sources", icon: <Database size={16} />, description: "Integrations are bound when the mission is created. MAX reads only the scopes shown here." },
 		package: { title: "Deliverable manifest", icon: <SlidersHorizontal size={16} />, description: "The manifest is operating state, not another artifact. It refines with evidence and freezes at readiness." },
+		briefs: { title: "Interview briefs", icon: <ChatsCircle size={16} />, description: "Each brief exactly as the interviewer will receive it. Review it, adjust it and approve it before that interview opens." },
 	}[type]
+	const organization = useOrganization()
+	const faultySource = evidence.fault?.kind === "connection" ? evidence.fault.source : null
 
 	// The drawer is a modal dialog: it takes initial focus and keeps Tab inside.
 	useEffect(() => {
@@ -5300,7 +5947,7 @@ function DrawerPanel({ type, scenarioKey, people, onPeopleChange, manifest, toas
 									<section className="sheet-card" aria-label="Pack">
 										<div className="sheet-card-text">
 											<h3>Pack</h3>
-											<p>{DELIVERABLES.length} outputs planned. Routine work is pre-authorized; exceptions come back to you.</p>
+											<p>{DELIVERABLES.length - manifest.excluded.length} of {DELIVERABLES.length} outputs selected. Routine work is pre-authorized; exceptions come back to you.</p>
 										</div>
 										<DsButton size="sm" onClick={() => onFocusSection("package")}>Open deliverable manifest</DsButton>
 									</section>
@@ -5351,17 +5998,30 @@ function DrawerPanel({ type, scenarioKey, people, onPeopleChange, manifest, toas
 								</div>
 							) : type === "sources" ? (
 								<div className="source-drawer">
-									<p className="sheet-status"><CheckCircle size={14} weight="fill" />All sources healthy</p>
+									{faultySource ? <p className="sheet-status is-adjusted" role="status"><Warning size={14} weight="fill" />1 source needs reconnecting</p> : <p className="sheet-status"><CheckCircle size={14} weight="fill" />All sources healthy</p>}
 									<ul className="sheet-list">
 										{scenario.sources.map((source) => (
 											<li key={source.name} className="source-row">
 												<Mark tone="neutral" seed={source.name} size="sm" />
-												<div><strong>{source.name}</strong><span>{source.system} · {source.scope}</span><small>{source.records} · indexed incrementally</small></div>
-												<DsBadge tone="positive">Scope verified</DsBadge>
+												<div><strong>{source.name}</strong><span>{source.system} · {source.scope}</span><small>{source.name === faultySource ? "Reads paused · what MAX already read stays" : `${source.records} · indexed incrementally`}</small></div>
+												{source.name === faultySource ? <DsBadge tone="warning">Reconnect needed</DsBadge> : <DsBadge tone="positive">Scope verified</DsBadge>}
 											</li>
 										))}
 									</ul>
+									<section className="evidence-group" aria-label="Uploaded documents">
+										<h3>Uploaded documents</h3>
+										{evidence.frozen ? (
+											evidence.files.length ? <ul className="sheet-list">{evidence.files.map((file) => <EvidenceFileRow key={file.id} file={file} />)}</ul> : <p>None. The packet is frozen, so nothing more can be added here.</p>
+										) : <EvidenceUpload files={evidence.files} onAdd={evidence.onAdd} onRemove={evidence.onRemove} heading="Add documents" />}
+									</section>
+									<section className="evidence-group" aria-label="Public web sources">
+										<h3>Public web</h3>
+										<p>{evidence.research ? researchActivity(evidence.research) : researchSummary(organization.policy.research)}</p>
+										{evidence.research?.sources.length ? <ul className="sheet-list">{evidence.research.sources.map((source) => <PublicWebRow key={source.id} source={source} />)}</ul> : null}
+									</section>
 								</div>
+							) : type === "briefs" ? (
+								<BriefSheet briefs={briefs.items} focus={briefs.focus} frozen={briefs.frozen} onApprove={briefs.onApprove} onAdjust={briefs.onAdjust} />
 							) : (
 								<ManifestSection manifest={manifest} />
 							)}
@@ -5372,8 +6032,8 @@ function DrawerPanel({ type, scenarioKey, people, onPeopleChange, manifest, toas
 				<footer className="sheet-foot">
 					{/* The page's own toast sits behind the sheet, so the sheet shows its confirmations above its actions. */}
 					<ToastRegion toast={toast} className="is-sheet" />
-					{type === "people" && !adding ? <DsButton ref={addRef} onClick={() => setAdding(true)}><Plus size={14} />Add stakeholder</DsButton> : <span />}
-					<DsButton variant="primary" onClick={onClose}>Done</DsButton>
+					{type === "people" && !adding ? <DsButton ref={addRef} onClick={() => setAdding(true)}><Plus size={14} />Add stakeholder</DsButton> : type === "briefs" && briefs.items.some((brief) => brief.status === "draft") ? <DsButton onClick={onClose}>Done</DsButton> : <span />}
+					{type === "briefs" && briefs.items.some((brief) => brief.status === "draft") ? <DsButton variant="primary" onClick={briefs.onApproveAll}>Approve all</DsButton> : <DsButton variant="primary" onClick={onClose}>Done</DsButton>}
 				</footer>
 			</motion.aside>
 		</>
@@ -5584,7 +6244,7 @@ function needsYouItems({ scenarioKey, phase, decision, interviewClosed, intervie
  * owner's outstanding items and the health of the bound sources, so the owner
  * never has to change tab to learn whether anything is waiting on them.
  */
-function NeedsYouDock({ scenarioKey, phase, paused, decision, interviewClosed, interviewIndex, handoffId, charterPending, deadline, showJourney = true, showNeedsYou = true, onJumpToDecision, onOpenThread, onOpenHandoff, onOpenSources }: {
+function NeedsYouDock({ scenarioKey, phase, paused, decision, interviewClosed, interviewIndex, handoffId, charterPending, needs = [], deadline, showJourney = true, showNeedsYou = true, onJumpToDecision, onOpenThread, onOpenHandoff, onOpenSources }: {
 	scenarioKey: ScenarioKey
 	phase: number
 	paused: boolean
@@ -5594,6 +6254,7 @@ function NeedsYouDock({ scenarioKey, phase, paused, decision, interviewClosed, i
 	handoffId: string | null
 	/* The package is ready and the charter still needs the owner, so the rail must say so. */
 	charterPending?: boolean
+	needs?: NeedsYouItem[]
 	/* The Autonomy tab draws the journey as its canvas, so the rail does not repeat it there. */
 	showJourney?: boolean
 	/* Autonomy shows the waiting decision itself, so the rail does not list it again there. */
@@ -5606,7 +6267,7 @@ function NeedsYouDock({ scenarioKey, phase, paused, decision, interviewClosed, i
 	onOpenSources: () => void
 }) {
 	const scenario = SCENARIOS[scenarioKey]
-	const items = needsYouItems({ scenarioKey, phase, decision, interviewClosed, interviewIndex, charterPending, onJumpToDecision, onOpenThread, onOpenHandoff })
+	const items = [...needsYouItems({ scenarioKey, phase, decision, interviewClosed, interviewIndex, charterPending, onJumpToDecision, onOpenThread, onOpenHandoff }), ...needs]
 	const journey = runJourney({ scenarioKey, phase, paused, decision, interviewClosed, handoffId })
 	const sourceState = !interviewClosed ? "Bound" : phase >= 2 ? "Read" : "Reading"
 	// The same rail as the Thread's Details panel: one width, one inset, one title.

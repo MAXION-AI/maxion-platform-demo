@@ -5,6 +5,9 @@ export type { DeliverableBody, DeliverableDecision, DeliverableSection, Exhibit 
 
 export type ScenarioKey = "tprm" | "diligence" | "enterprise" | "revenue" | "servicenow" | "ordersync" | "s4hana"
 
+/* The fields of a person the work state reads; a Person always satisfies it. */
+export type OperationPerson = Pick<Person, "id" | "name" | "role" | "department" | "focus">
+
 export type Person = {
 	id: string
 	name: string
@@ -559,7 +562,7 @@ export const JOURNEY_STAGES: Array<{ id: JourneyStageId; label: string; purpose:
 	{ id: "interview", label: "Stakeholder interviews", purpose: "Maps the accountable people and runs text, voice and workshop interviews around the evidence gaps.", nextAction: "MAX is conducting and reconciling stakeholder interviews.", operations: [2, 3] },
 	{ id: "synthesis", label: "Synthesis", purpose: "Turns contradictions into owned cases and freezes one readiness snapshot.", nextAction: "MAX is resolving conflicts and freezing the readiness snapshot.", operations: [4, 5] },
 	{ id: "deliverables", label: "Deliverables", purpose: "Generates every selected document from one versioned manifest.", nextAction: "MAX is generating the selected deliverables.", operations: [6] },
-	{ id: "handoff", label: "Handoff", purpose: "Routes the package to its approvers and prepares the handoff packet for the next module.", nextAction: "MAX is routing the package to its approvers.", operations: [7] },
+	{ id: "handoff", label: "Handoff", purpose: "Routes the package to its approvers and prepares the handoff packet for the next module.", nextAction: "The package is waiting for its approval.", operations: [7] },
 ]
 
 export function journeyComplete(phase: number) {
@@ -598,7 +601,7 @@ export function journeyProgress(phase: number, context: JourneyContext = {}) {
 
 export function journeyNextAction(phase: number, context: JourneyContext = {}): string {
 	const destination = context.destination ?? "Plan"
-	if (journeyComplete(phase)) return context.handoffId ? `Sent to ${destination} as ${context.handoffId}.` : `Package verified. Review it in Package, then continue to ${destination}.`
+	if (journeyComplete(phase)) return context.handoffId ? `Sent to ${destination} as ${context.handoffId}.` : `Package verified. Review and approve it in Package, then continue to ${destination}.`
 	if (context.interviewOpen) return "Answer MAX’s interview questions so it can frame the mission."
 	if (context.decisionPending) return "Only the affected branch waits; everything else keeps moving."
 	if (context.hold === "paused") return "Paused at the last verified checkpoint. Nothing new starts until you resume."
@@ -643,6 +646,8 @@ export const DELIVERABLE_CATEGORY: DeliverableCategory[] = [
 	"Governance",
 	"Risk and controls",
 	"Mobilization",
+	"Mobilization",
+	"Foundation",
 ]
 
 export const DELIVERABLE_CATEGORY_ORDER: DeliverableCategory[] = ["Foundation", "Decision package", "Analysis", "Risk and controls", "Governance", "Mobilization"]
@@ -672,8 +677,8 @@ export function nowActions(scenario: Scenario, phase: number, people: Person[], 
 		[`Asking ${lead} about ${topic(0)}`, `Queuing a follow-up for ${partner}`, `Skipping what ${second.system} already answers`],
 		[`Checking ${topic(0)} claims`, `Reconciling ${partner} and ${counsel}`, "Isolating one exception for your call"],
 		["Binding each claim to snapshot v7", `Naming owners for ${topic(4)}`, `Freezing ${records.toLocaleString()} records as evidence`],
-		[`Generating ${DELIVERABLES.length} linked deliverables`, `Citing ${first.system} and ${second.system}`, "Checking each recommendation’s source"],
-		["Routing each document to its approver", scenario.handoff?.target === "agentix" ? "Preparing the Agentix operating package" : "Creating the downstream Plan work", "Recording the handoff in the audit trail"],
+		["Generating the selected deliverables", `Citing ${first.system} and ${second.system}`, "Checking each recommendation’s source"],
+		["Waiting for the package approval", scenario.handoff?.target === "agentix" ? "Preparing the Agentix operating package" : "Creating the downstream Plan work", "Recording the handoff in the audit trail"],
 	]
 	return byPhase[Math.max(0, Math.min(phase, byPhase.length - 1))]
 }

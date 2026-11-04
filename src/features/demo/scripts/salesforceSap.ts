@@ -28,7 +28,7 @@ export const SALESFORCE_SAP_SCRIPT: DemoScript = {
 		"Anything where the data is simply wrong in one system, they fix without asking. Anything where a SKU doesn’t exist in SAP, or the price doesn’t match the quote, always needs someone to decide. Check the Salesforce order records; I suspect the customer master is behind most of it.",
 		"SAP wins. The business partner is what we bill and pay tax against, so if Salesforce disagrees, Salesforce is the one that’s wrong.",
 		"We must never create a second sales order. Cancelling a duplicate leaves a trail we have to explain at audit, so if a post times out, check before you post again.",
-		"Nobody owns production SAP changes today, so treat that as open. Cockpit publishing to the finance group is already covered by policy ITGC-SOX-4.",
+		"Nobody owns production SAP changes today, so treat that as open. Publishing the cockpit as files is already covered by policy ITGC-SOX-4.",
 		"Every booked order has an SAP number the same day, nothing above $50,000 posts without me, and I stop hearing about duplicates entirely.",
 	],
 	replies: [
@@ -36,7 +36,7 @@ export const SALESFORCE_SAP_SCRIPT: DemoScript = {
 		"Wrong data in one system gets fixed without asking; a missing SKU or a price that doesn’t match the quote needs a decision. You suspect the customer master, so I’ll verify the failure mix in Salesforce order records instead of asking you to guess. I’m reading them now.",
 		"SAP wins: the business partner is what you bill and pay tax against, so Salesforce gets corrected to match it.",
 		"Never a second sales order. If a post times out, the agents check SAP before they post again, and that becomes a test the pipeline has to pass.",
-		"Understood: production SAP changes have no owner yet, so that goes to Agentix as an open question. Cockpit publishing is already covered by ITGC-SOX-4.",
+		"Understood: production SAP changes have no owner yet, so that goes to Agentix as an open question. Publishing the cockpit as files is already covered by ITGC-SOX-4.",
 		"That’s the bar: an SAP number for every booked order the same day, nothing over $50,000 without you, and no more duplicates.",
 	],
 	heard: [
@@ -67,6 +67,11 @@ export const SALESFORCE_SAP_SCRIPT: DemoScript = {
 			does: "Answer MAX’s six questions. Fill answer puts the scripted reply in the composer; press Enter to send it.",
 			says: "MAX only asks for judgement the records can’t supply. On the second answer it doesn’t ask me to guess the mix; it goes and classifies twelve months of failures.",
 		},
+		briefs: {
+			title: "Approve the interview briefs",
+			does: "Choose Review briefs to show one brief exactly as the interviewer will receive it, then Approve all. Interviews stay closed until you do.",
+			says: "Before MAX talks to anyone, I see what the interviewer will hold: what it wants to learn, its questions, the contradictions to probe, the time budget and the evidence this person’s grant allows. Everything it holds counts as shown to that person, so a person approves it.",
+		},
 		decision: {
 			title: "Let MAX investigate, then decide",
 			does: "Open Autonomy while MAX reads the four sources and interviews the four owners. When the decision arrives, choose Make the SAP business partner authoritative.",
@@ -74,8 +79,13 @@ export const SALESFORCE_SAP_SCRIPT: DemoScript = {
 		},
 		package: {
 			title: "Read the package and approve the charter",
-			does: "Open Package when the nine documents land. Show the executive brief, then the RAID register. Then choose Continue to Agentix and approve the project charter with a reason.",
-			says: "Nine documents a senior consultant would sign, all tied to one set of numbers: 1,340 failures, 4.2 days to fix each one, $2,147,320.60 of bookings unbilled at quarter end. The charter is the one thing that blocks the handoff.",
+			does: "Open Package when the eight selected documents land. Show the executive brief, then the RAID register. Then choose Approve package and, from its blocker row, approve the project charter with a reason.",
+			says: "Eight documents a senior consultant would sign, chosen for this mission, all tied to one set of numbers: 1,340 failures, 4.2 days to fix each one, $2,147,320.60 of bookings unbilled at quarter end. The charter is the one thing that blocks approving the package.",
+		},
+		approve: {
+			title: "Approve the package version",
+			does: "Choose Approve package. The dialog names the exact version, the manifest and each document’s hash; confirm it. Return to MAX and Withdraw approval sit beside it.",
+			says: "Approval binds one exact version. If anyone edits a document after this, the version moves and this approval no longer holds. Approving doesn’t start anything in Agentix: that’s a separate step, and a separate decision.",
 		},
 		handoff: {
 			title: "Hand the package to Agentix",
@@ -99,12 +109,12 @@ export const SALESFORCE_SAP_SCRIPT: DemoScript = {
 		},
 		release: {
 			title: "Approve the production release",
-			does: "Review the release: its target, checks and recovery limits. Choose Approve release. The adapter times out after posting on purpose; watch the coordinator check the idempotency key instead of posting again.",
-			says: "Nothing reaches production SAP without the policy the owner chose. When the adapter goes quiet after a post, the agent doesn’t create a second sales order; it reads back what actually landed.",
+			does: "Review the release: its target, checks and recovery limits. Choose Approve release. The adapter times out after posting on purpose, so the release stops at Outcome unknown. Choose Investigate, and the coordinator checks the idempotency key instead of posting again.",
+			says: "Nothing reaches production SAP without the policy the owner chose. When the adapter goes quiet after a post, the agent doesn’t create a second sales order; a person asks it to read back what actually landed, and that only reads.",
 		},
 		dashboard: {
 			title: "Open the verified cockpit",
-			does: "MS-3 publishes under policy ITGC-SOX-4. Open Results, then the order exception cockpit. When you are ready for the daily operation, open Controls and choose Run the next scheduled cycle now.",
+			does: "MS-3 publishes a file version under policy ITGC-SOX-4. Open Results, then the order exception cockpit: show Download and Save to SharePoint. When you are ready for the daily operation, open Controls and choose Run the next scheduled cycle now.",
 			says: "Revenue operations get what posted, what is blocked and on whom, and what is at risk for the quarter, with the time of the last sync on the cockpit.",
 		},
 		cycle: {

@@ -1,7 +1,7 @@
 import { londonTime } from "../time"
-import { activationBlockers, artifactBy, awaitingCreation, decisionBy, isTerminal, itemBy, latest, releaseBy, releaseWindowFor, scenarioOf, templateOf } from "./engine"
+import { activationBlockers, allowanceOf, artifactBy, awaitingCreation, budgetExhausted, currentVersion, decisionBy, isTerminal, itemBy, latest, publishesFiles, releaseBy, releaseWindowFor, scenarioOf, spendOf, templateOf } from "./engine"
 import { packageFor, SCENARIOS, type Specialist } from "./scenarios"
-import type { AgentixState, Decision, Engagement, Release, Tone, WaitReason, WorkItem } from "./types"
+import type { AgentixState, Artifact, ArtifactVersion, Decision, Engagement, Release, Tone, WaitReason, WorkItem } from "./types"
 
 /*
  * Everything the screens say about state, in the owner's words. One status
@@ -12,7 +12,8 @@ import type { AgentixState, Decision, Engagement, Release, Tone, WaitReason, Wor
 export const shortTime = (time: number) => new Date(time).toLocaleString("en-GB", { timeZone: "Europe/London", weekday: "short", day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })
 export const dayLabel = (time: number) => new Date(time).toLocaleDateString("en-GB", { timeZone: "Europe/London", day: "numeric", month: "short" })
 export const clockLabel = (time: number) => new Date(time).toLocaleTimeString("en-GB", { timeZone: "Europe/London", hour: "2-digit", minute: "2-digit" })
-export const money = (cents: number) => `$${(cents / 100).toFixed(2)}`
+/* Usage is counted in units, the word the Usage page uses. No price is attached to one here. */
+export const units = (count: number) => `${count.toLocaleString("en-US")} unit${count === 1 ? "" : "s"}`
 
 export function memberName(state: AgentixState, engagementId: string, id: string) {
 	if (id === "owner") return "You"
@@ -58,6 +59,8 @@ function waitSentence(state: AgentixState, item: WorkItem, wait: WaitReason): st
 		case "window": return `Held for the release window · ${shortTime(wait.until)}`
 		case "permission": return "Release blocked · deployment permission lost"
 		case "release": { const release = releaseBy(state, wait.releaseId); return release ? `Waiting for ${release.reference} to apply` : "Waiting for the pipeline release" }
+		case "effect": { const effect = item.effects.find(entry => entry.id === wait.effectId); return effect?.status === "not_applied" ? `Not applied · ${effect.system.split(" · ")[0]} holds no change · your next step is below` : "Outcome unknown · nothing resent · read the target back to settle it" }
+		case "budget": return "Stopped before its next paid step · the allowance is used up"
 	}
 }
 
@@ -88,13 +91,13 @@ export function itemSentence(state: AgentixState, item: WorkItem): string {
 	if (step.kind === "release" && step.artifact) {
 		// The row speaks for the release itself; before one exists, it's being prepared, not released.
 		const release = item.releaseIds.map(id => releaseBy(state, id)).filter(entry => entry && entry.status !== "superseded").at(-1)
-		if (release?.status === "unknown") return `${who} · reconciling ${release.reference}: outcome unknown, nothing resent`
-		if (release?.status === "releasing") return `${who} · releasing ${release.reference}`
+		if (release?.status === "unknown") return `${who} · reconciling ${release.reference}: reading the target back, nothing resent`
+		if (release?.status === "releasing") return `${who} · ${isFileRelease(state, release) ? "publishing" : "releasing"} ${release.reference}`
 		if (release && release.status !== "applied" && release.status !== "verified") return `${release.reference} · ${releaseSentence(state, release)}`
 		const artifact = artifactBy(state, `${item.engagementId}:${step.artifact}`)
-		if (!release && artifact) return `${who} · preparing the release of ${artifact.title.toLowerCase()} v${latest(artifact).version}`
+		if (!release && artifact) return `${who} · preparing ${publishesFiles(state, artifact) ? "to publish" : "the release of"} ${artifact.title.toLowerCase()} v${latest(artifact).version}`
 	}
-	if (item.stage === "reconciling") return `${who} · reconciling the original request · no duplicate sent`
+	if (item.stage === "reconciling") return `${who} · reading the target back · nothing resent`
 	return `${who} · ${step.doing}`
 }
 
@@ -113,6 +116,11 @@ export function statusOf(state: AgentixState, item: WorkItem): StatusView {
 			const kind = item.wait?.kind
 			if (kind === "decision" || kind === "human") return { label: "Needs you", tone: "attention", needsYou: true }
 			if (kind === "permission") return { label: "Blocked", tone: "danger", needsYou: true }
+			if (kind === "budget") return { label: "Limit reached", tone: "danger", needsYou: true }
+			if (kind === "effect") {
+				const effect = item.effects.find(entry => entry.id === (item.wait as { effectId: string }).effectId)
+				return { label: effect?.status === "not_applied" ? "Not applied" : "Outcome unknown", tone: "attention", needsYou: true }
+			}
 			if (kind === "hold") {
 				// A release you stopped or kept in test says so, rather than looking like a timed hold.
 				const release = item.releaseIds.map(id => releaseBy(state, id)).filter(entry => entry && entry.status !== "superseded").at(-1)
@@ -120,7 +128,7 @@ export function statusOf(state: AgentixState, item: WorkItem): StatusView {
 			}
 			return { label: "Waiting", tone: "neutral", needsYou: false }
 		}
-		default: return { label: item.stage ? "Recovering" : "Working", tone: "live", needsYou: false }
+		default: return { label: item.recovery?.status === "resuming" ? "Resuming" : item.stage ? "Recovering" : "Working", tone: "live", needsYou: false }
 	}
 }
 
@@ -148,7 +156,7 @@ export function teamPresence(state: AgentixState, engagementId: string): Presenc
 			if (item.stage) mine.push({ item, state: "recovering", sentence: itemSentence(state, item).replace(/^[^·]+· /, "") })
 			else if ((item.status === "waiting" || item.status === "partial") && wait) {
 				// Decisions, people and lost permissions wait on the owner; everything else waits on other work or a schedule.
-				const owner = wait.kind === "decision" || wait.kind === "human" || wait.kind === "permission" || (item.status === "partial" && wait.kind === "connection")
+				const owner = wait.kind === "decision" || wait.kind === "human" || wait.kind === "permission" || wait.kind === "effect" || wait.kind === "budget" || (item.status === "partial" && wait.kind === "connection")
 				const sentence = wait.kind === "decision" ? `Waiting on your decision · ${item.reference}` : wait.kind === "human" ? `Waiting on the ${wait.owner.toLowerCase()} · ${item.reference}` : `${waitSentence(state, item, wait)} · ${item.reference}`
 				mine.push({ item, state: owner ? "decision" : "dependency", sentence })
 			}
@@ -163,14 +171,27 @@ export function teamPresence(state: AgentixState, engagementId: string): Presenc
 }
 
 /* ---- What needs the owner ----------------------------------------------- */
-export type NeedsYouItem = { key: string; engagementId: string; workId?: string; decisionId?: string; releaseId?: string; title: string; detail: string; action: string; kind: "decision" | "question" | "release" | "human" | "failed" | "partial" | "permission" | "proposal" | "setup" }
+export type NeedsYouItem = { key: string; engagementId: string; workId?: string; decisionId?: string; releaseId?: string; title: string; detail: string; action: string; kind: "decision" | "question" | "release" | "human" | "failed" | "partial" | "permission" | "proposal" | "setup" | "changed" | "effect" | "budget" }
+
+/* The request that replaced a changed one, once it has been raised. */
+export const successorOf = (state: AgentixState, decision: Decision) => state.decisions.find(entry => entry.id !== decision.id && entry.workItemId === decision.workItemId && entry.template === decision.template && entry.status === "open")
+
+/* Changed requests on a work item that the owner hasn't gone past yet. */
+export const changedRequests = (state: AgentixState, workId: string) => state.decisions.filter(decision => decision.workItemId === workId && decision.status === "withdrawn" && !!decision.changed && decision.changed.reviewedAt === undefined)
+
 export function needsYou(state: AgentixState, engagementId?: string): NeedsYouItem[] {
 	const items: NeedsYouItem[] = []
 	const within = (id: string) => !engagementId || id === engagementId
 	for (const decision of state.decisions) {
-		if (decision.status !== "open" || !within(decision.engagementId)) continue
+		if (!within(decision.engagementId)) continue
 		const item = itemBy(state, decision.workItemId)
 		if (!item || isTerminal(item)) continue
+		// A changed request needs saying until its replacement takes over or the owner has seen it.
+		if (decision.status === "withdrawn" && decision.changed && decision.changed.reviewedAt === undefined && !successorOf(state, decision)) {
+			items.push({ key: `${decision.id}:changed`, engagementId: decision.engagementId, workId: item.id, decisionId: decision.id, title: `This request changed: ${decision.changed.from} is now ${currentVersion(state, decision)}`, detail: `${item.reference} · ${item.title}`, action: "Review the change", kind: "changed" })
+			continue
+		}
+		if (decision.status !== "open") continue
 		const kind = decision.kind === "release" ? "release" : decision.kind === "question" ? "question" : "decision"
 		items.push({ key: decision.id, engagementId: decision.engagementId, workId: item.id, decisionId: decision.id, title: decisionTitle(state, decision), detail: `${item.reference} · ${item.title}`, action: kind === "release" ? "Review release" : kind === "question" ? "Answer" : "Review decision", kind })
 	}
@@ -179,6 +200,12 @@ export function needsYou(state: AgentixState, engagementId?: string): NeedsYouIt
 		if (item.status === "waiting" && item.wait?.kind === "human") items.push({ key: item.id, engagementId: item.engagementId, workId: item.id, title: `${item.reference} needs the payroll owner's confirmation`, detail: item.title, action: "Provide confirmation", kind: "human" })
 		if (item.status === "failed") items.push({ key: item.id, engagementId: item.engagementId, workId: item.id, title: `${item.reference} needs a next step`, detail: itemSentence(state, item), action: "Choose next step", kind: "failed" })
 		if (item.status === "partial" && statusOf(state, item).needsYou) items.push({ key: item.id, engagementId: item.engagementId, workId: item.id, title: `${item.reference}: notification outstanding`, detail: item.title, action: "Resolve notification", kind: "partial" })
+		if (item.status === "waiting" && item.wait?.kind === "effect") {
+			const effectId = item.wait.effectId
+			const effect = item.effects.find(entry => entry.id === effectId)
+			const missed = effect?.status === "not_applied"
+			items.push({ key: `${item.id}:effect`, engagementId: item.engagementId, workId: item.id, title: `${item.reference}: ${missed ? "confirmed not applied" : "outcome unknown"}`, detail: `${effect?.operation ?? item.title} · ${effect?.system.split(" · ")[0] ?? "target"}`, action: missed ? "Choose next step" : "Investigate", kind: "effect" })
+		}
 	}
 	for (const release of state.releases) {
 		if (release.status !== "blocked" || !within(release.engagementId)) continue
@@ -187,6 +214,10 @@ export function needsYou(state: AgentixState, engagementId?: string): NeedsYouIt
 	for (const engagement of Object.values(state.engagements)) {
 		// An engagement its Discovery hasn't created yet has nothing to set up.
 		if (!within(engagement.id) || awaitingCreation(engagement)) continue
+		if (engagement.status !== "draft" && budgetExhausted(state, engagement.id)) {
+			const parked = state.work.find(item => item.engagementId === engagement.id && item.wait?.kind === "budget")
+			items.push({ key: `${engagement.id}:budget`, engagementId: engagement.id, workId: parked?.id, title: `${engagement.name}: paid work stopped at its limit`, detail: `${units(spendOf(state, engagement.id))} of ${allowanceOf(engagement).toLocaleString("en-US")} used`, action: "See the limit", kind: "budget" })
+		}
 		if (engagement.proposal && engagement.status !== "draft") {
 			const pkg = engagement.proposal.packageId ? packageFor(engagement.proposal.packageId) : undefined
 			items.push({ key: `${engagement.id}:proposal`, engagementId: engagement.id, title: `${pkg?.title ?? "New work"} is ready for your review`, detail: `${engagement.name} · ${engagement.proposal.origin === "discovery" ? `from Discovery${pkg ? ` · v${pkg.version}` : ""}` : "from your brief"}`, action: "Review proposal", kind: "proposal" })
@@ -202,6 +233,7 @@ export function health(state: AgentixState, engagement: Engagement): { label: st
 	if (engagement.status === "paused") return { label: "Intake paused", tone: "neutral" }
 	if (engagement.connection === "expired") return { label: "Degraded", tone: "danger" }
 	if (engagement.permission === "lost") return { label: "Release blocked", tone: "danger" }
+	if (budgetExhausted(state, engagement.id)) return { label: "Limit reached", tone: "danger" }
 	if (engagement.checking) return { label: "Rechecking", tone: "live" }
 	if (needsYou(state, engagement.id).length) return { label: "Needs you", tone: "attention" }
 	if (engagement.holdNotifications) return { label: "Notifications held", tone: "attention" }
@@ -245,7 +277,7 @@ export function achievements(state: AgentixState, engagementId: string, limit = 
 	const releases = state.releases.filter(release => release.engagementId === engagementId && release.status === "verified")
 	const entries: Achievement[] = [
 		...verified.map(item => ({ key: item.id, title: `${item.reference} verified`, detail: item.title, at: item.finished ?? item.started, workId: item.id })),
-		...releases.map(release => { const artifact = artifactBy(state, release.artifactId); return { key: release.id, title: `${artifact?.title ?? "Release"} v${release.version} live`, detail: `${release.reference} · verified in ${release.target.split(" · ")[0]}`, at: release.verifiedAt ?? release.createdAt, artifactId: release.artifactId } }),
+		...releases.map(release => { const artifact = artifactBy(state, release.artifactId); const files = isFileRelease(state, release); return { key: release.id, title: `${artifact?.title ?? "Release"} v${release.version} ${files ? "published" : "live"}`, detail: files ? `${release.reference} · verified as a file version` : `${release.reference} · verified in ${release.target.split(" · ")[0]}`, at: release.verifiedAt ?? release.createdAt, artifactId: release.artifactId } }),
 	]
 	return entries.sort((a, b) => b.at - a.at).slice(0, limit)
 }
@@ -265,7 +297,7 @@ export function measures(state: AgentixState, engagementId: string) {
 }
 
 /* ---- Readiness, split by what it permits -------------------------------- */
-export type ReadinessRow = { id: "read" | "build" | "production"; label: string; state: "ready" | "attention" | "blocked" | "none"; detail: string }
+export type ReadinessRow = { id: "read" | "build" | "production" | "budget"; label: string; state: "ready" | "attention" | "blocked" | "none"; detail: string }
 /*
  * An engagement's boundary is written as prose -- what the team does on its own, what it asks a
  * person first, and what it never does -- and the conversation quotes it that way. Read on a
@@ -309,11 +341,16 @@ export function readinessSplit(state: AgentixState, engagement: Engagement): { r
 		: !has("production") ? { id: "production", label: "Update business records", state: engagement.checked ? "ready" : "attention", detail: systems.filter(system => system.capability === "update").map(system => `${system.name} · ${system.access}`).join(" · ") }
 		: answers.release ? { id: "production", label: "Change production", state: "ready", detail: `${answers.release === "window" ? `Tested pipeline versions release in the ${releaseWindowFor(engagement.workflowId).label} window under policy` : "Each pipeline release waits for your approval with its target, checks and recovery limits"}. ${policyNote(engagement)}`.trim() }
 		: { id: "production", label: "Change production", state: "attention", detail: "Decide how production releases are authorized" }
-	const rows = [read, build, production]
+	const used = spendOf(state, engagement.id)
+	const allowance = allowanceOf(engagement)
+	const spent = budgetExhausted(state, engagement.id)
+	const budget: ReadinessRow = { id: "budget", label: "Paid work allowance", state: spent ? "blocked" : "ready", detail: spent ? `All ${units(allowance)} are used. New paid work can't start until the organization Owner or an Admin adds units; reads and existing outputs stay available.` : `${units(used)} of ${allowance.toLocaleString("en-US")} used` }
+	const rows = [read, build, production, budget]
 	const full = rows.every(row => row.state === "ready" || row.state === "none")
 	// The verdict only. What production needs is the third row, policy and all; saying it here as
 	// well put the same policy sentence on the page three times.
-	const summary = full ? (production.state === "ready" && answers.release === "approval" ? "Ready to start. Build and test begin at once." : "Ready to start within the approved boundary.")
+	const summary = spent ? "Paid work can't start: the allowance is used up. Reads and existing outputs stay available."
+		: full ? (production.state === "ready" && answers.release === "approval" ? "Ready to start. Build and test begin at once." : "Ready to start within the approved boundary.")
 		: production.state === "blocked" && build.state !== "blocked" ? `${build.state === "none" ? "Reading can start" : "Build and test can start"}. Production changes are blocked, so the full outcome isn't ready.`
 		: "Answer the open questions before activation. Nothing runs yet."
 	return { rows, summary, full }
@@ -322,14 +359,35 @@ export function readinessSplit(state: AgentixState, engagement: Engagement): { r
 /* ---- Releases ------------------------------------------------------------ */
 export const releaseStatusLabel: Record<Release["status"], { label: string; tone: Tone }> = {
 	preparing: { label: "Preparing", tone: "live" }, awaiting_approval: { label: "Needs approval", tone: "attention" }, held: { label: "Held", tone: "neutral" },
-	blocked: { label: "Blocked", tone: "danger" }, releasing: { label: "Releasing", tone: "live" }, unknown: { label: "Reconciling", tone: "attention" },
+	blocked: { label: "Blocked", tone: "danger" }, releasing: { label: "Releasing", tone: "live" }, unknown: { label: "Outcome unknown", tone: "attention" }, not_applied: { label: "Not applied", tone: "attention" },
 	applied: { label: "Applied · verifying", tone: "live" }, verified: { label: "Verified", tone: "positive" }, stopped: { label: "Stopped", tone: "neutral" },
 	superseded: { label: "Superseded", tone: "neutral" }, declined: { label: "Kept in test", tone: "neutral" },
+}
+
+/* Publishing a generated app as a file version isn't a production release, and doesn't say it is. */
+export const isFileRelease = (state: AgentixState, release: Release) => { const artifact = artifactBy(state, release.artifactId); return !!artifact && publishesFiles(state, artifact) }
+export function releaseView(state: AgentixState, release: Release): { label: string; tone: Tone } {
+	const reading = release.status === "unknown" && state.work.find(item => item.id === release.workItemId)?.effects.find(effect => effect.id === release.effectId)?.investigating
+	if (reading) return { label: "Reading back", tone: "live" }
+	if (isFileRelease(state, release)) {
+		if (release.status === "releasing") return { label: "Publishing", tone: "live" }
+		if (release.status === "applied") return { label: "Published · verifying", tone: "live" }
+		if (release.status === "verified") return { label: "Published", tone: "positive" }
+	}
+	return releaseStatusLabel[release.status]
 }
 
 export function releaseSentence(state: AgentixState, release: Release) {
 	const artifact = artifactBy(state, release.artifactId)
 	const name = `${artifact?.title.toLowerCase() ?? "version"} v${release.version}`
+	if (isFileRelease(state, release)) {
+		if (release.status === "preparing") return `Preparing ${name} to publish as a file version`
+		if (release.status === "releasing") return `Publishing ${name} as a file version`
+		if (release.status === "applied") return `Published ${release.appliedAt ? shortTime(release.appliedAt) : ""} · verification running`
+		if (release.status === "verified") return `Published file version, verified ${release.verifiedAt ? shortTime(release.verifiedAt) : ""}. Download it or save it from Results.`
+		if (release.status === "stopped") return "Stopped by you before it was published. Nothing was published."
+		if (release.status === "superseded") return "Superseded by a newer version before it was published"
+	}
 	switch (release.status) {
 		case "preparing": return `Preparing ${name} for release`
 		case "awaiting_approval": return `Waiting for your approval to release ${name}`
@@ -339,13 +397,53 @@ export function releaseSentence(state: AgentixState, release: Release) {
 		}
 		case "blocked": return "Blocked: the release adapter's role lost write access. Nothing was released."
 		case "releasing": return `Releasing ${name}`
-		case "unknown": return "Outcome unknown after dispatch. Reconciling by reading back the target; no retry is sent."
+		case "unknown": return state.work.find(item => item.id === release.workItemId)?.effects.find(effect => effect.id === release.effectId)?.investigating ? "Outcome unknown after dispatch. Reading the target back; no retry is sent." : "Outcome unknown after dispatch. Nothing is resent. A read-back settles it, and that's your call."
+		case "not_applied": return "A read-back confirmed this release did not apply. Nothing was resent."
 		case "applied": return `Applied ${release.appliedAt ? shortTime(release.appliedAt) : ""} · verification running`
 		case "verified": return `Live and verified since ${release.verifiedAt ? shortTime(release.verifiedAt) : "release"}`
 		case "stopped": return "Stopped by you before it applied. Nothing was released."
 		case "superseded": return "Superseded by a newer version before it applied"
 		case "declined": return "Kept in test by you. Nothing was released."
 	}
+}
+
+/* ---- Saving ------------------------------------------------------------- */
+/* Where a version stands on its way to confirmed storage. Only "saved" may read as saved. */
+export type Custody = { state: "preparing" | "transferring" | "saved" | "unsaved"; label: string; at?: number }
+export function custodyOf(state: AgentixState, artifact: Artifact, version: ArtifactVersion): Custody {
+	const save = state.work.flatMap(item => item.saves ?? []).find(entry => entry.artifactId === artifact.id && entry.version === version.version)
+	if (save?.phase === "preparing") return { state: "preparing", label: "Preparing output" }
+	if (save?.phase === "transferring") return { state: "transferring", label: "Transferring, not saved yet" }
+	return version.savedAt !== undefined ? { state: "saved", label: `Saved ${clockLabel(version.savedAt)}`, at: version.savedAt } : { state: "unsaved", label: "Not saved yet" }
+}
+
+/* ---- What a pending item binds, for the shell's My approvals --------------- */
+/* The exact target system or object, and the exact content version, the owner's answer applies to. */
+export function pendingBinding(state: AgentixState, entry: NeedsYouItem): { target?: string; version?: string } {
+	const item = entry.workId ? itemBy(state, entry.workId) : undefined
+	const decision = entry.decisionId ? decisionBy(state, entry.decisionId) : undefined
+	if (decision) {
+		const release = state.releases.find(value => value.decisionId === decision.id)
+		const version = decision.status === "withdrawn" ? currentVersion(state, decision) : decision.binding
+		if (release) { const artifact = artifactBy(state, release.artifactId); return { target: release.target, version: decision.status === "withdrawn" || !artifact ? version : `${artifact.title} v${release.version}` } }
+		const template = item ? templateOf(state, item) : undefined
+		const at = template?.steps.findIndex(step => step.decision === decision.template) ?? -1
+		const write = template?.steps.slice(Math.max(at, 0)).find(step => step.kind === "write" || step.kind === "release")
+		const bound = scenarioOf(state, decision.engagementId).decisions[decision.template]?.artifact
+		return { target: bound ? artifactBy(state, `${decision.engagementId}:${bound}`)?.title : write ? `${write.system ?? "Target system"} · ${write.title}` : item?.title, version }
+	}
+	if (entry.kind === "budget") { const engagement = state.engagements[entry.engagementId]; return { target: engagement.name, version: `${spendOf(state, engagement.id).toLocaleString("en-US")} of ${allowanceOf(engagement).toLocaleString("en-US")} units` } }
+	if (!item) return {}
+	if (entry.kind === "effect" && item.wait?.kind === "effect") {
+		const effectId = item.wait.effectId
+		const effect = item.effects.find(value => value.id === effectId)
+		return { target: effect?.system, version: effect?.operation }
+	}
+	const release = entry.releaseId ? releaseBy(state, entry.releaseId) : undefined
+	if (release) { const artifact = artifactBy(state, release.artifactId); return { target: release.target, version: artifact ? `${artifact.title} v${release.version}` : undefined } }
+	const artifact = item.artifactIds.map(id => artifactBy(state, id)).find(Boolean)
+	const step = templateOf(state, item)?.steps.find(value => (value.kind === "notify" && entry.kind === "partial") || (value.kind === "human" && entry.kind === "human"))
+	return { target: step?.system ?? (item.wait?.kind === "human" ? item.wait.owner : undefined) ?? artifact?.title ?? item.title, version: artifact ? `${artifact.title} v${latest(artifact).version}` : item.reference }
 }
 
 export const describeClock = (time: number) => londonTime(time)

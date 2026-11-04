@@ -12,7 +12,7 @@ import { VoiceOrb, type OrbState } from "@/components/voice/VoiceOrb"
  * demo) gets the same orb and turn-taking as the owner's call, in a page they open from a link:
  * MAX speaks each question, the stakeholder answers by voice (pause to send) or with the suggested
  * answer, and the topic ring fills. "Type instead" moves to the text interview with every answer
- * kept. Nothing is recorded; speech becomes text in the browser.
+ * kept. No audio is recorded or kept (D-037); speech becomes text in the browser, and the greeting says so.
  */
 
 type Turn = { id: string; from: "max" | "stakeholder"; text: string }

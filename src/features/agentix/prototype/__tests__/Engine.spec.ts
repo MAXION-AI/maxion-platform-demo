@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it } from "vitest"
-import { activate, activationBlockers, actOnEngagement, actOnRelease, actOnWork, addIncoming, advanceSchedule, advanceToWindow, answerQuestion, decide, fulfill, itemBy, latest, receivePackage, tick } from "../engine/engine"
+import { activate, activationBlockers, actOnEngagement, actOnRelease, actOnWork, addIncoming, advanceSchedule, advanceToWindow, answerQuestion, armFailure, decide, fulfill, investigateEffect, itemBy, latest, receivePackage, tick } from "../engine/engine"
 import { initialState } from "../engine/seed"
 import { achievements, needsYou, readinessSplit, statusOf, teamPresence } from "../engine/selectors"
 import { acceptOffer, sendInstruction, sendToAgent } from "../engine/steering"
@@ -9,6 +9,14 @@ const REV = "invoice"
 const run = (state: AgentixState, until: (s: AgentixState) => boolean, max = 120) => {
 	let current = state
 	for (let i = 0; i < max && !until(current); i++) current = tick(current)
+	if (!until(current)) throw new Error("condition not reached")
+	return current
+}
+/* A person reads the target back whenever an outcome is unknown; nothing else settles one. */
+const readBacks = (state: AgentixState) => state.work.reduce((current, entry) => { const effect = entry.effects.find(value => value.status === "unknown" && !value.investigating); return effect ? investigateEffect(current, entry.id, effect.id) : current }, state)
+const runReading = (state: AgentixState, until: (s: AgentixState) => boolean, max = 200) => {
+	let current = state
+	for (let i = 0; i < max && !until(current); i++) current = tick(readBacks(current))
 	if (!until(current)) throw new Error("condition not reached")
 	return current
 }
@@ -99,6 +107,10 @@ describe("flagship: Discovery → activation → engineering → operation", () 
 		state = decide(state, approval.id, "approve")
 		state = run(state, s => s.releases.some(r => r.status === "unknown"))
 		const release = state.releases.find(r => r.status === "unknown")!
+		// It stays unknown until a person asks for the read-back.
+		for (let i = 0; i < 6; i++) state = tick(state)
+		expect(state.releases.find(r => r.id === release.id)!.status).toBe("unknown")
+		state = investigateEffect(state, item(state, "MS-2").id, release.effectId)
 		state = run(state, s => s.releases.find(r => r.id === release.id)!.status !== "unknown")
 		const applied = state.releases.find(r => r.id === release.id)!
 		expect(applied.status).toBe("applied")
@@ -133,7 +145,7 @@ describe("releases", () => {
 		expect(statusOf(state, item(state, "MS-2")).label).toBe("Blocked")
 		expect(artifact(state, "pipeline").productionVersion).toBeUndefined()
 		state = actOnEngagement(state, REV, "restore-permission")
-		state = run(state, s => s.releases.some(r => r.status === "applied" || r.status === "verified"))
+		state = runReading(state, s => s.releases.some(r => r.status === "applied" || r.status === "verified"))
 		const effects = item(state, "MS-2").effects.filter(effect => effect.id.includes("REL-"))
 		expect(effects).toHaveLength(1)
 	})
@@ -152,7 +164,7 @@ describe("releases", () => {
 		state = tick(tick(state))
 		expect(state.releases.find(r => r.id === release.id)!.status).toBe("held")
 		state = advanceToWindow(state)
-		state = run(state, s => ["applied", "verified"].includes(s.releases.find(r => r.id === release.id)!.status))
+		state = runReading(state, s => ["applied", "verified"].includes(s.releases.find(r => r.id === release.id)!.status))
 	})
 
 	it("never releases without approval, whatever chat or holds say (audit bypass paths)", () => {
@@ -204,7 +216,7 @@ describe("amendments", () => {
 		state = decide(state, openDecision(state, item(state, "MS-1").id)!.id, "unassigned")
 		state = run(state, s => s.releases.some(r => r.status === "held"))
 		state = advanceToWindow(state)
-		return run(state, s => item(s, "MS-3").status === "verified")
+		return runReading(state, s => item(s, "MS-3").status === "verified")
 	}
 
 	it("turns a dashboard change into a new version and follow-up work, leaving production on the released version", () => {
@@ -278,9 +290,14 @@ describe("operations and recovery", () => {
 		expect(item(state, "INV-20844").effects.every(effect => effect.sends === 1)).toBe(true)
 	})
 
-	it("reconciles an uncertain ERP write instead of sending it twice", () => {
-		const state = run(initialState(), s => item(s, "INV-20843").flags.reconciled === true)
-		expect(item(state, "INV-20843").effects).toEqual([expect.objectContaining({ sends: 1, status: "applied" })])
+	it("settles an uncertain ERP write by reading it back, never by sending it twice", () => {
+		const armed = armFailure(initialState(), "writeLoss")
+		let state = run(armed, s => s.work.some(entry => entry.reference !== "STOCK-902" && entry.effects.some(effect => effect.status === "unknown")))
+		const work = state.work.find(entry => entry.reference !== "STOCK-902" && entry.effects.some(effect => effect.status === "unknown"))!
+		const effect = work.effects.find(entry => entry.status === "unknown")!
+		state = investigateEffect(state, work.id, effect.id)
+		state = run(state, s => s.work.find(entry => entry.id === work.id)!.flags.reconciled === true)
+		expect(state.work.find(entry => entry.id === work.id)!.effects).toEqual([expect.objectContaining({ sends: 1, status: "applied" })])
 		const stock = run(initialState(), s => item(s, "STOCK-902", "inventory").flags.reconciled === true)
 		expect(item(stock, "STOCK-902", "inventory").effects[0]).toMatchObject({ sends: 1, reference: "REQ-72018" })
 	})
@@ -390,6 +407,7 @@ describe("audit regressions", () => {
 		state = tick(state)
 		expect(lastStatus(state)).toBe("awaiting")
 		expect(latest(artifact(state, "mapping")).variant).not.toContain("approved-fields")
+		state = investigateEffect(state, item(state, "MS-2").id, reconciling.effectId)
 		state = run(state, s => s.messages.filter(m => m.role === "owner").at(-1)!.instruction?.status === "applied")
 		expect(["applied", "verified"]).toContain(state.releases.find(r => r.id === reconciling.id)!.status)
 		expect(latest(artifact(state, "mapping")).variant).toContain("approved-fields")
@@ -489,7 +507,7 @@ describe("audit round 2 regressions", () => {
 		state = decide(state, openDecision(state, item(state, "MS-1").id)!.id, "unassigned")
 		state = run(state, s => !!openDecision(s, item(s, "MS-2").id))
 		state = decide(state, openDecision(state, item(state, "MS-2").id)!.id, "approve")
-		state = run(state, s => s.releases.some(r => r.artifactId.endsWith(":dashboard") && r.status === "releasing"))
+		state = runReading(state, s => s.releases.some(r => r.artifactId.endsWith(":dashboard") && r.status === "releasing"))
 		state = sendInstruction(state, REV, { kind: "artifact", id: artifact(state, "mapping").id }, "Use only the approved source fields")
 		state = run(state, s => s.messages.filter(m => m.role === "owner").at(-1)!.instruction?.status === "applied")
 		const dashboardRelease = state.releases.find(r => r.artifactId.endsWith(":dashboard"))!
@@ -503,7 +521,7 @@ describe("audit round 2 regressions", () => {
 		state = decide(state, openDecision(state, item(state, "MS-1").id)!.id, "unassigned")
 		state = run(state, s => !!openDecision(s, item(s, "MS-2").id))
 		state = decide(state, openDecision(state, item(state, "MS-2").id)!.id, "approve")
-		state = run(state, s => item(s, "MS-3").status === "verified")
+		state = runReading(state, s => item(s, "MS-3").status === "verified")
 		// MS-2 is finished, so the pipeline change becomes follow-up work with its own release decision.
 		state = sendInstruction(state, REV, { kind: "artifact", id: artifact(state, "mapping").id }, "Use only the approved source fields")
 		const releaseDecision = (s: AgentixState) => s.decisions.find(d => d.template === "release" && d.status === "open")

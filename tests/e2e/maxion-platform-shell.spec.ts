@@ -44,7 +44,7 @@ test("keeps the canonical MAXION shell functional across core modules", async ({
 	await expect(page.getByRole("button", { name: "Open MAXION dashboard", exact: true }).getByRole("img", { name: "MAXION" })).toBeVisible()
 
 	const navigation = page.getByRole("navigation", { name: "Portal sections" })
-	for (const name of ["Dashboard", "Projects", "Discover", "Consult Max", "Integrations"]) {
+	for (const name of ["Dashboard", "Projects", "Discover", "Integrations"]) {
 		await expect(navigation.getByRole("button", { name })).toBeVisible()
 	}
 	// Plan and Execute are disabled: a Discovery's package goes straight to Agentix.

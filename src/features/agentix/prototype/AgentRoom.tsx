@@ -21,7 +21,7 @@ import { Prose, withoutReference } from "./prose"
  */
 
 export type RoomSelection = { kind: "owner" } | { kind: "agent"; id: string }
-const CAPABILITY_LABEL = { read: "read only", build: "build and test", production: "production", update: "record update", notify: "notify" } as const
+const CAPABILITY_LABEL = { read: "read only", build: "build and test", production: "production", update: "record update", notify: "notify", files: "versioned files" } as const
 
 export function AgentRoom({ state, engagementId, selection, update, onSelect, onClose, onDecide, onOpenWork, onOpenResult, onToast }: {
 	state: AgentixState

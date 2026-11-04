@@ -33,6 +33,6 @@ describe("routing a brief to its scenario", () => {
 			expect(scenario.people.length, `${scenario.key} people`).toBeGreaterThanOrEqual(3)
 			expect(scenario.sources.length, `${scenario.key} sources`).toBeGreaterThanOrEqual(3)
 		}
-		expect(DELIVERABLES).toHaveLength(9)
+		expect(DELIVERABLES).toHaveLength(11)
 	})
 })

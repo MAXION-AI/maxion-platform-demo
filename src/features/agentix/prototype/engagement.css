@@ -429,3 +429,28 @@ button.aop-dash-region:hover { text-decoration: underline; text-underline-offset
 .aop-view-error > svg { flex-shrink: 0; margin-top: 2px; color: var(--ds-warning-fg); }
 .aop-view-error h2 { font-size: var(--ds-text-md); line-height: var(--ds-lh-md); font-weight: var(--ds-weight-medium); }
 .aop-view-error p { margin: var(--ds-space-1) 0 var(--ds-space-3); color: var(--ds-fg-subtle); font-size: var(--ds-text-sm); line-height: var(--ds-lh-sm); }
+
+/*
+ * When work doesn't go to plan: what is confirmed, what isn't, and the one thing to do. One hairline
+ * above and below groups a state; attention is a pill and one filled button, never a tinted panel.
+ * `.ds-scope` resets margins on p, h3 and dl at equal specificity, so these carry the prefix.
+ */
+.ds-scope .aop-state { display: grid; gap: var(--ds-space-3); margin: 0; padding: var(--ds-space-4) 0; border-top: 1px solid var(--ds-border); border-bottom: 1px solid var(--ds-border); }
+.ds-scope .aop-state-head { display: flex; align-items: flex-start; justify-content: space-between; gap: var(--ds-space-3); }
+.ds-scope .aop-state-head h3, .ds-scope .aop-state-head strong { margin: 0; font-size: var(--ds-text-sm); line-height: var(--ds-lh-sm); font-weight: var(--ds-weight-medium); }
+.ds-scope .aop-state-head > .aop-status { flex-shrink: 0; }
+.ds-scope .aop-state-rows { margin: 0; }
+.ds-scope .aop-state-rows > div { display: grid; grid-template-columns: calc(var(--ds-space-12) * 2) minmax(0, 1fr); align-items: baseline; gap: var(--ds-space-4); min-height: 0; padding: var(--ds-space-1) 0; border-top: 0; }
+.ds-scope .aop-state-rows dt { color: var(--ds-fg-subtle); }
+.ds-scope .aop-state-rows dd { color: var(--ds-fg); text-align: left; }
+.ds-scope .aop-state-note { margin: 0; color: var(--ds-fg-subtle); font-size: var(--ds-text-sm); line-height: var(--ds-lh-sm); }
+.ds-scope .aop-state-recovery { display: grid; gap: var(--ds-space-2); margin: 0 0 var(--ds-space-2); }
+
+/* Publishing a result version as files. */
+.ds-scope .aop-files { display: grid; gap: var(--ds-space-3); margin: var(--ds-space-6) 0 0; }
+.ds-scope .aop-files-note { margin: 0; color: var(--ds-fg-subtle); font-size: var(--ds-text-sm); line-height: var(--ds-lh-sm); max-width: 68ch; }
+.ds-scope .aop-file-actions { display: inline-flex; flex-shrink: 0; align-items: center; gap: var(--ds-space-2); }
+@media (max-width: 40rem) {
+	.ds-scope .aop-state-rows > div { grid-template-columns: minmax(0, 1fr); gap: 0; }
+	.ds-scope .aop-file-row { flex-wrap: wrap; }
+}

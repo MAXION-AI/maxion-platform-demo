@@ -37,6 +37,12 @@ test("the interview runs from the invitation to a submission", async ({ page }) 
 	test.setTimeout(120_000)
 	await page.goto("/stakeholder-interview?demo=revenue&who=grace")
 
+	// The page says first that the interviewer is an AI, what is kept and who sees it (D-124).
+	await expect(page.getByText("MAX is an AI interviewer, not a person")).toBeVisible()
+	await expect(page.getByText(/Audio is never recorded or kept/)).toBeVisible()
+	await expect(page.getByText(/The Discovery owner and the project team\. Deliverables may cite what you said by name\./)).toBeVisible()
+	await expect(page.getByText(/anonymised/)).toHaveCount(0)
+
 	// Consent gates the start, as it does in the platform.
 	const start = page.getByRole("button", { name: "Start the interview" })
 	await expect(start).toBeDisabled()
@@ -44,7 +50,8 @@ test("the interview runs from the invitation to a submission", async ({ page }) 
 	await start.click()
 
 	// MAX introduces itself once, then asks one question per topic.
-	await expect(page.getByText(/I am MAX, running the Discovery on Revenue reconciliation/)).toBeVisible()
+	await expect(page.getByText(/I am MAX, an AI interviewer running the Discovery on Revenue reconciliation/)).toBeVisible()
+	await expect(page.getByText(/I keep a written transcript with your name on it, and no audio/)).toBeVisible()
 	await expect(page.getByText(/Start with SQL Server billing ledger/)).toBeVisible()
 	await expect(page.getByText("0 of 3 topics", { exact: false })).toBeVisible()
 
@@ -58,7 +65,10 @@ test("the interview runs from the invitation to a submission", async ({ page }) 
 
 	await page.getByRole("button", { name: "Finish and submit" }).click()
 	await expect(page.getByRole("heading", { name: "Submitted" })).toBeVisible()
-	await expect(page.getByText(/anonymised/)).toBeVisible()
+	// The promise is what the plan requires: attributed, no audio, and it says who reads it.
+	await expect(page.getByText(/under your name/)).toBeVisible()
+	await expect(page.getByText(/No audio was kept/)).toBeVisible()
+	await expect(page.getByText(/anonymised/)).toHaveCount(0)
 })
 
 test("a stakeholder who is the wrong person, or wants to come back, leaves cleanly", async ({ page }) => {
@@ -77,14 +87,14 @@ test("a stakeholder who is the wrong person, or wants to come back, leaves clean
 test("opening the interview never takes the demo's saved state", async ({ page, context }) => {
 	test.setTimeout(90_000)
 	await page.goto("/maxion-prototype?demo=revenue&fresh=1")
-	await expect(page.locator(".mxd-dock-row")).toContainText("1/12")
+	await expect(page.locator(".mxd-dock-row")).toContainText("1/14")
 
 	const interview = await context.newPage()
 	await interview.goto("/stakeholder-interview?demo=revenue")
 	await expect(interview.getByRole("heading", { name: "Revenue reconciliation: SQL Server to AWS" })).toBeVisible()
 	// The demo tab still owns the demo: no "Continues in another tab", no lost place.
 	await page.bringToFront()
-	await expect(page.locator(".mxd-dock-row")).toContainText("1/12")
+	await expect(page.locator(".mxd-dock-row")).toContainText("1/14")
 	await expect(page.getByText("Continues in another tab")).toHaveCount(0)
 	await interview.close()
 })
@@ -117,7 +127,7 @@ test("moving between two stakeholders in one window follows the address", async 
 	// And a different demo entirely, mid-interview: the second interview starts from its invitation.
 	await page.getByRole("checkbox").check()
 	await page.getByRole("button", { name: "Start the interview" }).click()
-	await expect(page.getByText(/I am MAX, running the Discovery/)).toBeVisible()
+	await expect(page.getByText(/I am MAX, an AI interviewer running the Discovery/)).toBeVisible()
 	await page.evaluate(() => { window.history.pushState(null, "", "/stakeholder-interview?demo=servicenow"); window.dispatchEvent(new PopStateEvent("popstate")) })
 	await expect(page.getByRole("heading", { name: "AP invoice exceptions: ServiceNow triage and approval authority" })).toBeVisible()
 	await expect(page.getByRole("button", { name: "Start the interview" })).toBeDisabled()

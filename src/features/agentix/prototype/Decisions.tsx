@@ -2,10 +2,11 @@ import { ArrowRight, CaretRight, Pause, Play } from "@phosphor-icons/react"
 import { CalendarBlank, Question, RocketLaunch, Scales, ShieldCheck, StopCircle, UserCircle, WarningCircle } from "./glyphs"
 import { Button as DsButton } from "@/design/primitives"
 import { useEffect, useId, useRef, useState, type KeyboardEvent, type ReactNode } from "react"
-import { artifactBy, artifactSpec, decisionBy, itemBy, latest, releaseWindowOf, scenarioOf } from "./engine/engine"
-import { decisionTitle, releaseSentence, releaseStatusLabel, shortTime } from "./engine/selectors"
+import { artifactBy, artifactSpec, decisionBy, itemBy, latest, publishesFiles, releaseWindowOf, scenarioOf } from "./engine/engine"
+import { decisionTitle, releaseSentence, releaseView, shortTime } from "./engine/selectors"
 import type { ReleaseAction } from "./engine/engine"
 import type { AgentixState, Release } from "./engine/types"
+import { ChangedRequest } from "./CaseStates"
 import { Status } from "./OperationsViews"
 
 /*
@@ -27,6 +28,8 @@ export function DecisionCard({ state, decisionId, onDecide, compact = false, con
 	// Leaving a confirmation puts focus back on the choice that opened it; that button is re-created, so it's found by its option.
 	useEffect(() => { if (returnFocus && asked.current) root.current?.querySelector<HTMLButtonElement>(`[data-option="${asked.current}"]`)?.focus() }, [returnFocus])
 	if (!decision) return null
+	// Its exact content changed: there is nothing to approve here any more, and it says so.
+	if (decision.status === "withdrawn" && decision.changed) return <ChangedRequest state={state} decisionId={decisionId} onDecide={onDecide} onReview={onOpen} />
 	const spec = scenarioOf(state, decision.engagementId).decisions[decision.template]
 	const item = itemBy(state, decision.workItemId)
 	const release = decision.template === "release" ? state.releases.find(entry => entry.decisionId === decision.id) : undefined
@@ -38,7 +41,7 @@ export function DecisionCard({ state, decisionId, onDecide, compact = false, con
 	const choose = (option: string, outcome: string) => { if (closing(outcome) && confirming !== option) { asked.current = option; setConfirming(option); return } setConfirming(null); onDecide(option) }
 	const back = () => { setConfirming(null); setReturnFocus(value => value + 1) }
 	const cancel = (event: KeyboardEvent) => { if (event.key === "Escape") { event.stopPropagation(); back() } }
-	const facts = release ? releaseFacts(state, release) : spec.facts.map(fact => fact.label === "Record" ? { ...fact, value: `${item.reference} · ${fact.value.toLowerCase()}` } : fact)
+	const facts = release ? releaseFacts(state, release) : [...spec.facts.map(fact => fact.label === "Record" ? { ...fact, value: `${item.reference} · ${fact.value.toLowerCase()}` } : fact), ...decision.revision ? [{ label: "Revision", value: `${decision.revision.number}. ${decision.revision.reason}` }] : []]
 	const pending = confirming ? spec.options.find(option => option.id === confirming) : undefined
 	return (
 		<section ref={root} className={`aop-decision${compact ? " is-compact" : ""}`} aria-labelledby={headingId}>
@@ -115,9 +118,10 @@ export const restartLabel = (release: Release) => release.authority === "approva
 
 export function ReleaseCard({ state, release, onAction, onRequestAgain, onRestore }: { state: AgentixState; release: Release; onAction: (action: ReleaseAction) => void; onRequestAgain: () => void; onRestore: () => void }) {
 	const artifact = artifactBy(state, release.artifactId)
-	const status = releaseStatusLabel[release.status]
+	const status = releaseView(state, release)
 	const headingId = useId()
-	const settled = ["applied", "verified", "unknown", "superseded"].includes(release.status)
+	const settled = ["applied", "verified", "unknown", "not_applied", "superseded"].includes(release.status)
+	const files = !!artifact && publishesFiles(state, artifact)
 	return (
 		<section className={`aop-release is-${status.tone}`} aria-labelledby={headingId}>
 			<header className="aop-release-head">
@@ -128,7 +132,6 @@ export function ReleaseCard({ state, release, onAction, onRequestAgain, onRestor
 				</div>
 				<Status label={status.label} tone={status.tone} live={release.status === "releasing"} />
 			</header>
-			{release.status === "unknown" ? <p className="aop-callout is-warning" role="status"><WarningCircle size={16} />The adapter timed out after dispatch, so the release may already have applied. Agentix reads the target back before doing anything else; it never retries blindly.</p> : null}
 			{release.status === "blocked" ? (
 				<div className="aop-callout is-danger">
 					<WarningCircle size={16} />
@@ -140,7 +143,7 @@ export function ReleaseCard({ state, release, onAction, onRequestAgain, onRestor
 				</div>
 			) : null}
 			<details className="aop-inline-disclosure aop-release-facts">
-				<summary><CaretRight size={12} />Target, changes, checks and recovery</summary>
+				<summary><CaretRight size={12} />{files ? "Files, changes, checks and recovery" : "Target, changes, checks and recovery"}</summary>
 				<dl className="aop-rows is-stacked">
 					{releaseFacts(state, release).map(fact => <div key={fact.label}><dt>{fact.label}</dt><dd>{fact.value}</dd></div>)}
 				</dl>
@@ -148,10 +151,10 @@ export function ReleaseCard({ state, release, onAction, onRequestAgain, onRestor
 			{settled || release.status === "blocked" ? null : (
 				<footer className="aop-actions aop-release-actions">
 					{release.status === "held" && release.ownerHold ? <DsButton onClick={() => onAction("release-now")}><Play size={14} />Lift your hold</DsButton> : null}
-					{(release.status === "preparing" || release.status === "releasing") && !release.windowOnly ? <DsButton onClick={() => onAction("hold-window")}><CalendarBlank size={14} />Hold until {releaseWindowOf(state, release.engagementId).label}</DsButton> : null}
+					{(release.status === "preparing" || release.status === "releasing") && !release.windowOnly && !files ? <DsButton onClick={() => onAction("hold-window")}><CalendarBlank size={14} />Hold until {releaseWindowOf(state, release.engagementId).label}</DsButton> : null}
 					{release.status === "stopped" ? <DsButton onClick={() => onAction("resume")}><Play size={14} />{restartLabel(release)}</DsButton> : null}
 					{release.status === "declined" ? <DsButton onClick={onRequestAgain}><ArrowRight size={14} />{restartLabel(release)}</DsButton> : null}
-					{release.status !== "stopped" && release.status !== "declined" ? <DsButton onClick={() => onAction("stop")}><StopCircle size={14} />Stop release</DsButton> : null}
+					{release.status !== "stopped" && release.status !== "declined" ? <DsButton onClick={() => onAction("stop")}><StopCircle size={14} />{files ? "Stop publishing" : "Stop release"}</DsButton> : null}
 				</footer>
 			)}
 		</section>

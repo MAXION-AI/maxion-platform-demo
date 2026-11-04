@@ -14,6 +14,11 @@
 .adm-top .ds-topbar { padding-left: var(--ds-space-4); }
 .adm-top .ds-crumb { padding-inline: var(--ds-space-1); font-size: var(--ds-text-sm); }
 .adm-identity { color: var(--ds-fg-subtle); font-size: var(--ds-text-meta); line-height: var(--ds-lh-meta); white-space: nowrap; }
+/* The demo's staff-identity control: a quiet select, narrow enough never to push the crumb out. */
+.adm-viewas { display: flex; align-items: center; gap: var(--ds-space-2); min-width: 0; color: var(--ds-fg-subtle); font-size: var(--ds-text-meta); line-height: var(--ds-lh-meta); white-space: nowrap; }
+.adm-viewas > .org-select { max-width: 18rem; }
+.adm-viewas select { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ds-scope .adm-view-note { margin-bottom: var(--ds-space-5); color: var(--ds-fg-subtle); font-size: var(--ds-text-sm); line-height: var(--ds-lh-sm); }
 
 .adm-page .org-facts { margin-bottom: var(--ds-space-5); }
 .adm-search { margin-bottom: var(--ds-space-4); }
@@ -31,6 +36,10 @@
 .adm-effective { display: grid; max-width: 18rem; color: var(--ds-fg); font-weight: var(--ds-weight-medium); text-align: right; }
 .adm-effective > small { font-weight: var(--ds-weight-regular); }
 .adm-root .ds-button.adm-danger { color: var(--ds-danger-fg); }
+/* A control this role can't use: the reason sits where the button would, plain text, never a disabled button. */
+.adm-denied { display: block; max-width: 9rem; color: var(--ds-fg-subtle); font-size: var(--ds-text-meta); line-height: var(--ds-lh-meta); text-align: right; }
+.adm-badges { display: flex; flex-wrap: wrap; gap: var(--ds-space-1); }
+.org-rows > .adm-cost-table { margin-top: var(--ds-space-4); }
 
 /* The receipt being followed: one quiet line, never a toast alone. */
 .adm-receipt { display: flex; align-items: center; gap: var(--ds-space-2); min-height: var(--ds-space-5); margin-bottom: var(--ds-space-3); color: var(--ds-fg-subtle); font-size: var(--ds-text-sm); line-height: var(--ds-lh-sm); }
@@ -58,6 +67,9 @@
 .adm-warning { display: flex; align-items: flex-start; gap: var(--ds-space-2); color: var(--ds-warning-fg); font-size: var(--ds-text-sm); line-height: var(--ds-lh-sm); }
 .adm-warning svg { flex-shrink: 0; width: var(--ds-icon); height: var(--ds-icon); margin-top: 2px; }
 .adm-commit-fields { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: var(--ds-space-3); }
+.adm-form-group { display: grid; gap: var(--ds-space-3); }
+.adm-form-group > h3 { color: var(--ds-fg); font-size: var(--ds-text-sm); line-height: var(--ds-lh-sm); font-weight: var(--ds-weight-medium); }
+.ds-scope .adm-simulate { justify-self: start; margin-top: var(--ds-space-1); }
 .adm-dialog-commit { display: flex; align-items: center; gap: var(--ds-space-3); }
 .adm-blocker { color: var(--ds-fg-subtle); font-size: var(--ds-text-meta); line-height: var(--ds-lh-meta); }
 
@@ -68,10 +80,22 @@
 	.adm-root { grid-template-columns: minmax(0, 1fr); }
 	.adm-top .ds-topbar { padding-left: calc(var(--ds-mobile-nav-offset) + var(--ds-space-4)); }
 	.adm-identity { display: none; }
+	.adm-viewas > span { display: none; }
+	.adm-viewas > .org-select { max-width: 11rem; }
+}
+/* On phones a receipt's status sits beside its change, where an action would, and the
+ * operator, reason, ticket and revision wrap below it: five details don't fit one line. */
+@media (max-width: 700px) {
+	.ds-scope .adm-receipts .ds-table-row { display: flex; flex-wrap: wrap; align-items: center; }
+	.ds-scope .adm-receipts .ds-table-row > .ds-cell-primary { flex: 1 1 0; order: 0; }
+	.ds-scope .adm-receipts .ds-table-row > .ds-cell:last-child:not(.ds-cell-primary) { order: 1; min-width: max-content; overflow: visible; }
+	.ds-scope .adm-receipts .ds-table-row::after { content: ""; flex-basis: 100%; order: 1; }
+	.ds-scope .adm-receipts .ds-table-row > .ds-cell:not(.ds-cell-primary, :last-child) { order: 2; }
 }
 @media (max-width: 640px) {
 	.adm-commit-fields { grid-template-columns: minmax(0, 1fr); }
 	.adm-effective { max-width: none; text-align: left; }
+	.adm-denied { max-width: none; text-align: left; }
 }
 @media (prefers-reduced-motion: reduce) {
 	.adm-spin { animation: none; }

@@ -4,8 +4,8 @@ import { AnimatePresence, motion } from "motion/react"
 import { Button as DsButton, Mark, TextButton } from "@/design/primitives"
 import { ShimmerText, useRiseIn } from "@/components/motion/MotionKit"
 import { forwardRef, useState } from "react"
-import { artifactBy, isTerminal, latest, releaseBy } from "./engine/engine"
-import { achievements, dayLabel, itemSentence, measures, needsYou, releaseStatusLabel, shortTime, teamPresence, workSummary, type NeedsYouItem } from "./engine/selectors"
+import { allowanceOf, artifactBy, isTerminal, latest, releaseBy, spendOf } from "./engine/engine"
+import { achievements, dayLabel, itemSentence, measures, needsYou, releaseView, shortTime, teamPresence, units, workSummary, type NeedsYouItem } from "./engine/selectors"
 import { scopeKey, type AgentixState, type WorkItem } from "./engine/types"
 import { DecisionCard } from "./Decisions"
 import { WorkStatus, workIcon } from "./OperationsViews"
@@ -38,7 +38,7 @@ export const WorkRow = forwardRef<HTMLButtonElement, { state: AgentixState; item
 				<small><span className="aop-mono">{item.reference}</span> · {live ? <ShimmerText>{itemSentence(state, item)}</ShimmerText> : itemSentence(state, item)}</small>
 				<span className="aop-work-chips">
 					{version && item.kind === "milestone" ? <span className="aop-chip is-outline">{artifact!.title} v{version.version}{version.checks.length ? ` · ${passed}/${version.checks.length} checks` : ""}</span> : null}
-					{release && release.status !== "superseded" ? <span className="aop-chip is-outline"><RocketLaunch size={12} />{release.reference} · {releaseStatusLabel[release.status].label}</span> : null}
+					{release && release.status !== "superseded" ? <span className="aop-chip is-outline"><RocketLaunch size={12} />{release.reference} · {releaseView(state, release).label}</span> : null}
 					{item.priority === "High" && !isTerminal(item) ? <span className="aop-chip">High priority</span> : null}
 					{draft ? <span className="aop-chip is-outline">Unsent message</span> : null}
 				</span>
@@ -65,7 +65,7 @@ function WorkSection({ title, note, items, state, onOpen, empty }: { title: stri
 	)
 }
 
-const NEEDS_KIND: Partial<Record<NeedsYouItem["kind"], string>> = { human: "A person's confirmation", failed: "Stopped · needs a next step", partial: "Partly complete", permission: "Release blocked", setup: "Setup" }
+const NEEDS_KIND: Partial<Record<NeedsYouItem["kind"], string>> = { human: "A person's confirmation", failed: "Stopped · needs a next step", partial: "Partly complete", permission: "Release blocked", setup: "Setup", effect: "An uncertain write", budget: "Allowance used" }
 
 /* Needs you inside an engagement: the first decision in full, the rest as one-line rows. */
 function NeedsYouHere({ state, items, callbacks }: { state: AgentixState; items: NeedsYouItem[]; callbacks: WorkCallbacks }) {
@@ -89,9 +89,9 @@ function NeedsYouHere({ state, items, callbacks }: { state: AgentixState; items:
 						</div>
 					</header>
 					<footer className="aop-decision-foot">
-						<small>{first.kind === "permission" ? "Build and test continue. Nothing is released until permission is back." : "Only this item waits; other work continues."}</small>
+						<small>{first.kind === "permission" ? "Build and test continue. Nothing is released until permission is back." : first.kind === "budget" ? "Reads, downloads and decisions stay available." : "Only this item waits; other work continues."}</small>
 						<div className="aop-actions">
-							{first.kind === "permission" ? <DsButton variant="primary" onClick={callbacks.onRestore}>Restore release permission (demo)</DsButton> : <DsButton variant="primary" onClick={() => first.workId && callbacks.onOpenWork(first.workId)}>{first.action}<ArrowRight size={14} /></DsButton>}
+							{first.kind === "permission" ? <DsButton variant="primary" onClick={callbacks.onRestore}>Restore release permission (demo)</DsButton> : first.workId ? <DsButton variant="primary" onClick={() => first.workId && callbacks.onOpenWork(first.workId)}>{first.action}<ArrowRight size={14} /></DsButton> : null}
 						</div>
 					</footer>
 				</section>
@@ -180,6 +180,7 @@ export function WorkView({ state, engagementId, callbacks, showHistory, onHistor
 						<div><dt>Service health</dt><dd>{engagement.connection === "expired" ? "Notification connection expired" : engagement.permission === "lost" ? "Release permission lost" : engagement.checking ? "Rechecking the notification connection" : "All connections checked"}</dd></div>
 						{/* This counts cycles and cases, never milestones, so it must not be called "results": the
 						    Results tab counts the delivered artifacts and the two numbers would contradict. */}
+						<div><dt>Units used</dt><dd>{units(spendOf(state, engagementId))} of {allowanceOf(engagement).toLocaleString("en-US")}</dd></div>
 						<div><dt>Verified runs</dt><dd>{figures.total ? `${figures.verified} of ${figures.total} finished` : "None run yet"}</dd></div>
 						<div><dt>Median time to verify</dt><dd>{figures.medianMinutes === null ? "—" : `${figures.medianMinutes} min`}</dd></div>
 					</dl>

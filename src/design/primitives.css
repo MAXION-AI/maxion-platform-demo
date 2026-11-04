@@ -10,6 +10,7 @@
 /* Resets use :where() so they never outrank a primitive class. */
 .ds-scope :where(h1, h2, h3, h4, p, dl, dd, ul, ol, figure, blockquote) { margin: 0; }
 :where(.ds-scope) :where(button, input, textarea, select) { font: inherit; letter-spacing: inherit; color: inherit; }
+:where(.ds-scope) :where(strong, b) { font-weight: var(--ds-weight-medium); }
 .ds-scope button { cursor: pointer; }
 .ds-scope svg { flex-shrink: 0; }
 /* The ring rule stays at class weight so a component that draws its own indicator

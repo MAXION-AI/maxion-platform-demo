@@ -27,7 +27,7 @@ export function systemsOf(engagement: Engagement): SystemLink[] {
 }
 
 const words = (text: string) => text.toLowerCase().split(/[^a-z0-9/]+/).filter(word => word.length > 2)
-/* Which systems a step names: "SQL Server + AWS PostgreSQL" names two, "Dashboards" names the finance dashboards. */
+/* Which systems a step names: "SQL Server + AWS PostgreSQL" names two, "Versioned files" names the published file versions. */
 export function systemsForStep(system: string | undefined, links: SystemLink[]): SystemLink[] {
 	if (!system) return []
 	const parts = system.split(/\s*\+\s*/).map(part => part.trim().toLowerCase()).filter(Boolean)
@@ -48,7 +48,7 @@ export function reachOf(state: AgentixState, engagementId: string): Reach[] {
 	// Production belongs to the accountable agent: a specialist's work there is a release the coordinator makes.
 	const add = (agent: string, link: SystemLink) => {
 		if (!team.some(member => member.id === agent)) return
-		if (link.capability === "production" && agent !== lead.id) return
+		if ((link.capability === "production" || link.capability === "files") && agent !== lead.id) return
 		found.set(`${agent}→${link.id}`, { agent, system: link.id, capability: link.capability })
 	}
 	for (const template of Object.values(scenario.templates)) {
@@ -105,9 +105,9 @@ export type FloorLayout = {
 	/* Narrow systems drop their icon tile so their names keep the width. */
 	systemTiles: boolean
 }
-/* How wide a name sets: the floor passes the real font's measure; the fallback is Inter's average advance. */
+/* How wide a name sets: the floor passes the real font's measure; the fallback is an average advance. */
 export type Measure = (text: string, kind: "agent" | "system") => number
-const averageMeasure: Measure = (text, kind) => text.length * (kind === "agent" ? 7.2 : 6.6)
+const averageMeasure: Measure = (text, kind) => text.length * (kind === "agent" ? 7.5 : 6.9)
 /* Lines a name takes when it wraps at word breaks inside a width. */
 export function lineCount(text: string, width: number, kind: "agent" | "system", measure: Measure = averageMeasure) {
 	let lines = 1, current = ""
@@ -117,10 +117,10 @@ export function lineCount(text: string, width: number, kind: "agent" | "system",
 	}
 	return lines
 }
-/* Seat heights follow team-floor.css: a body with 16px padding (12px top and bottom on a tight floor), a 14/20
- * name and two 12/16 lines of what the agent is doing, over a 31px footer of chips (6px padding, 18px chips,
+/* Seat heights follow team-floor.css: a body with 16px padding (12px top and bottom on a tight floor), a 15/21
+ * name and two 13/18 lines of what the agent is doing, over a 34px footer of chips (6px padding, 21px chips,
  * its hairline). A tight floor gives a two-line name the footer's room. */
-export const SEAT = { owner: 52, agent: 124, tight: 96, system: 48, system3: 64 }
+export const SEAT = { owner: 52, agent: 128, tight: 102, system: 48, system3: 64 }
 const SEAT_PAD = 16
 const SYS_PAD = 12
 const PAD_X = 32
@@ -456,7 +456,7 @@ export function liveFlows(state: AgentixState, engagementId: string): Flow[] {
 			if (!spec || spec.owner === "owner" || step.status !== "working") return
 			for (const link of systemsForStep(spec.system, links)) {
 				// A specialist building something for production works in its sandbox, not in production.
-				if (link.capability === "production" && spec.kind !== "release" && spec.owner !== accountable(engagement).id) continue
+				if ((link.capability === "production" || link.capability === "files") && spec.kind !== "release" && spec.owner !== accountable(engagement).id) continue
 				set({ agent: spec.owner, system: link.id, direction: INBOUND.includes(link.capability) ? "in" : "out", state: "active", label: spec.doing })
 			}
 		})
@@ -466,7 +466,8 @@ export function liveFlows(state: AgentixState, engagementId: string): Flow[] {
 			const target = releaseTarget(release.target, links)
 			if (!target) continue
 			const lead = accountable(engagement).id
-			if (release.status === "unknown") set({ agent: lead, system: target.id, direction: "in", state: "readback", label: `${release.reference}: outcome unknown · reading the target back, nothing resent`, pill: "Reading back" })
+			if (release.status === "unknown") { const reading = item.effects.find(effect => effect.id === release.effectId)?.investigating; set({ agent: lead, system: target.id, direction: "in", state: reading ? "readback" : "waiting", label: reading ? `${release.reference}: outcome unknown · reading the target back, nothing resent` : `${release.reference}: outcome unknown · waits for you to read the target back`, pill: reading ? "Reading back" : "Outcome unknown" }) }
+			else if (release.status === "not_applied") set({ agent: lead, system: target.id, direction: "out", state: "waiting", label: `${release.reference}: read-back confirmed it did not apply`, pill: "Not applied" })
 			else if (release.status === "releasing") set({ agent: lead, system: target.id, direction: "out", state: "active", label: `Releasing ${release.reference}` })
 			else if (release.status === "blocked") set({ agent: lead, system: target.id, direction: "out", state: "blocked", label: `${release.reference} blocked · release permission lost`, pill: "Blocked" })
 			else if (release.status === "awaiting_approval" || release.status === "held") set({ agent: lead, system: target.id, direction: "out", state: "waiting", label: release.status === "held" ? `${release.reference} held for its window` : `${release.reference} waits for your approval`, pill: release.status === "held" ? "Held for its window" : "Awaits your approval" })
@@ -503,7 +504,7 @@ export function packetsFor(state: AgentixState, engagementId: string, events: Ac
 			packets.push({ id: event.id, from: event.from, to: event.to, label: artifact ? `${artifact.title} v${latest(artifact).version}` : "Work", tone: "neutral" })
 		} else if (event.kind === "decision" && event.actor !== OWNER && event.tone === "attention") {
 			packets.push({ id: event.id, from: team.includes(event.actor) ? event.actor : lead, to: OWNER, label: "Needs you", tone: "attention" })
-		} else if (event.kind === "decision" && event.actor === OWNER) {
+		} else if (event.kind === "decision" && event.actor === OWNER && event.tone !== "attention") {
 			const item = event.workItemId ? state.work.find(entry => entry.id === event.workItemId) : undefined
 			const template = item ? templateOf(state, item) : undefined
 			const next = item && template ? template.steps.find((spec, index) => spec.owner !== OWNER && item.steps[index]?.status !== "done" && item.steps[index]?.status !== "skipped")?.owner : undefined
@@ -513,6 +514,7 @@ export function packetsFor(state: AgentixState, engagementId: string, events: Ac
 			const target = release ? releaseTarget(release.target, links) : undefined
 			if (!release || !target) continue
 			if (/applied:/.test(event.text)) packets.push({ id: event.id, from: lead, to: `system:${target.id}`, label: `${release.reference} applied`, tone: "positive" })
+			else if (/published:/.test(event.text)) packets.push({ id: event.id, from: lead, to: `system:${target.id}`, label: `${release.reference} published`, tone: "positive" })
 			else if (/reconciled:/.test(event.text)) packets.push({ id: event.id, from: `system:${target.id}`, to: lead, label: "Read back · applied once", tone: "positive" })
 			else if (/outcome unknown/.test(event.text)) packets.push({ id: event.id, from: lead, to: `system:${target.id}`, label: "No acknowledgement", tone: "attention" })
 		}

@@ -10,7 +10,6 @@ The prototype mirrors the current MAXION portal shell and connects the product m
 - Projects — searchable project library, creation, details, membership, and archive states
 - Discovery — autonomous inquiry, interviews, evidence, exceptions, and verified packages
 - Agentix — deployed agents with ongoing intake, concurrent cases, scoped steering, readiness/repair and verified outcomes
-- Consult MAX — cross-platform explanation and routing
 - Settings — the organization's own administration: members and invitations, policy over what MAXION grants, provider keys and the audit log
 - Integrations — personal connections through Merge or MAXION native adapters, with project grants, read/write classes and tracked disconnects
 - Knowledge — what agents should know about the organization: profile, rules, compliance, procedures, brand kit and glossary, with review and versions

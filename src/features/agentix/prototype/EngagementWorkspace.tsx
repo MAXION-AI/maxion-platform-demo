@@ -2,9 +2,9 @@ import { ArrowLeft, CaretRight } from "@phosphor-icons/react"
 import { BellSlash, FileArrowDown, PauseCircle, ShieldWarning, XCircle } from "./glyphs"
 import { Button as DsButton, Dialog } from "@/design/primitives"
 import { useEffect, useLayoutEffect, useRef, useState, type KeyboardEvent } from "react"
-import { actOnEngagement, actOnRelease, actOnWork, artifactBy, decide, fulfill, isTerminal, itemBy, releaseBy, decisionBy, assignWork, type ReleaseAction, type WorkAction } from "./engine/engine"
+import { acknowledgeChange, actOnEngagement, actOnRelease, actOnWork, allowanceOf, artifactBy, budgetExhausted, decide, fulfill, investigateEffect, isTerminal, itemBy, releaseBy, decisionBy, assignWork, spendOf, type ReleaseAction, type WorkAction } from "./engine/engine"
 import { packageFor, SCENARIOS } from "./engine/scenarios"
-import { needsYou } from "./engine/selectors"
+import { needsYou, successorOf, units } from "./engine/selectors"
 import { acceptOffer, sendInstruction } from "./engine/steering"
 import { sameScope, scopeKey, type AgentixState, type Nav, type ObjectRef, type ScopeRef, type View } from "./engine/types"
 import { ActivityView } from "./ActivityView"
@@ -107,6 +107,12 @@ export function EngagementWorkspace({ state, engagementId, update, onDetails, on
 	const workAction = (id: string, action: WorkAction) => update(current => actOnWork(current, id, action))
 	const releaseAction = (id: string, action: ReleaseAction) => { update(current => actOnRelease(current, id, action)); if (action === "stop") onToast("Release stopped. Nothing was released.") }
 	const restore = () => { update(current => actOnEngagement(current, engagementId, "restore-permission")); onToast("Release permission restored. Blocked releases continue under the same policy.") }
+	const reviewChange = (decisionId: string) => {
+		const decision = decisionBy(state, decisionId)
+		update(current => acknowledgeChange(current, decisionId))
+		// Its replacement is on the same page when there is one; otherwise the current version is in Results.
+		if (decision && !successorOf(state, decision) && decision.changed?.artifactId) openResult(decision.changed.artifactId)
+	}
 	const reconnect = () => { update(current => actOnEngagement(current, engagementId, "reconnect")); onToast("Reconnected. Rechecking before outstanding sends resume.") }
 
 	const onTabKey = (event: KeyboardEvent<HTMLButtonElement>, index: number) => {
@@ -158,6 +164,13 @@ export function EngagementWorkspace({ state, engagementId, update, onDetails, on
 								{engagement.checking ? null : <DsButton onClick={reconnect}>Reconnect notification account (demo)</DsButton>}
 							</section>
 						) : null}
+						{budgetExhausted(state, engagementId) ? (
+							<section className="aop-callout aop-strip" aria-label="Paid work limit">
+								<ShieldWarning size={16} aria-hidden="true" />
+								<p>Paid work is stopped: {units(spendOf(state, engagementId))} of {allowanceOf(engagement).toLocaleString("en-US")} used. Results, downloads and decisions stay available.</p>
+								<DsButton size="sm" onClick={() => update(current => actOnEngagement(current, engagementId, engagement.budget?.requestedAt ? "grant-budget" : "request-budget"))}>{engagement.budget?.requestedAt ? "Add units (demo)" : "Request more units"}</DsButton>
+							</section>
+						) : null}
 						{engagement.permission === "lost" ? (
 							<section className="aop-callout aop-strip is-danger" aria-label="Release permission">
 								<ShieldWarning size={16} aria-hidden="true" />
@@ -190,12 +203,13 @@ export function EngagementWorkspace({ state, engagementId, update, onDetails, on
 									onDecide: decideWith, onFulfill: reference => { update(current => fulfill(current, selected.id, reference)); onToast(`Owner confirmation attached to ${selected.reference}. Verification follows.`) },
 									onWork: action => workAction(selected.id, action), onRelease: releaseAction, onRestore: restore, onReconnect: reconnect,
 									onOpenResult: id => openResult(id), onOpenWork: openWork, onMessage: () => messageAbout({ kind: "work", id: selected.id }),
+									onReviewChange: reviewChange, onInvestigate: effectId => update(current => investigateEffect(current, selected.id, effectId)), onBudget: action => update(current => actOnEngagement(current, engagementId, action)),
 								}} />
 							</>
 						) : nav.view === "work" ? (
 							<WorkView state={state} engagementId={engagementId} showHistory={showHistory} onHistory={setShowHistory} callbacks={{ onOpenWork: openWork, onOpenResult: id => openResult(id), onDecide: decideWith, onTeam: () => onDetails("team"), onRestore: restore }} />
 						) : nav.view === "results" ? (
-							<ResultsView state={state} engagementId={engagementId} resultId={nav.resultId} callbacks={{ onSelect: openResult, onRequestChange: id => messageAbout({ kind: "artifact", id }), onOpenWork: openWork, focusRequest: focusResult }} />
+							<ResultsView state={state} engagementId={engagementId} resultId={nav.resultId} callbacks={{ onSelect: openResult, onRequestChange: id => messageAbout({ kind: "artifact", id }), onOpenWork: openWork, focusRequest: focusResult, update }} />
 						) : (
 							<ActivityView state={state} engagementId={engagementId} filter={nav.activityFilter} onFilter={filter => setNav({ activityFilter: filter })} onOpen={openRef} />
 						)}

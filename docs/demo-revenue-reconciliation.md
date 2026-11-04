@@ -1,6 +1,6 @@
 # Customer demo: revenue reconciliation, Discovery to Agentix
 
-One repeatable demo that tells a single story end to end. A finance owner asks MAXION to reconcile daily revenue between an on-prem SQL Server billing ledger and the AWS revenue schema. Discovery investigates it and produces a nine-document decision package. Agentix receives that package and creates the engagement from nothing, and an agent team builds, tests, releases and then runs the work every morning.
+One repeatable demo that tells a single story end to end. A finance owner asks MAXION to reconcile daily revenue between an on-prem SQL Server billing ledger and the AWS revenue schema. Discovery investigates it and produces a eight-document decision package. Agentix receives that package and creates the engagement from nothing, and an agent team builds, tests, releases and then runs the work every morning.
 
 Everything is simulated in the browser. No ledger, AWS, ERP, Teams or email action happens, and no real customer data is used. The company (Northstar), the people and the figures are synthetic.
 
@@ -30,7 +30,7 @@ The hosted addresses work once a build containing the demo has been published; s
 4. Share only the demo tab.
 5. Leave the operating system's reduced-motion setting off, so replies stream and documents land one by one.
 
-The **Revenue demo** row in the sidebar shows the current step, for example `3/12`. Open it for what to do and what to say, and for the one button that moves the story on (**Fill answer**, **Open the decision**, **Open the proposal** and so on). It also has **Restart…** and **Exit demo**. It is small and quiet, but the customer can see it on a shared screen. If you'd rather they didn't, keep it closed and work from the presenter window.
+The **Revenue demo** row in the sidebar shows the current step, for example `4/14`. Open it for what to do and what to say, and for the one button that moves the story on (**Fill answer**, **Open the decision**, **Open the proposal** and so on). It also has **Restart…** and **Exit demo**. It is small and quiet, but the customer can see it on a shared screen. If you'd rather they didn't, keep it closed and work from the presenter window.
 
 ## Timing
 
@@ -51,32 +51,38 @@ The number on each heading matches the sidebar count. A step stays current until
 **2 · Answer the owner interview.** Six questions. Use **Fill answer** in the sidebar, or **Fill in the demo** in the presenter window, then press Enter. On the second answer, MAX says it will check the ledger rather than ask you to guess. Or make it a call: choose **Start the call** in the sidebar row (or in the Thread), then **Continue with voice**. On the call, **Fill answer** arrives as speech and sends itself after the pause; **What MAX heard** fills on the right, and on the second answer MAX reads the source during the call (an early signal, verified later). The call ends on a summary: choose **Watch MAX work** to open the stakeholder calls.
 *Say:* MAX only asks for judgement the records can't supply.
 
-**3 · Let MAX investigate, then decide.** Open **Autonomy** while MAX reads the four sources and interviews the four owners. A few seconds later it stops at one decision: the close workbooks convert 14 invoices at invoice-date rates while the ledger uses posting-date rates, $126.24 apart. Choose **Adopt posting-date rates**.
+**3 · Approve the interview briefs.** When the owner interview closes, MAX drafts one brief per stakeholder and the interviews wait. Choose **Review briefs** (or **Open the briefs** in the sidebar) to show one exactly as the interviewer will receive it, then **Approve all**. These are real approvals on the record, not automated by the script.
+*Say:* Everything the interviewer holds counts as shown to that person, so a person approves it first.
+
+**4 · Let MAX investigate, then decide.** Open **Autonomy** while MAX reads the four sources and interviews the four owners. A few seconds later it stops at one decision: the close workbooks convert 14 invoices at invoice-date rates while the ledger uses posting-date rates, $126.24 apart. Choose **Adopt posting-date rates**.
 *Say:* This is the part a consulting team spends weeks on. It's finance policy, so MAX stops and asks, and keeps every other branch moving.
 
-**4 · Read the package and approve the charter.** Nine documents land. Show the **Executive decision brief** (418 variances, 89% mechanical), then the **RAID register** (the two decisions sent to Agentix). Then choose **Continue to Agentix** and approve the project charter with a reason; it is the one thing that blocks the handoff.
+**5 · Read the package and approve the charter.** The eight selected documents land. Show the **Executive decision brief** (418 variances, 89% mechanical), then the **RAID register** (the two decisions sent to Agentix). Then choose **Approve package** and, from its blocker row, approve the project charter with a reason.
 
-**5 · Hand the package to Agentix.** In the handoff, add a note if you like and choose **Continue to Agentix**.
+**6 · Approve the package version.** Choose **Approve package** (or **Open the approval** in the sidebar). The dialog names the exact package version, the manifest and each document's hash; confirm it. **Continue to Agentix** only opens after this. **Return to MAX** and **Withdraw approval** sit beside it.
+*Say:* Approval binds one exact version. If anyone edits a document afterwards, the version moves and this approval no longer holds. It starts nothing in Agentix.
+
+**7 · Hand the package to Agentix.** In the handoff, add a note if you like and choose **Continue to Agentix**.
 *Say:* The packet is frozen, so the agents work from exactly what finance approved.
 
 ### Agentix
 
-**6 · Create the engagement in Agentix.** Nothing existed in Agentix for this until the handoff. The proposal names the Discovery and packet it came from; the Discovery's title is a link back to it. Answer the two questions (**Ask me before each pipeline release**, **The synthetic 30-day sample**), choose **Run the read-only check**, then **Activate engagement**. The engagement opens on its **Floor**: the team assembles, with the Discovery package going to the coordinator and each milestone to the specialist who takes it first.
+**8 · Create the engagement in Agentix.** Nothing existed in Agentix for this until the handoff. The proposal names the Discovery and packet it came from; the Discovery's title is a link back to it. Answer the two questions (**Ask me before each pipeline release**, **The synthetic 30-day sample**), choose **Run the read-only check**, then **Activate engagement**. The engagement opens on its **Floor**: the team assembles, with the Discovery package going to the coordinator and each milestone to the specialist who takes it first.
 *Say:* Agentix turned the Discovery into an engagement: a team of four agents with separate permissions, the systems they may touch, three milestones and a daily operation. Discovery couldn't confirm who approves production releases, so that's the first question.
 
-**7 · Decide the missing-region rule.** MS-1 asks about the 212 invoices without a region. Choose **Show them as Unassigned**. On the Floor, the specialist's packet climbs to **You** and your room opens with the decision; decide it there, or in **Work**.
+**9 · Decide the missing-region rule.** MS-1 asks about the 212 invoices without a region. Choose **Show them as Unassigned**. On the Floor, the specialist's packet climbs to **You** and your room opens with the decision; decide it there, or in **Work**.
 *Say:* The agent found what Discovery flagged. It's a business rule, so the specialist asks instead of choosing.
 
-**8 · Watch a check fail and the repair.** In MS-2, pipeline v1 converts at invoice-date rates, so two of its nine checks fail: currency conversion and totals by region. Open v1 to show the 14 rows, $126.24 apart. The data specialist repairs the join, and v2 passes all nine checks. Use **Controls → Skip** to move faster.
+**10 · Watch a check fail and the repair.** In MS-2, pipeline v1 converts at invoice-date rates, so two of its nine checks fail: currency conversion and totals by region. Open v1 to show the 14 rows, $126.24 apart. The data specialist repairs the join, and v2 passes all nine checks. Use **Controls → Skip** to move faster.
 *Say:* The Discovery decision became a test, and the test caught the mistake before anything reached production.
 
-**9 · Approve the production release.** Review the target, checks and recovery limits, then choose **Approve release**. The adapter's acknowledgement is lost on purpose. The coordinator reads the target back instead of sending the change twice.
+**11 · Approve the production release.** Review the target, checks and recovery limits, then choose **Approve release**. The adapter's acknowledgement is lost on purpose, so the release stops at **Outcome unknown**. Choose **Investigate** in MS-2: the coordinator reads the target back instead of sending the change twice, and the read-back only reads.
 
-**10 · Open the verified dashboard.** MS-3 publishes under policy FIN-DASH-2. Open **Results → Revenue dashboard**: $1,284,310.42 by region, $0.00 variance, and the time of the last load. Delivery is verified and the engagement now runs daily at 06:00 London. When you're ready, choose **Controls → Run the next scheduled cycle now**.
+**12 · Open the verified dashboard.** MS-3 publishes a file version under policy FIN-DASH-2. Open **Results → Revenue dashboard**, which shows $1,284,310.42 by region, $0.00 variance and the time of the last load, then show **Download** and **Save to SharePoint** under **Publish as files**. Delivery is verified and the engagement now runs daily at 06:00 London. When you're ready, choose **Controls → Run the next scheduled cycle now**.
 
-**11 · Run tomorrow morning.** The morning cycle loads, reconciles by region, refreshes the dashboard and posts the summary. Use **Controls → Skip** until it is verified.
+**13 · Run tomorrow morning.** The morning cycle loads, reconciles by region, refreshes the dashboard file and posts the summary. Use **Controls → Skip** until it is verified.
 
-**12 · Close the story.** Open **Activity** to show the verified morning and its evidence.
+**14 · Close the story.** Open **Activity** to show the verified morning and its evidence.
 *Say:* One Discovery, one package, and an agent team that went from nothing to running the work: built, tested, released and verified every morning. Finance made six decisions: the currency standard, the charter, the release policy, the test data, the region rule and the release. Everything else ran on its own and was verified.
 
 ## Scripted answers
@@ -85,13 +91,23 @@ The number on each heading matches the sidebar count. A step stays current until
 2. Mostly EMEA and APAC, and the analysts only find it at month-end. Check the ledger; I suspect currency conversion.
 3. Within $50 per region each day. Anything above $200 comes to me before it's posted.
 4. Posting date, with the posting-date exchange rate. That's how the ledger closes.
-5. Nobody owns pipeline releases to production today, so treat that as open. Dashboard publishing to finance is already covered by policy FIN-DASH-2.
+5. Nobody owns pipeline releases to production today, so treat that as open. Publishing the dashboard as files is already covered by policy FIN-DASH-2.
 6. The ledger and AWS agree every morning, and finance opens the dashboard at 07:00 without asking anyone to check it.
 
 - **Charter approval reason:** Scope, owners and the five exclusions match what finance leadership agreed.
 - **Handoff note (optional):** Start with the mapping; the region rule is mine to decide.
 
 You can type your own answers instead. An answer that starts with "not sure" makes MAX record a gap and ask who would know. That's a good moment to show, but it adds a question.
+
+## Showing a failure
+
+From the **…** menu in the Discovery header, or by searching "simulate" in the Discovery command menu (⌘K):
+
+- **Simulate: budget exhausted** pauses the run at its limit, names the limit, and keeps evidence, drafts and the package readable. **Raise the limit and resume** carries on.
+- **Simulate: connection revoked** pauses reads from one named source and lists the documents affected. **Reconnect** resumes it; **Open Integrations** goes to the real page.
+- **Simulate: a colleague edits** lands a change during your next review or edit, so the approval is refused or the edit reports a conflict and keeps your text.
+
+All three are simulated in the browser. The stakeholder interview window opens beside the demo and doesn't read the demo's briefs.
 
 ## If something goes off script
 
@@ -121,7 +137,7 @@ You can type your own answers instead. An answer that starts with "not sure" mak
 ## How it works
 
 - `src/features/demo/session.ts` decides from the address whether this tab is the demo. It uses a per-tab session flag, so a new tab starts clean and a reload keeps its place, and it gives each module its storage key.
-- The demo's Discovery hub has two context Discoveries and none waiting on you. Started from the package, the finished revenue Discovery is added.
+- The demo's Discovery hub has two context Discoveries and none waiting on you. Started from the package, the finished revenue Discovery is added, and its package waits for your approval.
 - The demo's Agentix starts from zero at the moment the demo starts, with London-time schedules and no background intake. The revenue engagement is an empty draft with no work, results or history, and the revenue package is held back until its Discovery sends it (`demoInitialState`). The handoff then arrives as a new engagement, not an expansion of an existing one.
 - Creating a revenue Discovery in the demo replaces any earlier revenue Discovery and resets the demo's Agentix to that from-zero state (`resetDemoAgentix`). Agentix stays mounted behind the other modules, so it resets at once, whichever module is on screen. The everyday prototype never does this.
 - The handoff packet carries its target (`agentix`), the package (`pkg_revenue_v2`) and the Discovery it came from. Agentix records that provenance on the proposal and on the engagement.

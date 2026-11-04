@@ -29,7 +29,7 @@ test("the global command menu filters, arrow-navigates, and runs the active item
 	await expect(menu).toBeVisible()
 
 	// Pinned survivors of the rebuild: navigation, Integrations, and both quick actions.
-	for (const name of ["Dashboard", "Projects", "Discover", "Agentix", "Consult Max", "Integrations"]) {
+	for (const name of ["Dashboard", "Projects", "Discover", "Agentix", "Integrations"]) {
 		await expect(menu.getByRole("button", { name: new RegExp(`^${name}`) }).first()).toBeVisible()
 	}
 	// Plan and Execute are disabled, so the menu offers no way into them.

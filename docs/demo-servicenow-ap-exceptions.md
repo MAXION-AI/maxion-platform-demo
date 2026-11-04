@@ -1,6 +1,6 @@
 # Customer demo: AP invoice exceptions, Discovery to Agentix
 
-One repeatable demo that tells a single story end to end. A head of accounts payable asks MAXION to clear the invoice exception queue in ServiceNow without losing control of who may approve what. Discovery investigates it and produces a nine-document decision package. Agentix receives that package and creates the engagement from nothing, and an agent team builds, tests, releases and then runs the work every morning.
+One repeatable demo that tells a single story end to end. A head of accounts payable asks MAXION to clear the invoice exception queue in ServiceNow without losing control of who may approve what. Discovery investigates it and produces a eight-document decision package. Agentix receives that package and creates the engagement from nothing, and an agent team builds, tests, releases and then runs the work every morning.
 
 Everything is simulated in the browser. No ServiceNow, Ariba, SAP, Teams or email action happens, and no real customer data is used. The company (Calder Industrial), the people and the figures are synthetic.
 
@@ -43,30 +43,36 @@ The number on each heading matches the sidebar count.
 **2 · Answer the owner interview.** Six questions, filled from the sidebar with **Fill answer**, sent with Enter. Or make it a call: choose **Start the call** in the sidebar row (or in the Thread), then **Continue with voice**. On the call, **Fill answer** arrives as speech and sends itself after the pause; **What MAX heard** fills on the right, and on the second answer MAX reads the source during the call (an early signal, verified later). The call ends on a summary: choose **Watch MAX work** to open the stakeholder calls.
 *Say:* MAX only asks for judgement the records can't supply.
 
-**3 · Let MAX investigate, then decide.** MAX reads the four sources and interviews the four owners, then stops at one decision: ServiceNow clears invoices on the purchase-order band of ±2% or $25, while 212 supplier contracts negotiate a flat ±1.5%. The two disagree on 240 invoices worth $84,310.55. Choose **Make the contract tolerance authoritative**.
+**3 · Approve the interview briefs.** When the owner interview closes, MAX drafts one brief per stakeholder and the interviews wait. Choose **Review briefs** (or **Open the briefs** in the sidebar) to show one exactly as the interviewer will receive it, then **Approve all**. These are real approvals on the record, not automated by the script.
+*Say:* Everything the interviewer holds counts as shown to that person, so a person approves it first.
+
+**4 · Let MAX investigate, then decide.** MAX reads the four sources and interviews the four owners, then stops at one decision: ServiceNow clears invoices on the purchase-order band of ±2% or $25, while 212 supplier contracts negotiate a flat ±1.5%. The two disagree on 240 invoices worth $84,310.55. Choose **Make the contract tolerance authoritative**.
 *Say:* Each rule is applied consistently; which one is authoritative is commercial policy, so MAX stops and asks.
 
-**4 · Read the package and approve the charter.** Nine documents land. Show the **Executive decision brief** (22,180 exceptions, 61% mechanical), then the **RAID register** (the two decisions sent to Agentix). Choose **Continue to Agentix** and approve the project charter with a reason.
+**5 · Read the package and approve the charter.** The eight selected documents land. Show the **Executive decision brief** (22,180 exceptions, 61% mechanical), then the **RAID register** (the two decisions sent to Agentix). Choose **Approve package** and, from its blocker row, approve the project charter with a reason.
 
-**5 · Hand the package to Agentix.** Add a note if you like and choose **Continue to Agentix**.
+**6 · Approve the package version.** Choose **Approve package** (or **Open the approval** in the sidebar). The dialog names the exact package version, the manifest and each document's hash; confirm it. **Continue to Agentix** only opens after this. **Return to MAX** and **Withdraw approval** sit beside it.
+*Say:* Approval binds one exact version. If anyone edits a document afterwards, the version moves and this approval no longer holds. It starts nothing in Agentix.
+
+**7 · Hand the package to Agentix.** Add a note if you like and choose **Continue to Agentix**.
 
 ### Agentix
 
-**6 · Create the engagement in Agentix.** Nothing existed in Agentix for this until the handoff. Answer the two questions (**Ask me before each pipeline release**, **The synthetic sweep of 1,904 cases**), choose **Run the read-only check**, then **Activate engagement**. The engagement opens on its **Floor**: the team assembles, with the Discovery package going to the coordinator and each milestone to the specialist who takes it first.
+**8 · Create the engagement in Agentix.** Nothing existed in Agentix for this until the handoff. Answer the two questions (**Ask me before each pipeline release**, **The synthetic sweep of 1,904 cases**), choose **Run the read-only check**, then **Activate engagement**. The engagement opens on its **Floor**: the team assembles, with the Discovery package going to the coordinator and each milestone to the specialist who takes it first.
 *Say:* Four agents with separate permissions, the systems they may touch, three milestones and a daily sweep. Discovery couldn't confirm who approves production changes, so that's the first question.
 
-**7 · Decide the no-contract rule.** MS-1 asks about 318 open cases with no active contract to test against. Choose **Route them to the category buyer**. On the Floor, the specialist's packet climbs to **You** and your room opens with the decision; decide it there, or in **Work**.
+**9 · Decide the no-contract rule.** MS-1 asks about 318 open cases with no active contract to test against. Choose **Route them to the category buyer**. On the Floor, the specialist's packet climbs to **You** and your room opens with the decision; decide it there, or in **Work**.
 
-**8 · Watch a check fail and the repair.** In MS-2, pipeline v1 tests price against the purchase order, so two of its eleven checks fail: tolerance and discount capture. Open v1 to show the 240 cases, $84,310.55 apart. The triage specialist repairs the lookup, and v2 passes all eleven.
+**10 · Watch a check fail and the repair.** In MS-2, pipeline v1 tests price against the purchase order, so two of its eleven checks fail: tolerance and discount capture. Open v1 to show the 240 cases, $84,310.55 apart. The triage specialist repairs the lookup, and v2 passes all eleven.
 *Say:* The Discovery decision became a test, and the test caught the mistake before anything reached production.
 
-**9 · Approve the production release.** Review the target, checks and recovery limits, then choose **Approve release**. The adapter’s acknowledgement is lost on purpose; the coordinator reads the update set back instead of resubmitting it.
+**11 · Approve the production release.** Review the target, checks and recovery limits, then choose **Approve release**. The adapter’s acknowledgement is lost on purpose, so the release stops at **Outcome unknown**. Choose **Investigate** in MS-2: the coordinator reads the update set back instead of resubmitting it, and the read-back only reads.
 
-**10 · Open the verified dashboard.** MS-3 publishes under policy FIN-AP-7. Open **Results → AP exception dashboard**. When you're ready, choose **Controls → Run the next scheduled cycle now**.
+**12 · Open the verified dashboard.** MS-3 publishes a file version under policy FIN-AP-7. Open **Results → AP exception dashboard**, then show **Download** and **Save to SharePoint** under **Publish as files**. When you're ready, choose **Controls → Run the next scheduled cycle now**.
 
-**11 · Run tomorrow morning.** The morning sweep classifies, tests against contract terms, routes what needs a person and refreshes the dashboard. Use **Controls → Skip** until it is verified.
+**13 · Run tomorrow morning.** The morning sweep classifies, tests against contract terms, routes what needs a person and refreshes the dashboard. Use **Controls → Skip** until it is verified.
 
-**12 · Close the story.** Open **Activity** to show the verified sweep and its evidence.
+**14 · Close the story.** Open **Activity** to show the verified sweep and its evidence.
 *Say:* One Discovery, one package, and an agent team that went from nothing to running the work. Finance made six decisions; everything else ran on its own and was verified.
 
 ## Scripted answers
@@ -75,11 +81,21 @@ The number on each heading matches the sidebar count.
 2. Price inside a tolerance band, quantity rounding, freight coding and a wrong tax jurisdiction never need a question. Anything with no contract, or a supplier in dispute, always does.
 3. The contract wins. If procurement negotiated ±1.5% then ±1.5% is the number, whatever the purchase order was set up with.
 4. Anything above $5,000 comes to a named approver, and honestly we don't know they still hold it. The authority matrix hasn't been re-attested in two years.
-5. Nobody owns production ServiceNow changes today, so treat that as open. Dashboard publishing to the finance group is already covered by policy FIN-AP-7.
+5. Nobody owns production ServiceNow changes today, so treat that as open. Publishing the dashboard as files is already covered by policy FIN-AP-7.
 6. Mechanical exceptions clear the same day, nothing above $5,000 clears on its own, and I open one dashboard at 08:00 instead of asking three analysts.
 
 - **Charter approval reason:** Scope, owners and the five exclusions match what finance and procurement agreed.
 - **Handoff note (optional):** Start with the taxonomy; the no-contract rule is Procurement's to decide.
+
+## Showing a failure
+
+From the **…** menu in the Discovery header, or by searching "simulate" in the Discovery command menu (⌘K):
+
+- **Simulate: budget exhausted** pauses the run at its limit, names the limit, and keeps evidence, drafts and the package readable. **Raise the limit and resume** carries on.
+- **Simulate: connection revoked** pauses reads from one named source and lists the documents affected. **Reconnect** resumes it; **Open Integrations** goes to the real page.
+- **Simulate: a colleague edits** lands a change during your next review or edit, so the approval is refused or the edit reports a conflict and keeps your text.
+
+All three are simulated in the browser. The stakeholder interview window opens beside the demo and doesn't read the demo's briefs.
 
 ## Figures (the same in every document and screen)
 
@@ -100,6 +116,6 @@ The number on each heading matches the sidebar count.
 
 ## How it works
 
-This demo is a script (`src/features/demo/scripts/servicenow.ts`) on the same harness as the revenue demo: the address picks the demo, and the session, storage, ownership, presenter dock and guide all read the script. Its Discovery lives in `SCENARIOS.servicenow` with nine documents in `deliverables/servicenow.ts`; its Agentix engagement is the `payables` scenario in `engine/scenarios.ts`, whose package `pkg_ap_exceptions_v2` is held back until this Discovery sends it.
+This demo is a script (`src/features/demo/scripts/servicenow.ts`) on the same harness as the revenue demo: the address picks the demo, and the session, storage, ownership, presenter dock and guide all read the script. Its Discovery lives in `SCENARIOS.servicenow` with eleven documents in `deliverables/servicenow.ts`; its Agentix engagement is the `payables` scenario in `engine/scenarios.ts`, whose package `pkg_ap_exceptions_v2` is held back until this Discovery sends it.
 
 Tests: `tests/e2e/servicenow-demo.spec.ts` covers the full journey, storage isolation from the revenue demo and the everyday prototype, and a second Discovery that starts Agentix again from zero. `src/features/agentix/prototype/__tests__/PayablesEngine.spec.ts` drives the engagement arc from nothing to a verified morning.

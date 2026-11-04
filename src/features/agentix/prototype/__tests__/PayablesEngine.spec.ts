@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest"
-import { activate, activationBlockers, actOnEngagement, advanceSchedule, answerQuestion, awaitingCreation, decide, itemBy, latest, receivePackage, tick, visiblePackage } from "../engine/engine"
+import { activate, activationBlockers, actOnEngagement, advanceSchedule, answerQuestion, awaitingCreation, decide, itemBy, latest, receivePackage, tick, visiblePackage, investigateEffect } from "../engine/engine"
 import { demoInitialState } from "../engine/seed"
 import { achievements, needsYou, teamPresence } from "../engine/selectors"
 import { SCENARIOS } from "../engine/scenarios"
@@ -19,6 +19,14 @@ const LINK = { recordId: "demo-servicenow-discovery", packetId: "HP-AP7742", tit
 const run = (state: AgentixState, until: (s: AgentixState) => boolean, max = 200) => {
 	let current = state
 	for (let i = 0; i < max && !until(current); i++) current = tick(current)
+	if (!until(current)) throw new Error("condition not reached")
+	return current
+}
+/* A person reads the target back whenever an outcome is unknown; nothing else settles one. */
+const readBacks = (state: AgentixState) => state.work.reduce((current, entry) => { const effect = entry.effects.find(value => value.status === "unknown" && !value.investigating); return effect ? investigateEffect(current, entry.id, effect.id) : current }, state)
+const runReading = (state: AgentixState, until: (s: AgentixState) => boolean, max = 200) => {
+	let current = state
+	for (let i = 0; i < max && !until(current); i++) current = tick(readBacks(current))
 	if (!until(current)) throw new Error("condition not reached")
 	return current
 }
@@ -123,14 +131,14 @@ describe("AP exceptions: the milestone arc", () => {
 		expect(approval.kind).toBe("release")
 		expect(needsYou(state, AP).some(entry => entry.kind === "release")).toBe(true)
 		state = decide(state, approval.id, "approve")
-		state = run(state, s => s.releases.some(r => r.engagementId === AP && (r.status === "applied" || r.status === "verified")))
+		state = runReading(state, s => s.releases.some(r => r.engagementId === AP && (r.status === "applied" || r.status === "verified")))
 		// The pipeline is released once and only once; the dashboard releases separately under FIN-AP-7.
 		const pipelineReleases = state.releases.filter(r => r.engagementId === AP && r.workItemId === item(state, "MS-2").id)
 		expect(pipelineReleases).toHaveLength(1)
 		expect(pipelineReleases[0].attempts).toBe(1)
 
 		// Delivery is verified and the engagement moves into its daily operation.
-		state = run(state, s => item(s, "MS-2").status === "verified" && item(s, "MS-3").status === "verified")
+		state = runReading(state, s => item(s, "MS-2").status === "verified" && item(s, "MS-3").status === "verified")
 		expect(artifact(state, "pipeline").productionVersion).toBe(repaired.version)
 		expect(artifact(state, "runbook")).toBeDefined()
 		expect(state.engagements[AP].cycles).toBe("daily")
@@ -140,7 +148,7 @@ describe("AP exceptions: the milestone arc", () => {
 		state = advanceSchedule(state, AP)
 		const cycle = state.work.find(entry => entry.engagementId === AP && entry.kind === "cycle")!
 		expect(cycle.reference).toMatch(/^AP-/)
-		state = run(state, s => itemBy(s, cycle.id)!.status === "verified")
+		state = runReading(state, s => itemBy(s, cycle.id)!.status === "verified")
 	})
 
 	it("holds the taxonomy check open until the no-contract rule is decided", () => {
