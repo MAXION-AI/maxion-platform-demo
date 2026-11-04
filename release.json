@@ -1,15 +1,15 @@
 {
-  "sourceCommit": "aa568b56ee267b17270296d6d623cab4337c7ef5",
+  "sourceCommit": "5dbf968b5574ebd6d4e096469cd98e7685121b13",
   "sourceBranch": "main",
   "builtLocally": true,
-  "javascript": "assets/index-DCy3JIQo.js",
-  "stylesheet": "assets/index-B0IDuDkr.css",
+  "javascript": "assets/index-CleiZ-9P.js",
+  "stylesheet": "assets/index-BfPqdzOg.css",
   "lazyChunks": [
-    "assets/AdminPanelPage-ByBNI9wq.js",
-    "assets/AdminPanelPage-2atw3u9S.css"
+    "assets/AdminPanelPage-BA0lyH9S.js",
+    "assets/AdminPanelPage-LfOB3HHT.css"
   ],
-  "previousSourceCommit": "05e8afb7cca4882b37e4cb1e600f942c77423e71",
-  "previousPagesCommit": "190932b",
+  "previousSourceCommit": "aa568b56ee267b17270296d6d623cab4337c7ef5",
+  "previousPagesCommit": "ba9306c",
   "deploymentMethod": "locally built with GITHUB_PAGES=true; the preceding release's hashed assets retained for CDN propagation",
   "contains": [
     "revenue",
@@ -25,6 +25,14 @@
     "integrations-connection-model",
     "knowledge",
     "connection-picker",
-    "staff-admin-panel"
+    "staff-admin-panel",
+    "plan-gaps-2026-10-30",
+    "package-approval",
+    "my-approvals",
+    "publish-as-files",
+    "scope-switcher",
+    "discovery-gates",
+    "agentix-case-states",
+    "type-san-francisco"
   ]
 }
