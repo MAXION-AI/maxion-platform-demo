@@ -4,7 +4,7 @@ import type { DemoScript } from "./scripts"
 import { DEMO_CHANGE_EVENT, DEMO_KEYS, demoKey } from "./session"
 
 const rawState = (script: DemoScript) => {
-	try { return `${window.localStorage.getItem(demoKey(DEMO_KEYS.discovery, script.id)) ?? ""} ${window.localStorage.getItem(demoKey(DEMO_KEYS.agentix, script.id)) ?? ""}` } catch { return "" }
+	try { return Object.values(DEMO_KEYS).map(key => window.localStorage.getItem(demoKey(key, script.id)) ?? "").join(" ") } catch { return "" }
 }
 
 /*

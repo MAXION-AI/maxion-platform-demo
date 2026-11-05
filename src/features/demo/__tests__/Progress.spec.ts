@@ -2,8 +2,10 @@ import { describe, expect, it } from "vitest"
 import { activate, actOnEngagement, answerQuestion, receivePackage, tick } from "@/features/agentix/prototype/engine/engine"
 import { demoInitialState } from "@/features/agentix/prototype/engine/seed"
 import type { AgentixState } from "@/features/agentix/prototype/engine/types"
+import { CLOSE_MAP_SUGGESTIONS, packageSuggestions } from "@/features/organization/discoverySuggestions"
+import { approveSuggestion, readKnowledge, rejectSuggestion, resetKnowledgeStore, suggestFromDiscovery, type KnowledgeState } from "@/features/organization/knowledge"
 import { demoSteps, nextAnswer, readDemoSnapshot, type DemoDiscovery } from "../progress"
-import { DEMO_STEP_ORDER, demoScript } from "../scripts"
+import { DEMO_STEP_ORDER, KNOWLEDGE_STEP_ORDER, demoScript } from "../scripts"
 import { DEMO_KEYS, demoKey, isDemoCommand } from "../session"
 
 const REVENUE = demoScript("revenue")
@@ -14,7 +16,7 @@ const record = (patch: Partial<DemoDiscovery> = {}): DemoDiscovery => ({
 	interviewIndex: 0, interviewClosed: false, clarificationPending: false, charterApproval: null, handoff: null, updatedAt: "2026-11-23T10:31:00Z", ...patch,
 })
 const current = (discovery: DemoDiscovery | null, agentix: AgentixState | null = demoInitialState(base)) => {
-	const { steps, current: index } = demoSteps(REVENUE, { discovery, agentix })
+	const { steps, current: index } = demoSteps(REVENUE, { discovery, agentix, knowledge: null })
 	return steps[index]
 }
 const link = { recordId: "rec-1", packetId: "HP-ABC123", title: "Revenue reconciliation: SQL Server to AWS" }
@@ -24,7 +26,7 @@ describe("where the presenter is", () => {
 		const step = current(null)
 		expect(step.id).toBe("start")
 		expect(step.action?.run).toEqual({ kind: "discover" })
-		expect(demoSteps(REVENUE, { discovery: null, agentix: null }).steps).toHaveLength(DEMO_STEP_ORDER.length)
+		expect(demoSteps(REVENUE, { discovery: null, agentix: null, knowledge: null }).steps).toHaveLength(DEMO_STEP_ORDER.length)
 	})
 
 	it("offers the scripted answer for the question MAX is asking, and none during a follow-up", () => {
@@ -108,13 +110,89 @@ describe("where the presenter is", () => {
 	})
 })
 
+/*
+ * The close-mapping demo ends in Knowledge: after the same seven Discovery beats, its steps follow
+ * the suggestions its package sent and what an Owner or Admin decided about them.
+ */
+describe("a demo that ends in Knowledge", () => {
+	const script = demoScript("close-map")
+	if (script.ending !== "knowledge") throw new Error("The close-map demo ends in Knowledge")
+	const CLOSE_MAP = script
+	const mapping = (patch: Partial<DemoDiscovery> = {}) => record({ title: "Month-end close: how it actually runs", scenarioKey: "closemap", ...patch })
+	const at = (discovery: DemoDiscovery | null, knowledge: KnowledgeState | null) => {
+		const { steps, current: index } = demoSteps(CLOSE_MAP, { discovery, agentix: null, knowledge })
+		return steps[index]
+	}
+	const approved = mapping({ phase: 7, decision: "approved", interviewClosed: true, interviewIndex: 5, excludedOutputs: ["Project charter and governance"], work: { package: { status: "approved", version: 1 }, briefs: [{ status: "approved" }] } })
+	const handedOff = { ...approved, handoff: { id: "HP-CLOSE1", createdAt: "2026-11-23T10:40:00Z", note: "", target: "knowledge", packageId: CLOSE_MAP.packageId, recordId: "rec-1" } }
+	const arrive = () => {
+		resetKnowledgeStore()
+		suggestFromDiscovery({ id: "HP-CLOSE1", work: "Month-end close: how it actually runs", recordId: "rec-1" }, packageSuggestions(CLOSE_MAP.packageId, "approved") ?? [])
+		return readKnowledge()
+	}
+
+	it("walks eleven beats, and a package without a charter needs no charter approval", () => {
+		expect(demoSteps(CLOSE_MAP, { discovery: null, agentix: null, knowledge: null }).steps.map(step => step.id)).toEqual(KNOWLEDGE_STEP_ORDER)
+		// The finished, unapproved package: reading it is done because the charter was never selected.
+		expect(at(mapping({ phase: 7, decision: "approved", interviewClosed: true, interviewIndex: 5, excludedOutputs: ["Project charter and governance"], work: { package: { status: "draft", version: 1 }, briefs: [{ status: "approved" }] } }), null).id).toBe("approve")
+	})
+
+	it("sends the presenter to Knowledge once the suggestions have arrived, with how many wait", () => {
+		expect(at(approved, null).id).toBe("handoff")
+		const step = at(handedOff, arrive())
+		expect(step.id).toBe("suggestions")
+		expect(step.detail).toBe("8 suggestions waiting in Knowledge.")
+		expect(step.action?.run).toEqual({ kind: "knowledge" })
+		// The suggestions alone tell the story moved on, even when the Discovery record is gone.
+		expect(at(null, readKnowledge()).id).toBe("suggestions")
+	})
+
+	it("moves through the procedure and the restricted item only as each is approved", () => {
+		arrive()
+		approveSuggestion(CLOSE_MAP_SUGGESTIONS.systems)
+		const procedure = at(handedOff, readKnowledge())
+		expect(procedure.id).toBe("procedure")
+		expect(procedure.action?.run).toEqual({ kind: "knowledge", item: CLOSE_MAP.suggestions.procedure })
+		// Rejecting the procedure is a decision, but not the one this beat waits for.
+		rejectSuggestion(CLOSE_MAP_SUGGESTIONS.freeze)
+		expect(at(handedOff, readKnowledge()).id).toBe("procedure")
+		approveSuggestion(CLOSE_MAP.suggestions.procedure)
+		const restricted = at(handedOff, readKnowledge())
+		expect(restricted.id).toBe("restricted")
+		expect(restricted.action?.run).toEqual({ kind: "knowledge", item: CLOSE_MAP.suggestions.restricted })
+		approveSuggestion(CLOSE_MAP.suggestions.restricted)
+		const close = at(handedOff, readKnowledge())
+		expect(close.id).toBe("close")
+		expect(close.detail).toBe("4 suggestions waiting in Knowledge.")
+	})
+
+	it("ends a beat when its suggestion is rejected, and the close says what was rejected", () => {
+		arrive()
+		approveSuggestion(CLOSE_MAP_SUGGESTIONS.systems)
+		rejectSuggestion(CLOSE_MAP.suggestions.procedure)
+		// The procedure is gone, so its beat can't wait on it.
+		expect(at(handedOff, readKnowledge()).id).toBe("restricted")
+		approveSuggestion(CLOSE_MAP.suggestions.restricted)
+		const close = at(handedOff, readKnowledge())
+		expect(close.id).toBe("close")
+		expect(close.detail).toBe("5 suggestions waiting in Knowledge. You rejected Month-end close; restart from the finished package to show it published.")
+	})
+
+	it("reads the demo's saved library and ignores a broken one", () => {
+		const library = arrive()
+		const entries = (value: string): Pick<Storage, "getItem"> => ({ getItem: key => key === demoKey(DEMO_KEYS.knowledge, "close-map") ? value : null })
+		expect(readDemoSnapshot(CLOSE_MAP, entries(JSON.stringify(library))).knowledge?.received).toEqual(["HP-CLOSE1"])
+		expect(readDemoSnapshot(CLOSE_MAP, entries("{\"items\":[]}")).knowledge).toBeNull()
+	})
+})
+
 describe("reading the saved demo", () => {
 	const storage = (entries: Record<string, string>) => ({ getItem: (key: string) => entries[key] ?? null })
 
 	it("tolerates missing, broken and foreign data", () => {
-		expect(readDemoSnapshot(REVENUE, storage({}))).toEqual({ discovery: null, agentix: null })
-		expect(readDemoSnapshot(REVENUE, storage({ [demoKey(DEMO_KEYS.discovery)]: "{not json", [demoKey(DEMO_KEYS.agentix)]: "{\"version\":3}" }))).toEqual({ discovery: null, agentix: null })
-		expect(readDemoSnapshot(REVENUE, null)).toEqual({ discovery: null, agentix: null })
+		expect(readDemoSnapshot(REVENUE, storage({}))).toEqual({ discovery: null, agentix: null, knowledge: null })
+		expect(readDemoSnapshot(REVENUE, storage({ [demoKey(DEMO_KEYS.discovery)]: "{not json", [demoKey(DEMO_KEYS.agentix)]: "{\"version\":3}" }))).toEqual({ discovery: null, agentix: null, knowledge: null })
+		expect(readDemoSnapshot(REVENUE, null)).toEqual({ discovery: null, agentix: null, knowledge: null })
 	})
 
 	it("reads the most recently worked revenue Discovery, never the everyday records", () => {

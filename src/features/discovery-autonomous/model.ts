@@ -3,7 +3,7 @@ import { DELIVERABLES } from "./deliverables"
 export { DELIVERABLES, DELIVERABLE_CONTENT, deliverableBodies } from "./deliverables"
 export type { DeliverableBody, DeliverableDecision, DeliverableSection, Exhibit } from "./deliverables"
 
-export type ScenarioKey = "tprm" | "diligence" | "enterprise" | "revenue" | "servicenow" | "ordersync" | "s4hana"
+export type ScenarioKey = "tprm" | "diligence" | "enterprise" | "revenue" | "servicenow" | "ordersync" | "s4hana" | "closemap"
 
 /* The fields of a person the work state reads; a Person always satisfies it. */
 export type OperationPerson = Pick<Person, "id" | "name" | "role" | "department" | "focus">
@@ -58,20 +58,21 @@ export type Scenario = {
 	}
 	summary: string
 	/*
-	 * Where the finished package goes. Most Discoveries hand a plan to Plan; an
-	 * operational design goes to Agentix as the named package, which an agent team
-	 * then runs. Absent means Plan.
+	 * Where the finished package goes. An operational design goes to Agentix as the named package,
+	 * which an agent team then runs. A mapping of how the organization works today goes to
+	 * Knowledge instead, as suggestions an Owner or Admin approves one by one (doc 22). Absent
+	 * means Agentix, with no prebuilt design.
 	 */
-	handoff?: { target: "agentix"; packageId: string; opensAs: string }
+	handoff?: { target: "agentix" | "knowledge"; packageId: string; opensAs: string }
 }
 
 /*
- * Every Discovery hands its package to Agentix. Plan is no longer a destination from Discovery,
- * so this is a single value rather than a fork; it stays a named type because the copy reads
- * "Continue to {destination}" in a dozen places.
+ * Where a Discovery's package goes: Agentix, or Knowledge for a Discovery that maps how the
+ * organization works rather than designing work for agents. Plan is no longer a destination. It
+ * stays a named type because the copy reads "Continue to {destination}" in a dozen places.
  */
-export type HandoffDestination = "Agentix"
-export const handoffDestination = (_key: ScenarioKey): HandoffDestination => "Agentix"
+export type HandoffDestination = "Agentix" | "Knowledge"
+export const handoffDestination = (key: ScenarioKey): HandoffDestination => SCENARIOS[key].handoff?.target === "knowledge" ? "Knowledge" : "Agentix"
 
 const DAY = 86_400_000
 const SHORT_MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
@@ -476,6 +477,63 @@ export const SCENARIOS: Record<ScenarioKey, Scenario> = {
 			"The custom estate can be dispositioned and kept clean under an agent team, provided objects under the agreed usage threshold are archived without a conversation, standard is adopted wherever behaviour is unchanged, and the behaviour exceptions are named and tested rather than discovered at go-live. A nightly sweep runs at 22:00 CET, any transport reintroducing a removed pattern is blocked before it reaches the queue, and the programme board sees a verified readiness dashboard by 07:00.",
 		handoff: { target: "agentix", packageId: "pkg_s4_conversion_v2", opensAs: "A new Agentix engagement created from this package: four agents with separate permissions, three milestones and a nightly operation" },
 	},
+	/*
+	 * The fifth customer demo's Discovery, and the one that builds nothing. Northstar's Controller asks
+	 * how the month-end close actually runs. The package goes to Knowledge as suggestions, not to
+	 * Agentix, so its figures are the ones the Knowledge library's close items carry afterwards
+	 * (organization/knowledge.ts, Month-end close v4 and the day-3 freeze).
+	 */
+	closemap: {
+		key: "closemap",
+		shortLabel: "Close mapping",
+		// Terms about mapping how the close runs today; "month-end close" alone would also take the automation brief.
+		match: ["close mapping", "map the close", "map how our month-end close", "how our month-end close actually runs", "close actually runs", "written procedure", "knowledge nobody else has", "who holds knowledge", "single point of knowledge", "current state only", "no automation design"],
+		title: "Month-end close: how it actually runs",
+		kicker: "Finance · Organization knowledge",
+		brief:
+			"Map how our month-end close actually runs today across SAP S/4HANA, QuickBooks Online, ServiceNow and the SharePoint close folder. Compare it with the written procedure, interview the people who do each step, and tell me what is true, what is missing and who holds knowledge nobody else has, so we can decide which version to publish as our procedure. Current state only, no automation design.",
+		objective: "A current, owned and cited description of the month-end close that Northstar can publish as its procedure in Knowledge.",
+		doneWhen: "Every step people perform has an owner, a system and a source; every written rule is confirmed or contradicted with evidence; and every unknown names who would know.",
+		decision: "Which version of the close do we publish as Northstar’s procedure, and who owns each part of it?",
+		get deadline() { return `Controller · ${daysAhead(7)}` },
+		interviewer: "Finance process analyst",
+		ownerInterview: [
+			{ topic: "Why now", question: "Before I read anything, why map the close now: the days it takes, the people it depends on, or a procedure nobody trusts?", evidenceHint: "I’ll compare that with twelve closes of the journal log and the close task list." },
+			{ topic: "Late postings", question: "Which parts of the written close do you suspect no longer happen as written, especially after day 3?", evidenceHint: "I’ll test that against the written procedure, step by step, and what the journal log shows people actually posted." },
+			{ topic: "Who holds it", question: "Who would the close fail without, if they were out for a month?", evidenceHint: "I’ll check who completed each close task in ServiceNow and who owns the files the close reads." },
+			{ topic: "Rules and habits", question: "Which close rules are binding, and which are just how it’s done?", evidenceHint: "I’ll test each rule against the postings and approvals, and keep binding rules apart from habits." },
+			{ topic: "Publishing", question: "When this is done, who approves it as Northstar’s procedure, and who should see the sensitive parts?", evidenceHint: "What you settle decides how each finding reaches Knowledge, and who may see it there." },
+			{ topic: "Success measure", question: "Ninety days from now, what would tell you the close is properly known?", evidenceHint: "I’ll turn it into the test the published procedure has to pass." },
+		],
+		people: [
+			// Hannah comes before the systems owner: hers is the side of the story a presenter shows.
+			person("sarah", "Sarah Liu", "Controller", "Finance", "sarah.liu@northstar.com", "High", "Close sign-off, the day-3 freeze, approval thresholds", "Text"),
+			person("hannah", "Hannah Brooks", "Senior Accountant", "US Finance", "hannah.brooks@northstar.com", "Medium", "The US entity close in QuickBooks, intercompany eliminations", "Voice"),
+			person("luca", "Luca Romano", "Group FP&A Manager", "FP&A", "luca.romano@northstar.com", "High", "Intercompany true-ups, the flash report, the reporting pack", "Text"),
+			person("elena", "Elena Ortiz", "Finance Systems Lead", "Finance Systems", "elena.ortiz@northstar.com", "High", "SAP S/4HANA P41, journal postings, period locks", "Voice"),
+		],
+		sources: [
+			{ name: "Journal entry log", system: "SAP S/4HANA", scope: "P41 · the last 12 closes · read only", records: "9,412 entries" },
+			{ name: "Close procedure and checklist", system: "SharePoint", scope: "Finance / Close", records: "Month-end close v4 · 11 steps" },
+			{ name: "Close task list", system: "ServiceNow", scope: "Finance Operations · the last 12 closes", records: "1,284 tasks" },
+			{ name: "US entity ledger", system: "QuickBooks Online", scope: "Company 934771 · the last 12 closes", records: "2,206 entries" },
+		],
+		inquiries: ["Steps as performed", "Written against actual", "Who holds each step", "Systems of record", "Rules and thresholds", "Key-person risk"],
+		exception: {
+			title: "The written close freezes the ledger after day 3; the ledger shows intercompany true-ups posting on day 4",
+			trigger: "Luca Romano said Group FP&A posts the intercompany true-ups once the US figures land, which Sarah Liu’s rule “No ledger changes after day 3 of the close” does not allow. The SAP journal log shows 118 intercompany true-ups posted on day 4 across the last twelve closes, $4,812,330.17 gross, each reviewed by the Controller afterwards.",
+			evidenceGap: "MAX reconciled the journal log against the close task list and the written procedure. Both are consistent: the rule is written and approved, and the practice is regular and reviewed. Which one Northstar publishes as its procedure is a control decision, not a fact MAX can find.",
+			consequence: "Publishing a controlled day-4 window makes Month-end close v5 and the freeze rule say what happens: intercompany true-ups may post on day 4 with the Controller’s approval, and every other change after day 3 stays frozen.",
+			alternative: "Keeping the day-3 freeze as written leaves the procedure unchanged and records the 118 day-4 true-ups as exceptions to it, with Group FP&A owning the gap in the RAID register.",
+			approveLabel: "Publish a controlled day-4 intercompany window",
+			alternativeLabel: "Keep the day-3 freeze as written",
+			approvedConfirmation: "Recorded. Month-end close v5 will document a controlled day-4 window: intercompany true-ups may post on day 4 with the Controller’s approval, and every other change after day 3 stays frozen. The freeze rule’s suggestion says the same. I resumed the affected branch.",
+			alternativeConfirmation: "Understood. The day-3 freeze stands as written, and the 118 day-4 true-ups are recorded as exceptions to it, with Group FP&A owning the gap in the RAID register. I resumed the affected branch.",
+		},
+		summary:
+			"Northstar’s close can be written down the way it actually runs: 25 steps, each with an owner, a system and a source, against the 11 the procedure names today. The day-4 intercompany window becomes a controlled, documented exception to the freeze, the approval threshold matches the binding $25,000 rule, and the US elimination stops depending on one person’s workbook once its steps are written and restricted to Finance.",
+		handoff: { target: "knowledge", packageId: "pkg_close_map_v1", opensAs: "Eight suggestions in Knowledge from this exact version: Month-end close v5, a restricted elimination procedure, the key systems, the freeze rule and four glossary terms. Nothing is published until an Owner or Admin approves each one." },
+	},
 }
 
 // The setup screen asks for an outcome, not a scenario. Route the written brief
@@ -550,7 +608,7 @@ export type JourneyContext = {
 	hold?: JourneyHold
 	decisionPending?: boolean
 	handoffId?: string | null
-	// The module the package goes to; Plan unless the scenario hands to Agentix.
+	// The module the package goes to: Agentix, or Knowledge for a Discovery that maps how work runs today.
 	destination?: HandoffDestination
 }
 

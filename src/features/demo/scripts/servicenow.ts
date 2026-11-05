@@ -1,5 +1,5 @@
 import { SCENARIOS } from "@/features/discovery-autonomous/model"
-import type { DemoScript } from "./types"
+import type { AgentixDemoScript } from "./types"
 
 /*
  * AP invoice exceptions: the ServiceNow customer demo. A head of accounts payable asks MAXION to
@@ -11,12 +11,13 @@ import type { DemoScript } from "./types"
  * has re-attested, and a production release authority nobody owns yet (which becomes the
  * proposal's first question).
  */
-export const SERVICENOW_SCRIPT: DemoScript = {
+export const SERVICENOW_SCRIPT: AgentixDemoScript = {
 	id: "servicenow",
 	label: "AP invoice exceptions",
 	name: "AP invoice exceptions",
 	kicker: "AP invoice exceptions",
 	templateName: "AP invoice exceptions",
+	ending: "agentix",
 	scenarioKey: "servicenow",
 	packageId: "pkg_ap_exceptions_v2",
 	engagementId: "payables",

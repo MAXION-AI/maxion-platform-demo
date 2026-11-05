@@ -684,7 +684,8 @@
 /* The document reads like the Studio editor: quiet, wide leading, one rule for the argument. */
 .prototype .reader-content h3 { max-width: 40ch; margin: 0; color: var(--ds-fg); font-size: var(--ds-text-title); line-height: var(--ds-lh-title); font-weight: var(--ds-weight-medium); letter-spacing: normal; }
 .prototype .reader-lede { margin: var(--ds-space-3) 0 var(--ds-space-6); color: var(--ds-fg-subtle); font-size: var(--ds-text-lg); line-height: var(--ds-lh-subtitle); }
-.prototype .reader-metrics { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 1px; margin: 0 0 var(--ds-space-8); padding: 0; overflow: hidden; border: 1px solid var(--ds-border); border-radius: var(--ds-radius-lg); background: var(--ds-border); }
+/* One column per figure, so three figures fill the row instead of leaving the divider colour showing in an empty fourth cell. */
+.prototype .reader-metrics { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr); gap: 1px; margin: 0 0 var(--ds-space-8); padding: 0; overflow: hidden; border: 1px solid var(--ds-border); border-radius: var(--ds-radius-lg); background: var(--ds-border); }
 .prototype .reader-metrics > div { padding: var(--ds-space-4); background: var(--ds-bg); }
 .prototype .reader-metrics dt { color: var(--ds-fg); font-size: var(--ds-text-title); line-height: var(--ds-lh-title); font-weight: var(--ds-weight-medium); font-variant-numeric: tabular-nums; }
 .prototype .reader-metrics dd { margin: var(--ds-space-1) 0 0; }
@@ -778,7 +779,9 @@
  * wrap instead of pushing the document sideways. */
 @container dsc-package (max-width: 40rem) {
 	.prototype .package-toolbar { padding: var(--ds-space-4); }
-	.prototype .reader-metrics { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+	.prototype .reader-metrics { grid-auto-flow: row; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+	/* An odd figure out spans the pair, rather than leaving an empty cell beside it. */
+	.prototype .reader-metrics > div:last-child:nth-child(odd) { grid-column: 1 / -1; }
 	.prototype .deliverable-reader { padding: var(--ds-space-5) var(--ds-space-4) var(--ds-space-12); }
 	.prototype .reader-heading { grid-template-columns: auto minmax(0, 1fr); row-gap: var(--ds-space-2); }
 	.prototype .reader-verified-tag { grid-column: 2; justify-self: start; }

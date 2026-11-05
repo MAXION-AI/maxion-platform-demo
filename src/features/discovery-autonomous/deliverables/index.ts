@@ -1,5 +1,6 @@
 import type { ScenarioKey } from "../model"
 
+import { CLOSEMAP_APPROVED_REVISIONS, CLOSEMAP_DELIVERABLES } from "./closemap"
 import { DILIGENCE_APPROVED_REVISIONS, DILIGENCE_DELIVERABLES } from "./diligence"
 import { ENTERPRISE_APPROVED_REVISIONS, ENTERPRISE_DELIVERABLES } from "./enterprise"
 import { ORDERSYNC_APPROVED_REVISIONS, ORDERSYNC_DELIVERABLES } from "./ordersync"
@@ -7,6 +8,7 @@ import { S4HANA_APPROVED_REVISIONS, S4HANA_DELIVERABLES } from "./s4hana"
 import { REVENUE_APPROVED_REVISIONS, REVENUE_DELIVERABLES } from "./revenue"
 import { SERVICENOW_APPROVED_REVISIONS, SERVICENOW_DELIVERABLES } from "./servicenow"
 import { TPRM_APPROVED_REVISIONS, TPRM_DELIVERABLES } from "./tprm"
+import * as CLOSEMAP_PLANNING from "./planning/closemap"
 import * as DILIGENCE_PLANNING from "./planning/diligence"
 import * as ENTERPRISE_PLANNING from "./planning/enterprise"
 import * as ORDERSYNC_PLANNING from "./planning/ordersync"
@@ -32,6 +34,7 @@ export const DELIVERABLE_CONTENT: Record<ScenarioKey, DeliverableBody[]> = {
 	servicenow: [...SERVICENOW_DELIVERABLES, SERVICENOW_PLANNING.WBS, SERVICENOW_PLANNING.CATALOG],
 	ordersync: [...ORDERSYNC_DELIVERABLES, ORDERSYNC_PLANNING.WBS, ORDERSYNC_PLANNING.CATALOG],
 	s4hana: [...S4HANA_DELIVERABLES, S4HANA_PLANNING.WBS, S4HANA_PLANNING.CATALOG],
+	closemap: [...CLOSEMAP_DELIVERABLES, CLOSEMAP_PLANNING.WBS, CLOSEMAP_PLANNING.CATALOG],
 }
 
 // The reader maps a manifest entry to a body by index. A scenario that falls out
@@ -53,6 +56,7 @@ const APPROVED_REVISIONS: Record<ScenarioKey, Partial<Record<number, Deliverable
 	servicenow: SERVICENOW_APPROVED_REVISIONS,
 	ordersync: ORDERSYNC_APPROVED_REVISIONS,
 	s4hana: S4HANA_APPROVED_REVISIONS,
+	closemap: CLOSEMAP_APPROVED_REVISIONS,
 }
 
 function revise(body: DeliverableBody, revision: DeliverableRevision | undefined): DeliverableBody {

@@ -10,7 +10,7 @@ import type { WorkflowId } from "./initiatives"
 import { activate, actOnEngagement, addIncoming, advanceSchedule, advanceToWindow, answerQuestion, armFailure, armSaveFailure, artifactBy, assignWork, awaitingCreation, changePendingRequest, createEngagement, editEngagement, itemBy, loseSandbox, receivePackage, syncClock, tick, TICK_MS, visiblePackage, withdrawProposal, type BriefRoute } from "./engine/engine"
 import { packageScenario, SCENARIOS } from "./engine/scenarios"
 import { demoInitialState, initialState } from "./engine/seed"
-import { demoScript } from "@/features/demo/scripts"
+import { demoEngagement, demoScript } from "@/features/demo/scripts"
 import { DEMO_AGENTIX_RESET_EVENT, DEMO_OWNER_EVENT, DEMO_SAVE_EVENT, demoActive, demoSession, notifyDemoChange, restartDemo } from "@/features/demo/session"
 import { useDemoOwnership } from "@/features/demo/useDemoOwnership"
 import { needsYou, pendingBinding, teamOf, type NeedsYouItem } from "./engine/selectors"
@@ -125,7 +125,7 @@ export function DeployedAgentsPage({ intentSignal, onAttentionChange, onOpenDisc
 	const owns = useDemoOwnership()
 	// A new revenue Discovery in the customer demo starts Agentix again from zero, at that moment.
 	useEffect(() => {
-		const reset = () => { const demo = demoSession(); assigned.current = null; setSheet(null); setToast(""); setState(demoInitialState(Math.floor(Date.now() / 60000) * 60000, demo ? demoScript(demo.id).engagementId : undefined)) }
+		const reset = () => { const demo = demoSession(); assigned.current = null; setSheet(null); setToast(""); setState(demoInitialState(Math.floor(Date.now() / 60000) * 60000, demo ? demoEngagement(demo.id) : undefined)) }
 		window.addEventListener(DEMO_AGENTIX_RESET_EVENT, reset)
 		return () => window.removeEventListener(DEMO_AGENTIX_RESET_EVENT, reset)
 	}, [])

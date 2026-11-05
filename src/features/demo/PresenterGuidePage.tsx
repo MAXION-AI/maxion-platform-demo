@@ -49,7 +49,9 @@ export function PresenterGuidePage() {
 	const openDemo = (start: DemoStart) => window.open(demoUrl(script.id, start, window.location.href, true).toString(), "_blank", "noopener")
 	const step = steps[current] ?? steps.at(-1)
 	const answer = nextAnswer(script, snapshot.discovery)
-	const saved = !!snapshot.discovery || !!snapshot.agentix
+	const saved = !!snapshot.discovery || !!snapshot.agentix || !!snapshot.knowledge
+	// Where the package goes, which is what the rest of the story is about.
+	const destination = script.ending === "knowledge" ? "Knowledge" : "Agentix"
 	const [tracking] = useState(demoStorageAvailable)
 
 	return (
@@ -57,7 +59,7 @@ export function PresenterGuidePage() {
 			<main className="mxd-guide-main">
 				<header className="mxd-guide-head">
 					<p className="mxd-kicker">Presenter guide · keep this window off the shared screen</p>
-					<h1>{script.name}, Discovery to Agentix</h1>
+					<h1>{script.name}, Discovery to {destination}</h1>
 					<p>Follows the demo tab as you go. Everything shown to the customer is simulated: no system is actually read from or written to.</p>
 					{tracking ? null : <p className="mxd-detail">This browser blocks storage, so the guide can’t follow the demo’s steps. Fill and Restart still reach the demo tab.</p>}
 					<p className="mxd-guide-status" role="status">{presence === "owner" ? "Connected to the demo tab." : presence === "other" ? "A demo tab is open but has handed the demo to another tab. Use Continue here in it to carry on." : presence === "none" ? (saved ? "No demo tab is open. Showing where the last demo in this browser stopped." : "No demo tab is open.") : "Looking for the demo tab…"}{notice ? ` ${notice}` : ""}</p>
@@ -116,7 +118,7 @@ export function PresenterGuidePage() {
 							</li>
 						))}
 					</ol>
-					<p className="mxd-detail">Charter approval reason: “{script.charterReason}” <TextButton onClick={() => copy(script.charterReason)}><Copy size={12} />{copied === script.charterReason ? "Copied" : "Copy"}</TextButton></p>
+					{script.charterReason ? <p className="mxd-detail">Charter approval reason: “{script.charterReason}” <TextButton onClick={() => copy(script.charterReason!)}><Copy size={12} />{copied === script.charterReason ? "Copied" : "Copy"}</TextButton></p> : null}
 				</section>
 
 				<section className="mxd-guide-current" aria-label="Stakeholder interview">
@@ -135,7 +137,7 @@ export function PresenterGuidePage() {
 				<footer className="mxd-guide-foot">
 					{confirmRestart ? (
 						<>
-							<span className="mxd-detail">Restart the open demo tab? Its Discovery and Agentix work are cleared.</span>
+							<span className="mxd-detail">Restart the open demo tab? Its Discovery and {destination} work are cleared.</span>
 							<DsButton size="sm" variant="primary" onClick={() => restart("discovery")}>From the beginning</DsButton>
 							<DsButton size="sm" onClick={() => restart("package")}>From the finished package</DsButton>
 							<TextButton onClick={() => setConfirmRestart(false)}>Cancel</TextButton>

@@ -52,6 +52,8 @@ import {
 import { publicAsset } from "@/lib/publicAsset"
 import { DEMO_CALL_EVENT, DEMO_FILL_EVENT, DEMO_OWNER_EVENT, DEMO_SAVE_EVENT, demoSession, moduleStorage, notifyDemoChange, resetDemoAgentix, storageKey } from "@/features/demo/session"
 import { DEMO_SCRIPTS, demoScript, scriptForScenario, type DemoScript } from "@/features/demo/scripts"
+import { KNOWLEDGE_CITED_DOCUMENTS } from "@/features/organization/discoverySuggestions"
+import { resetKnowledgeStore } from "@/features/organization/knowledge"
 import { CyclingPlaceholder, GeneratedWords, MovingBorder, Orb, ShimmerText, StepLoader, riseIn, useRiseIn, useSheetMotion, useWordStream } from "@/components/motion/MotionKit"
 import {
 	Badge as DsBadge,
@@ -218,7 +220,7 @@ type ToastNote = { id: number; text: string }
  * prebuilt operating design when the scenario has one; without it the brief opens engagement
  * creation in Agentix instead, so every Discovery reaches the same place.
  */
-export type HandoffPacket = { id: string; createdAt: string; note: string; target: "agentix"; packageId?: string; recordId?: string; title?: string; brief?: string; packageVersion?: number }
+export type HandoffPacket = { id: string; createdAt: string; note: string; target: "agentix" | "knowledge"; packageId?: string; recordId?: string; title?: string; brief?: string; packageVersion?: number; decision?: string; outputs?: string[] }
 
 const DISCOVERY_STORAGE_KEY = "maxion.prototype.discovery-records.v1"
 /* Stakeholder interviews finished by a run phase: half while the inquiry runs, all once conflicts are being resolved. */
@@ -376,6 +378,7 @@ function createDemoDiscoveryRecords(): DiscoveryRecord[] {
  */
 function createFinishedDemoRecord(script: DemoScript): DiscoveryRecord {
 	const key = script.scenarioKey
+	const outputs = script.outputs ?? DEMO_OUTPUTS
 	const scenario = SCENARIOS[key]
 	const id = script.id
 	const interview: ChatMessage[] = initialInterviewMessages(key, scenario.brief, scenario.title).map((message) => ({ ...message, id: `demo-${id}-q1` }))
@@ -390,7 +393,7 @@ function createFinishedDemoRecord(script: DemoScript): DiscoveryRecord {
 		...interview,
 		{ id: `demo-${id}-closed`, actor: "max", text: closingText(scenario, scenario.people, script.replies.at(-1)), trace: ["Saved the owner interview as a versioned context snapshot", "Replanned the inquiry map from the captured answers", "Started the autonomous work graph"] },
 		{ id: `demo-${id}-decision`, actor: "max", text: scenario.exception.approvedConfirmation, trace: ["Recorded the exact bounded authority", "Opened only the approved action", "Verified the action and resumed the affected branch"] },
-		{ id: `demo-${id}-complete`, actor: "max", text: `The Discovery is complete. I verified the evidence set, recorded the decisions and generated the ${DEMO_OUTPUTS.length} selected deliverables. Package v1 is waiting for your approval before it can go to Agentix.`, trace: ["Froze readiness snapshot v7", "Generated manifest v4", "Routed package v1 for approval"] },
+		{ id: `demo-${id}-complete`, actor: "max", text: `The Discovery is complete. I verified the evidence set, recorded the decisions and generated the ${outputs.length} selected deliverables. Package v1 is waiting for your approval before it can go to ${handoffDestination(key)}.`, trace: ["Froze readiness snapshot v7", "Generated manifest v4", "Routed package v1 for approval"] },
 	]
 	return {
 		id: demoRecordId(script),
@@ -412,7 +415,7 @@ function createFinishedDemoRecord(script: DemoScript): DiscoveryRecord {
 		charterApproval: null,
 		handoff: null,
 		workshopFinalized: true,
-		excludedOutputs: excludedFrom(DEMO_OUTPUTS),
+		excludedOutputs: excludedFrom(outputs),
 		// The run is finished but nobody has approved it: that's the step this demo starts on.
 		work: { ...newWork(), briefs: approveAllBriefs(draftBriefs(scenario, scenario.people, [], script.conflict), minutesAgo(40)), research: gatherResearch(key, readOrganization().policy.research, minutesAgo(45)) },
 		missionDecision: scenario.objective,
@@ -764,9 +767,9 @@ const DISCOVERY_STATUS_LABEL: Record<DiscoveryStatus, string> = {
 	"handed-off": "Handed off",
 }
 
-/* Where a record's packet went. Every packet goes to Agentix; Plan is no longer a destination. */
+/* Where a record's packet went: Agentix, or Knowledge for a mapping. Plan is no longer a destination. */
 function packetDestination(record: Pick<DiscoveryRecord, "scenarioKey" | "handoff">): HandoffDestination {
-	return handoffDestination(record.scenarioKey)
+	return record.handoff?.target === "knowledge" ? "Knowledge" : record.handoff ? "Agentix" : handoffDestination(record.scenarioKey)
 }
 
 function statusLabelOf(record: DiscoveryRecord) {
@@ -1258,7 +1261,7 @@ export function DiscoveryAutonomousPrototypePage({ embedded = false, active = tr
 		const removed = after.filter((name) => !before.includes(name))
 		const restored = before.filter((name) => !after.includes(name))
 		if (!removed.length && !restored.length) return
-		const exceptions = removed.filter((name) => REQUIRED_OUTPUTS.has(DELIVERABLES.findIndex((item) => item.name === name)))
+		const exceptions = removed.filter((name) => requiredOutputs(destination).has(DELIVERABLES.findIndex((item) => item.name === name)))
 		const included = DELIVERABLES.length - after.length
 		// Changing what the package contains after it's built makes a new version to review.
 		if (workRef.current.package.version && phaseRef.current >= OPERATIONS.length - 1) {
@@ -1331,11 +1334,13 @@ export function DiscoveryAutonomousPrototypePage({ embedded = false, active = tr
 			updatedAt: startedAt,
 		}
 		// In the customer demo a new revenue Discovery is a new run: it replaces the earlier revenue
-		// Discovery and starts Agentix again from zero, so the whole process can be shown again.
+		// Discovery and starts Agentix again from zero, so the whole process can be shown again. A new
+		// mapping Discovery starts the demo's Knowledge library again from its seed instead.
 		const newRun = !!demoSession() && !!SCENARIOS[nextScenario].handoff
 		setActiveRecordId(recordId)
 		setRecords((current) => [newRecord, ...(newRun ? current.filter((record) => record.scenarioKey !== nextScenario) : current)].slice(0, MAX_SAVED_DISCOVERIES))
-		if (newRun) resetDemoAgentix()
+		if (newRun && SCENARIOS[nextScenario].handoff?.target === "knowledge") resetKnowledgeStore()
+		else if (newRun) resetDemoAgentix()
 		setScenarioKey(nextScenario)
 		setMissionDecision(nextDecision)
 		setMissionDeadline(nextDeadline)
@@ -2363,11 +2368,11 @@ export function DiscoveryAutonomousPrototypePage({ embedded = false, active = tr
 
 	const confirmHandoff = (note: string) => {
 		// Only an approved version can leave; the page's own buttons say so, and this is the rule.
-		if (!packageApproved(workRef.current.package)) { setHandoffOpen(false); setToast("Approve the package before it can go to Agentix"); return }
+		if (!packageApproved(workRef.current.package)) { setHandoffOpen(false); setToast(`Approve the package before it can go to ${destination}`); return }
 		const target = scenario.handoff
-		const packet: HandoffPacket = { packageVersion: workRef.current.package.version, id: `HP-${Date.now().toString(36).toUpperCase().slice(-6)}`, createdAt: new Date().toISOString(), note, target: "agentix", recordId: activeRecordId ?? undefined, title: currentMissionTitle, brief: scenario.brief, ...target ? { packageId: target.packageId } : {} }
+		const packet: HandoffPacket = { packageVersion: workRef.current.package.version, id: `HP-${Date.now().toString(36).toUpperCase().slice(-6)}`, createdAt: new Date().toISOString(), note, target: target?.target ?? "agentix", recordId: activeRecordId ?? undefined, title: currentMissionTitle, brief: scenario.brief, decision, outputs: includedOutputs(excludedOutputs).map((position) => DELIVERABLES[position].name), ...target ? { packageId: target.packageId } : {} }
 		const included = includedOutputs(excludedOutputs)
-		const exceptions = excludedOutputs.filter((name) => REQUIRED_OUTPUTS.has(DELIVERABLES.findIndex((item) => item.name === name))).length
+		const exceptions = excludedOutputs.filter((name) => requiredOutputs(destination).has(DELIVERABLES.findIndex((item) => item.name === name))).length
 		const carried = [
 			"the mission decision",
 			`the ${countWord(included.length)} documents with their hashes`,
@@ -2379,7 +2384,9 @@ export function DiscoveryAutonomousPrototypePage({ embedded = false, active = tr
 		addMessage({
 			id: `handoff-${Date.now()}`,
 			actor: "max",
-			text: `I created handoff packet ${packet.id} from readiness snapshot v7, manifest v${workRef.current.package.manifestVersion} and approved package v${workRef.current.package.version}. ${destination} now has ${joinPhrases(carried)}${note ? `, with your note: “${note}”` : ""}.${target ? " It opens there as a proposal, and nothing runs until you activate it." : ""}`,
+			text: packet.target === "knowledge"
+				? `I created handoff packet ${packet.id} from readiness snapshot v7, manifest v${workRef.current.package.manifestVersion} and approved package v${workRef.current.package.version}, and sent its findings to Knowledge as suggestions${note ? `, with your note: “${note}”` : ""}. Each cites the passage it came from, and nothing is published until an Owner or Admin approves it.`
+				: `I created handoff packet ${packet.id} from readiness snapshot v7, manifest v${workRef.current.package.manifestVersion} and approved package v${workRef.current.package.version}. ${destination} now has ${joinPhrases(carried)}${note ? `, with your note: “${note}”` : ""}.${target ? " It opens there as a proposal, and nothing runs until you activate it." : ""}`,
 			trace: ["Froze the package into an immutable packet", "Verified every document hash against the manifest", onContinueToAgentix ? `Opened ${destination} from the packet` : `Queued the packet for ${destination}`],
 		})
 		if (!onContinueToAgentix) { setToast(`Sent to ${destination} as ${packet.id}`); return }
@@ -2413,7 +2420,7 @@ export function DiscoveryAutonomousPrototypePage({ embedded = false, active = tr
 	// What the rails list beside the owner's interview, decision and charter.
 	const extraNeeds: NeedsYouItem[] = [
 		...(interviewClosed && briefsWaiting && !handoff ? [{ id: "briefs", kind: "Approval" as const, title: `Review ${briefsWaiting} interview brief${briefsWaiting === 1 ? "" : "s"}`, detail: "Interviews open once their brief is approved", onOpen: () => { setBriefFocus(null); openDrawer("briefs") } }] : []),
-		...(complete && !handoff && !packageApproved(work.package) && !packageReturned ? [{ id: "package", kind: "Approval" as const, title: `Approve package v${work.package.version}`, detail: "Agentix can receive only an approved version", onOpen: () => { setView("package"); openApproval() } }] : []),
+		...(complete && !handoff && !packageApproved(work.package) && !packageReturned ? [{ id: "package", kind: "Approval" as const, title: `Approve package v${work.package.version}`, detail: `${destination} can receive only an approved version`, onOpen: () => { setView("package"); openApproval() } }] : []),
 		...(work.fault ? [{ id: "fault", kind: "Recovery" as const, title: work.fault.kind === "budget" ? "Raise the budget to resume" : `Reconnect ${work.fault.system}`, detail: work.fault.kind === "budget" ? `${work.fault.used} of ${work.fault.limit} ${work.fault.unit} used` : work.fault.source, onOpen: work.fault.kind === "budget" ? raiseBudgetLimit : reconnectSource }] : []),
 	]
 
@@ -2602,6 +2609,7 @@ export function DiscoveryAutonomousPrototypePage({ embedded = false, active = tr
 						onApproveCharter={() => requestCharterApproval(true)}
 						onConfirm={confirmHandoff} />
 					<PackageApproveDialog
+						destination={destination}
 						open={!!approval}
 						version={approval?.version ?? work.package.version}
 						manifestVersion={approval?.manifestVersion ?? work.package.manifestVersion}
@@ -2613,7 +2621,7 @@ export function DiscoveryAutonomousPrototypePage({ embedded = false, active = tr
 						onConfirm={confirmApproval}
 						onReviewCurrent={reviewCurrentPackage} />
 					<PackageReturnDialog open={returning !== null} version={returning ?? work.package.version} onClose={() => setReturning(null)} onConfirm={confirmReturn} />
-					<PackageWithdrawDialog open={withdrawing} review={work.package} onClose={() => setWithdrawing(false)} onConfirm={confirmWithdraw} />
+					<PackageWithdrawDialog open={withdrawing} review={work.package} destination={destination} onClose={() => setWithdrawing(false)} onConfirm={confirmWithdraw} />
 					<PackageRecordDialog open={recordOpen} review={work.package} documents={packageApproved(work.package) && work.package.bound ? work.package.bound : documentsNow()} onClose={() => setRecordOpen(false)} />
 					<CharterApprovalDialog
 						open={charterDialogOpen}
@@ -3098,6 +3106,7 @@ const REVENUE_TEMPLATE: DiscoveryTemplate = { name: "Revenue reconciliation", ca
 const SERVICENOW_TEMPLATE: DiscoveryTemplate = { name: "AP invoice exceptions", category: "Finance & IT", detail: "ServiceNow triage and approval authority", brief: SCENARIOS.servicenow.brief }
 const ORDERSYNC_TEMPLATE: DiscoveryTemplate = { name: "Salesforce–SAP order sync", category: "Finance & IT", detail: "Customer master and posting integrity", brief: SCENARIOS.ordersync.brief }
 const S4HANA_TEMPLATE: DiscoveryTemplate = { name: "S/4HANA conversion", category: "Finance & IT", detail: "Custom code disposition and readiness", brief: SCENARIOS.s4hana.brief }
+const CLOSEMAP_TEMPLATE: DiscoveryTemplate = { name: "Month-end close mapping", category: "Finance & IT", detail: "How the close actually runs, written down and owned", brief: SCENARIOS.closemap.brief }
 // The first four are the ones Create features and the first three fill the hub tray; the browser shows all.
 // The customer demo leads with its own template; everywhere else it sits with the other Finance & IT missions.
 const EVERYDAY_TEMPLATES: ReadonlyArray<DiscoveryTemplate> = [
@@ -3113,6 +3122,7 @@ const EVERYDAY_TEMPLATES: ReadonlyArray<DiscoveryTemplate> = [
 	SERVICENOW_TEMPLATE,
 	ORDERSYNC_TEMPLATE,
 	S4HANA_TEMPLATE,
+	CLOSEMAP_TEMPLATE,
 ]
 /* A customer demo leads with its own template; everywhere else the order is the everyday one. */
 const templates = () => {
@@ -3161,7 +3171,7 @@ function SetupScreen({
 	const [pickedConnections, setPickedConnections] = useState<string[]>(defaultPicked)
 	const setupDemo = demoSession()
 	// 05:68: the output set is chosen per mission. A customer demo also tells its story from the brief, case and charter.
-	const [selectedOutputs, setSelectedOutputs] = useState<string[]>(() => [...(setupDemo ? DEMO_OUTPUTS : DEFAULT_OUTPUTS)])
+	const [selectedOutputs, setSelectedOutputs] = useState<string[]>(() => [...(setupDemo ? demoScript(setupDemo.id).outputs ?? DEMO_OUTPUTS : DEFAULT_OUTPUTS)])
 	const [files, setFiles] = useState<EvidenceFile[]>([])
 	const addFiles = useUploads(setFiles, Boolean(useReducedMotion()))
 	const uploading = files.some(file => file.state === "uploading" || file.state === "processing")
@@ -3178,6 +3188,7 @@ function SetupScreen({
 	// Agentix again from zero; when there is an earlier one, the row says so beside the button.
 	const demo = demoSession()
 	const restartsAgentix = !!demo && !!scenario.handoff && route.score > 0 && savedScenarios.includes(route.key)
+	const restarted = scenario.handoff?.target === "knowledge" ? "starts the demo’s Knowledge library again from its seed" : "starts Agentix again from zero"
 	const demoNoteId = useId()
 	useEffect(() => {
 		// Focus the brief so typing can begin immediately — but never steal
@@ -3403,7 +3414,7 @@ function SetupScreen({
 
 							<div className="create-actions">
 								<DsButton onClick={backToBrief} disabled={intake === "committing"}><CaretLeft size={14} />Back</DsButton>
-								{restartsAgentix && demo ? <p id={demoNoteId} className="create-demo-note" role="note">Customer demo: creating this replaces the earlier {demoScript(demo.id).replacesLabel} Discovery and starts Agentix again from zero.</p> : null}
+								{restartsAgentix && demo ? <p id={demoNoteId} className="create-demo-note" role="note">Customer demo: creating this replaces the earlier {demoScript(demo.id).replacesLabel} Discovery and {restarted}.</p> : null}
 								{/* This row is pinned; in a short window the tick that unlocks Create scrolls out of sight, so
 								    the button has to say what it is waiting for rather than just sit there greyed out. */}
 								{!reviewed && draft.title.trim() && draft.decision.trim() ? <p className="create-blocker">Tick the authority review above</p> : uploading ? <p className="create-blocker">Documents are still processing</p> : null}
@@ -3782,6 +3793,14 @@ const DECISION_COPY: Record<ScenarioKey, { scope: string; detail: string; why: s
 		allow: "The workbooks restate 14 invoices at the next close, and every conversion is tested against the ledger.",
 		keep: "The $126.24 is recorded as a known reconciling item; the pipeline still matches the ledger.",
 		limitation: "The close workbooks keep invoice-date rates for now, and the $126.24 sample difference is a known reconciling item.",
+	},
+	closemap: {
+		scope: "MAX won’t choose which version is the procedure",
+		detail: "The written freeze and the day-4 practice are each consistent: the rule is approved, and the true-ups are regular and reviewed. Which one Northstar publishes is the Controller’s control decision, so MAX stopped at this branch.",
+		why: "The procedure freezes the ledger after day 3; the SAP log shows 118 intercompany true-ups posted on day 4 across twelve closes, $4,812,330.17 gross.",
+		allow: "Month-end close v5 and the freeze rule document a controlled day-4 window: true-ups post on day 4 with the Controller’s approval, and everything else stays frozen.",
+		keep: "The day-3 freeze stands as written, and the 118 day-4 true-ups are recorded as exceptions, with Group FP&A owning the gap.",
+		limitation: "The day-3 freeze stands as written, and the 118 day-4 true-ups are recorded as exceptions to it in the RAID register.",
 	},
 	enterprise: {
 		scope: "Controls stay fail-closed by default",
@@ -5220,7 +5239,11 @@ function MessageTrace({ steps }: { steps: string[] }) {
 const CHARTER_REASON_MIN = 20
 // Outputs a handoff cannot quietly lose: the three that carry the technical and process detail
 // Agentix needs (D-044). Switching one off is an owner exception that the packet carries to Agentix.
-const REQUIRED_OUTPUTS: ReadonlySet<number> = new Set(["Requirements specification", "Technical assessment", "Use case catalog"].map(name => DELIVERABLES.findIndex(item => item.name === name)))
+// A mapping that goes to Knowledge needs none of those; it needs the documents its suggestions
+// cite, because a suggestion whose document is switched off isn't sent.
+const AGENTIX_REQUIRED_OUTPUTS: ReadonlySet<number> = new Set(["Requirements specification", "Technical assessment", "Use case catalog"].map(name => DELIVERABLES.findIndex(item => item.name === name)))
+const KNOWLEDGE_REQUIRED_OUTPUTS: ReadonlySet<number> = new Set(KNOWLEDGE_CITED_DOCUMENTS.map(name => DELIVERABLES.findIndex(item => item.name === name)))
+const requiredOutputs = (destination: HandoffDestination): ReadonlySet<number> => destination === "Agentix" ? AGENTIX_REQUIRED_OUTPUTS : KNOWLEDGE_REQUIRED_OUTPUTS
 // Synthesis writes the documents in the order the package lists them, one step at a
 // time, and the last one lands inside the phase's window (1650ms).
 const GENERATION_PHASE = OPERATIONS.length - 2
@@ -5626,14 +5649,14 @@ function HandoffDialog({ open, scenarioKey, missionDecision, excluded, charterAp
 	const included = includedOutputs(excluded)
 	const blocked = (included.includes(CHARTER_DELIVERABLE_INDEX) && !charterApproval) || !packageApproved(review)
 	const charterWaiting = included.includes(CHARTER_DELIVERABLE_INDEX) && !charterApproval
-	const exceptions = DELIVERABLES.filter((item, position) => REQUIRED_OUTPUTS.has(position) && excluded.includes(item.name)).map((item) => item.name)
+	const exceptions = DELIVERABLES.filter((item, position) => requiredOutputs(destination).has(position) && excluded.includes(item.name)).map((item) => item.name)
 	return (
 		<Dialog
 			open={open}
 			size="lg"
 			onClose={onClose}
 			title={`Continue to ${destination}`}
-			description={scenario.handoff ? "Agentix receives one immutable packet and opens it as a proposal. Nothing runs until you activate it." : "Plan receives one immutable packet. Nothing in it can change after you continue."}
+			description={scenario.handoff?.target === "knowledge" ? "Knowledge receives one immutable packet and lists its findings as suggestions. Nothing is published until an Owner or Admin approves each one." : scenario.handoff ? "Agentix receives one immutable packet and opens it as a proposal. Nothing runs until you activate it." : "Plan receives one immutable packet. Nothing in it can change after you continue."}
 			footer={<>
 				<DsButton onClick={onClose}>Cancel</DsButton>
 				<DsButton variant="primary" disabled={blocked} onClick={() => onConfirm(note.trim())}>Continue to {destination}</DsButton>
@@ -5652,7 +5675,7 @@ function HandoffDialog({ open, scenarioKey, missionDecision, excluded, charterAp
 					</div>
 				) : null}
 				<div className="handoff-row"><span className="handoff-key">Mission decision</span><span>{missionDecision}</span></div>
-				{scenario.handoff ? <div className="handoff-row"><span className="handoff-key">Opens in Agentix</span><span>{scenario.handoff.opensAs}</span></div> : null}
+				{scenario.handoff ? <div className="handoff-row"><span className="handoff-key">Opens in {destination}</span><span>{scenario.handoff.opensAs}</span></div> : null}
 				<div className="handoff-row"><span className="handoff-key">Readiness</span><span>Snapshot v7 · frozen · {scenario.sources.length} sources · manifest v{review.manifestVersion}</span></div>
 				<div className="handoff-row"><span className="handoff-key">Approval</span><span>{packageApproved(review) ? `Package v${review.version}, approved by ${review.approvedBy}, ${formatPacketTime(review.approvedAt ?? "")}` : `Package v${review.version} isn’t approved`}</span></div>
 				<div className="handoff-row is-list">
@@ -5665,7 +5688,7 @@ function HandoffDialog({ open, scenarioKey, missionDecision, excluded, charterAp
 						})}
 					</ul>
 				</div>
-				{exceptions.length ? <div className="handoff-row"><span className="handoff-key">Exceptions</span><span>{joinPhrases(exceptions)} removed by you · recorded in the packet</span></div> : null}
+				{exceptions.length ? <div className="handoff-row"><span className="handoff-key">Exceptions</span><span>{joinPhrases(exceptions)} removed by you · recorded in the packet{destination === "Knowledge" ? `, and the suggestions that cite ${exceptions.length === 1 ? "it" : "them"} aren’t sent` : ""}</span></div> : null}
 				{charterWaiting ? null : <div className="handoff-row"><span className="handoff-key">Blockers</span><span>{packageApproved(review) ? "None" : "The package needs your approval"}</span></div>}
 			</div>
 			<div className="ds-field">
@@ -5693,7 +5716,7 @@ function ManifestSection({ manifest }: { manifest: ManifestControl }) {
 	const { excluded, frozenIn, destination, onChange } = manifest
 	const rise = useRiseIn()
 	const includedCount = DELIVERABLES.length - excluded.filter((name) => DELIVERABLES.some((item) => item.name === name)).length
-	const removedRequired = DELIVERABLES.filter((item, index) => REQUIRED_OUTPUTS.has(index) && excluded.includes(item.name))
+	const removedRequired = DELIVERABLES.filter((item, index) => requiredOutputs(destination).has(index) && excluded.includes(item.name))
 	const toggle = (name: string) => onChange(excluded.includes(name) ? excluded.filter((item) => item !== name) : [...excluded, name])
 	const status = frozenIn ? `Frozen in packet ${frozenIn}` : excluded.length ? "Adjusted by you" : "Auto-managed"
 	const removedCount = countWord(removedRequired.length)
@@ -5722,7 +5745,7 @@ function ManifestSection({ manifest }: { manifest: ManifestControl }) {
 							<label className={`manifest-row${on ? "" : " is-off"}${locked ? " is-locked" : ""}`}>
 								<Mark tone="neutral" seed={deliverable.name} size="sm" />
 								<span className="manifest-text">
-									<strong>{deliverable.name}{REQUIRED_OUTPUTS.has(index) ? <DsBadge>Required</DsBadge> : null}</strong>
+									<strong>{deliverable.name}{requiredOutputs(destination).has(index) ? <DsBadge>Required</DsBadge> : null}</strong>
 									<small>{deliverable.audience} · {deliverable.rationale}</small>
 								</span>
 								<input type="checkbox" role="switch" className="ds-switch" checked={on} disabled={locked} onChange={() => toggle(deliverable.name)} />

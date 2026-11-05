@@ -21,6 +21,7 @@ import {
 	reinstateItem,
 	rejectSuggestion,
 	resolveConflict,
+	revisedBy,
 	reviewCount,
 	saveItem,
 	SECRET_WARNING,
@@ -28,6 +29,7 @@ import {
 	SECTION_TAB,
 	SECTIONS,
 	showToEveryone,
+	suggestedVersion,
 	TITLE_LIMIT,
 	useKnowledge,
 	withdrawItem,
@@ -69,11 +71,20 @@ function StatusCell({ item }: { item: KnowledgeItem }) {
 	return <span className="ds-cell kn-cell-text">Published · v{item.version}</span>
 }
 
-export function KnowledgePage({ onCommand, onOpenAgentix, onOpenDiscoveryRecord }: { onCommand?: () => void; onOpenAgentix?: (intent: AgentixIntent) => void; onOpenDiscoveryRecord?: (recordId: string) => void }) {
+/* Asks the page to open one item's sheet; a new tick opens it again. */
+export type KnowledgeOpenSignal = { id: string; tick: number }
+
+export function KnowledgePage({ onCommand, onOpenAgentix, onOpenDiscoveryRecord, openSignal = null }: { onCommand?: () => void; onOpenAgentix?: (intent: AgentixIntent) => void; onOpenDiscoveryRecord?: (recordId: string) => void; openSignal?: KnowledgeOpenSignal | null }) {
 	const { items, conflicts } = useKnowledge()
 	const [filter, setFilter] = useState<Filter>("all")
 	const [query, setQuery] = useState("")
 	const [open, setOpen] = useState<Open>(null)
+	const opened = useRef<number | null>(null)
+	useEffect(() => {
+		if (!openSignal || opened.current === openSignal.tick) return
+		opened.current = openSignal.tick
+		if (items.some((item) => item.id === openSignal.id)) setOpen({ kind: "item", id: openSignal.id })
+	}, [openSignal, items])
 	const [editor, setEditor] = useState<Editor>(null)
 	const [message, setMessage] = useState("")
 	const library = items.filter((item) => item.state !== "suggested")
@@ -115,7 +126,7 @@ export function KnowledgePage({ onCommand, onOpenAgentix, onOpenDiscoveryRecord 
 						))}
 						{suggestions.map((item) => (
 							<div key={item.id} className="kn-waiting-row">
-								<span className="kn-waiting-main"><strong>{item.title}<Badge>Suggestion</Badge></strong><small>{SECTION_LABEL[item.section]} · {originLabel(item)}</small></span>
+								<span className="kn-waiting-main"><strong>{item.title}<Badge>{item.revises ? `Suggested v${suggestedVersion(item, items)}` : "Suggestion"}</Badge></strong><small>{SECTION_LABEL[item.section]} · {originLabel(item)}</small></span>
 								<Button size="xs" aria-label={`Review suggestion: ${item.title}`} onClick={() => setOpen({ kind: "item", id: item.id })}>Review</Button>
 							</div>
 						))}
@@ -181,9 +192,20 @@ function ItemSheet({ id, onClose, onOpenWork, onEdit, onAnnounce }: { id: string
 	const { fresh } = useFreshSignIn()
 	const [confirm, setConfirm] = useState<"withdraw" | "reject" | null>(null)
 	const [error, setError] = useState("")
+	const { conflicts } = useKnowledge()
 	const item = items.find((entry) => entry.id === id)
 	useEffect(() => { if (!item) onClose() }, [item, onClose])
 	if (!item) return null
+	// What a suggestion would publish is read from the item it revises now: its version may have moved since.
+	const revised = item.state === "suggested" ? revisedBy(item, items) : undefined
+	const next = revised ? revised.version + 1 : item.version
+	const settles = item.state === "suggested" ? conflicts.filter((conflict) => conflict.state === "open" && item.resolves?.includes(conflict.id)) : []
+	const approve = () => {
+		const result = approveSuggestion(item.id)
+		if (result.ok) finish(revised ? `${item.title} v${next} published.` : `${item.title} published.`)
+		else if (result.error === "essentials") setError(`Publishing it would take the essentials to ${result.projected.items} items and ${formatKb(result.projected.bytes)} KB, over the organization's ${ESSENTIALS_BUDGET.items} items and ${formatKb(ESSENTIALS_BUDGET.bytes)} KB. Make room in the essentials first; the suggestion is kept.`)
+		else setError("This suggestion is no longer waiting.")
+	}
 	const needsFresh = item.state === "suggested" || item.state === "withdrawn" || item.state === "draft" || item.visibility !== "everyone"
 	const finish = (text: string) => { onAnnounce(text); onClose() }
 	const publish = () => {
@@ -197,6 +219,15 @@ function ItemSheet({ id, onClose, onOpenWork, onEdit, onAnnounce }: { id: string
 				<section className="org-sheet-section">
 					<h3>{originLabel(item)}</h3>
 					<p>{item.origin?.kind === "member" ? `${item.origin.by} drafted this and submitted it for review ${item.origin.date.toLowerCase()}.` : item.origin ? `Cited source: ${item.origin.source}.` : null} It stays a suggestion until an Owner or Admin publishes it.</p>
+				</section>
+			) : null}
+
+			{revised ? (
+				<section className="org-sheet-section">
+					<h3>What changes from v{revised.version}</h3>
+					{item.changes?.length ? <ul className="kn-changes">{item.changes.map((change) => <li key={change}>{change}</li>)}</ul> : null}
+					<p className="kn-hint">Publishing makes this v{next} of {revised.title}{revised.state === "withdrawn" ? ", and brings it back from withdrawn" : ""}. Work already running keeps v{revised.version} pinned; new work reads v{next}.</p>
+					{settles.length ? <p className="kn-hint">It also settles the open conflict {settles.map((conflict) => `“${conflict.title}”`).join(" and ")}.</p> : null}
 				</section>
 			) : null}
 
@@ -217,7 +248,7 @@ function ItemSheet({ id, onClose, onOpenWork, onEdit, onAnnounce }: { id: string
 					<div><dt>Essentials</dt><dd>{item.essential ? "In every run's starting context" : "Looked up when relevant, and cited"}</dd></div>
 					<div><dt>Visibility</dt><dd>{item.visibility === "everyone" ? "Everyone in Northstar" : <>Only {item.visibility.join(", ")}. An agent uses it only for someone who may see it.</>}</dd></div>
 					<div><dt>Scope</dt><dd>{item.project ? `${item.project} project. Adds to the organization's items; it can't override a binding rule.` : "Organization. Every project inherits it."}</dd></div>
-					<div><dt>Effective</dt><dd>{item.effective} · version {item.version}{item.state === "draft" && item.revises ? " (draft of the next version)" : ""}</dd></div>
+					<div><dt>Effective</dt><dd>{item.effective} · version {next}{item.state === "draft" && item.revises ? " (draft of the next version)" : revised ? " (suggested next version)" : ""}</dd></div>
 				</dl>
 			</section>
 
@@ -254,7 +285,7 @@ function ItemSheet({ id, onClose, onOpenWork, onEdit, onAnnounce }: { id: string
 				{error ? <p className="kn-error" role="alert"><WarningCircle aria-hidden="true" />{error}</p> : null}
 				{item.state === "suggested" ? (
 					confirm === "reject" ? <RejectForm onCancel={() => setConfirm(null)} onReject={() => { rejectSuggestion(item.id); finish(`Suggestion rejected: ${item.title}.`) }} disabled={!fresh} />
-						: <div className="org-sheet-actions"><Button variant="primary" disabled={!fresh} onClick={() => { approveSuggestion(item.id); finish(`${item.title} published.`) }}>Approve and publish</Button><Button disabled={!fresh} onClick={() => setConfirm("reject")}>Reject</Button></div>
+						: <div className="org-sheet-actions"><Button variant="primary" disabled={!fresh} onClick={approve}>Approve and publish</Button><Button disabled={!fresh} onClick={() => setConfirm("reject")}>Reject</Button></div>
 				) : item.state === "draft" ? (
 					<div className="org-sheet-actions">
 						{item.kind === "binding" && !item.control ? <p className="kn-hint">It publishes as enforced once MAXION configures its platform control; until then it stays a draft.</p> : <Button variant="primary" disabled={!fresh} onClick={publish}>Publish</Button>}

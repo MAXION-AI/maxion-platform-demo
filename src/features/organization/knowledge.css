@@ -32,6 +32,8 @@
 .kn-link { display: inline-flex; align-items: center; gap: var(--ds-space-1); padding: 0; border: 0; background: none; color: var(--ds-fg); font-weight: var(--ds-weight-medium); text-decoration: underline; text-decoration-color: var(--ds-border-strong); text-underline-offset: var(--ds-underline-offset); cursor: pointer; }
 .kn-link svg { width: var(--ds-icon); height: var(--ds-icon); }
 .kn-hint { margin-top: var(--ds-space-2); color: var(--ds-fg-subtle); font-size: var(--ds-text-meta); line-height: var(--ds-lh-meta); }
+/* What a suggested next version changes: a short list read before approving it. */
+.kn-changes { display: grid; gap: var(--ds-space-1); margin: 0; padding-left: var(--ds-space-5); color: var(--ds-fg); font-size: var(--ds-text-sm); line-height: var(--ds-lh-sm); }
 .kn-versions { display: grid; margin: 0; padding: 0; list-style: none; }
 .kn-versions > li { display: grid; grid-template-columns: var(--ds-space-8) minmax(0, 1fr); gap: var(--ds-space-3); padding: var(--ds-space-2) 0; border-top: 1px solid var(--ds-border); color: var(--ds-fg); font-size: var(--ds-text-sm); line-height: var(--ds-lh-sm); }
 .kn-versions > li:last-child { border-bottom: 1px solid var(--ds-border); }
