@@ -3,7 +3,7 @@ import { CheckCircle, Globe, UploadSimple, Warning } from "@phosphor-icons/react
 
 import { Badge, Banner, Button, Dialog, Mark, TextButton } from "@/design/primitives"
 
-import { DELIVERABLES, type DeliverableBody } from "./model"
+import { DELIVERABLES, type DeliverableBody, type HandoffDestination } from "./model"
 import { structuredRowCount, type StructuredTable } from "./deliverables"
 import {
 	DEFAULT_OUTPUTS,
@@ -290,8 +290,10 @@ function BoundRows({ version, manifestVersion, documents }: { version: number; m
 	)
 }
 
-export function PackageApproveDialog({ open, version, manifestVersion, documents, charterBlocked, refusal, onApproveCharter, onClose, onConfirm, onReviewCurrent }: {
+export function PackageApproveDialog({ open, version, manifestVersion, documents, charterBlocked, refusal, destination = "Agentix", onApproveCharter, onClose, onConfirm, onReviewCurrent }: {
 	open: boolean
+	// Where the package goes once it is approved; approving sends it nowhere.
+	destination?: HandoffDestination
 	version: number
 	manifestVersion: number
 	documents: readonly BoundDocument[]
@@ -308,7 +310,7 @@ export function PackageApproveDialog({ open, version, manifestVersion, documents
 			size="lg"
 			onClose={onClose}
 			title={`Approve package v${version}`}
-			description="You approve exactly the versions below, and your name and the time go on the record. Approving doesn’t activate anything in Agentix and sends nothing."
+			description={`You approve exactly the versions below, and your name and the time go on the record. Approving doesn’t ${destination === "Knowledge" ? "publish anything in Knowledge" : "activate anything in Agentix"} and sends nothing.`}
 			footer={refusal ? <>
 				<Button onClick={onClose}>Close</Button>
 				<Button variant="primary" data-autofocus onClick={onReviewCurrent}>Review v{refusal.current}</Button>
@@ -360,7 +362,7 @@ export function PackageReturnDialog({ open, version, onClose, onConfirm }: { ope
 	)
 }
 
-export function PackageWithdrawDialog({ open, review, onClose, onConfirm }: { open: boolean; review: PackageReview; onClose: () => void; onConfirm: (reason: string) => void }) {
+export function PackageWithdrawDialog({ open, review, destination = "Agentix", onClose, onConfirm }: { open: boolean; review: PackageReview; destination?: HandoffDestination; onClose: () => void; onConfirm: (reason: string) => void }) {
 	const [reason, setReason] = useState("")
 	useEffect(() => { if (open) setReason("") }, [open])
 	return (
@@ -368,7 +370,7 @@ export function PackageWithdrawDialog({ open, review, onClose, onConfirm }: { op
 			open={open}
 			onClose={onClose}
 			title={`Withdraw approval of package v${review.approvedVersion ?? review.version}`}
-			description="Continue to Agentix stops being available for this version until someone approves it again. What was approved stays in the history."
+			description={`Continue to ${destination} stops being available for this version until someone approves it again. What was approved stays in the history.`}
 			footer={<>
 				<Button onClick={onClose}>Cancel</Button>
 				<Button variant="primary" onClick={() => onConfirm(reason.trim())}>Withdraw approval</Button>

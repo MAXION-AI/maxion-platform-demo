@@ -33,7 +33,7 @@ The complete autonomous Discovery experience is also available directly at [http
 
 ## Customer demos
 
-Each demo runs one story end to end, from a new Discovery to an Agentix agent team that builds, releases and runs the work. They share one harness, so each starts clean in a new tab, keeps your place on reload, never touches the everyday prototype, and keeps its own storage — you can run two of them in two tabs at once.
+Each demo runs one story end to end. Four go from a new Discovery to an Agentix agent team that builds, releases and runs the work; the close-mapping demo goes from a Discovery to the Knowledge library instead. They share one harness, so each starts clean in a new tab, keeps your place on reload, never touches the everyday prototype, and keeps its own storage — you can run two of them in two tabs at once.
 
 MAX interviews the owner inside the Discovery; every other stakeholder receives a link of their own. `/stakeholder-interview?demo=<id>` is the page at the end of that link, so a presenter can show a stakeholder's side of the same Discovery. It opens in its own window and never touches the demo's saved state.
 
@@ -76,6 +76,16 @@ Halden Group's ECC to S/4HANA conversion, and the one a system integrator recogn
 - Presenter guide for a second screen: [http://127.0.0.1:4317/demo-guide?demo=s4hana](http://127.0.0.1:4317/demo-guide?demo=s4hana)
 
 Agentix has no conversion engagement until the Discovery hands its package over, and each new conversion Discovery starts it again from zero. The talk track, scripted answers and figures are in the [presenter runbook](docs/demo-s4hana-conversion.md).
+
+### Month-end close mapping (Knowledge)
+
+Northstar's month-end close, mapped the way it actually runs: 25 steps against the 11 the procedure names, 118 intercompany true-ups posted after the day-3 freeze, and a US elimination only one person can run. This demo builds nothing. The approved package goes to Knowledge as eight suggestions, and the Controller publishes them one by one.
+
+- Full demo: [http://127.0.0.1:4317/maxion-prototype?demo=close-map](http://127.0.0.1:4317/maxion-prototype?demo=close-map)
+- From the finished Discovery package: [http://127.0.0.1:4317/maxion-prototype?demo=close-map&start=package](http://127.0.0.1:4317/maxion-prototype?demo=close-map&start=package)
+- Presenter guide for a second screen: [http://127.0.0.1:4317/demo-guide?demo=close-map](http://127.0.0.1:4317/demo-guide?demo=close-map)
+
+The demo keeps its own copy of the Knowledge library, so approvals never reach the everyday prototype, and each new close-mapping Discovery starts that library again from its seed. The package selects the plan's first-release documents with the Use case catalog as the process map, and every suggestion cites the section of the approved version it came from. The talk track, scripted answers and figures are in the [presenter runbook](docs/demo-knowledge-mapping.md); what changed and why is in [docs/changes/2026-11-05-close-map](docs/changes/2026-11-05-close-map/README.md).
 
 ## Voice and the team floor
 

@@ -1,5 +1,5 @@
 import { SCENARIOS } from "@/features/discovery-autonomous/model"
-import type { DemoScript } from "./types"
+import type { AgentixDemoScript } from "./types"
 
 /*
  * Salesforce–SAP order sync: the third customer demo. A VP of revenue operations asks MAXION to
@@ -11,12 +11,13 @@ import type { DemoScript } from "./types"
  * threshold, a posting rule that forbids duplicates, and a production release authority nobody
  * owns yet (which becomes the proposal's first question).
  */
-export const SALESFORCE_SAP_SCRIPT: DemoScript = {
+export const SALESFORCE_SAP_SCRIPT: AgentixDemoScript = {
 	id: "salesforce-sap",
 	label: "Salesforce–SAP order sync",
 	name: "Salesforce–SAP order sync",
 	kicker: "Salesforce–SAP order sync",
 	templateName: "Salesforce–SAP order sync",
+	ending: "agentix",
 	scenarioKey: "ordersync",
 	packageId: "pkg_order_sync_v2",
 	engagementId: "orders",

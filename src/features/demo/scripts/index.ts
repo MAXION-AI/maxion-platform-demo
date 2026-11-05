@@ -1,12 +1,14 @@
+import { CLOSE_MAP_SCRIPT } from "./closeMap"
 import { REVENUE_SCRIPT } from "./revenue"
 import { S4HANA_SCRIPT } from "./s4hana"
 import { SALESFORCE_SAP_SCRIPT } from "./salesforceSap"
 import { SERVICENOW_SCRIPT } from "./servicenow"
+import type { WorkflowId } from "@/features/agentix/prototype/initiatives"
 import { SCENARIOS } from "@/features/discovery-autonomous/model"
 import type { DemoId, DemoScript } from "./types"
 
-export type { CallLine, DemoId, DemoScript, DemoStepCopy, DemoStepId, StakeholderCall } from "./types"
-export { DEMO_STEP_ORDER } from "./types"
+export type { AgentixDemoScript, AgentixStepId, CallLine, DemoId, DemoScript, DemoStepCopy, DemoStepId, DiscoveryStepId, KnowledgeDemoScript, KnowledgeStepId, StakeholderCall } from "./types"
+export { DEMO_STEP_ORDER, KNOWLEDGE_STEP_ORDER, stepOrder } from "./types"
 
 /*
  * Every customer demo the product can present. The address picks one (`?demo=<id>`); everything
@@ -18,6 +20,7 @@ export const DEMO_SCRIPTS: Record<DemoId, DemoScript> = {
 	servicenow: SERVICENOW_SCRIPT,
 	"salesforce-sap": SALESFORCE_SAP_SCRIPT,
 	s4hana: S4HANA_SCRIPT,
+	"close-map": CLOSE_MAP_SCRIPT,
 }
 
 export const DEMO_IDS = Object.keys(DEMO_SCRIPTS) as DemoId[]
@@ -37,6 +40,9 @@ for (const script of Object.values(DEMO_SCRIPTS)) {
 		if (!people.includes(id)) throw new Error(`Demo script "${script.id}" calls "${id}", who isn't in its Discovery`)
 	}
 }
+
+/* The Agentix engagement a demo creates; a demo that ends in Knowledge creates none. */
+export const demoEngagement = (id: DemoId): WorkflowId | undefined => { const script = DEMO_SCRIPTS[id]; return script.ending === "agentix" ? script.engagementId : undefined }
 
 /* The demo whose Discovery this is, when one is running for it. */
 export const scriptForScenario = (scenarioKey: string, id: DemoId | undefined) => id && DEMO_SCRIPTS[id]?.scenarioKey === scenarioKey ? DEMO_SCRIPTS[id] : undefined

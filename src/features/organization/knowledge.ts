@@ -1,4 +1,5 @@
 import { useSyncExternalStore } from "react"
+import { DEMO_KEYS, DEMO_SAVE_EVENT, demoActive, moduleStorage, notifyDemoChange, storageKey } from "@/features/demo/session"
 
 /*
  * Organization knowledge (D-088, the EVD-4 plan): the curated layer of what agents need to know
@@ -7,7 +8,9 @@ import { useSyncExternalStore } from "react"
  * published version is attributed and pinned by the work that used it, so an edit applies to new
  * work only. Knowledge informs agents; it never grants a permission, a tool or an approval, so a
  * rule that must never be broken is also a platform control, and the item links to it.
- * In memory for the tab, like the organization store; nothing reaches a provider.
+ * In memory for the tab, like the organization store; nothing reaches a provider. A customer demo
+ * keeps its own copy in the demo's storage instead, so a reload keeps what the presenter approved
+ * and the presenter guide can follow it, and the everyday library is never touched.
  */
 
 export type KnowledgeSection = "profile" | "rules" | "compliance" | "procedures" | "brand" | "glossary"
@@ -47,8 +50,12 @@ export type KnowledgeItem = {
 	uses: KnowledgeUse[]
 	files?: Array<{ name: string; detail: string }>
 	origin?: KnowledgeOrigin
-	// A draft of the next version of a published item.
+	// A draft or suggestion of the next version of a published item.
 	revises?: string
+	// What a suggested next version changes, in the suggester's words, shown before anyone approves it.
+	changes?: string[]
+	// Open conflicts a suggestion settles once it is published, such as a procedure it corrects.
+	resolves?: string[]
 	updated: string
 	updatedBy: string
 }
@@ -203,25 +210,72 @@ const initialConflicts = (): KnowledgeConflict[] => [
 	},
 ]
 
-type KnowledgeState = { items: KnowledgeItem[]; conflicts: KnowledgeConflict[] }
+export type KnowledgeState = {
+	items: KnowledgeItem[]
+	conflicts: KnowledgeConflict[]
+	// Discovery packets already turned into suggestions, so opening a packet again adds nothing.
+	received: string[]
+	// What an Owner or Admin decided about each suggestion, by its id; the demo's progress reads it.
+	decided: Record<string, "approved" | "rejected">
+}
 
-let state: KnowledgeState = { items: initialItems(), conflicts: initialConflicts() }
+const freshState = (): KnowledgeState => ({ items: initialItems(), conflicts: initialConflicts(), received: [], decided: {} })
+
+/* A saved demo library is used only when it has the shape this build writes; anything else starts from the seed. */
+export function validKnowledgeState(value: unknown): value is KnowledgeState {
+	const candidate = value as Partial<KnowledgeState> | null
+	return !!candidate && typeof candidate === "object" && Array.isArray(candidate.items) && Array.isArray(candidate.conflicts)
+		&& Array.isArray(candidate.received) && !!candidate.decided && typeof candidate.decided === "object"
+}
+function savedDemoState(): KnowledgeState | null {
+	if (!demoActive()) return null
+	try {
+		const raw = JSON.parse(moduleStorage()?.getItem(storageKey(DEMO_KEYS.knowledge)) ?? "null") as unknown
+		return validKnowledgeState(raw) ? raw : null
+	} catch { return null }
+}
+function persist() {
+	if (!demoActive()) return
+	try { moduleStorage()?.setItem(storageKey(DEMO_KEYS.knowledge), JSON.stringify(current())) } catch { /* the demo still runs; a reload starts the library again */ }
+	notifyDemoChange()
+}
+
+// Read on first use rather than at import, so the demo session is resolved by the page that runs it.
+let loaded: KnowledgeState | null = null
 const listeners = new Set<() => void>()
 let sequence = 0
+const current = (): KnowledgeState => {
+	if (!loaded) {
+		loaded = savedDemoState() ?? freshState()
+		// Taking the demo back into this tab saves what it shows, like the demo's other modules.
+		if (typeof window !== "undefined" && demoActive()) window.addEventListener(DEMO_SAVE_EVENT, persist)
+	}
+	return loaded
+}
+/*
+ * The next new item's id. A demo's saved library outlives this counter across a reload, so the
+ * number also clears every id already in the library.
+ */
+const nextItemId = () => {
+	const used = current().items.reduce((highest, item) => Math.max(highest, Number(/^k-new-(\d+)$/.exec(item.id)?.[1] ?? 0)), 0)
+	sequence = Math.max(sequence, used) + 1
+	return `k-new-${sequence}`
+}
 const emit = () => { for (const listener of listeners) listener() }
-const update = (next: Partial<KnowledgeState>) => { state = { ...state, ...next }; emit() }
+const update = (next: Partial<KnowledgeState>) => { loaded = { ...current(), ...next }; persist(); emit() }
 const subscribe = (listener: () => void) => { listeners.add(listener); return () => { listeners.delete(listener) } }
 
 export function useKnowledge(): KnowledgeState {
-	return useSyncExternalStore(subscribe, () => state, () => state)
+	return useSyncExternalStore(subscribe, current, current)
 }
-export const readKnowledge = () => state
-export function resetKnowledgeStore() { state = { items: initialItems(), conflicts: initialConflicts() }; sequence = 0; emit() }
+export const readKnowledge = () => current()
+/* Back to the seeded library. A new close-mapping Discovery in the demo does this, so every run starts the same. */
+export function resetKnowledgeStore() { loaded = freshState(); sequence = 0; persist(); emit() }
 
 // ── Budget and guards ───────────────────────────────────────────────────────────────────────
 
 export const itemBytes = (item: Pick<KnowledgeItem, "title" | "body">) => new TextEncoder().encode(`${item.title}\n${item.body}`).length
-export const essentialsUse = (items = state.items) => {
+export const essentialsUse = (items = readKnowledge().items) => {
 	const essentials = items.filter((item) => item.essential && item.state === "published" && !item.project)
 	return { items: essentials.length, bytes: essentials.reduce((sum, item) => sum + itemBytes(item), 0) }
 }
@@ -230,7 +284,7 @@ export const formatKb = (bytes: number) => bytes % 1000 === 0 ? String(bytes / 1
 const SECRET = /sk-[A-Za-z0-9_-]{6,}|AKIA[0-9A-Z]{8,}|-----BEGIN|ghp_[A-Za-z0-9]{12,}|xox[bp]-[A-Za-z0-9-]{8,}/
 export const looksLikeSecret = (...values: string[]) => values.some((value) => SECRET.test(value))
 
-export const reviewCount = (current = state) => current.items.filter((item) => item.state === "suggested").length + current.conflicts.filter((conflict) => conflict.state === "open").length
+export const reviewCount = (current = readKnowledge()) => current.items.filter((item) => item.state === "suggested").length + current.conflicts.filter((conflict) => conflict.state === "open").length
 
 // ── Saving ──────────────────────────────────────────────────────────────────────────────────
 
@@ -260,67 +314,145 @@ export function saveItem(draft: KnowledgeDraft, mode: "publish" | "draft", revis
 	if (looksLikeSecret(title, body)) return { ok: false, error: "secret" }
 	if (!title || title.length > TITLE_LIMIT) return { ok: false, error: "title" }
 	if (!body || new TextEncoder().encode(body).length > CONTENT_LIMIT) return { ok: false, error: "content" }
-	const original = revises ? state.items.find((item) => item.id === revises) : undefined
+	const original = revises ? current().items.find((item) => item.id === revises) : undefined
 	// Saving over a draft replaces that draft in place; publishing it lands on the item it revises, if any.
 	const editingDraft = original?.state === "draft" ? original : undefined
-	const target = editingDraft ? (editingDraft.revises ? state.items.find((item) => item.id === editingDraft.revises) : undefined) : original
+	const target = editingDraft ? (editingDraft.revises ? current().items.find((item) => item.id === editingDraft.revises) : undefined) : original
 	const withoutDraft = (items: KnowledgeItem[]) => editingDraft ? items.filter((item) => item.id !== editingDraft.id) : items
 	const essential = draft.essential && ESSENTIAL_SECTIONS.includes(draft.section)
 	const binding = draft.section === "rules" && draft.kind === "binding"
 	const control = target?.control ?? original?.control
 	const publish = mode === "publish" && (!binding || Boolean(control))
 	const base: KnowledgeItem = {
-		id: editingDraft?.id ?? `k-new-${++sequence}`, section: draft.section, title, body, kind: draft.section === "rules" ? draft.kind : "guidance",
+		id: editingDraft?.id ?? nextItemId(), section: draft.section, title, body, kind: draft.section === "rules" ? draft.kind : "guidance",
 		essential, visibility: draft.visibility, effective: "Today", state: publish ? "published" : "draft",
 		version: target ? target.version + 1 : 1, versions: [], uses: [], files: draft.file ? [draft.file] : original?.files,
 		control, project: target?.project ?? original?.project, revises: publish ? undefined : target?.id, updated: "Just now", updatedBy: "Root Admin",
 	}
 	if (publish && essential) {
-		const others = state.items.filter((item) => item.id !== target?.id && item.id !== editingDraft?.id)
+		const others = current().items.filter((item) => item.id !== target?.id && item.id !== editingDraft?.id)
 		const projected = essentialsUse([...others, base])
 		if (projected.items > ESSENTIALS_BUDGET.items || projected.bytes > ESSENTIALS_BUDGET.bytes) {
 			// Over budget: keep the work as a draft without essentials, under the same id, so its sheet can say why.
 			const kept = { ...base, essential: false, state: "draft" as const, revises: target?.id }
-			update({ items: editingDraft ? state.items.map((item) => item.id === editingDraft.id ? kept : item) : [kept, ...state.items] })
+			update({ items: editingDraft ? current().items.map((item) => item.id === editingDraft.id ? kept : item) : [kept, ...current().items] })
 			return { ok: false, error: "essentials", id: kept.id, projected }
 		}
 	}
 	if (publish && target) {
 		const next: KnowledgeItem = { ...target, title, body, essential, visibility: draft.visibility, files: base.files, version: base.version, state: "published", effective: "Today", updated: "Just now", updatedBy: "Root Admin", versions: [v(base.version, "Root Admin", "Today", "Edited and published."), ...target.versions] }
-		update({ items: withoutDraft(state.items).map((item) => item.id === target.id ? next : item) })
+		update({ items: withoutDraft(current().items).map((item) => item.id === target.id ? next : item) })
 		return { ok: true, id: target.id, state: "published" }
 	}
 	const item = publish ? { ...base, versions: [v(base.version, "Root Admin", "Today", "First version.")] } : base
-	update({ items: editingDraft ? state.items.map((existing) => existing.id === editingDraft.id ? item : existing) : [item, ...state.items] })
+	update({ items: editingDraft ? current().items.map((existing) => existing.id === editingDraft.id ? item : existing) : [item, ...current().items] })
 	return { ok: true, id: item.id, state: item.state }
 }
 
 /* Publishing a draft goes through the same checks as publishing from the editor. */
 export function publishDraft(id: string): SaveResult {
-	const draft = state.items.find((item) => item.id === id)
+	const draft = current().items.find((item) => item.id === id)
 	if (!draft || draft.state !== "draft") return { ok: false, error: "content" }
 	return saveItem({ section: draft.section, title: draft.title, body: draft.body, kind: draft.kind, essential: draft.essential, visibility: draft.visibility, file: draft.files?.[0] }, "publish", draft.id)
 }
 
-export function discardDraft(id: string) { update({ items: state.items.filter((item) => item.id !== id || item.state !== "draft") }) }
+export function discardDraft(id: string) { update({ items: current().items.filter((item) => item.id !== id || item.state !== "draft") }) }
 
 /* New work stops using a withdrawn item; work already started keeps its pinned version. */
-export function withdrawItem(id: string) { update({ items: state.items.map((item) => item.id === id ? { ...item, state: "withdrawn", essential: false, updated: "Just now", updatedBy: "Root Admin" } : item) }) }
-export function reinstateItem(id: string) { update({ items: state.items.map((item) => item.id === id ? { ...item, state: "published", updated: "Just now", updatedBy: "Root Admin" } : item) }) }
-export function showToEveryone(id: string) { update({ items: state.items.map((item) => item.id === id ? { ...item, visibility: "everyone", updated: "Just now", updatedBy: "Root Admin" } : item) }) }
+export function withdrawItem(id: string) { update({ items: current().items.map((item) => item.id === id ? { ...item, state: "withdrawn", essential: false, updated: "Just now", updatedBy: "Root Admin" } : item) }) }
+export function reinstateItem(id: string) { update({ items: current().items.map((item) => item.id === id ? { ...item, state: "published", updated: "Just now", updatedBy: "Root Admin" } : item) }) }
+export function showToEveryone(id: string) { update({ items: current().items.map((item) => item.id === id ? { ...item, visibility: "everyone", updated: "Just now", updatedBy: "Root Admin" } : item) }) }
 
-export function approveSuggestion(id: string) {
-	update({ items: state.items.map((item) => item.id === id && item.state === "suggested" ? { ...item, state: "published", effective: "Today", updated: "Just now", updatedBy: "Root Admin", versions: [v(1, item.origin?.kind === "member" ? item.origin.by : "Discovery", "Today", "Approved from a suggestion.", "Root Admin")] } : item) })
+/*
+ * Publishing a suggestion. A suggested next version lands on the item it revises, as that item's
+ * next version, and goes through the essentials budget like any edit; anything else publishes as a
+ * new item. A suggestion that corrects a procedure settles the conflicts it names.
+ */
+/*
+ * The item a suggested next version revises, published or withdrawn. Its version can move after
+ * the suggestion arrives (a correction, an edit), so what a suggestion would publish is always
+ * read from it now, never from the number the suggestion arrived with.
+ */
+export const revisedBy = (item: Pick<KnowledgeItem, "revises">, items: readonly KnowledgeItem[]) =>
+	item.revises ? items.find((entry) => entry.id === item.revises && (entry.state === "published" || entry.state === "withdrawn")) : undefined
+export const suggestedVersion = (item: Pick<KnowledgeItem, "revises">, items: readonly KnowledgeItem[]) => {
+	const original = revisedBy(item, items)
+	return original ? original.version + 1 : 1
+}
+
+export function approveSuggestion(id: string): SaveResult {
+	const { items, conflicts, decided } = current()
+	const item = items.find((entry) => entry.id === id && entry.state === "suggested")
+	if (!item) return { ok: false, error: "content" }
+	const author = item.origin?.kind === "member" ? item.origin.by : item.origin?.kind === "agentix" ? "Agentix" : "Discovery"
+	const settled = conflicts.map((conflict) => item.resolves?.includes(conflict.id) && conflict.state === "open" ? { ...conflict, state: "resolved" as const } : conflict)
+	// A withdrawn original comes back as its next version, rather than a second item with its name.
+	const original = revisedBy(item, items)
+	if (original) {
+		const version = original.version + 1
+		const next: KnowledgeItem = { ...original, title: item.title, body: item.body, visibility: item.visibility, version, state: "published", effective: "Today", updated: "Just now", updatedBy: "Root Admin", versions: [v(version, author, "Today", "Approved from a suggestion.", "Root Admin"), ...original.versions] }
+		if (next.essential) {
+			const projected = essentialsUse([...items.filter((entry) => entry.id !== original.id && entry.id !== item.id), next])
+			if (projected.items > ESSENTIALS_BUDGET.items || projected.bytes > ESSENTIALS_BUDGET.bytes) return { ok: false, error: "essentials", id: item.id, projected }
+		}
+		update({ items: items.filter((entry) => entry.id !== item.id).map((entry) => entry.id === original.id ? next : entry), conflicts: settled, decided: { ...decided, [id]: "approved" } })
+		return { ok: true, id: original.id, state: "published" }
+	}
+	// A new item starts at version 1 and outside the essentials; an editor chooses what goes in them.
+	const published: KnowledgeItem = { ...item, state: "published", version: 1, essential: false, revises: undefined, changes: undefined, effective: "Today", updated: "Just now", updatedBy: "Root Admin", versions: [v(1, author, "Today", "Approved from a suggestion.", "Root Admin")] }
+	update({ items: items.map((entry) => entry.id === id ? published : entry), conflicts: settled, decided: { ...decided, [id]: "approved" } })
+	return { ok: true, id, state: "published" }
 }
 export function rejectSuggestion(id: string) {
-	update({ items: state.items.filter((item) => item.id !== id || item.state !== "suggested") })
+	const { items, decided } = current()
+	if (!items.some((item) => item.id === id && item.state === "suggested")) return
+	update({ items: items.filter((item) => item.id !== id || item.state !== "suggested"), decided: { ...decided, [id]: "rejected" } })
+}
+
+/*
+ * Where in the approved package a suggestion comes from: one document and one of its sections, by
+ * the heading the reader shows. `via` names the evidence behind that passage when it matters to
+ * the reader, such as the interview a procedure was written down from. A suggestion never cites
+ * an interview or a decision on its own: those reach Knowledge through the version a person approved.
+ */
+export type KnowledgeCitation = { document: string; section: string; via?: string }
+
+/* What a Discovery package suggests for the library: one item, and the passage it cites. */
+export type KnowledgeSuggestion = Pick<KnowledgeItem, "id" | "section" | "title" | "body"> & Partial<Pick<KnowledgeItem, "visibility" | "revises" | "changes" | "resolves">> & { cites: KnowledgeCitation }
+
+/* "Use case catalog, package v1 · UC-02: US entity close and elimination, from Hannah Brooks’ interview" */
+export const citationLabel = (cites: KnowledgeCitation, version: number) => `${cites.document}, package v${version} · ${cites.section}${cites.via ? `, ${cites.via}` : ""}`
+
+/*
+ * A Discovery packet's suggestions arrive here as drafts that wait for an Owner or Admin (doc 22):
+ * nothing a Discovery learns is published by sending it. Each cites the approved package version
+ * the packet carries. A packet is received once; opening it again adds nothing. Returns how many
+ * suggestions it added.
+ */
+export function suggestFromDiscovery(packet: { id: string; work: string; recordId: string; version?: number }, suggestions: readonly KnowledgeSuggestion[]): number {
+	const { items, received } = current()
+	if (received.includes(packet.id)) return 0
+	const fresh = suggestions.filter((suggestion) => !items.some((item) => item.id === suggestion.id))
+	const added = fresh.map((suggestion): KnowledgeItem => {
+		const original = suggestion.revises ? items.find((item) => item.id === suggestion.revises) : undefined
+		return {
+			id: suggestion.id, section: suggestion.section, title: suggestion.title, body: suggestion.body,
+			kind: original?.kind ?? "guidance", control: original?.control, essential: original?.essential ?? false, visibility: suggestion.visibility ?? original?.visibility ?? "everyone",
+			effective: "Today", state: "suggested", version: original ? original.version + 1 : 1, versions: [], uses: [],
+			revises: suggestion.revises, changes: suggestion.changes, resolves: suggestion.resolves,
+			origin: { kind: "discovery", work: packet.work, target: packet.recordId, source: citationLabel(suggestion.cites, packet.version ?? 1), date: "Today" },
+			updated: "Just now", updatedBy: "Discovery",
+		}
+	})
+	update({ items: [...added, ...items], received: [...received, packet.id] })
+	return added.length
 }
 
 /* A correction publishes the next version of the procedure so it points at the binding rule. */
 export function resolveConflict(id: string, resolution: "correction" | ConflictDismissal) {
-	const conflict = state.conflicts.find((item) => item.id === id)
+	const conflict = current().conflicts.find((item) => item.id === id)
 	if (!conflict || conflict.state !== "open") return
-	let items = state.items
+	let items = current().items
 	if (resolution === "correction") {
 		items = items.map((item) => item.id === "k-close" ? {
 			...item,
@@ -329,5 +461,5 @@ export function resolveConflict(id: string, resolution: "correction" | ConflictD
 			versions: [v(item.version + 1, "Root Admin", "Today", "Points at the binding approval rule instead of repeating its amount."), ...item.versions],
 		} : item)
 	}
-	update({ items, conflicts: state.conflicts.map((item) => item.id === id ? { ...item, state: resolution === "correction" ? "resolved" : "dismissed" } : item) })
+	update({ items, conflicts: current().conflicts.map((item) => item.id === id ? { ...item, state: resolution === "correction" ? "resolved" : "dismissed" } : item) })
 }

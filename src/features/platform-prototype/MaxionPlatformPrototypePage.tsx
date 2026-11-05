@@ -79,7 +79,9 @@ import {
 	ProjectsModule,
 } from "./PortalReplicaModules"
 import { IntegrationsPage } from "@/features/organization/IntegrationsPage"
-import { KnowledgePage, useKnowledgeReviewCount } from "@/features/organization/KnowledgePage"
+import { packageSuggestions, sentWith } from "@/features/organization/discoverySuggestions"
+import { suggestFromDiscovery } from "@/features/organization/knowledge"
+import { KnowledgePage, useKnowledgeReviewCount, type KnowledgeOpenSignal } from "@/features/organization/KnowledgePage"
 import { SettingsPage } from "@/features/organization/SettingsPage"
 import { SHELL_SECTION_EVENT, useOrganization } from "@/features/organization/store"
 import {
@@ -975,7 +977,8 @@ function buildShellCommandItems(context: ShellCommandContext): ShellCommandItem[
 		// A handed-off record opens where its packet went, as Discovery's own Open in Agentix does.
 		if (record.handoff) {
 			const packet = record.handoff
-			items.push({ id: `discovery-agentix-${record.id}`, group: "Discover", label: `Open in Agentix · ${record.title}`, hint: `Packet ${packet.id} · operating package`, keywords: `discovery agentix handoff packet ${packet.id} ${record.keywords}`, glyph: "agentix", run: () => context.openPlanPacket(packet) })
+			if (packet.target === "knowledge") items.push({ id: `discovery-knowledge-${record.id}`, group: "Discover", label: `Open in Knowledge · ${record.title}`, hint: `Packet ${packet.id} · suggestions`, keywords: `discovery knowledge handoff packet suggestions ${packet.id} ${record.keywords}`, glyph: "knowledge", run: () => context.openPlanPacket(packet) })
+			else items.push({ id: `discovery-agentix-${record.id}`, group: "Discover", label: `Open in Agentix · ${record.title}`, hint: `Packet ${packet.id} · operating package`, keywords: `discovery agentix handoff packet ${packet.id} ${record.keywords}`, glyph: "agentix", run: () => context.openPlanPacket(packet) })
 		}
 		if (record.status === "completed") items.push({ id: `discovery-package-${record.id}`, group: "Discover", label: `Open package · ${record.title}`, hint: "Deliverables and routing", keywords: `discovery package deliverables outputs ${record.keywords}`, icon: FileText, run: () => context.openDiscoveryRecord(record.id, "package") })
 	}
@@ -1131,6 +1134,7 @@ export function MaxionPlatformPrototypePage() {
 	// A negative tick is never reused by nextJumpTick, so the demo's opening jump can't shadow a later one.
 	const [discoveryOpen, setDiscoveryOpen] = useState<DiscoveryOpenSignal | null>(() => demo?.start === "package" && script ? { tick: -1, recordId: demoRecordId(script), jump: "package" } : null)
 	const [agentixIntent, setAgentixIntent] = useState<AgentixIntentSignal | null>(null)
+	const [knowledgeOpen, setKnowledgeOpen] = useState<KnowledgeOpenSignal | null>(null)
 	// The Dashboard's "New project" action lands on Projects with its create dialog open.
 	const [projectCreateSignal, setProjectCreateSignal] = useState(0)
 	const jumpTickRef = useRef(0)
@@ -1282,9 +1286,23 @@ export function MaxionPlatformPrototypePage() {
 	// Entering Agentix closes any design page, so Discover reopens on its hub afterwards.
 	const openAgentix = (intent: AgentixIntent) => { setOperationalDiscovery(null); setAgentixIntent({ tick: nextJumpTick(), intent }); navigate("agentix") }
 	const openOperationalDiscovery = (id: WorkflowId, origin?: AgentixOrigin) => { navigate("discovery"); setOperationalDiscovery({ id, origin: origin ?? null }) }
+	/*
+	 * A mapping package goes to Knowledge as suggestions an Owner or Admin publishes one by one. The
+	 * library receives a packet once; opening it again (Open in Knowledge, the command menu) only
+	 * opens the library.
+	 */
+	const sendToKnowledge = (packet: HandoffPacket) => {
+		// A suggestion whose cited document was switched off isn't in the approved package, so it isn't sent.
+		const suggestions = sentWith(packageSuggestions(packet.packageId, packet.decision) ?? [], packet.outputs)
+		const added = suggestFromDiscovery({ id: packet.id, work: packet.title ?? "Discovery package", recordId: packet.recordId ?? "", version: packet.packageVersion }, suggestions)
+		navigate("knowledge")
+		if (added) setShellToast({ key: `knowledge-${packet.id}`, text: `${added} suggestion${added === 1 ? "" : "s"} from ${packet.title ?? "the Discovery"} are waiting for your review`, module: "knowledge" })
+	}
+	const openKnowledgeItem = (id?: string) => { if (id) setKnowledgeOpen({ id, tick: nextJumpTick() }); navigate("knowledge") }
 	// An operating package goes to Agentix, which receives it once and opens its review; asking again
 	// (Open in Agentix, the command menu) opens the same review or the engagement it became.
 	const sendToAgentix = (packet: HandoffPacket) => {
+		if (packet.target === "knowledge") { sendToKnowledge(packet); return true }
 		const discovery = { recordId: packet.recordId ?? "", packetId: packet.id, title: packet.title ?? "Discovery package" }
 		// A package Agentix already knows opens its review; a Discovery without one opens the
 		// engagement setup, prefilled from its brief. Either way the packet reaches Agentix.
@@ -1308,8 +1326,14 @@ export function MaxionPlatformPrototypePage() {
 		else if (action.kind === "call") { navigate("discovery"); startDemoCall(action.recordId) }
 		else if (action.kind === "discovery") openDiscoveryRecord(action.recordId, action.jump)
 		else if (action.kind === "review" && record?.handoff?.target === "agentix") openPlanPacket({ ...record.handoff, target: "agentix", note: record.handoff.note ?? "" })
+		// A packet the record holds but Knowledge never received (a reload right after Continue) is sent
+		// now; Knowledge receives a packet once, so sending it again only opens the library.
+		else if (action.kind === "knowledge") {
+			if (record?.handoff?.target === "knowledge") sendToKnowledge({ ...record.handoff, target: "knowledge", note: record.handoff.note ?? "" })
+			openKnowledgeItem(action.item)
+		}
 		// Beats 7-12 emit { kind: "engagement" }: open the engagement this demo actually created.
-		else if (script) openAgentix({ type: "workflow", id: script.engagementId })
+		else if (script?.ending === "agentix") openAgentix({ type: "workflow", id: script.engagementId })
 	}
 	// Saved discoveries and Agentix engagements live in localStorage, so the registry reads
 	// them when the menu opens.
@@ -1375,7 +1399,7 @@ export function MaxionPlatformPrototypePage() {
 				<div className={stageClass("agentix")} hidden={activeModule !== "agentix"}><AgentixInitiativesPage intentSignal={agentixIntent} onAttentionChange={reportAgentixAttention} onOpenDiscovery={openOperationalDiscovery} onOpenDiscoveryRecord={(recordId) => openDiscoveryRecord(recordId, "package")} active={activeModule === "agentix"} /></div>
 				<div className={stageClass("settings")} hidden={activeModule !== "settings"}><SettingsPage onCommand={() => setCommandOpen(true)} onNavigate={navigate} /></div>
 				<div className={stageClass("integrations")} hidden={activeModule !== "integrations"}><IntegrationsPage active={activeModule === "integrations"} onCommand={() => setCommandOpen(true)} /></div>
-				<div className={stageClass("knowledge")} hidden={activeModule !== "knowledge"}><KnowledgePage onCommand={() => setCommandOpen(true)} onOpenAgentix={openAgentix} onOpenDiscoveryRecord={(recordId) => openDiscoveryRecord(recordId, "resume")} /></div>
+				<div className={stageClass("knowledge")} hidden={activeModule !== "knowledge"}><KnowledgePage onCommand={() => setCommandOpen(true)} onOpenAgentix={openAgentix} onOpenDiscoveryRecord={(recordId) => openDiscoveryRecord(recordId, "resume")} openSignal={knowledgeOpen} /></div>
 				{(["approvals", "usage", "help"] as const).map((module) => <div key={module} className={stageClass(module)} hidden={activeModule !== module}><AccountUtilityModule module={module} onNavigate={navigate} onCommand={() => setCommandOpen(true)} approvals={pendingApprovalCases} discoveryApprovals={discoveryApprovals} onOpenAgentix={openAgentix} onOpenDiscoveryRecord={openDiscoveryRecord} /></div>)}
 			</div>
 			)}

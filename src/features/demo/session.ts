@@ -30,7 +30,8 @@ export type DemoAddress = { id: DemoId; start: DemoStart }
 /* `/demo` without an id is the revenue demo, the first one the product shipped. */
 export const DEFAULT_DEMO: DemoId = "revenue"
 
-export const DEMO_KEYS = { discovery: "maxion.prototype.discovery-records.v1", agentix: "maxion-agentix-operations-v4" } as const
+/* The modules a demo keeps its own copy of. Knowledge is saved only in a demo; everyday it lives in memory. */
+export const DEMO_KEYS = { discovery: "maxion.prototype.discovery-records.v1", agentix: "maxion-agentix-operations-v4", knowledge: "maxion.organization.knowledge.v1" } as const
 /* Each demo's own copy of a module's storage, and its own ownership and presenter channel. */
 const suffixFor = (id: DemoId) => `::demo-${id}`
 // Tab-scoped: which start this tab's demo was prepared with, when, and the tab's own token.

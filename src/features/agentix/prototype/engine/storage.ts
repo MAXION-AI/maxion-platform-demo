@@ -2,7 +2,7 @@ import type { WorkflowId } from "../initiatives"
 import { EPOCH, LIMITS, log, newItem, openDecision, templateOf } from "./engine"
 import { SCENARIOS, SCENARIO_ORDER, WORKFLOW_IDS } from "./scenarios"
 import { demoInitialState, initialState, seedEngagement } from "./seed"
-import { demoScript } from "@/features/demo/scripts"
+import { demoEngagement } from "@/features/demo/scripts"
 import { demoSession, moduleStorage, storageKey } from "@/features/demo/session"
 import type { AgentixState, Engagement, FilePublication, Message, WorkItem, WorkStatus } from "./types"
 
@@ -209,7 +209,7 @@ export function readState(storage: Pick<Storage, "getItem"> | undefined = module
 	} catch {
 		// Unreadable storage falls back to the fresh demo; nothing is overwritten until the next save.
 	}
-	return demo ? demoInitialState(demo.startedAt, demoScript(demo.id).engagementId) : initialState()
+	return demo ? demoInitialState(demo.startedAt, demoEngagement(demo.id)) : initialState()
 }
 
 /* Throws when storage is unavailable or full, so the caller can say that changes won't survive a refresh. */

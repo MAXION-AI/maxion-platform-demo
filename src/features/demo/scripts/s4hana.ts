@@ -1,5 +1,5 @@
 import { SCENARIOS } from "@/features/discovery-autonomous/model"
-import type { DemoScript } from "./types"
+import type { AgentixDemoScript } from "./types"
 
 /*
  * S/4HANA conversion: the fourth customer demo, and the one a system integrator recognises. An IT
@@ -12,12 +12,13 @@ import type { DemoScript } from "./types"
  * behaviour exceptions, a nightly readiness gate, and a production transport authority nobody owns
  * yet (which becomes the proposal's first question).
  */
-export const S4HANA_SCRIPT: DemoScript = {
+export const S4HANA_SCRIPT: AgentixDemoScript = {
 	id: "s4hana",
 	label: "S/4HANA conversion",
 	name: "S/4HANA conversion",
 	kicker: "S/4HANA conversion",
 	templateName: "S/4HANA conversion",
+	ending: "agentix",
 	scenarioKey: "s4hana",
 	packageId: "pkg_s4_conversion_v2",
 	engagementId: "conversion",

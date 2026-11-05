@@ -1,5 +1,5 @@
 import { SCENARIOS } from "@/features/discovery-autonomous/model"
-import type { DemoScript } from "./types"
+import type { AgentixDemoScript } from "./types"
 
 /*
  * Revenue reconciliation: the first customer demo. A finance owner asks MAXION to reconcile
@@ -10,12 +10,13 @@ import type { DemoScript } from "./types"
  * posting-date exchange rates, and a release authority nobody owns yet (which becomes the
  * proposal's first question).
  */
-export const REVENUE_SCRIPT: DemoScript = {
+export const REVENUE_SCRIPT: AgentixDemoScript = {
 	id: "revenue",
 	label: "Revenue reconciliation",
 	name: "Revenue reconciliation",
 	kicker: "revenue reconciliation",
 	templateName: "Revenue reconciliation",
+	ending: "agentix",
 	scenarioKey: "revenue",
 	packageId: "pkg_revenue_v2",
 	engagementId: "invoice",

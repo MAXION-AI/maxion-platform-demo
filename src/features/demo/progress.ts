@@ -1,16 +1,20 @@
 import { validState } from "@/features/agentix/prototype/engine/storage"
 import type { AgentixState } from "@/features/agentix/prototype/engine/types"
-import { DEMO_STEP_ORDER, type DemoScript, type DemoStepId } from "./scripts"
+import { packageSuggestions } from "@/features/organization/discoverySuggestions"
+import { validKnowledgeState, type KnowledgeState } from "@/features/organization/knowledge"
+import { DEMO_STEP_ORDER, KNOWLEDGE_STEP_ORDER, type AgentixDemoScript, type AgentixStepId, type DemoScript, type DemoStepCopy, type DemoStepId, type DiscoveryStepId, type KnowledgeDemoScript, type KnowledgeStepId } from "./scripts"
 import { DEMO_KEYS, demoKey } from "./session"
 
 /*
  * Where the presenter is in a customer demo, read from what the demo itself saved: its
- * Discovery record and its Agentix state. The in-app dock and the second-screen guide both
- * read it this way, so they never disagree, and neither needs the page's React state.
+ * Discovery record, its Agentix state and its Knowledge library. The in-app dock and the
+ * second-screen guide both read it this way, so they never disagree, and neither needs the
+ * page's React state.
  *
- * Every demo tells the same fourteen-beat story against the same engine, so this reader is one
- * implementation: the script says which Discovery, which package, which engagement and which
- * decision variant to look for.
+ * Every demo opens with the same seven Discovery beats; an Agentix demo then tells the same
+ * fourteen-beat story against the same engine, and a Knowledge demo its eleven against the same
+ * library. So this reader is one implementation per ending: the script says which Discovery,
+ * which package, and which engagement or suggestions to look for.
  */
 
 const FINAL_PHASE = 7
@@ -35,7 +39,7 @@ export type DemoDiscovery = {
 	updatedAt: string
 }
 
-export type DemoSnapshot = { discovery: DemoDiscovery | null; agentix: AgentixState | null }
+export type DemoSnapshot = { discovery: DemoDiscovery | null; agentix: AgentixState | null; knowledge: KnowledgeState | null }
 
 const parse = (raw: string | null): unknown => { try { return raw ? JSON.parse(raw) : null } catch { return null } }
 
@@ -50,9 +54,14 @@ function demoRecord(raw: unknown, scenarioKey: string): DemoDiscovery | null {
 
 /* Reads a demo's saved state wherever it runs: the demo tab, or the presenter's guide window. */
 export function readDemoSnapshot(script: DemoScript, storage: Pick<Storage, "getItem"> | null = safeStorage()): DemoSnapshot {
-	if (!storage) return { discovery: null, agentix: null }
+	if (!storage) return { discovery: null, agentix: null, knowledge: null }
 	const agentix = parse(storage.getItem(demoKey(DEMO_KEYS.agentix, script.id)))
-	return { discovery: demoRecord(parse(storage.getItem(demoKey(DEMO_KEYS.discovery, script.id))), script.scenarioKey), agentix: validState(agentix) ? agentix : null }
+	const knowledge = parse(storage.getItem(demoKey(DEMO_KEYS.knowledge, script.id)))
+	return {
+		discovery: demoRecord(parse(storage.getItem(demoKey(DEMO_KEYS.discovery, script.id))), script.scenarioKey),
+		agentix: validState(agentix) ? agentix : null,
+		knowledge: validKnowledgeState(knowledge) ? knowledge : null,
+	}
 }
 function safeStorage(): Storage | null { try { return window.localStorage } catch { return null } }
 
@@ -63,6 +72,8 @@ export type DemoAction =
 	| { kind: "discovery"; recordId: string; jump: "resume" | "decision" | "package" | "autonomy" | "briefs" | "package-approval" }
 	| { kind: "review" }
 	| { kind: "engagement" }
+	// Opens Knowledge, on one suggestion's sheet when the beat is about it.
+	| { kind: "knowledge"; item?: string }
 
 export type DemoStep = {
 	id: DemoStepId
@@ -80,7 +91,7 @@ export type DemoStep = {
 	status: "done" | "current" | "upcoming"
 }
 
-export const demoStepCopy = (script: DemoScript, id: DemoStepId) => script.steps[id]
+export const demoStepCopy = (script: DemoScript, id: DemoStepId): DemoStepCopy | undefined => (script.steps as Partial<Record<DemoStepId, DemoStepCopy>>)[id]
 
 /* MAX is still composing its reply to the answer just sent; the saved question number moves only when it replies. */
 export const awaitingReply = (discovery: DemoDiscovery | null) => Array.isArray(discovery?.messages) && discovery.messages.at(-1)?.actor === "user"
@@ -95,7 +106,7 @@ export function nextAnswer(script: DemoScript, discovery: DemoDiscovery | null) 
  * What Agentix has actually done, in the terms the fourteen beats need. Every demo's engagement is
  * built from the same three artifacts and three milestones, so only the names come from the script.
  */
-function agentixFacts(script: DemoScript, state: AgentixState | null) {
+function agentixFacts(script: AgentixDemoScript, state: AgentixState | null) {
 	const engagementId = script.engagementId
 	const engagement = state?.engagements[engagementId]
 	const activated = !!engagement?.packages.includes(script.packageId)
@@ -123,12 +134,9 @@ function agentixFacts(script: DemoScript, state: AgentixState | null) {
 const CHARTER_NAME = "Project charter and governance"
 const briefsWaiting = (discovery: DemoDiscovery | null) => discovery?.work?.briefs?.filter(brief => brief.status === "draft").length ?? 0
 
-/* Every step with its status; exactly one is current until the story is told. */
-export function demoSteps(script: DemoScript, snapshot: DemoSnapshot): { steps: DemoStep[]; current: number } {
-	const discovery = snapshot.discovery
-	const facts = agentixFacts(script, snapshot.agentix)
-	const handedOff = !!discovery?.handoff || facts.inReview || facts.activated
-	const done: Record<DemoStepId, boolean> = {
+/* The seven Discovery beats every demo opens with. Once the package has gone, all of them are done. */
+function discoveryDone(discovery: DemoDiscovery | null, handedOff: boolean): Record<DiscoveryStepId, boolean> {
+	return {
 		start: !!discovery || handedOff,
 		interview: !!discovery?.interviewClosed || handedOff,
 		// The briefs are done once none waits; interviews can't open before that.
@@ -139,6 +147,31 @@ export function demoSteps(script: DemoScript, snapshot: DemoSnapshot): { steps: 
 		// Only the record saying "approved" ends this step: nothing here assumes it.
 		approve: discovery?.work?.package?.status === "approved" || handedOff,
 		handoff: handedOff,
+	}
+}
+
+type Live = Pick<DemoStep, "detail" | "action" | "secondary">
+
+/* Every step with its status; exactly one is current until the story is told. */
+function walk<Id extends DemoStepId>(order: readonly Id[], done: Record<Id, boolean>, copy: Record<Id, DemoStepCopy>, live: (id: Id) => Live): { steps: DemoStep[]; current: number } {
+	const current = order.findIndex(id => !done[id])
+	const steps = order.map((id, index): DemoStep => {
+		const status = index < current ? "done" : index === current ? "current" : "upcoming"
+		return { id, ...copy[id], status, ...status === "current" ? live(id) : {} }
+	})
+	return { steps, current }
+}
+
+export function demoSteps(script: DemoScript, snapshot: DemoSnapshot): { steps: DemoStep[]; current: number } {
+	return script.ending === "knowledge" ? knowledgeSteps(script, snapshot) : agentixSteps(script, snapshot)
+}
+
+function agentixSteps(script: AgentixDemoScript, snapshot: DemoSnapshot) {
+	const discovery = snapshot.discovery
+	const facts = agentixFacts(script, snapshot.agentix)
+	const handedOff = !!discovery?.handoff || facts.inReview || facts.activated
+	const done: Record<AgentixStepId, boolean> = {
+		...discoveryDone(discovery, handedOff),
 		proposal: facts.activated,
 		mapping: facts.ruleDecided,
 		pipeline: facts.repaired,
@@ -148,16 +181,78 @@ export function demoSteps(script: DemoScript, snapshot: DemoSnapshot): { steps: 
 		cycle: facts.cycled,
 		close: false,
 	}
-	const current = DEMO_STEP_ORDER.findIndex(id => !done[id])
-	const steps = DEMO_STEP_ORDER.map((id, index): DemoStep => {
-		const status = index < current ? "done" : index === current ? "current" : "upcoming"
-		return { id, ...script.steps[id], status, ...status === "current" ? live(script, id, discovery, facts) : {} }
+	return walk(DEMO_STEP_ORDER, done, script.steps, id => live(script, id, discovery, facts))
+}
+
+/*
+ * What the presenter has done in Knowledge, in the terms the eleven beats need: whether the
+ * package's suggestions arrived, and which of them an Owner or Admin has decided. A rejection is a
+ * decision too, as either answer is at an Agentix demo's decision, so it ends its beat rather than
+ * leaving the story waiting on a suggestion that is gone; the last beat says what was rejected.
+ */
+function knowledgeFacts(script: KnowledgeDemoScript, state: KnowledgeState | null) {
+	const suggestions = packageSuggestions(script.packageId, undefined) ?? []
+	const ids = suggestions.map(suggestion => suggestion.id)
+	const decided = state?.decided ?? {}
+	const arrived = !!state && ids.some(id => id in decided || state.items.some(item => item.id === id))
+	const told = [script.suggestions.procedure, script.suggestions.restricted]
+	return {
+		arrived,
+		reviewed: ids.some(id => id in decided),
+		waiting: state ? ids.filter(id => state.items.some(item => item.id === id && item.state === "suggested")).length : 0,
+		procedure: script.suggestions.procedure in decided,
+		restricted: script.suggestions.restricted in decided,
+		rejected: suggestions.filter(suggestion => told.includes(suggestion.id) && decided[suggestion.id] === "rejected").map(suggestion => suggestion.title),
+	}
+}
+
+function knowledgeSteps(script: KnowledgeDemoScript, snapshot: DemoSnapshot) {
+	const discovery = snapshot.discovery
+	const facts = knowledgeFacts(script, snapshot.knowledge)
+	const handedOff = !!discovery?.handoff || facts.arrived
+	const done: Record<KnowledgeStepId, boolean> = {
+		...discoveryDone(discovery, handedOff),
+		suggestions: facts.reviewed,
+		procedure: facts.procedure,
+		restricted: facts.restricted,
+		close: false,
+	}
+	const waiting = facts.waiting ? `${facts.waiting} suggestion${facts.waiting === 1 ? "" : "s"} waiting in Knowledge.` : undefined
+	return walk(KNOWLEDGE_STEP_ORDER, done, script.steps, (id): Live => {
+		switch (id) {
+			case "suggestions": return { detail: waiting, action: { label: "Open Knowledge", run: { kind: "knowledge" } } }
+			case "procedure": return { detail: waiting, action: { label: "Open the procedure", run: { kind: "knowledge", item: script.suggestions.procedure } } }
+			case "restricted": return { detail: waiting, action: { label: "Open the restricted procedure", run: { kind: "knowledge", item: script.suggestions.restricted } } }
+			case "close": {
+				const rejected = facts.rejected.length ? `You rejected ${facts.rejected.join(" and ")}; restart from the finished package to show ${facts.rejected.length === 1 ? "it" : "them"} published.` : undefined
+				return { detail: [waiting, rejected].filter(Boolean).join(" ") || undefined, action: { label: "Open Knowledge", run: { kind: "knowledge" } } }
+			}
+			default: return discoveryLive(script, id, discovery)
+		}
 	})
-	return { steps, current }
 }
 
 // The live detail and next action for the step the presenter is on.
-function live(script: DemoScript, id: DemoStepId, discovery: DemoDiscovery | null, facts: ReturnType<typeof agentixFacts>): Pick<DemoStep, "detail" | "action" | "secondary"> {
+function live(script: AgentixDemoScript, id: AgentixStepId, discovery: DemoDiscovery | null, facts: ReturnType<typeof agentixFacts>): Live {
+	switch (id) {
+		case "proposal": {
+			// What still stands between the proposal and activation, in the order the page asks for it.
+			const open = 2 - facts.answered
+			const detail = !facts.inReview ? undefined : open > 0 ? `${open === 1 ? "One question" : "Two questions"} to answer.` : facts.checking ? "The read-only check is running." : !facts.checked ? "Run the read-only check next." : "Ready to activate."
+			return { detail, action: { label: "Open the proposal", run: { kind: "review" } } }
+		}
+		case "mapping":
+		case "pipeline": return { action: { label: "Open the engagement", run: { kind: "engagement" } } }
+		case "release": return { detail: facts.uncertain ? "Outcome unknown. Open MS-2 and choose Investigate." : undefined, action: { label: "Open the engagement", run: { kind: "engagement" } } }
+		case "dashboard": return { detail: facts.published ? `Published under ${script.publishPolicy}.` : "MS-3 is building and testing the dashboard.", action: { label: "Open the engagement", run: { kind: "engagement" } } }
+		case "cycle": return { detail: facts.cycleRunning ? "The cycle is running" : undefined, action: { label: "Open the engagement", run: { kind: "engagement" } } }
+		case "close": return { action: { label: "Open the engagement", run: { kind: "engagement" } } }
+		default: return discoveryLive(script, id, discovery)
+	}
+}
+
+// The seven Discovery beats read the same in every demo, whatever happens to the package next.
+function discoveryLive(script: DemoScript, id: DiscoveryStepId, discovery: DemoDiscovery | null): Live {
 	const record = discovery?.id
 	switch (id) {
 		case "start": return { action: { label: "Open Discover", run: { kind: "discover" } } }
@@ -188,17 +283,6 @@ function live(script: DemoScript, id: DemoStepId, discovery: DemoDiscovery | nul
 			return record ? { detail: review?.status === "returned" ? `Package v${version} is back with MAX; a new version is coming.` : review?.status === "withdrawn" ? `The approval of package v${version} was withdrawn.` : `Package v${version} is waiting for your approval.`, action: { label: "Open the approval", run: { kind: "discovery", recordId: record, jump: "package-approval" } } } : {}
 		}
 		case "handoff": return record ? { detail: `Package v${discovery?.work?.package?.version ?? 1} approved.`, action: { label: "Open Package", run: { kind: "discovery", recordId: record, jump: "package" } } } : {}
-		case "proposal": {
-			// What still stands between the proposal and activation, in the order the page asks for it.
-			const open = 2 - facts.answered
-			const detail = !facts.inReview ? undefined : open > 0 ? `${open === 1 ? "One question" : "Two questions"} to answer.` : facts.checking ? "The read-only check is running." : !facts.checked ? "Run the read-only check next." : "Ready to activate."
-			return { detail, action: { label: "Open the proposal", run: { kind: "review" } } }
-		}
-		case "mapping":
-		case "pipeline": return { action: { label: "Open the engagement", run: { kind: "engagement" } } }
-		case "release": return { detail: facts.uncertain ? "Outcome unknown. Open MS-2 and choose Investigate." : undefined, action: { label: "Open the engagement", run: { kind: "engagement" } } }
-		case "dashboard": return { detail: facts.published ? `Published under ${script.publishPolicy}.` : "MS-3 is building and testing the dashboard.", action: { label: "Open the engagement", run: { kind: "engagement" } } }
-		case "cycle": return { detail: facts.cycleRunning ? "The cycle is running" : undefined, action: { label: "Open the engagement", run: { kind: "engagement" } } }
-		default: return { action: { label: "Open the engagement", run: { kind: "engagement" } } }
+		default: return {}
 	}
 }

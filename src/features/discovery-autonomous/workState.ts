@@ -337,6 +337,11 @@ const WEB_CANDIDATES: Record<ScenarioKey, WebCandidate[]> = {
 		{ title: "Salesforce Help", url: "https://help.salesforce.com/", finding: "Provider documentation for order objects and integration limits." },
 		{ title: "Customer master ownership patterns (example)", url: "https://architecture.example.com/customer-master-ownership", finding: "One mastering system is the usual pattern; which one is a policy decision." },
 	],
+	closemap: [
+		{ title: "SAP Help Portal: SAP S/4HANA", url: "https://help.sap.com/docs/SAP_S4HANA_ON-PREMISE", finding: "Provider documentation for posting periods and the journal fields the systems map names." },
+		{ title: "QuickBooks Online help", url: "https://quickbooks.intuit.com/learn-support/", finding: "Provider documentation for closing the books in the US entity’s ledger." },
+		{ title: "Close calendar field notes (example)", url: "https://field-notes.example.com/month-end-close-calendars", finding: "Controlled post-review windows for intercompany are common, so this is a control choice, not an error." },
+	],
 	s4hana: [
 		{ title: "SAP Help Portal: SAP S/4HANA", url: "https://help.sap.com/docs/SAP_S4HANA_ON-PREMISE", finding: "Provider documentation for conversion and the simplification items it names." },
 		{ title: "Custom code retirement field notes (example)", url: "https://field-notes.example.com/s4-custom-code-retirement", finding: "Usage-based retirement is the common first cut of a custom estate." },
