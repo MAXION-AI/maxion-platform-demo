@@ -1,15 +1,15 @@
 {
-  "sourceCommit": "5dbf968b5574ebd6d4e096469cd98e7685121b13",
+  "sourceCommit": "48be301af43e86cd0eaf28615dd26372b0b654bd",
   "sourceBranch": "main",
   "builtLocally": true,
-  "javascript": "assets/index-CleiZ-9P.js",
-  "stylesheet": "assets/index-BfPqdzOg.css",
+  "javascript": "assets/index-BR8BnRIl.js",
+  "stylesheet": "assets/index-DlJXOr0C.css",
   "lazyChunks": [
-    "assets/AdminPanelPage-BA0lyH9S.js",
+    "assets/AdminPanelPage-CIQdSBto.js",
     "assets/AdminPanelPage-LfOB3HHT.css"
   ],
-  "previousSourceCommit": "aa568b56ee267b17270296d6d623cab4337c7ef5",
-  "previousPagesCommit": "ba9306c",
+  "previousSourceCommit": "5dbf968b5574ebd6d4e096469cd98e7685121b13",
+  "previousPagesCommit": "83cd758",
   "deploymentMethod": "locally built with GITHUB_PAGES=true; the preceding release's hashed assets retained for CDN propagation",
   "contains": [
     "revenue",
@@ -33,6 +33,10 @@
     "scope-switcher",
     "discovery-gates",
     "agentix-case-states",
-    "type-san-francisco"
+    "type-san-francisco",
+    "close-map",
+    "knowledge-suggestions",
+    "use-case-catalog-process-map",
+    "reader-metrics-fit"
   ]
 }
